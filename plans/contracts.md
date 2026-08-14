@@ -996,9 +996,57 @@ decision freeze.
 | Image / video domain split | Separate capability vocabularies; undeclared caps never offered | 6.1 |
 | Optional image dependency | Storyboard optional; text_to_video without image node; full_video i2v unchanged | 6.2 |
 | Review provider domain | Uses standard result envelope + ReviewIssue | 7.3 |
-| V2 project import | Map niche presets → Channels; keep output/ layout | 10.1 / 1.3 |
+| V2 project import | Map niche presets → Channels; keep output/ layout; single migration module | 10.1 / 1.3 |
 | Indexed storage for runs/queue/jobs | Performance only; no schema meaning change | 10.2 |
 | Crash recovery / reconciliation | Startup scan of executions + jobs | 10.3 |
+
+---
+
+## 14.1 V2 import mapping (step 10.1)
+
+**Owner module:** `scriptase/migration/v2.py` — the single documented place for
+provider-domain renames, settings-shape aliases, and V2 import orchestration.
+Runtime alias tables stay next to their consumers (`providers.domains`,
+`providers.compatibility`) and are re-exported here so callers never invent a
+second map.
+
+### Mapping table
+
+| V2 source | Scriptase target | Mechanism |
+|---|---|---|
+| Domain block keys `scene_blueprint` / `storyboard` / `animator` | `scene_director` / `image` / `video` | settings migration **v5** |
+| `selected_provider` + `per_provider` | `selected_instance_id` + `instances` | settings migration **v6** |
+| Plaintext credentials under known secret keys | `{"$secret": "<ref>"}` | settings migration **v7** |
+| Selection wire aliases (`webhook`, `grok`, `kie-ai`, `gemini` on image, …) | canonical provider ids | `normalize_selection_alias` |
+| Node config v1 `engine` / `provider` (+ gated fields) | `provider_id` + `provider_options` | node `type_version` hops M1–M3 |
+| Niche presets (`_data/niche_presets.json`) | starter Channels | step 1.3 `seed_starter_channels` |
+| `output/{tts,scenes,animator,storyboard,…}/` | unchanged | layout kept V2-compatible |
+| Node type keys / port ids / port types | unchanged | graph contract |
+
+### Import surfaces
+
+| Surface | API / entry | Notes |
+|---|---|---|
+| Settings document | `migrate_settings_document` / `import_settings` / `POST /api/migration/v2/settings` | Rewrites to `SETTINGS_VERSION`; loopback only |
+| Workflow document | `migrate_workflow_document` / `import_workflow` / `POST /api/workflows/import` | Migrates then validates; persists canonical form |
+| Editor project ZIP | `import_project_from_zip` / `export_project` / compose ZIP routes | Round-trip without manual edits |
+| Project tree | `import_project_tree` | Copies V2-compatible dirs as-is |
+| V2 installation root | `import_v2_root` / `POST /api/migration/v2/root` | settings + workflows + projects + channel seed |
+
+### Rules
+
+1. After import, persisted settings use only **canonical** domain keys and the
+   post-3.1 instance shape. Retired spellings remain runtime **input** aliases.
+2. After import, saved workflows validate at current `type_version` with no
+   manual edits. `POST /api/workflows/import` always migrates first.
+3. Project media paths are not rewritten — package renames never rename on-disk
+   module directories.
+4. Secrets extracted on settings import never appear in API responses, exports,
+   or workflow documents.
+5. Migration endpoints are **loopback-only**.
+
+**Done criterion:** a V2 project imports and re-exports without manual edits,
+and its saved workflows validate and run.
 
 ---
 

@@ -183,10 +183,11 @@ DOMAIN_IDS: frozenset[str] = frozenset(DOMAINS)
 # V2 domain spellings, retired in step 0.2 when the packages were renamed. These
 # are *input* aliases only: nothing serializes them back out, exactly as a
 # provider manifest alias never becomes a canonical id (contracts.md §40.3).
-# They exist so an imported V2 `settings.json`, a workflow saved before the
+# They exist so a pre-migration V2 `settings.json`, a workflow saved before the
 # rename, and an API caller written against the old wire value all keep
-# resolving. Phase 10.1 rewrites persisted documents; until then this map is
-# what makes those documents readable.
+# resolving. Step 10.1 (`scriptase.migration.v2`) rewrites persisted documents
+# through settings migration v5 so stored blocks use the canonical keys; this
+# map remains the runtime input alias for un-migrated callers.
 DOMAIN_ALIASES: dict[str, str] = {
     "scene_blueprint": "scene_director",
     "storyboard": "image",

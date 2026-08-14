@@ -297,6 +297,13 @@ def delete_workflow(workflow_id: str, *, expected_updated_at: str | None = None)
 
 
 def import_workflow(document: dict, *, on_conflict: str = "new_id") -> tuple[dict, str | None]:
+    """Import a workflow document, applying ``type_version`` migrations first.
+
+    Step 10.1: V2 (and older) saved workflows still carry v1 node configs
+    (``engine`` / ``provider``). Those fail validation against the current
+    schema, so migration runs before create. Already-current documents pass
+    through unchanged.
+    """
     original_id = document.get("workflow_id") if isinstance(document, dict) else None
     if on_conflict not in {"new_id", "reject"}:
         raise ValueError("on_conflict must be new_id or reject")
@@ -312,7 +319,23 @@ def import_workflow(document: dict, *, on_conflict: str = "new_id") -> tuple[dic
     if on_conflict == "reject" and isinstance(original_id, str) and WORKFLOW_ID_RE.fullmatch(original_id):
         if os.path.exists(_path(original_id)):
             raise WorkflowConflict(original_id)
-    draft = deepcopy(document)
+    try:
+        state = migrate_workflow(document if isinstance(document, dict) else {})
+    except NodeMigrationError as exc:
+        raise WorkflowValidationError([{
+            "code": "NODE_MIGRATION_FAILED",
+            "message": str(exc),
+            "severity": "error",
+            "path": "nodes",
+        }]) from exc
+    if state.read_only:
+        raise WorkflowValidationError([{
+            "code": "UNSUPPORTED_NODE_VERSION",
+            "message": "Imported workflow uses a future node version this installation cannot accept",
+            "severity": "error",
+            "path": "nodes",
+        }])
+    draft = deepcopy(state.document)
     for field in ("workflow_id", "created_at", "updated_at"):
         draft.pop(field, None)
     return create_workflow(draft), original_id
