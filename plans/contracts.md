@@ -864,15 +864,22 @@ Rules:
 
 ## 12. Budget and admission control
 
-Implemented at 3.5 (enforcement) and 9.3 (accounting).
+Implemented at 3.5 (enforcement) and 9.3 (accounting). Repair budgets and
+escalation (step 8.2) reuse the same pre-flight gate via
+`scriptase.review.repair` (`decide_issue_repair` / `plan_job_repairs` /
+`process_job_repairs`).
 
 - Budget is checked **pre-flight**: work that would exceed a Channel's or Job's ceiling is
   refused before the provider is called. Post-hoc reporting is not enforcement.
 - A single bounded global work pool replaces per-project drain threads, preserving
   per-project FIFO ordering.
-- Repair budgets are enforced through the same path: maximum attempts per issue, maximum
-  generations and cost per Job, escalation on repeated failure, and configured safe
-  degradation.
+- Repair budgets are enforced through the same path: maximum attempts per issue
+  (`review_policy.max_repairs`), maximum generations and cost per Job (`budget` +
+  `budget_spent`), escalation on low confidence or repeated failure
+  (`REPAIR_LIMIT_REACHED` / issue status `escalated`), and configured safe
+  degradation (`review_policy.thresholds.safe_degradation`, e.g. `video: keep_still`).
+  An unfixable issue escalates instead of looping; a Job that hits its repair budget
+  stops with `status_reason=budget` rather than continuing to spend.
 
 ### 12.1 Cost record
 

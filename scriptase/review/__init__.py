@@ -13,7 +13,9 @@ re-target or close open issues when scene ids change. Step 7.1 adds
 deterministic technical validators. Step 7.2 expands open-issue bindings into
 the full ReviewIssue schema and durable store. Step 7.4 adds early quality
 gates (image before video, video before final review). Step 8.1 freezes the
-§12.2 ownership table as ``scriptase.review.policy``.
+§12.2 ownership table as ``scriptase.review.policy``. Step 8.2 adds targeted
+repair with per-issue attempt budgets, Job generation/cost ceilings, escalation,
+and safe degradation (``scriptase.review.repair``).
 """
 
 from scriptase.review.gates import (
@@ -68,6 +70,28 @@ from scriptase.review.policy import (
     route_issue,
     route_problem,
 )
+from scriptase.review.repair import (
+    BUDGET_EXCEEDED,
+    DEFAULT_CONFIDENCE_FLOOR,
+    LOW_CONFIDENCE,
+    REPAIR_LIMIT_REACHED,
+    SAFE_DEGRADATION,
+    STATUS_REASON_BUDGET,
+    STATUS_REASON_ESCALATION,
+    STATUS_REASON_REPAIR_LIMIT,
+    RepairBudgetError,
+    RepairDecision,
+    RepairLimitError,
+    RepairPlan,
+    RepairPolicy,
+    apply_repair_decision,
+    apply_repair_plan,
+    build_repair_run_request,
+    decide_issue_repair,
+    plan_job_repairs,
+    process_job_repairs,
+    resolve_repair_policy,
+)
 from scriptase.review.store import (
     IssueNotFound,
     IssueValidationError,
@@ -98,17 +122,25 @@ from scriptase.review.technical import (
 )
 
 __all__ = [
+    "BUDGET_EXCEEDED",
     "CHECK_ID_PROBLEM",
+    "DEFAULT_CONFIDENCE_FLOOR",
     "ISSUE_ID_RE",
     "ISSUE_SCHEMA_VERSION",
     "ISSUE_STATUSES",
     "ISSUE_TYPE_DEFAULT_PROBLEM",
     "ISSUE_TYPES",
+    "LOW_CONFIDENCE",
     "OPEN_STATUSES",
     "OWNERSHIP_TABLE",
     "PROBLEM_KEYS",
     "QUALITY_GATE_FAILED",
+    "REPAIR_LIMIT_REACHED",
+    "SAFE_DEGRADATION",
     "SEVERITIES",
+    "STATUS_REASON_BUDGET",
+    "STATUS_REASON_ESCALATION",
+    "STATUS_REASON_REPAIR_LIMIT",
     "SUGGESTED_ACTIONS",
     "TECHNICAL_CHECK_IDS",
     "TERMINAL_ISSUE_STATUSES",
@@ -121,6 +153,11 @@ __all__ = [
     "MediaProbe",
     "OpenIssueBinding",
     "QualityGateResult",
+    "RepairBudgetError",
+    "RepairDecision",
+    "RepairLimitError",
+    "RepairPlan",
+    "RepairPolicy",
     "ReviewIssue",
     "ReviewIssueDraft",
     "RoutingDecision",
@@ -130,9 +167,12 @@ __all__ = [
     "TechnicalIssue",
     "UnknownRoutingProblem",
     "UnroutableIssue",
+    "apply_repair_decision",
+    "apply_repair_plan",
     "assert_no_open_issue_on_dead_scenes",
     "assert_structured_issues",
     "assert_structured_review_result",
+    "build_repair_run_request",
     "check_aspect_ratio",
     "check_audio_presence",
     "check_duration",
@@ -146,6 +186,7 @@ __all__ = [
     "create_from_technical",
     "create_open_issue",
     "create_review_issue",
+    "decide_issue_repair",
     "enforce_image_gate_for_video",
     "get_issue",
     "issues_for_nodes",
@@ -153,8 +194,11 @@ __all__ = [
     "ownership_rows",
     "parse_draft",
     "parse_issue",
+    "plan_job_repairs",
     "probe_media",
+    "process_job_repairs",
     "resolve_problem_key",
+    "resolve_repair_policy",
     "retarget_issues",
     "route_issue",
     "route_problem",
