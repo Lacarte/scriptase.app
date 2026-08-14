@@ -407,6 +407,15 @@ Artifact
 - size_bytes
 - mime
 - provenance_ref           # -> the Provenance record that produced it
+- generation               # nullable; compact comparison snapshot (step 4.3)
+  - provider_id
+  - provider_instance_id
+  - seed                   # int | null
+  - prompt_revision        # product comparison axis; often mirrors model_revision
+  - model_revision
+  - request_id
+  - invocation_id
+  - selection_reason
 - created_at
 - superseded_by            # nullable artifact id
 - from_sample_data         # bool; stub-derived output is never mistaken for real output
@@ -416,6 +425,11 @@ Rules:
 
 - **Immutable and additive.** A repair creates version N+1 and sets `superseded_by` on
   version N. It never overwrites or deletes.
+- **Attempt history (step 4.3).** `GET /api/artifacts/<id>/history` and
+  `GET /api/artifacts/history?job_id=&kind=&scene_id=` return the full version chain
+  (oldest first) with generation axes. `GET /api/artifacts/compare?left=&right=` returns
+  a side-by-side pair plus `axes.{provider_instance_id,seed,prompt_revision}` diffs.
+  Values are never invented — missing stays null / empty.
 - The existing staging/promotion flow (`ArtifactPromoter`) still owns writing files; the
   Artifact records what it produced.
 - `path` is always relative to the managed output root. **An absolute path in an artifact

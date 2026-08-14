@@ -10,6 +10,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import AttemptHistory from '@/features/artifacts/components/AttemptHistory.vue'
 import {
   ACTION_HINTS,
   ACTION_LABELS,
@@ -22,6 +23,21 @@ import {
 import { sourceModeLabel, sourceModeRequiresProvider } from '../sourceModes.js'
 import { statusLabel } from '../stageStatus.js'
 import TestNodePanel from './TestNodePanel.vue'
+
+/** Stage key → primary artifact kind for history (step 4.3). */
+const STAGE_KIND = {
+  script: 'script',
+  tts: 'audio',
+  timing: 'alignment',
+  segments: 'segments',
+  scenes: 'scene_spec',
+  images: 'image',
+  videos: 'video',
+  captions: 'captions',
+  music: 'music',
+  composer: 'timeline',
+  export: 'export',
+}
 
 const props = defineProps({
   stage: { type: Object, default: null },
@@ -50,6 +66,14 @@ const props = defineProps({
   nodeTypes: { type: Object, default: () => ({}) },
   /** Last Test Node result for the primary node (from_sample_data, etc.). */
   testResult: { type: Object, default: null },
+  /**
+   * Optional preloaded attempt history (tests / parent-owned fetch).
+   * When absent, AttemptHistory loads from the artifact API using jobId + kind.
+   */
+  attemptHistory: { type: Object, default: null },
+  /** Focus artifact id for history (optional; chain lookup uses job + kind). */
+  historyArtifactId: { type: String, default: '' },
+  historySceneId: { type: String, default: '' },
 })
 
 const emit = defineEmits(['run', 'inspect', 'test-run'])
@@ -135,6 +159,18 @@ const providerLabel = computed(() => {
   if (!showProviderUi.value) return ''
   return props.stage?.active_provider_instance_id || 'Not selected'
 })
+
+/** Artifact kind for the History pane (step 4.3 version chain). */
+const historyKind = computed(() => {
+  const key = props.stage?.key
+  return (key && STAGE_KIND[key]) || 'image'
+})
+
+const showAttemptHistory = computed(
+  () =>
+    inspectPane.value === 'history'
+    && Boolean(props.jobId || props.historyArtifactId || props.attemptHistory),
+)
 
 function showProviderAction(action) {
   if (action !== 'provider') return true
@@ -387,12 +423,14 @@ function pretty(value) {
       <section v-if="inspectPane === 'history'" class="inspect-pane" aria-label="Attempt history">
         <h3>History</h3>
         <p class="muted small">
-          Attempts for <code>{{ primaryNodeId || '—' }}</code>
-          on the current execution. Full version comparison lands in step 4.3.
+          Per-node run attempts for <code>{{ primaryNodeId || '—' }}</code>
+          <template v-if="executionId"> on <code>{{ executionId }}</code></template>,
+          plus immutable artifact version comparison (provider instance, seed,
+          prompt revision).
         </p>
         <dl class="history-meta">
           <div>
-            <dt>Attempts</dt>
+            <dt>Run attempts</dt>
             <dd>{{ primaryRecord?.attempts ?? 0 }}</dd>
           </div>
           <div>
@@ -408,7 +446,19 @@ function pretty(value) {
           </div>
         </dl>
         <pre v-if="(primaryRecord?.attempt_errors || []).length">{{ pretty(primaryRecord.attempt_errors) }}</pre>
-        <p v-else class="muted small">No prior attempt errors recorded.</p>
+
+        <AttemptHistory
+          v-if="showAttemptHistory"
+          :artifact-id="historyArtifactId"
+          :job-id="jobId"
+          :kind="historyKind"
+          :scene-id="historySceneId"
+          :history="attemptHistory"
+        />
+        <p v-else class="muted small">
+          Bind a Job to load artifact version history for this stage
+          (<code>{{ historyKind }}</code>).
+        </p>
       </section>
 
       <section v-if="inspectPane === 'provider'" class="inspect-pane" aria-label="Provider">

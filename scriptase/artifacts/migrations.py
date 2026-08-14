@@ -29,9 +29,17 @@ def _register(version: int):
     return decorator
 
 
-# No historical hops yet: SCHEMA_VERSION is 1 and documents are born at v1.
-# Future schema changes register here as @_register(2), @_register(3), …
-# and land in the same step that changes the model (CLAUDE.md non-negotiable).
+# Schema v1 documents predate the generation snapshot (step 4.3). Hop to v2
+# adds generation=null so side-by-side comparison has a stable field without
+# inventing provider/seed/prompt data for older records.
+
+
+@_register(2)
+def _to_v2(data: dict[str, Any]) -> dict[str, Any]:
+    """Add optional generation snapshot; leave null when unknown."""
+    if "generation" not in data:
+        data["generation"] = None
+    return data
 
 
 def apply_migrations(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:

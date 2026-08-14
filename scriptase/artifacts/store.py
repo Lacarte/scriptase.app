@@ -342,6 +342,7 @@ def register_artifact(
     path: str,
     scene_id: str | None = None,
     provenance_ref: str | None = None,
+    generation: Any = None,
     from_sample_data: bool = False,
     mime: str | None = None,
     content_hash: str | None = None,
@@ -353,6 +354,9 @@ def register_artifact(
     are supplied — used by tests / already-verified callers). If an active
     artifact already exists for the same ``(job_id, scene_id, kind)``, this
     creates version N+1 and marks the prior record ``superseded_by`` the new id.
+
+    ``generation`` is the compact step-4.3 comparison snapshot (provider
+    instance, seed, prompt revision). It is optional and never invented.
 
     The blob is not moved. Callers write via ``ArtifactPromoter`` (or any other
     managed write) first, then register.
@@ -407,6 +411,7 @@ def register_artifact(
                 size_bytes=int(size_bytes),
                 mime=resolved_mime,
                 provenance_ref=provenance_ref,
+                generation=generation,
                 created_at=timestamp,
                 superseded_by=None,
                 from_sample_data=bool(from_sample_data),
@@ -432,6 +437,7 @@ def register_from_refs(
     refs: Iterable[str],
     scene_id: str | None = None,
     provenance_ref: str | None = None,
+    generation: Any = None,
     from_sample_data: bool = False,
     mime: str | None = None,
 ) -> list[Artifact]:
@@ -451,6 +457,7 @@ def register_from_refs(
                 path=ref,
                 scene_id=scene_id,
                 provenance_ref=provenance_ref,
+                generation=generation,
                 from_sample_data=from_sample_data,
                 mime=mime,
             )

@@ -1,11 +1,12 @@
 # artifacts
 
-Artifact library and input picker (step 4.1 / product §9.1).
+Artifact library, input picker (step 4.1), and attempt history (step 4.3).
 
 | Surface | Role |
 |---|---|
-| `api.js` | List / get / upload / resolve-inputs against `/api/artifacts` |
+| `api.js` | List / get / upload / resolve-inputs / history / compare |
 | `components/InputPicker.vue` | Per-port source chooser for standalone / Test runs |
+| `components/AttemptHistory.vue` | Version chain + side-by-side comparison (provider, seed, prompt revision) |
 
 ## Input sources
 

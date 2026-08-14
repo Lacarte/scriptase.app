@@ -638,6 +638,93 @@ describe('StepDetailPanel', () => {
     expect(wrapper.text()).toContain('Test Node')
   })
 
+  it('History pane shows side-by-side image versions (step 4.3)', async () => {
+    const stage = {
+      key: 'images',
+      label: 'Image Generator',
+      status: 'succeeded',
+      node_ids: ['n_storyboard'],
+      provider_capable: true,
+      active_provider_instance_id: 'wavespeed_main',
+      artifacts: [],
+    }
+    const attemptHistory = {
+      attempt_count: 2,
+      attempts: [
+        {
+          artifact_id: 'art_AAAAAA',
+          version: 1,
+          provider_instance_id: 'wavespeed_main',
+          seed: 42,
+          prompt_revision: 'flux-v1',
+          is_superseded: true,
+          path: 'storyboard/a_v1.png',
+        },
+        {
+          artifact_id: 'art_BBBBBB',
+          version: 2,
+          provider_instance_id: 'wavespeed_fallback',
+          seed: 99,
+          prompt_revision: 'flux-v2',
+          is_superseded: false,
+          path: 'storyboard/a_v2.png',
+        },
+      ],
+      comparison: {
+        left: {
+          artifact_id: 'art_AAAAAA',
+          version: 1,
+          provider_instance_id: 'wavespeed_main',
+          seed: 42,
+          prompt_revision: 'flux-v1',
+          path: 'storyboard/a_v1.png',
+        },
+        right: {
+          artifact_id: 'art_BBBBBB',
+          version: 2,
+          provider_instance_id: 'wavespeed_fallback',
+          seed: 99,
+          prompt_revision: 'flux-v2',
+          path: 'storyboard/a_v2.png',
+        },
+        axes: {
+          provider_instance_id: {
+            left: 'wavespeed_main',
+            right: 'wavespeed_fallback',
+            changed: true,
+          },
+          seed: { left: 42, right: 99, changed: true },
+          prompt_revision: { left: 'flux-v1', right: 'flux-v2', changed: true },
+        },
+        changed_axes: ['provider_instance_id', 'seed', 'prompt_revision'],
+      },
+    }
+    const wrapper = mount(StepDetailPanel, {
+      props: {
+        stage,
+        workflowId: 'wf_ABCDEF',
+        workflow: {
+          nodes: [{ id: 'n_storyboard', type: 'storyboard.generate' }],
+        },
+        nodeRecords: {
+          n_storyboard: { status: 'succeeded', attempts: 1 },
+        },
+        jobId: 'job_IMG001',
+        attemptHistory,
+      },
+    })
+    await wrapper.find('.action-history').trigger('click')
+    await flushPromises()
+    const text = wrapper.text()
+    expect(text).toContain('Side-by-side comparison')
+    expect(text).toContain('wavespeed_main')
+    expect(text).toContain('wavespeed_fallback')
+    expect(text).toContain('42')
+    expect(text).toContain('99')
+    expect(text).toContain('flux-v1')
+    expect(text).toContain('flux-v2')
+  })
+
   it('hides Provider on Script stage for Paste mode even if graph is provider-capable', () => {
     const stage = {
       key: 'script',

@@ -1,13 +1,16 @@
-"""Artifact library and input-picker routes — step 4.1.
+"""Artifact library, input-picker, and attempt-history routes (steps 4.1 / 4.3).
 
-Thin transport over the artifact index and ``input_sources`` resolver.
-Business logic stays out of this module.
+Thin transport over the artifact index, ``input_sources`` resolver, and
+``history`` comparison helpers. Business logic stays out of this module.
 
 Endpoints:
 
 * ``GET  /api/artifacts`` — browse the library (filter by job/kind/scene)
 * ``GET  /api/artifacts/<id>`` — one index record
 * ``GET  /api/artifacts/<id>/payload`` — materialize as a port payload
+* ``GET  /api/artifacts/<id>/history`` — version chain + side-by-side pair
+* ``GET  /api/artifacts/history`` — chain by job/kind/scene
+* ``GET  /api/artifacts/compare`` — explicit left/right comparison
 * ``POST /api/artifacts/upload`` — managed media/JSON upload → index entry
 * ``POST /api/artifacts/resolve-inputs`` — dry-run input bindings → overrides
 
@@ -25,6 +28,12 @@ import uuid
 from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from scriptase.artifacts.history import (
+    HistoryError,
+    compare_attempts,
+    history_for_artifact,
+    history_for_chain,
+)
 from scriptase.artifacts.input_sources import (
     INPUT_SOURCES,
     KIND_TO_PORT_TYPE,
@@ -177,6 +186,63 @@ def artifacts_list():
     })
 
 
+def _history_error(exc: HistoryError):
+    status = 400
+    if exc.code == "ARTIFACT_NOT_FOUND":
+        status = 404
+    elif exc.code == "ARTIFACT_INVALID":
+        status = 422
+    return _error(exc.code, exc.message, status, exc.details)
+
+
+# Static path segments registered before ``/<artifact_id>`` so they are never
+# captured as an id (Flask ranks static higher, but keep the order obvious).
+@artifacts_bp.route("/api/artifacts/history", methods=["GET"])
+def artifacts_history_by_chain():
+    """Attempt history for an explicit (job_id, kind, scene_id?) chain."""
+    denied = _require_loopback()
+    if denied:
+        return denied
+    job_id = (request.args.get("job_id") or "").strip()
+    kind = (request.args.get("kind") or "").strip()
+    scene_id = (request.args.get("scene_id") or "").strip() or None
+    if not job_id:
+        return _error("BAD_REQUEST", "job_id is required", 400)
+    if not kind:
+        return _error("BAD_REQUEST", "kind is required", 400)
+    try:
+        payload = history_for_chain(job_id=job_id, kind=kind, scene_id=scene_id)
+    except HistoryError as exc:
+        return _history_error(exc)
+    return jsonify(payload)
+
+
+@artifacts_bp.route("/api/artifacts/compare", methods=["GET"])
+def artifacts_compare():
+    """Side-by-side comparison of two artifact versions.
+
+    Query: ``left`` / ``right`` (or ``a`` / ``b``) artifact ids.
+    """
+    denied = _require_loopback()
+    if denied:
+        return denied
+    left = (
+        (request.args.get("left") or request.args.get("a") or "").strip()
+    )
+    right = (
+        (request.args.get("right") or request.args.get("b") or "").strip()
+    )
+    if not ARTIFACT_ID_RE.fullmatch(left or ""):
+        return _error("BAD_REQUEST", "left must match art_[A-Z0-9]{6}", 400)
+    if not ARTIFACT_ID_RE.fullmatch(right or ""):
+        return _error("BAD_REQUEST", "right must match art_[A-Z0-9]{6}", 400)
+    try:
+        payload = compare_attempts(left, right)
+    except HistoryError as exc:
+        return _history_error(exc)
+    return jsonify(payload)
+
+
 @artifacts_bp.route("/api/artifacts/<artifact_id>", methods=["GET"])
 def artifacts_get(artifact_id: str):
     denied = _require_loopback()
@@ -232,6 +298,25 @@ def artifacts_payload(artifact_id: str):
         "payload": payload,
         "source_artifact_ids": [artifact_id],
     })
+
+
+@artifacts_bp.route("/api/artifacts/<artifact_id>/history", methods=["GET"])
+def artifacts_history(artifact_id: str):
+    """Version chain + default side-by-side pair for the artifact's chain.
+
+    Surfaces 1.2 immutable versions with provider instance, seed, and prompt
+    revision for each attempt (step 4.3).
+    """
+    denied = _require_loopback()
+    if denied:
+        return denied
+    if not ARTIFACT_ID_RE.fullmatch(artifact_id or ""):
+        return _error("BAD_REQUEST", "artifact_id must match art_[A-Z0-9]{6}", 400)
+    try:
+        payload = history_for_artifact(artifact_id)
+    except HistoryError as exc:
+        return _history_error(exc)
+    return jsonify(payload)
 
 
 @artifacts_bp.route("/api/artifacts/upload", methods=["POST"])

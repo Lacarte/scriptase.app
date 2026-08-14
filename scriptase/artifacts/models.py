@@ -17,6 +17,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from scriptase.artifacts.generation import GenerationSnapshot, normalize_generation
+
 # Server-generated artifact id: art_ + 6 uppercase alphanumerics
 # (matches channel / workflow id style in contracts.md).
 ARTIFACT_ID_RE = re.compile(r"^art_[A-Z0-9]{6}$")
@@ -24,7 +26,8 @@ ARTIFACT_ID_RE = re.compile(r"^art_[A-Z0-9]{6}$")
 # Schema version of the on-disk document format (migrations.py). Distinct from
 # the content ``version`` field, which is 1-based and monotonic per
 # (job_id, scene_id, kind) chain.
-ARTIFACT_SCHEMA_VERSION = 1
+# v2 (step 4.3): optional ``generation`` snapshot for attempt comparison.
+ARTIFACT_SCHEMA_VERSION = 2
 
 # contracts.md §3 kind vocabulary.
 ArtifactKind = Literal[
@@ -123,6 +126,10 @@ class Artifact(BaseModel):
     size_bytes: int = Field(ge=0)
     mime: str = "application/octet-stream"
     provenance_ref: str | None = None
+    # Compact generation reproducibility for side-by-side attempt comparison
+    # (step 4.3). Full Provenance remains referenced by provenance_ref when
+    # present; this block is the durable comparison surface.
+    generation: GenerationSnapshot | None = None
     created_at: str = ""
     superseded_by: str | None = None
     from_sample_data: bool = False
@@ -133,6 +140,11 @@ class Artifact(BaseModel):
         if not ARTIFACT_ID_RE.fullmatch(value):
             raise ValueError("id must match art_[A-Z0-9]{6}")
         return value
+
+    @field_validator("generation", mode="before")
+    @classmethod
+    def _generation(cls, value: Any) -> GenerationSnapshot | None:
+        return normalize_generation(value)
 
     @field_validator("job_id", mode="before")
     @classmethod
@@ -228,7 +240,9 @@ __all__ = [
     "ARTIFACT_KINDS",
     "ArtifactKind",
     "Artifact",
+    "GenerationSnapshot",
     "normalize_content_hash",
+    "normalize_generation",
     "normalize_managed_path",
     "parse_artifact",
     "validation_problems",

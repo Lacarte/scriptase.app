@@ -572,6 +572,13 @@ def port_types_for_workflow(
 
 def artifact_summary(artifact: Artifact) -> dict[str, Any]:
     """Public list/detail shape — no absolute paths, no secrets."""
+    generation = None
+    if artifact.generation is not None:
+        generation = (
+            artifact.generation.to_document()
+            if hasattr(artifact.generation, "to_document")
+            else dict(artifact.generation)
+        )
     return {
         "id": artifact.id,
         "job_id": artifact.job_id,
@@ -583,6 +590,7 @@ def artifact_summary(artifact: Artifact) -> dict[str, Any]:
         "size_bytes": artifact.size_bytes,
         "mime": artifact.mime,
         "provenance_ref": artifact.provenance_ref,
+        "generation": generation,
         "created_at": artifact.created_at,
         "superseded_by": artifact.superseded_by,
         "from_sample_data": artifact.from_sample_data,

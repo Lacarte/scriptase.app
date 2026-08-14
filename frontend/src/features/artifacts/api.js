@@ -47,6 +47,38 @@ export function getArtifactPayload(id, portType) {
 }
 
 /**
+ * Version chain + default side-by-side pair for one artifact (step 4.3).
+ * @param {string} artifactId
+ */
+export function getArtifactHistory(artifactId) {
+  return apiGet(`/artifacts/${encodeURIComponent(artifactId)}/history`)
+}
+
+/**
+ * Attempt history for an explicit (job, kind, scene) chain.
+ * @param {{ jobId: string, kind: string, sceneId?: string }} opts
+ */
+export function getChainHistory(opts) {
+  return apiGet('/artifacts/history', {
+    job_id: opts.jobId,
+    kind: opts.kind,
+    scene_id: opts.sceneId || undefined,
+  })
+}
+
+/**
+ * Side-by-side comparison of two artifact versions.
+ * @param {string} leftId
+ * @param {string} rightId
+ */
+export function compareArtifacts(leftId, rightId) {
+  return apiGet('/artifacts/compare', {
+    left: leftId,
+    right: rightId,
+  })
+}
+
+/**
  * Managed upload. Returns `{ artifact }`.
  * @param {File} file
  * @param {{ kind?: string, jobId?: string, sceneId?: string }} [opts]
