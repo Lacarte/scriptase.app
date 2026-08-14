@@ -764,19 +764,28 @@ ReviewIssue
 **Free-form text is not an acceptable review output.** A reviewer that cannot produce a
 structured issue fails; automation depends on structure.
 
-Routing table (§12.2) — table-driven, not scattered conditionals:
+Routing table (§12.2) — table-driven, not scattered conditionals.
+Implemented at 8.1 as `scriptase.review.policy` (`OWNERSHIP_TABLE` /
+`route_issue` / `route_problem`). Problem keys and preferred registry node
+types are the machine surface; labels are presentation.
 
-| Detected problem | Routes to |
-|---|---|
-| Script too long, wrong tone, weak hook | Script |
-| Pronunciation or voice problem | TTS |
-| Words do not align with audio | Timing |
-| Poor or overlong scene boundaries | Segmenter |
-| Visual concept does not represent narration | Scene Director |
-| Wrong character, object, or style in a still | Image Generator |
-| Motion deformation, instability, poor animation | Video Generator |
-| Caption outside safe area, branding missing | Composer |
-| Render corruption, codec failure | Export |
+| Detected problem | problem_key | Routes to | node_types (preferred first) |
+|---|---|---|---|
+| Script too long, wrong tone, weak hook | `script_content` | Script | `story.generate`, `script.input` |
+| Pronunciation or voice problem | `pronunciation_voice` | TTS | `tts.generate` |
+| Words do not align with audio | `alignment_mismatch` | Timing | `timing.align` |
+| Poor or overlong scene boundaries | `scene_boundaries` | Segmenter | `segment.run` |
+| Visual concept does not represent narration | `visual_concept` | Scene Director | `scenes.blueprint` |
+| Wrong character, object, or style in a still | `image_subject_style` | Image Generator | `storyboard.generate` |
+| Motion deformation, instability, poor animation | `motion_deformation` | Video Generator | `animator.generate` |
+| Caption outside safe area, branding missing | `caption_branding` | Composer | `assemble.project`, `captions.generate`, `timeline.project` |
+| Render corruption, codec failure | `render_codec` | Export | `export.video` |
+
+Disambiguation (still table-driven): `observed.problem_key` wins; else
+`check_id` via `CHECK_ID_PROBLEM`; else `issue_type` via
+`ISSUE_TYPE_DEFAULT_PROBLEM`. `visual_mismatch` defaults to Image; Scene
+Director ownership for a concept mismatch is selected by
+`observed.problem_key = visual_concept`.
 
 ### 9.1 RepairHistoryEntry
 

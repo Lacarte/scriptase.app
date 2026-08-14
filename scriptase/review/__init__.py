@@ -12,7 +12,8 @@ Step 1.6 shipped a thin open-issue binding store so re-segmentation can
 re-target or close open issues when scene ids change. Step 7.1 adds
 deterministic technical validators. Step 7.2 expands open-issue bindings into
 the full ReviewIssue schema and durable store. Step 7.4 adds early quality
-gates (image before video, video before final review).
+gates (image before video, video before final review). Step 8.1 freezes the
+§12.2 ownership table as ``scriptase.review.policy``.
 """
 
 from scriptase.review.gates import (
@@ -54,6 +55,19 @@ from scriptase.review.open_issues import (
     create_open_issue,
     retarget_issues,
 )
+from scriptase.review.policy import (
+    CHECK_ID_PROBLEM,
+    ISSUE_TYPE_DEFAULT_PROBLEM,
+    OWNERSHIP_TABLE,
+    PROBLEM_KEYS,
+    RoutingDecision,
+    UnknownRoutingProblem,
+    UnroutableIssue,
+    ownership_rows,
+    resolve_problem_key,
+    route_issue,
+    route_problem,
+)
 from scriptase.review.store import (
     IssueNotFound,
     IssueValidationError,
@@ -84,11 +98,15 @@ from scriptase.review.technical import (
 )
 
 __all__ = [
+    "CHECK_ID_PROBLEM",
     "ISSUE_ID_RE",
     "ISSUE_SCHEMA_VERSION",
     "ISSUE_STATUSES",
+    "ISSUE_TYPE_DEFAULT_PROBLEM",
     "ISSUE_TYPES",
     "OPEN_STATUSES",
+    "OWNERSHIP_TABLE",
+    "PROBLEM_KEYS",
     "QUALITY_GATE_FAILED",
     "SEVERITIES",
     "SUGGESTED_ACTIONS",
@@ -105,10 +123,13 @@ __all__ = [
     "QualityGateResult",
     "ReviewIssue",
     "ReviewIssueDraft",
+    "RoutingDecision",
     "Severity",
     "SuggestedAction",
     "TechnicalContext",
     "TechnicalIssue",
+    "UnknownRoutingProblem",
+    "UnroutableIssue",
     "assert_no_open_issue_on_dead_scenes",
     "assert_structured_issues",
     "assert_structured_review_result",
@@ -129,10 +150,14 @@ __all__ = [
     "get_issue",
     "issues_for_nodes",
     "list_issues",
+    "ownership_rows",
     "parse_draft",
     "parse_issue",
     "probe_media",
+    "resolve_problem_key",
     "retarget_issues",
+    "route_issue",
+    "route_problem",
     "run_image_gate",
     "run_technical_validators",
     "run_video_gate",
