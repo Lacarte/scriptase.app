@@ -9,6 +9,11 @@ hardcoded step array in the frontend would silently diverge the first time a
 branch is added.
 """
 
+from scriptase.jobs.channel_settings import (
+    channel_settings_from_snapshot,
+    merge_node_config_with_channel,
+    script_text_from_source,
+)
 from scriptase.jobs.models import (
     EXECUTION_MODES,
     JOB_ID_RE,
@@ -26,6 +31,18 @@ from scriptase.jobs.models import (
     validation_problems,
 )
 from scriptase.jobs.migrations import SCHEMA_VERSION, apply_migrations
+from scriptase.jobs.orchestration import (
+    JobOrchestrationError,
+    assert_job_is_not_a_node,
+    collect_execution_artifact_refs,
+    derive_job_status,
+    kind_for_artifact_ref,
+    load_job_workflow,
+    prepare_workflow_for_job,
+    start_job,
+    sync_job_from_execution,
+    wait_for_job,
+)
 from scriptase.jobs.snapshot import (
     assert_snapshot_has_no_credentials,
     build_channel_snapshot,
@@ -58,22 +75,35 @@ __all__ = [
     "Job",
     "JobDraft",
     "JobNotFound",
+    "JobOrchestrationError",
     "JobSource",
     "JobTerminal",
     "JobValidationError",
     "add_artifact_ids",
     "apply_migrations",
+    "assert_job_is_not_a_node",
     "assert_snapshot_has_no_credentials",
     "build_channel_snapshot",
+    "channel_settings_from_snapshot",
+    "collect_execution_artifact_refs",
     "create_job",
     "default_draft",
     "delete_job",
+    "derive_job_status",
     "get_job",
     "job_summary",
+    "kind_for_artifact_ref",
     "list_jobs",
+    "load_job_workflow",
+    "merge_node_config_with_channel",
     "parse_draft",
     "parse_job",
+    "prepare_workflow_for_job",
+    "script_text_from_source",
     "snapshot_contains_credentials",
+    "start_job",
+    "sync_job_from_execution",
     "update_job",
     "validation_problems",
+    "wait_for_job",
 ]
