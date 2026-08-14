@@ -29,7 +29,7 @@ notification, or export.
 | Provider result envelope + `ProviderError` | §1.7–1.8 | ported |
 | Provenance (incl. seed / request_id / model_revision) | §2 | extended 0.4; instance id at 3.1; per-unit use at 8.3 |
 | Artifact | §3 | 1.2 |
-| Scene identity + re-segmentation | §4 | 1.6 |
+| Scene identity + re-segmentation | §4 | 1.6 (implemented) |
 | ChannelProfile | §5 | 1.1 / 1.3 |
 | Job | §6 | 1.4 / 1.5 |
 | ProviderInstance | §7 | 3.1 / 3.2 |
@@ -413,8 +413,9 @@ Rules:
 
 ## 4. Scene identity
 
-Implemented at 1.6. Scenes in V2 are array indices; the review and repair design is
-per-scene, and re-segmentation shifts every index.
+Implemented at 1.6 (`scriptase.scenes`, segmenter service stamps ids). Scenes in V2
+are array indices; the review and repair design is per-scene, and re-segmentation
+shifts every index.
 
 ```
 Scene

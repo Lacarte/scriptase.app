@@ -69,6 +69,10 @@ ARTIFACTS_DIR = os.path.join(OUTPUT_DIR, "artifacts")
 # Job documents (step 1.4). One JSON document per job id; channel snapshots
 # live inside each document (provider instance references only — never secrets).
 JOBS_DIR = os.path.join(OUTPUT_DIR, "jobs")
+# Scene identity records (step 1.6). One JSON document per stable scene id
+# (scn_XXXXXX). Distinct from SCENES_DIR, which holds Scene Director
+# blueprint payloads under the V2 layout.
+SCENE_RECORDS_DIR = os.path.join(OUTPUT_DIR, "scene_records")
 
 # Read-only built-in asset library.
 APP_ASSETS_DIR = RESOURCES_DIR
@@ -133,7 +137,7 @@ RUNTIME_DIRS = (
     WORKFLOW_EXECUTIONS_DIR, BRANDING_DIR, ALIGN_DIR, SCENES_DIR, STORIES_DIR,
     ANIMATOR_DIR, STORYBOARD_DIR, SEGMENTER_DIR, CAPTIONS_DIR, TTS_DIR,
     EXPORT_DIR, PROJECTS_DIR, MUSIC_DIR, THUMBNAILS_DIR, CHANNELS_DIR,
-    ARTIFACTS_DIR, JOBS_DIR, MODELS_DIR, TTS_CACHE_DIR,
+    ARTIFACTS_DIR, JOBS_DIR, SCENE_RECORDS_DIR, MODELS_DIR, TTS_CACHE_DIR,
 )
 
 

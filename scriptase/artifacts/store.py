@@ -495,6 +495,60 @@ def verify_integrity(artifact: Artifact | str) -> dict[str, Any]:
     }
 
 
+def retire_artifact(artifact_id: str) -> Artifact:
+    """Mark an active artifact superseded without a replacement version.
+
+    Used when re-segmentation invalidates a scene's media (contracts.md §4):
+    the prior file remains resolvable as evidence, but is no longer the active
+    tip. ``superseded_by`` is set to the artifact's own id (self-tombstone) so
+    the field stays within ``art_[A-Z0-9]{6}`` shape.
+    """
+    if not isinstance(artifact_id, str) or not ARTIFACT_ID_RE.fullmatch(artifact_id):
+        raise ValueError("artifact_id must match art_[A-Z0-9]{6}")
+    lock = _thread_lock(artifact_id)
+    with lock:
+        current = get_artifact(artifact_id)
+        if current.superseded_by is not None:
+            return current
+        document = current.model_copy(update={"superseded_by": current.id})
+        return _write(document)
+
+
+def retire_artifacts_for_scene(job_id: str, scene_id: str) -> list[Artifact]:
+    """Retire every active artifact bound to ``(job_id, scene_id)``."""
+    active = list_artifacts(
+        job_id=job_id,
+        scene_id=scene_id,
+        include_superseded=False,
+        limit=500,
+    )
+    retired: list[Artifact] = []
+    for item in active:
+        if item.scene_id != scene_id:
+            continue
+        retired.append(retire_artifact(item.id))
+    return retired
+
+
+def assert_no_active_artifact_on_dead_scenes(
+    job_id: str,
+    active_scene_ids: list[str] | set[str],
+) -> None:
+    """Raise if any active artifact still names a scene outside the active set."""
+    active = set(active_scene_ids)
+    offenders: list[str] = []
+    for item in list_artifacts(job_id=job_id, include_superseded=False, limit=500):
+        if item.scene_id is None:
+            continue
+        if item.scene_id not in active:
+            offenders.append(f"{item.id}:{item.scene_id}")
+    if offenders:
+        raise RuntimeError(
+            "active artifacts bound to scenes that no longer resolve: "
+            + ", ".join(offenders)
+        )
+
+
 __all__ = [
     "ArtifactNotFound",
     "ArtifactValidationError",
@@ -511,4 +565,7 @@ __all__ = [
     "register_from_refs",
     "absolute_path",
     "verify_integrity",
+    "retire_artifact",
+    "retire_artifacts_for_scene",
+    "assert_no_active_artifact_on_dead_scenes",
 ]
