@@ -231,9 +231,9 @@ Pick a background track by tone, at random, or explicitly.
 
 ## Timing nodes
 
-### Force Alignment (`timing.align`)
+### Timing (`timing.align`)
 
-Word-level timestamps for the narration (stable-whisper tiny.en).
+Word-level timestamps for the narration. AUTO uses native TTS timings when the provider advertises them; otherwise force-aligns with stable-whisper. Downstream always sees one alignment schema.
 
 - **Type version:** 1
 - **Capabilities:** supports retry, error output, skip-optional; no cancel

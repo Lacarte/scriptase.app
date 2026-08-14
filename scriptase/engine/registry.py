@@ -317,8 +317,13 @@ _NODE_TYPES = {
     },
     "timing.align": {
         "type_version": 1,
-        "display_name": "Force Alignment",
-        "description": "Word-level timestamps for the narration (stable-whisper tiny.en).",
+        # Step 5.3 / product §10: user-facing name is Timing (V2: Force Alignment).
+        "display_name": "Timing",
+        "description": (
+            "Word-level timestamps for the narration. AUTO uses native TTS "
+            "timings when the provider advertises them; otherwise force-aligns "
+            "with stable-whisper. Downstream always sees one alignment schema."
+        ),
         "category": "timing",
         "icon": "clock",
         "inputs": [_TRIGGER_IN, _in("audio", "audio_file", required=True), _in("script", "script", required=True)],

@@ -1,10 +1,19 @@
-"""Timing Module — Force Alignment Service
+"""Timing service — AUTO strategy (step 5.3 / product §10).
 
-The aligner itself, lifted out of the Flask blueprint (V2 `studio/timing/routes.py`)
-so nothing has to import a `routes.py` to run alignment: `_run_alignment`,
-`_validate_alignment`, `_fix_gaps_with_audio`, `_fix_zero_duration_words`, plus
-the stable-ts model cache they share. `_step_timing` — the in-process pipeline
-step — moves here too, from V2 `studio/pipeline/services.py`.
+User-facing name is **Timing** (V2: "Force Alignment"). The aligner lives here
+so nothing has to import a `routes.py` to run it: `_run_alignment`,
+`_validate_alignment`, `_fix_gaps_with_audio`, `_fix_zero_duration_words`,
+plus the stable-ts model cache they share.
+
+Strategy AUTO (contracts.md §8.1 / implementation-plan 5.3):
+
+  * when the upstream TTS result advertises ``native_word_timing`` and carries
+    ``word_timings``, normalise and validate those timestamps;
+  * otherwise run Whisper/stable-ts force-alignment.
+
+Both paths emit the **same** canonical alignment artifact. Downstream
+(segmenter, captions) cannot tell which strategy produced it — no strategy
+marker appears on the port payload.
 """
 
 import os
@@ -275,17 +284,112 @@ def _fix_zero_duration_words(alignment):
 
 
 # ---------------------------------------------------------------------------
+# Canonical alignment schema (frozen by step 5.3)
+# ---------------------------------------------------------------------------
+
+# Keys every strategy must emit on the alignment artifact / port payload.
+# The segmenter and captions consume only these — no strategy discriminator.
+CANONICAL_ALIGNMENT_KEYS = frozenset({
+    "project_id",
+    "source_file",
+    "folder",
+    "transcript",
+    "alignment",
+    "word_count",
+    "inference_time",
+    "timestamp",
+})
+
+# Word entry shape after normalise: {word: str, begin: float, end: float}.
+WORD_TIMING_KEYS = frozenset({"word", "begin", "end"})
+
+
+def normalize_word_timings(raw) -> list[dict] | None:
+    """Normalise provider word timings to the canonical ``{word, begin, end}``.
+
+    Accepts common provider spellings (``start``/``end``, ``text``/``token``)
+    and returns a list ready for ``_validate_alignment``. Returns ``None`` when
+    the payload is empty or not a list of timed words.
+    """
+    if not isinstance(raw, list) or not raw:
+        return None
+
+    out: list[dict] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            return None
+        word = item.get("word")
+        if word is None:
+            word = item.get("text")
+        if word is None:
+            word = item.get("token")
+        word_text = str(word or "").strip()
+        if not word_text:
+            continue
+        begin = item.get("begin", item.get("start", item.get("start_time")))
+        end = item.get("end", item.get("end_time"))
+        try:
+            begin_f = float(begin)
+            end_f = float(end)
+        except (TypeError, ValueError):
+            return None
+        out.append({
+            "word": word_text,
+            "begin": round(begin_f, 3),
+            "end": round(end_f, 3),
+        })
+    return out or None
+
+
+def _try_native_alignment(tts_result, wav_path) -> list[dict] | None:
+    """Use native TTS word timings when advertised and valid; else ``None``."""
+    if not tts_result.get("native_word_timing"):
+        return None
+
+    raw = (
+        tts_result.get("word_timings")
+        or tts_result.get("alignment")
+        or tts_result.get("word_alignment")
+    )
+    normalized = normalize_word_timings(raw)
+    if not normalized:
+        logger.info("Native word timing advertised but timings missing/empty; falling back to alignment")
+        return None
+
+    path_for_validate = wav_path if wav_path and os.path.isfile(wav_path) else None
+    try:
+        repaired = _validate_alignment(normalized, path_for_validate)
+    except Exception:
+        logger.exception("Native word timing validation failed; falling back to alignment")
+        return None
+
+    if not repaired:
+        logger.info("Native word timing failed validation; falling back to alignment")
+        return None
+    return repaired
+
+
+# ---------------------------------------------------------------------------
 # Pipeline step
 # ---------------------------------------------------------------------------
 
 def _step_timing(tts_result, config, project_id):
-    """Run force alignment on TTS output."""
+    """Produce the canonical alignment artifact (strategy AUTO).
+
+    When the TTS result advertises ``native_word_timing`` and carries usable
+    ``word_timings``, those are normalised and validated. Otherwise Whisper/
+    stable-ts force-alignment runs. The returned dict always has the same
+    keys — no strategy field is written to the artifact.
+    """
     wav_path = tts_result["wav_path"]
     clean_text = re.sub(r'[\[\]*_#`~]', '', config["text"]).strip()
     clean_text = re.sub(r'\s+', ' ', clean_text)
 
     start = time.perf_counter()
-    alignment = _run_alignment(wav_path, clean_text)
+    alignment = _try_native_alignment(tts_result, wav_path)
+    strategy = "native" if alignment is not None else "force_align"
+    if alignment is None:
+        alignment = _run_alignment(wav_path, clean_text)
     elapsed = time.perf_counter() - start
 
     if not alignment:
@@ -300,6 +404,8 @@ def _step_timing(tts_result, config, project_id):
     if not os.path.exists(dest_audio):
         shutil.copy2(wav_path, dest_audio)
 
+    # Canonical schema only — strategy is logged, never written to the artifact
+    # so the segmenter cannot tell which path produced the words (step 5.3).
     result_data = {
         "project_id": project_id,
         "source_file": tts_result["filename"],
@@ -313,6 +419,10 @@ def _step_timing(tts_result, config, project_id):
 
     safe_json_write(os.path.join(align_dir, "alignment.json"), result_data, indent=2)
 
-    logger.success("Pipeline Alignment: {} words in {:.2f}s",
-                   len(alignment), elapsed)
+    logger.success(
+        "Timing ({}): {} words in {:.2f}s",
+        strategy,
+        len(alignment),
+        elapsed,
+    )
     return result_data

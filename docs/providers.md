@@ -127,7 +127,7 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 
 #### Capability vocabulary
 
-`async_job`, `batch`, `cancel`, `exclusive_execution`, `model_download`, `progress`, `push_callbacks`, `single_scene`, `speed_control`, `streaming`, `test_connection`, `voice_blend`, `voice_list`
+`async_job`, `batch`, `cancel`, `exclusive_execution`, `model_download`, `native_word_timing`, `progress`, `push_callbacks`, `single_scene`, `speed_control`, `streaming`, `test_connection`, `voice_blend`, `voice_list`
 
 #### Request model (`scriptase.modules.tts.providers.contract:TTSRequest`)
 

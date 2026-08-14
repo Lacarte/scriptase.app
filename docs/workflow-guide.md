@@ -27,7 +27,7 @@ applicable) before the first real run.
    workflow builder (`#/workflow`) automatically.
 2. In the toolbar, open the **Template…** dropdown and pick **Full Video**.
    A fully connected pipeline appears: Manual Trigger → Project Setup +
-   Script Input → Text to Speech → Force Alignment → Segmenter →
+   Script Input → Text to Speech → Timing → Segmenter →
    Scene Blueprint → Storyboard → Animator → (with Captions and Background
    Music) → Assemble Project → Timeline Project → Video Export →
    Workflow Output.

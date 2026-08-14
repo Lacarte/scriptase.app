@@ -493,6 +493,15 @@ def _metadata(
     for key, value in provider_metadata.items():
         metadata.setdefault(key, value)
     metadata.update(dict(extra_metadata or {}))
+
+    # Step 5.3: advertise native word timing so Timing AUTO can skip Whisper
+    # when the provider both declares the capability and returned timings.
+    # `word_timings` rides through provider_metadata; the boolean is derived
+    # from the manifest so a rogue payload cannot claim reliability alone.
+    caps = dict(getattr(instance, "capabilities", None) or {})
+    if caps.get("native_word_timing"):
+        metadata["native_word_timing"] = True
+
     metadata["job_meta"] = _job_meta(
         instance,
         settings=settings,

@@ -26,7 +26,7 @@ const FAKE_TYPES = {
   'timing.align': {
     type: 'timing.align',
     type_version: 1,
-    display_name: 'Force Alignment',
+    display_name: 'Timing',
     category: 'timing',
     inputs: [
       { id: 'audio', type: 'audio_file', required: true, multiple: false },

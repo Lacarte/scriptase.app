@@ -59,19 +59,26 @@ def generate(inputs, config, context):
     # Drop absolute path keys from the service result, then re-emit wav_path as
     # the relative ref so sample fixtures and tts_metadata consumers keep a
     # stable shape without reintroducing L7.
+    # native_word_timing / word_timings (step 5.3) ride through from dispatch
+    # when the provider advertised them; Timing AUTO reads them off the audio
+    # port (the only edge the default workflow draws from TTS → Timing).
     metadata_body = {key: value for key, value in result.items() if key not in _ABSOLUTE_KEYS}
     metadata_body["wav_path"] = wav_ref
-    metadata = with_artifacts(metadata_body, wav_abs, sidecar_abs)
 
-    audio = with_artifacts(
-        {
-            "project_id": pid,
-            "filename": result["filename"],
-            "folder": result.get("folder") or pid,
-            "duration_seconds": result.get("duration_seconds"),
-            "sample_rate": result.get("sample_rate"),
-            "wav_path": wav_ref,
-        },
-        wav_abs,
-    )
+    audio_body = {
+        "project_id": pid,
+        "filename": result["filename"],
+        "folder": result.get("folder") or pid,
+        "duration_seconds": result.get("duration_seconds"),
+        "sample_rate": result.get("sample_rate"),
+        "wav_path": wav_ref,
+    }
+    if result.get("native_word_timing"):
+        audio_body["native_word_timing"] = True
+    word_timings = result.get("word_timings")
+    if isinstance(word_timings, list) and word_timings:
+        audio_body["word_timings"] = word_timings
+
+    metadata = with_artifacts(metadata_body, wav_abs, sidecar_abs)
+    audio = with_artifacts(audio_body, wav_abs)
     return outputs(audio=audio, metadata=metadata)

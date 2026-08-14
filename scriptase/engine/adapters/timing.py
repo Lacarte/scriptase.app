@@ -1,10 +1,13 @@
-"""Force-alignment adapter (`timing.align`).
+"""Timing adapter (`timing.align`) — strategy AUTO (step 5.3).
 
-Step 15.3: the upstream `tts.generate` audio port no longer carries absolute
-`wav_path` / `path` keys (§36 L7). This adapter resolves the managed wav through
-`resolve_ref` from `artifact_refs` (authoritative) or a relative `wav_path` /
-`path` (sample fixtures and pre-15.3 relative payloads), then hands an absolute
-path only to the in-process `_step_timing` service.
+User-facing node name is **Timing** (V2: Force Alignment). Resolves the managed
+wav through `resolve_ref` from `artifact_refs` (authoritative) or a relative
+`wav_path` / `path` (sample fixtures), then hands the absolute path only to the
+in-process `_step_timing` service.
+
+When the upstream audio port carries `native_word_timing` plus `word_timings`,
+the service normalises those; otherwise it force-aligns. The alignment port
+always emits the same canonical schema either way.
 """
 
 from __future__ import annotations
@@ -68,13 +71,21 @@ def align(inputs, config, context):
     pid = project_id(context, inputs)
     audio = inputs["audio"]
     wav_path = _resolve_audio_path(audio)
-    # Absolute only for the in-process alignment service — never re-emitted on
+    # Absolute only for the in-process timing service — never re-emitted on
     # the alignment port (with_artifacts writes relative refs from the JSON path).
     metadata = {
         "wav_path": wav_path,
         "folder": audio.get("folder") or audio.get("source_folder") or pid,
         "filename": audio.get("filename") or os.path.basename(wav_path),
     }
+    # Forward native timing advertisement + payload for strategy AUTO.
+    if audio.get("native_word_timing"):
+        metadata["native_word_timing"] = True
+    for key in ("word_timings", "alignment", "word_alignment"):
+        value = audio.get(key)
+        if isinstance(value, list) and value:
+            metadata[key] = value
+            break
     try:
         result = _step_timing(metadata, {"text": inputs["script"]}, pid)
     except RuntimeError as exc:

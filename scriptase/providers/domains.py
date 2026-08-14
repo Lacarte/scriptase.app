@@ -100,7 +100,14 @@ DOMAINS: dict[str, DomainSpec] = {
             providers_base=_base("scriptase", "modules", "tts", "providers"),
             default_provider="kokoro",
             capability_vocabulary=_caps(
-                "streaming", "voice_list", "voice_blend", "speed_control", "model_download"
+                "streaming",
+                "voice_list",
+                "voice_blend",
+                "speed_control",
+                "model_download",
+                # Step 5.3: when True, Timing AUTO normalises provider word
+                # timestamps instead of running Whisper force-alignment.
+                "native_word_timing",
             ),
             legacy_selection_key="sts-tts-provider",
             request_model="scriptase.modules.tts.providers.contract:TTSRequest",

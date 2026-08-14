@@ -34,6 +34,7 @@ notification, or export.
 | Job | §6 | 1.4 / 1.5 |
 | ProviderInstance | §7 | 3.1 / 3.2 |
 | SceneSpec | §8 | 5.1 (implemented) |
+| Timing strategy AUTO + alignment schema | §8.1 | 5.3 (implemented) |
 | ReviewIssue + repair routing table | §9 | 7.2 / 8.1 |
 | Stage projection | §10 | 2.2 |
 | ApprovalCheckpoint | §11 | 2.6 |
@@ -643,6 +644,37 @@ A Job's `channel_snapshot.visual_direction` is forwarded via channel settings an
 grammar so two Channels with different patterns produce measurably different SceneSpecs
 from the same script (`tests/test_channel_visual_direction.py`).
 
+### 8.1 Timing strategy AUTO
+
+Per product §10. Implemented at 5.3
+(`scriptase.modules.timing.service:_step_timing`). Node type remains `timing.align`;
+user-facing display name is **Timing** (V2: Force Alignment).
+
+Strategy AUTO:
+
+```
+TTS audio.native_word_timing == true AND usable word_timings?
+  YES -> normalize_word_timings + _validate_alignment
+  NO  -> Whisper / stable-ts force-alignment (_run_alignment)
+```
+
+TTS domain capability `native_word_timing` (in `providers/domains.py` vocabulary).
+When a provider grants it and returns `word_timings` in result metadata, dispatch
+stamps `native_word_timing: true` and the timings onto the TTS audio/metadata ports.
+Timing reads them from the audio port only — no graph edge change.
+
+Canonical alignment artifact / port payload keys (no strategy discriminator):
+
+```
+project_id, source_file, folder, transcript, alignment, word_count,
+inference_time, timestamp
+```
+
+Each `alignment[]` entry is `{word, begin, end}` (floats, seconds). Provider spellings
+`start`/`end`, `text`/`token` are accepted at normalise time and rewritten to this
+shape. The segmenter and captions consume only this schema; they cannot determine
+which strategy ran (`tests/test_timing_strategy.py`).
+
 ---
 
 ## 9. ReviewIssue
@@ -863,6 +895,7 @@ decision freeze.
 | Stage projection endpoint | Shape frozen in §10 | 2.2 |
 | SceneSpec round-trip | Shape frozen in §8; `tests/test_scene_spec.py` | 5.1 |
 | Channel visual direction → Director | Typed `VisualDirectionInput` on request; pattern diverges SceneSpecs; prompt text under `providers/` | 5.2 |
+| Timing strategy AUTO | Native word timings when advertised; else force-align; identical alignment schema | 5.3 |
 | Review provider domain | Uses standard result envelope + ReviewIssue | 7.3 |
 | V2 project import | Map niche presets → Channels; keep output/ layout | 10.1 / 1.3 |
 | Indexed storage for runs/queue/jobs | Performance only; no schema meaning change | 10.2 |
