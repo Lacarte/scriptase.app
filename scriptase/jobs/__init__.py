@@ -64,6 +64,26 @@ from scriptase.jobs.store import (
     list_jobs,
     update_job,
 )
+from scriptase.jobs.stage_projection import (
+    STAGE_CATALOG,
+    STAGE_KEYS,
+    StageProjectionError,
+    assign_nodes_to_stages,
+    default_stage_labels,
+    project_stages,
+    project_workflow_stages,
+    stage_projection_summary,
+)
+
+
+# Lazy blueprint export so importing this package never pulls Flask routes.
+def __getattr__(name: str):
+    if name == "jobs_bp":
+        from scriptase.jobs.routes import jobs_bp
+
+        return jobs_bp
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "EXECUTION_MODES",
@@ -82,19 +102,25 @@ __all__ = [
     "JobSource",
     "JobTerminal",
     "JobValidationError",
+    "STAGE_CATALOG",
+    "STAGE_KEYS",
+    "StageProjectionError",
     "add_artifact_ids",
     "apply_migrations",
     "assert_job_is_not_a_node",
     "assert_snapshot_has_no_credentials",
+    "assign_nodes_to_stages",
     "build_channel_snapshot",
     "channel_settings_from_snapshot",
     "collect_execution_artifact_refs",
     "create_job",
     "default_draft",
+    "default_stage_labels",
     "delete_job",
     "derive_job_status",
     "get_job",
     "job_summary",
+    "jobs_bp",
     "kind_for_artifact_ref",
     "list_jobs",
     "load_job_workflow",
@@ -102,11 +128,14 @@ __all__ = [
     "merge_setup_config_with_channel",
     "parse_draft",
     "parse_job",
+    "project_stages",
+    "project_workflow_stages",
     "resolve_channel_settings",
     "setup_seed_from_channel_settings",
     "prepare_workflow_for_job",
     "script_text_from_source",
     "snapshot_contains_credentials",
+    "stage_projection_summary",
     "start_job",
     "sync_job_from_execution",
     "update_job",

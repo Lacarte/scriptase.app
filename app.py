@@ -54,6 +54,7 @@ def register_blueprints(app: Flask) -> None:
     """
     from scriptase.channels import channels_bp
     from scriptase.engine.routes import workflows_bp
+    from scriptase.jobs.routes import jobs_bp
     from scriptase.modules.captions import captions_bp
     from scriptase.modules.compose import (
         compose_archive_bp,
@@ -78,6 +79,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(workflows_bp)
     app.register_blueprint(providers_bp)
     app.register_blueprint(channels_bp)
+    app.register_blueprint(jobs_bp)
 
     for blueprint in (
         story_bp,
