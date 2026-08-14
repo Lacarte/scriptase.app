@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from scriptase.providers.docs import (
@@ -237,7 +238,7 @@ def generate_node_reference() -> str:
 
 
 def _contract_connection_rules(path: Path = CONTRACTS_SOURCE) -> str:
-    """Read the normative prose in contracts.md §1.1.
+    """Read the normative port-compatibility prose from contracts.md.
 
     The type inventory is deliberately omitted because the registry is the
     executable source of truth for that list. Keeping the behavioral prose in
@@ -245,11 +246,14 @@ def _contract_connection_rules(path: Path = CONTRACTS_SOURCE) -> str:
     different connection model.
     """
     source = path.read_text(encoding="utf-8")
-    marker = "### 1.1 Port types & compatibility matrix"
-    try:
-        section = source.split(marker, 1)[1].split("### 1.2", 1)[0]
-    except IndexError as exc:
-        raise RuntimeError(f"Cannot find section 1.1 in {path}") from exc
+    match = re.search(
+        r"(?ms)^###\s+\d+(?:\.\d+)*\s+Port types & compatibility matrix\s*$"
+        r"(?P<section>.*?)(?=^###\s+|\Z)",
+        source,
+    )
+    if match is None:
+        raise RuntimeError(f"Cannot find the port compatibility section in {path}")
+    section = match.group("section")
     paragraphs = [part.strip() for part in section.strip().split("\n\n")]
     return "\n\n".join(part for part in paragraphs if not part.startswith("Types (v1):"))
 

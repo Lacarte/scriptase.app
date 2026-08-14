@@ -104,6 +104,21 @@ class NodeAuthorGuideTests(unittest.TestCase):
         self.assertIn("A unique frozen connection rule.", generated)
         self.assertNotIn("stale_on_purpose", generated)
 
+    def test_connection_rules_survive_contract_section_renumbering(self):
+        with TemporaryDirectory() as directory:
+            contract = Path(directory) / "contracts.md"
+            contract.write_text(
+                "### 1.1 Node definition\n\nNode prose.\n\n"
+                "### 1.2 Port types & compatibility matrix\n\n"
+                "A renumbered frozen connection rule.\n\n"
+                "### 1.3 Stable port IDs\n",
+                encoding="utf-8",
+            )
+            generated = generate_node_author_guide(contracts_path=contract)
+        self.assertIn("A renumbered frozen connection rule.", generated)
+        self.assertNotIn("Node prose.", generated)
+        self.assertNotIn("Stable port IDs", generated)
+
     def test_port_tables_are_derived_from_the_registry(self):
         for port_type in PORT_TYPES:
             self.assertIn(f"| `{port_type}` |", self.content)
