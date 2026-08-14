@@ -45,6 +45,32 @@ def _wait_for(predicate, timeout=3):
     raise AssertionError("condition was not reached")
 
 
+def _join_handle(manager, execution_id, timeout=5):
+    """Wait until the pool assigns a worker (if needed), then join it."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        handle = manager.active.get(execution_id)
+        if handle is None:
+            return
+        # Terminal records mean the worker already finished and may have been
+        # reaped; treat as done.
+        try:
+            status = load_queue_record(execution_id, root=manager.queue_root)["status"]
+        except Exception:
+            status = None
+        if status in {"done", "failed", "cancelled"}:
+            if handle.thread is not None and handle.thread.is_alive():
+                handle.thread.join(timeout=max(0.0, deadline - time.monotonic()))
+            return
+        if handle.thread is not None:
+            handle.thread.join(timeout=max(0.0, deadline - time.monotonic()))
+            if not handle.thread.is_alive():
+                return
+            continue
+        time.sleep(0.005)
+    raise AssertionError(f"execution {execution_id} did not finish within {timeout}s")
+
+
 def test_same_project_serializes_while_different_projects_run_concurrently(tmp_path):
     release = threading.Event()
     state_lock = threading.Lock()
@@ -85,8 +111,8 @@ def test_same_project_serializes_while_different_projects_run_concurrently(tmp_p
     assert load_queue_record(other, root=manager.queue_root)["status"] == "running"
 
     release.set()
-    manager.active.get(second).thread.join(timeout=5)
-    manager.active.get(other).thread.join(timeout=5)
+    _join_handle(manager, second)
+    _join_handle(manager, other)
     assert maximum_by_project == {"pm_ABC123": 1, "pm_DEF456": 1}
     assert started_by_project == {"pm_ABC123": 2, "pm_DEF456": 1}
     assert load_queue_record(second, root=manager.queue_root)["status"] == "done"
@@ -127,10 +153,11 @@ def test_concurrent_projects_isolate_events_records_history_and_artifacts(tmp_pa
         for project_id in projects
     ]
 
-    workers = [manager.active.get(execution_id).thread for execution_id in execution_ids]
-    for worker in workers:
-        worker.join(timeout=5)
-        assert not worker.is_alive()
+    for execution_id in execution_ids:
+        _join_handle(manager, execution_id)
+        handle = manager.active.get(execution_id)
+        if handle is not None and handle.thread is not None:
+            assert not handle.thread.is_alive()
 
     records = {
         execution_id: load_execution(execution_id, root=manager.execution_root)
@@ -193,7 +220,7 @@ def test_pending_run_can_be_cancelled_and_never_executes(tmp_path):
     assert load_queue_record(pending, root=manager.queue_root)["status"] == "cancelled"
     assert load_execution(pending, root=manager.execution_root)["status"] == "cancelled"
     release.set()
-    manager.active.get(first).thread.join(timeout=5)
+    _join_handle(manager, first)
     assert calls == [first]
 
 
@@ -202,7 +229,7 @@ def test_queue_record_persists_source_and_requested_mode(tmp_path):
     execution_id, _ = manager.start(
         _workflow(), run_mode="full", target_node_ids=[], source="webhook"
     )
-    manager.active.get(execution_id).thread.join(timeout=5)
+    _join_handle(manager, execution_id)
     item = load_queue_record(execution_id, root=manager.queue_root)
     assert item["source"] == "webhook"
     assert item["requested_run_mode"] == "full"
@@ -246,4 +273,4 @@ def test_queue_endpoints_list_and_cancel_pending(tmp_path, monkeypatch):
     assert response.get_json()["status"] == "cancelled"
 
     release.set()
-    manager.active.get(first).thread.join(timeout=5)
+    _join_handle(manager, first)

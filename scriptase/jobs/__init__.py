@@ -44,6 +44,14 @@ from scriptase.jobs.models import (
     validation_problems,
 )
 from scriptase.jobs.migrations import SCHEMA_VERSION, apply_migrations
+from scriptase.jobs.budget import (
+    BudgetExceededError,
+    budget_from_job,
+    check_budget_preflight,
+    check_job_next_stage_budget,
+    estimate_stage_generations,
+    next_provider_stage,
+)
 from scriptase.jobs.orchestration import (
     JobOrchestrationError,
     approve_job,
@@ -141,12 +149,17 @@ __all__ = [
     "assert_job_is_not_a_node",
     "assert_snapshot_has_no_credentials",
     "assign_nodes_to_stages",
+    "BudgetExceededError",
+    "budget_from_job",
     "build_channel_snapshot",
     "build_stage_run_request",
     "channel_settings_from_snapshot",
+    "check_budget_preflight",
+    "check_job_next_stage_budget",
     "collect_execution_artifact_refs",
     "DIRECT_TEXT_SOURCE_MODES",
     "EXECUTION_MODE_CATALOG",
+    "estimate_stage_generations",
     "PROVIDER_REQUIRED_SOURCE_MODES",
     "SOURCE_MODE_CATALOG",
     "create_job",
@@ -164,6 +177,7 @@ __all__ = [
     "load_job_workflow",
     "merge_node_config_with_channel",
     "merge_setup_config_with_channel",
+    "next_provider_stage",
     "normalize_execution_record_for_compare",
     "parse_draft",
     "parse_job",

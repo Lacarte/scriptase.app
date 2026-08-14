@@ -1,4 +1,11 @@
-"""Asynchronous workflow execution orchestration for the HTTP API."""
+"""Asynchronous workflow execution orchestration for the HTTP API.
+
+Step 3.5 replaces V2's unbounded per-project drain threads with a single
+bounded global work pool. Per-project FIFO ordering is preserved: at most one
+execution runs per project at a time, and a project's pending runs start in
+submission order. The global ceiling (``max_global_workers``) caps how many
+projects may execute concurrently.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +18,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from config import OUTPUT_DIR, generate_project_id
+from config import GLOBAL_WORK_POOL_SIZE, OUTPUT_DIR, generate_project_id
 from scriptase.shared.io_utils import JobStore, now_iso
 
 from .adapters.common import PROJECT_ID_RE
@@ -153,6 +160,7 @@ class ExecutionManager:
         output_dir: str = OUTPUT_DIR,
         max_events: int = 1000,
         executor_resolver=resolve_executor,
+        max_global_workers: int | None = None,
     ):
         self.output_dir = output_dir
         self.execution_root = os.path.join(output_dir, "workflows", "executions")
@@ -160,9 +168,29 @@ class ExecutionManager:
         self.active = JobStore()
         self.events = EventBroker(max_events=max_events)
         self.executor_resolver = executor_resolver
+        workers = (
+            GLOBAL_WORK_POOL_SIZE
+            if max_global_workers is None
+            else int(max_global_workers)
+        )
+        if isinstance(max_global_workers, bool) or workers < 1:
+            raise ValueError("max_global_workers must be a positive integer")
+        self.max_global_workers = workers
+        # Admission lock for the global pool + per-project FIFOs.
         self._queue_lock = threading.Lock()
+        # project_id → pending handles in submission order.
         self._project_queues: dict[str, deque[ActiveExecution]] = {}
-        self._project_workers: dict[str, threading.Thread] = {}
+        # Projects that currently occupy a pool slot (one execution each).
+        self._running_projects: set[str] = set()
+        # Fair rotation of projects waiting for a free pool slot.
+        self._ready_projects: deque[str] = deque()
+        self._running_count = 0
+
+    @property
+    def running_count(self) -> int:
+        """Number of executions currently occupying a global pool slot."""
+        with self._queue_lock:
+            return self._running_count
 
     def start(
         self,
@@ -238,22 +266,7 @@ class ExecutionManager:
             scheduler=scheduler, stop_event=stop_event, queue_record=queue_record
         )
         self.active.set(execution_id, handle)
-        with self._queue_lock:
-            queue = self._project_queues.setdefault(resolved_project, deque())
-            queue.append(handle)
-            worker = self._project_workers.get(resolved_project)
-            if worker is None or not worker.is_alive():
-                worker = threading.Thread(
-                    target=self._drain_project,
-                    args=(resolved_project,),
-                    name=f"workflow-queue-{resolved_project}",
-                    daemon=True,
-                )
-                self._project_workers[resolved_project] = worker
-                handle.thread = worker
-                worker.start()
-            else:
-                handle.thread = worker
+        self._enqueue(resolved_project, handle)
         return execution_id, resolved_project
 
     @staticmethod
@@ -288,30 +301,91 @@ class ExecutionManager:
                 result[str(node_id)][str(port_id)] = value
         return result
 
-    def _drain_project(self, project_id: str) -> None:
-        """Drain one project's FIFO without occupying workers for other projects."""
-        while True:
-            with self._queue_lock:
-                queue = self._project_queues.get(project_id)
-                if not queue:
-                    self._project_queues.pop(project_id, None)
-                    self._project_workers.pop(project_id, None)
-                    return
-                handle = queue.popleft()
-                if handle.queue_record.status == "cancelled":
+    # ------------------------------------------------------------------
+    # Global work pool (step 3.5)
+    # ------------------------------------------------------------------
+
+    def _enqueue(self, project_id: str, handle: ActiveExecution) -> None:
+        """Append to the project's FIFO and try to admit work into the pool."""
+        with self._queue_lock:
+            queue = self._project_queues.setdefault(project_id, deque())
+            queue.append(handle)
+            self._mark_ready_locked(project_id)
+            self._dispatch_locked()
+
+    def _mark_ready_locked(self, project_id: str) -> None:
+        """Queue *project_id* for a pool slot if it has pending work and is idle."""
+        if project_id in self._running_projects:
+            return
+        if project_id in self._ready_projects:
+            return
+        queue = self._project_queues.get(project_id)
+        if not queue:
+            return
+        # Only ready if at least one non-cancelled handle is waiting.
+        if not any(h.queue_record.status == "pending" for h in queue):
+            return
+        self._ready_projects.append(project_id)
+
+    def _dispatch_locked(self) -> None:
+        """Fill free pool slots from the ready-project rotation (FIFO per project)."""
+        while self._running_count < self.max_global_workers and self._ready_projects:
+            project_id = self._ready_projects.popleft()
+            if project_id in self._running_projects:
+                continue
+            queue = self._project_queues.get(project_id)
+            if not queue:
+                self._project_queues.pop(project_id, None)
+                continue
+
+            handle: ActiveExecution | None = None
+            while queue:
+                candidate = queue.popleft()
+                if candidate.queue_record.status == "cancelled":
                     continue
-                handle.queue_record.status = "running"
-                handle.queue_record.started_at = now_iso()
-                handle.scheduler.record.status = "running"
-                handle.scheduler.record.started_at = handle.queue_record.started_at
-                save_queue_record(handle.queue_record, root=self.queue_root)
-                save_execution(
-                    handle.scheduler.record,
-                    root=self.execution_root,
-                    secrets=handle.scheduler.redactor.secrets,
-                )
+                if candidate.queue_record.status != "pending":
+                    continue
+                handle = candidate
+                break
+            if not queue:
+                self._project_queues.pop(project_id, None)
+            if handle is None:
+                continue
+
+            handle.queue_record.status = "running"
+            handle.queue_record.started_at = now_iso()
+            handle.scheduler.record.status = "running"
+            handle.scheduler.record.started_at = handle.queue_record.started_at
+            save_queue_record(handle.queue_record, root=self.queue_root)
+            save_execution(
+                handle.scheduler.record,
+                root=self.execution_root,
+                secrets=handle.scheduler.redactor.secrets,
+            )
+
+            self._running_projects.add(project_id)
+            self._running_count += 1
+            worker = threading.Thread(
+                target=self._pool_worker,
+                args=(project_id, handle),
+                name=f"workflow-pool-{handle.scheduler.execution_id}",
+                daemon=True,
+            )
+            handle.thread = worker
+            worker.start()
+
+    def _pool_worker(self, project_id: str, handle: ActiveExecution) -> None:
+        """Run one admitted execution, then free the slot and dispatch more."""
+        try:
             handle.thread = threading.current_thread()
             self._run(handle, self.events.create(handle.scheduler.execution_id))
+        finally:
+            with self._queue_lock:
+                self._running_projects.discard(project_id)
+                self._running_count = max(0, self._running_count - 1)
+                # Re-arm this project if more pending work remains, then fill slots.
+                self._mark_ready_locked(project_id)
+                self._dispatch_locked()
 
     def _run(self, handle: ActiveExecution, stream: ExecutionEventBuffer) -> None:
         try:
@@ -593,23 +667,7 @@ class ExecutionManager:
             scheduler=scheduler, stop_event=stop_event, queue_record=queue_record
         )
         self.active.set(execution_id, handle)
-        resolved_project = resume_state.project_id
-        with self._queue_lock:
-            queue = self._project_queues.setdefault(resolved_project, deque())
-            queue.append(handle)
-            worker = self._project_workers.get(resolved_project)
-            if worker is None or not worker.is_alive():
-                worker = threading.Thread(
-                    target=self._drain_project,
-                    args=(resolved_project,),
-                    name=f"workflow-queue-{resolved_project}",
-                    daemon=True,
-                )
-                self._project_workers[resolved_project] = worker
-                handle.thread = worker
-                worker.start()
-            else:
-                handle.thread = worker
+        self._enqueue(resume_state.project_id, handle)
         return "resuming"
 
     def _resolve_checkpoint(

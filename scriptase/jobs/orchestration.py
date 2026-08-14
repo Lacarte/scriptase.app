@@ -19,6 +19,7 @@ from scriptase.artifacts.store import register_artifact
 from scriptase.engine.execution import ExecutionManager, ExecutionRequestError, execution_manager
 from scriptase.engine.persistence import load_execution, load_workflow
 from scriptase.engine.registry import get_node_type
+from scriptase.jobs.budget import BudgetExceededError, check_job_next_stage_budget
 from scriptase.jobs.channel_settings import (
     channel_settings_from_snapshot,
     merge_node_config_with_channel,
@@ -298,6 +299,21 @@ def start_job(
 
     source_workflow = workflow if workflow is not None else load_job_workflow(job)
     prepared = prepare_workflow_for_job(job, source_workflow)
+
+    # Pre-flight budget (step 3.5): refuse before any provider is called.
+    try:
+        check_job_next_stage_budget(job, prepared)
+    except BudgetExceededError as exc:
+        # Surface a durable status_reason so the Job view can show why it stopped.
+        try:
+            update_job(
+                job.id,
+                status_reason="budget",
+                allow_terminal=job.status in TERMINAL_STATUSES,
+            )
+        except Exception:
+            pass
+        raise JobOrchestrationError(exc.code, exc.message, details=exc.details) from exc
 
     active_manager = manager or execution_manager
     try:

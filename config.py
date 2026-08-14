@@ -126,6 +126,11 @@ HOST = os.environ.get("SCRIPTASE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("SCRIPTASE_PORT", "5000"))
 DEBUG = os.environ.get("SCRIPTASE_DEBUG", "0") == "1"
 
+# Bounded global work pool (step 3.5). Replaces V2's unbounded per-project
+# drain threads. Per-project FIFO ordering is preserved; only the *global*
+# concurrent-execution ceiling is configured here.
+GLOBAL_WORK_POOL_SIZE = max(1, int(os.environ.get("SCRIPTASE_GLOBAL_WORKERS", "4")))
+
 # Tests that call a real provider are gated behind this flag and the
 # ``live`` pytest marker.
 LIVE_TESTS = os.environ.get("STS_LIVE") == "1"
