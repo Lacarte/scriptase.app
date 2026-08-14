@@ -59,6 +59,7 @@ STATUS_REASON_CODES: tuple[str, ...] = (
     "approval",
     "budget",
     "user_pause",
+    "process_interrupted",  # step 10.3 startup reconciliation
 )
 
 

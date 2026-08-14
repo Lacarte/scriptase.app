@@ -22,6 +22,10 @@ if str(ROOT) not in sys.path:
 # Step 9.2: create_app starts schedule/watch/cadence threads by default for
 # real servers. Keep unit tests free of those daemons unless a test opts in.
 os.environ.setdefault("SCRIPTASE_DISABLE_TRIGGERS", "1")
+# Step 10.3: create_app runs crash recovery against OUTPUT_DIR by default.
+# Keep unit tests from mutating a developer's real output tree; tests that
+# need reconciliation call reconcile_on_startup() against a temp root.
+os.environ.setdefault("SCRIPTASE_DISABLE_RECONCILE", "1")
 
 
 def pytest_collection_modifyitems(config, items):

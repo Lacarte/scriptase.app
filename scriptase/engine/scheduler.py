@@ -111,8 +111,100 @@ class CancellationRequested(SchedulerError):
         super().__init__("CANCELLED", "Execution was cancelled")
 
 
+def is_pid_alive(pid: int | None) -> bool:
+    """Return True when *pid* appears to be a live process.
+
+    Used by :class:`ProjectLock` (and startup reconciliation) so a lockfile
+    left behind by a hard-killed process does not lock a project forever
+    (step 10.3). PIDs can be recycled by the OS; this is a best-effort
+    liveness probe, not a cryptographic identity.
+    """
+    if pid is None:
+        return False
+    try:
+        pid_int = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid_int <= 0:
+        return False
+    if os.name == "nt":
+        # PROCESS_QUERY_LIMITED_INFORMATION (0x1000) is enough to test existence.
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, wintypes.DWORD(pid_int))
+        if not handle:
+            return False
+        kernel32.CloseHandle(handle)
+        return True
+    try:
+        os.kill(pid_int, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Process exists; we are not allowed to signal it.
+        return True
+    return True
+
+
+def read_project_lock(path: str) -> dict[str, Any] | None:
+    """Parse a project lockfile. Returns None when missing or unreadable."""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def is_project_lock_stale(path: str, *, payload: Mapping[str, Any] | None = None) -> bool:
+    """True when the lockfile is absent, corrupt, or owned by a dead pid."""
+    if not os.path.isfile(path):
+        return True
+    document = payload if payload is not None else read_project_lock(path)
+    if not isinstance(document, Mapping):
+        return True
+    return not is_pid_alive(document.get("pid"))
+
+
+def clear_stale_project_locks(lock_root: str) -> list[str]:
+    """Unlink project lockfiles whose owner pid is no longer alive.
+
+    Returns the project ids whose locks were removed. Live locks are left
+    alone so a concurrent Scriptase process is not disrupted.
+    """
+    if not os.path.isdir(lock_root):
+        return []
+    cleared: list[str] = []
+    for filename in os.listdir(lock_root):
+        if not filename.endswith(".lock"):
+            continue
+        path = os.path.join(lock_root, filename)
+        if not os.path.isfile(path):
+            continue
+        if not is_project_lock_stale(path):
+            continue
+        project_id = filename[:-5]
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            logger.warning("[reconciliation] failed to remove stale lock {}: {}", path, exc)
+            continue
+        cleared.append(project_id)
+    return cleared
+
+
 class ProjectLock(AbstractContextManager):
-    """Non-blocking in-process and cross-process lock for one project."""
+    """Non-blocking in-process and cross-process lock for one project.
+
+    Lockfiles record the owner ``pid``. On acquire, a leftover lock from a
+    dead process is reclaimed (step 10.3) so a hard kill cannot strand a
+    project forever.
+    """
 
     _guard = threading.Lock()
     _held: set[str] = set()
@@ -127,6 +219,38 @@ class ProjectLock(AbstractContextManager):
         self._lock_key = os.path.normcase(os.path.abspath(self.path))
         self._acquired = False
 
+    def _write_lockfile(self) -> None:
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        fd = os.open(self.path, flags, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump({
+                "project_id": self.project_id,
+                "execution_id": self.execution_id,
+                "pid": os.getpid(),
+            }, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def _try_reclaim_stale(self) -> bool:
+        """Remove a dead owner's lockfile. Returns True when the path is free."""
+        if not os.path.isfile(self.path):
+            return True
+        payload = read_project_lock(self.path)
+        if not is_project_lock_stale(self.path, payload=payload):
+            return False
+        try:
+            os.unlink(self.path)
+        except FileNotFoundError:
+            return True
+        except OSError:
+            return False
+        logger.info(
+            "[ProjectLock] reclaimed stale lock for {} (was pid={})",
+            self.project_id,
+            None if not isinstance(payload, Mapping) else payload.get("pid"),
+        )
+        return True
+
     def acquire(self) -> "ProjectLock":
         os.makedirs(self.lock_root, exist_ok=True)
         with self._guard:
@@ -134,20 +258,19 @@ class ProjectLock(AbstractContextManager):
                 raise ProjectLockedError(self.project_id)
             self._held.add(self._lock_key)
         try:
-            flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
-            fd = os.open(self.path, flags, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                json.dump({
-                    "project_id": self.project_id,
-                    "execution_id": self.execution_id,
-                    "pid": os.getpid(),
-                }, handle)
-                handle.flush()
-                os.fsync(handle.fileno())
-        except FileExistsError as exc:
-            with self._guard:
-                self._held.discard(self._lock_key)
-            raise ProjectLockedError(self.project_id) from exc
+            self._write_lockfile()
+        except FileExistsError as first_exc:
+            # Dead owner → reclaim once, then retry. Live owner → locked.
+            if not self._try_reclaim_stale():
+                with self._guard:
+                    self._held.discard(self._lock_key)
+                raise ProjectLockedError(self.project_id) from first_exc
+            try:
+                self._write_lockfile()
+            except FileExistsError as retry_exc:
+                with self._guard:
+                    self._held.discard(self._lock_key)
+                raise ProjectLockedError(self.project_id) from retry_exc
         except BaseException:
             with self._guard:
                 self._held.discard(self._lock_key)

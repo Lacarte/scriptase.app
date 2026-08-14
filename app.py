@@ -25,6 +25,7 @@ def create_app(
     *,
     discover_providers: bool = True,
     start_triggers: bool | None = None,
+    reconcile: bool | None = None,
 ) -> Flask:
     """Application factory.
 
@@ -33,6 +34,11 @@ def create_app(
     both the dev server and a WSGI host (V2 only started them under
     ``__main__``). Default is on unless ``SCRIPTASE_DISABLE_TRIGGERS=1`` or the
     process is under pytest; pass ``start_triggers=True/False`` to override.
+
+    ``reconcile`` runs crash recovery on boot (step 10.3): fail mid-run
+    executions/jobs, reclaim dead project locks, and purge orphaned staging.
+    Default is on for real servers; off under pytest so unit tests do not
+    mutate a developer's ``output/``. Pass ``reconcile=True/False`` to override.
     """
     config.ensure_runtime_dirs()
 
@@ -53,6 +59,12 @@ def create_app(
     register_blueprints(app)
     if discover_providers:
         init_provider_platform(app, sock)
+
+    if reconcile is None:
+        reconcile = _default_reconcile()
+    app.config["STARTUP_RECONCILE"] = bool(reconcile)
+    if reconcile:
+        run_startup_reconciliation()
 
     if start_triggers is None:
         start_triggers = _default_start_triggers()
@@ -80,6 +92,48 @@ def _default_start_triggers() -> bool:
     }:
         return False
     return True
+
+
+def _default_reconcile() -> bool:
+    """Reconciliation on for real servers; off under pytest unless forced.
+
+    ``SCRIPTASE_DISABLE_RECONCILE=1`` always skips (conftest sets this for the
+    whole pytest process so unit tests never mutate a developer's
+    ``output/``). ``SCRIPTASE_RECONCILE=1`` forces a pass even then.
+    """
+    if os.environ.get("SCRIPTASE_DISABLE_RECONCILE", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        return False
+    if os.environ.get("SCRIPTASE_RECONCILE", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        return True
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return False
+    if os.environ.get("SCRIPTASE_TESTING", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        return False
+    return True
+
+
+def run_startup_reconciliation() -> dict:
+    """Fail mid-run records, reclaim dead locks, purge orphaned staging.
+
+    Safe to call more than once. Failures are logged and never abort boot —
+    a half-broken store should not take the API down with it.
+    """
+    from loguru import logger
+
+    from scriptase.engine.reconciliation import reconcile_on_startup
+
+    try:
+        report = reconcile_on_startup()
+        return report.to_dict()
+    except Exception as exc:
+        logger.exception("[reconciliation] startup pass aborted: {}", exc)
+        return {"changed": False, "error": str(exc)}
 
 
 def start_trigger_services() -> dict[str, bool]:
