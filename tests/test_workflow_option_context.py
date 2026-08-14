@@ -91,7 +91,18 @@ class OptionContextTestCase(unittest.TestCase):
         self.settings = {
             'version': settings_manager.SETTINGS_VERSION,
             'general': {},
-            'domains': {'demo': {'selected_provider': 'alpha', 'per_provider': {}}},
+            'domains': {
+                'demo': {
+                    'selected_instance_id': 'alpha',
+                    'instances': {
+                        'alpha': {
+                            'type': 'alpha',
+                            'label': 'alpha',
+                            'settings': {},
+                        }
+                    },
+                }
+            },
         }
 
         catalog = {'demo': self.spec}
@@ -188,11 +199,11 @@ class ContextValidationTests(OptionContextTestCase):
 
     def test_an_omitted_provider_falls_back_to_the_selection(self):
         self.assertEqual(build_context('fixture_voices', {}).provider, 'alpha')
-        self.settings['domains']['demo']['selected_provider'] = 'beta'
+        self.settings['domains']['demo']['selected_instance_id'] = 'beta'
         self.assertEqual(build_context('fixture_voices', {}).provider, 'beta')
 
     def test_an_unresolvable_selection_falls_back_to_the_domain_default(self):
-        self.settings['domains']['demo']['selected_provider'] = 'uninstalled'
+        self.settings['domains']['demo']['selected_instance_id'] = 'uninstalled'
         self.assertEqual(build_context('fixture_voices', {}).provider, 'alpha')
 
     def test_a_node_type_context_must_name_a_registry_node(self):
@@ -251,7 +262,7 @@ class PerProviderResolutionTests(OptionContextTestCase):
 
     def test_a_context_free_request_follows_the_selection(self):
         self.assertEqual(self.values(), ['alpha_one', 'alpha_two'])
-        self.settings['domains']['demo']['selected_provider'] = 'beta'
+        self.settings['domains']['demo']['selected_instance_id'] = 'beta'
         workflow_options.invalidate_settings_cache('demo')
         self.assertEqual(self.values(), ['beta_one'])
 

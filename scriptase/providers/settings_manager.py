@@ -1,12 +1,20 @@
 """Settings Manager — load, save, validate, atomic writes, redaction.
 
 Canonical source of truth for nested provider settings at settings/settings.json,
-and the single authority for `domains.<domain>.selected_provider` (contracts.md
-§24). Thread-safe with file locking.
+and the single authority for `domains.<domain>.selected_instance_id`
+(contracts.md §7 / §24). Thread-safe with file locking.
 
-Step 11.3 moved the secret vocabulary into `settings_schema` and made environment
-variables a read-time fallback rather than a seed (§22.6): nothing here copies an
-API key out of the environment, and first-run seeding never writes a selection.
+Step 3.1 splits provider **type** (discovered package id) from provider
+**instance** (user-configured binding). The store shape is:
+
+    domains.<domain>.{
+      selected_instance_id,
+      instances: { <instance_id>: { type, label, settings } }
+    }
+
+Compatibility helpers that still accept a bare provider type id resolve it to
+the default instance of that type (`instance_id == type`), which is exactly the
+shape the v6 migration writes for every pre-3.1 selection.
 """
 
 import json
@@ -103,8 +111,8 @@ def _seed_from_env() -> dict:
     Secrets are deliberately **not** seeded: an API key in the environment is a
     read-time fallback resolved from the provider manifest's `environment` map,
     never a value copied into settings.json (§22.6). Seeding also never writes a
-    `selected_provider` — the `INWORLD_API_KEY` selection side effect is removed
-    (§14.3, §22.6).
+    selection beyond the catalog default — the `INWORLD_API_KEY` selection side
+    effect is removed (§14.3, §22.6).
     """
     def env(key: str, default: str = "") -> str:
         return os.environ.get(key) or default
@@ -150,6 +158,22 @@ def save_settings(data: dict) -> None:
             raise
 
 
+def _default_domain_block(spec) -> dict:
+    """One domain's post-3.1 defaults: a single default instance of the catalog type."""
+    default = spec.default_provider
+    instances = {}
+    if default:
+        instances[default] = {
+            "type": default,
+            "label": default,
+            "settings": {},
+        }
+    return {
+        "selected_instance_id": default,
+        "instances": instances,
+    }
+
+
 def _default_settings() -> dict:
     """Return the default settings structure at the current version.
 
@@ -164,13 +188,25 @@ def _default_settings() -> dict:
             "auto_sync": False
         },
         "domains": {
-            spec.id: {
-                "selected_provider": spec.default_provider,
-                "per_provider": {}
-            }
+            spec.id: _default_domain_block(spec)
             for spec in DOMAINS.values()
         }
     }
+
+
+def _ensure_domain_block(settings: dict, domain: str) -> dict:
+    """Return a mutable post-3.1 domain block, creating it if needed."""
+    if "domains" not in settings or not isinstance(settings["domains"], dict):
+        settings["domains"] = {}
+    block = settings["domains"].get(domain)
+    if not isinstance(block, dict):
+        block = {"selected_instance_id": None, "instances": {}}
+        settings["domains"][domain] = block
+    if "instances" not in block or not isinstance(block["instances"], dict):
+        block["instances"] = {}
+    if "selected_instance_id" not in block:
+        block["selected_instance_id"] = None
+    return block
 
 
 def get_domain_settings(domain: str) -> dict:
@@ -179,40 +215,238 @@ def get_domain_settings(domain: str) -> dict:
     return settings.get("domains", {}).get(domain, {})
 
 
-def get_provider_settings(domain: str, provider_id: str) -> dict:
-    """Get stored settings for a specific provider.
+def list_instances(domain: str) -> dict[str, dict]:
+    """`instance_id -> {type, label, settings}` for one domain."""
+    block = get_domain_settings(domain)
+    raw = block.get("instances") if isinstance(block, dict) else None
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        iid: dict(rec)
+        for iid, rec in raw.items()
+        if isinstance(iid, str) and isinstance(rec, dict)
+    }
 
-    Values are returned exactly as stored — never resolved against the
-    environment. Environment fallbacks are provider-internal (§22.6).
+
+def get_instance_record(domain: str, instance_id: str) -> dict | None:
+    """One configured instance record, or `None` when unknown."""
+    if not instance_id:
+        return None
+    rec = list_instances(domain).get(instance_id)
+    return dict(rec) if rec is not None else None
+
+
+def get_selected_instance_id(domain: str) -> str | None:
+    """The domain's selected instance id, or `None` when unset."""
+    block = get_domain_settings(domain)
+    if not isinstance(block, dict):
+        return None
+    value = block.get("selected_instance_id")
+    if isinstance(value, str) and value:
+        return value
+    # Pre-migration documents (or callers that mutate the in-memory blob) may
+    # still carry the retired key; resolve it so selection never goes silent.
+    legacy = block.get("selected_provider")
+    if isinstance(legacy, str) and legacy:
+        return legacy
+    return None
+
+
+def resolve_instance(
+    domain: str, instance_id: str | None = None
+) -> tuple[str | None, str | None, dict]:
+    """Resolve `(instance_id, provider_type, settings)` for a domain.
+
+    When `instance_id` is omitted, the domain selection is used, falling back to
+    the catalog default. When an id is supplied but not stored, it is treated as
+    a default instance of that type (instance_id == type) with empty settings —
+    the same shape migration writes for a selection that never received a
+    settings write.
     """
-    domain_settings = get_domain_settings(domain)
-    return domain_settings.get("per_provider", {}).get(provider_id, {})
+    from scriptase.providers.domains import DOMAINS as domain_catalog
+
+    spec = domain_catalog.get(domain)
+    instances = list_instances(domain)
+
+    candidate = instance_id if (isinstance(instance_id, str) and instance_id) else None
+    if candidate is None:
+        candidate = get_selected_instance_id(domain)
+    if candidate is None and spec is not None:
+        candidate = spec.default_provider
+
+    if not candidate:
+        return None, None, {}
+
+    rec = instances.get(candidate)
+    if rec is not None:
+        type_id = rec.get("type") if isinstance(rec.get("type"), str) else candidate
+        settings = rec.get("settings") if isinstance(rec.get("settings"), dict) else {}
+        return candidate, type_id, dict(settings)
+
+    # Unknown id → treat as a default instance of that provider type.
+    return candidate, candidate, {}
+
+
+def default_instance_id_for_type(domain: str, provider_type: str) -> str:
+    """The instance id used for the default binding of a provider type.
+
+    Equals the type id. Additional instances of the same type use distinct ids.
+    """
+    return provider_type
+
+
+def find_instances_of_type(domain: str, provider_type: str) -> list[str]:
+    """Instance ids whose `type` equals `provider_type`, selection first."""
+    if not provider_type:
+        return []
+    selected = get_selected_instance_id(domain)
+    found: list[str] = []
+    for iid, rec in list_instances(domain).items():
+        if rec.get("type") == provider_type:
+            found.append(iid)
+    if selected and selected in found:
+        found.remove(selected)
+        found.insert(0, selected)
+    # A type with no stored instance still has its default id available.
+    if not found:
+        found.append(provider_type)
+    return found
+
+
+def get_instance_settings(domain: str, instance_id: str) -> dict:
+    """Stored settings for one instance. Never resolves environment fallbacks."""
+    _, _, settings = resolve_instance(domain, instance_id)
+    return settings
+
+
+def get_provider_settings(domain: str, provider_or_instance_id: str) -> dict:
+    """Stored settings for an instance (or the default instance of a type).
+
+    Accepts either an instance id or a provider type id. Type ids resolve to the
+    default instance (`instance_id == type`), preserving every pre-3.1 call site
+    that keyed settings on the provider package id.
+    """
+    return get_instance_settings(domain, provider_or_instance_id)
+
+
+def set_instance_settings(
+    domain: str,
+    instance_id: str,
+    instance_settings: dict,
+    *,
+    provider_type: str | None = None,
+    label: str | None = None,
+) -> None:
+    """Write settings for one instance, creating the record when missing."""
+    if not instance_id:
+        raise ValueError("instance_id must be a non-empty string")
+    settings = load_settings()
+    block = _ensure_domain_block(settings, domain)
+    existing = block["instances"].get(instance_id)
+    type_id = provider_type
+    display = label
+    if isinstance(existing, dict):
+        if not type_id:
+            type_id = existing.get("type") if isinstance(existing.get("type"), str) else instance_id
+        if not display:
+            display = existing.get("label") if isinstance(existing.get("label"), str) else type_id
+    else:
+        type_id = type_id or instance_id
+        display = display or type_id
+    block["instances"][instance_id] = {
+        "type": type_id,
+        "label": display,
+        "settings": dict(instance_settings or {}),
+    }
+    save_settings(settings)
 
 
 def set_provider_settings(domain: str, provider_id: str, provider_settings: dict) -> None:
-    """Set settings for a specific provider."""
-    settings = load_settings()
-    if "domains" not in settings:
-        settings["domains"] = {}
-    if domain not in settings["domains"]:
-        settings["domains"][domain] = {"selected_provider": None, "per_provider": {}}
-    if "per_provider" not in settings["domains"][domain]:
-        settings["domains"][domain]["per_provider"] = {}
+    """Write settings for the default instance of a provider type.
 
-    settings["domains"][domain]["per_provider"][provider_id] = provider_settings
+    Compatibility alias: `provider_id` is used as both instance id and type.
+    """
+    set_instance_settings(
+        domain,
+        provider_id,
+        provider_settings,
+        provider_type=provider_id,
+    )
+
+
+def upsert_instance(
+    domain: str,
+    *,
+    provider_type: str,
+    instance_id: str | None = None,
+    label: str | None = None,
+    settings: dict | None = None,
+) -> str:
+    """Create or update a configured instance of `provider_type`.
+
+    Returns the instance id. When `instance_id` is omitted a unique id is
+    derived from the type (`<type>`, then `<type>_2`, …).
+    """
+    if not provider_type:
+        raise ValueError("provider_type must be a non-empty string")
+    doc = load_settings()
+    block = _ensure_domain_block(doc, domain)
+    instances = block["instances"]
+
+    iid = instance_id
+    if not iid:
+        iid = provider_type
+        if iid in instances and instances[iid].get("type") != provider_type:
+            n = 2
+            while f"{provider_type}_{n}" in instances:
+                n += 1
+            iid = f"{provider_type}_{n}"
+        elif iid in instances:
+            # Updating the default instance in place.
+            pass
+        # else: free to use type as id
+
+    if iid in instances and instance_id is None and instances[iid].get("type") == provider_type:
+        # Caller asked to create without an id but the default already exists —
+        # mint a sibling so two instances of one type are expressible.
+        n = 2
+        while f"{provider_type}_{n}" in instances:
+            n += 1
+        iid = f"{provider_type}_{n}"
+
+    existing = instances.get(iid) if isinstance(instances.get(iid), dict) else {}
+    display = label or existing.get("label") or provider_type
+    body = settings if settings is not None else existing.get("settings") or {}
+    instances[iid] = {
+        "type": provider_type,
+        "label": display,
+        "settings": dict(body) if isinstance(body, dict) else {},
+    }
+    save_settings(doc)
+    return iid
+
+
+def set_selected_instance(domain: str, instance_id: str) -> None:
+    """Set the selected instance for a domain."""
+    if not instance_id:
+        raise ValueError("instance_id must be a non-empty string")
+    settings = load_settings()
+    block = _ensure_domain_block(settings, domain)
+    # Ensure the selected instance exists so a bare selection of a type id
+    # (the default-instance convention) is durable.
+    if instance_id not in block["instances"]:
+        block["instances"][instance_id] = {
+            "type": instance_id,
+            "label": instance_id,
+            "settings": {},
+        }
+    block["selected_instance_id"] = instance_id
     save_settings(settings)
 
 
 def set_selected_provider(domain: str, provider_id: str) -> None:
-    """Set the selected provider for a domain."""
-    settings = load_settings()
-    if "domains" not in settings:
-        settings["domains"] = {}
-    if domain not in settings["domains"]:
-        settings["domains"][domain] = {"selected_provider": None, "per_provider": {}}
-
-    settings["domains"][domain]["selected_provider"] = provider_id
-    save_settings(settings)
+    """Select the default instance of a provider type (compat alias)."""
+    set_selected_instance(domain, provider_id)
 
 
 def get_general_settings() -> dict:
@@ -237,30 +471,41 @@ def redact_settings(data: dict, schema: dict | None = None) -> dict:
     return redact(data, schema)
 
 
-def redacted_provider_settings(domain: str, provider_id: str, schema: dict | None = None) -> dict:
-    """Get redacted settings for a specific provider."""
-    return redact_settings(get_provider_settings(domain, provider_id), schema)
+def redacted_provider_settings(
+    domain: str, provider_or_instance_id: str, schema: dict | None = None
+) -> dict:
+    """Get redacted settings for a specific provider instance."""
+    return redact_settings(get_provider_settings(domain, provider_or_instance_id), schema)
 
 
-def portable_provider_settings(domain: str, provider_id: str, schema: dict | None = None) -> dict:
-    """The non-secret half of a provider's settings.
+def portable_provider_settings(
+    domain: str, provider_or_instance_id: str, schema: dict | None = None
+) -> dict:
+    """The non-secret half of a provider instance's settings.
 
     Durable secrets stay in `settings.json`; only these portable options may be
     copied into a job manifest, a workflow snapshot, or an export (§22.6).
     """
-    _, options = split_settings(schema, get_provider_settings(domain, provider_id))
+    _, options = split_settings(
+        schema, get_provider_settings(domain, provider_or_instance_id)
+    )
     return options
 
 
 def merge_provider_settings(
-    domain: str, provider_id: str, patch: dict, schema: dict | None = None
+    domain: str,
+    provider_or_instance_id: str,
+    patch: dict,
+    schema: dict | None = None,
 ) -> dict:
-    """Merge a client patch over stored provider settings, honoring the sentinel.
+    """Merge a client patch over stored instance settings, honoring the sentinel.
 
     A secret field submitted as exactly `"***"` is the redacted value the client
     was served and leaves the stored secret untouched (§22.6).
     """
-    return apply_settings_patch(get_provider_settings(domain, provider_id), patch, schema)
+    return apply_settings_patch(
+        get_provider_settings(domain, provider_or_instance_id), patch, schema
+    )
 
 
 def restore_redacted_secrets(stored: Any, incoming: Any) -> Any:
@@ -303,12 +548,41 @@ def validate_settings(data: dict) -> list[dict]:
     if not isinstance(domains, dict):
         issues.append({"field": "domains", "severity": "error", "message": "domains must be an object"})
     else:
-        for domain in domains:
+        for domain, block in domains.items():
             if domain not in DOMAINS:
                 issues.append({
                     "field": f"domains.{domain}",
                     "severity": "warning",
                     "message": f"Unknown domain '{domain}'"
                 })
+            if not isinstance(block, dict):
+                issues.append({
+                    "field": f"domains.{domain}",
+                    "severity": "error",
+                    "message": "domain block must be an object",
+                })
+                continue
+            instances = block.get("instances")
+            if instances is not None and not isinstance(instances, dict):
+                issues.append({
+                    "field": f"domains.{domain}.instances",
+                    "severity": "error",
+                    "message": "instances must be an object",
+                })
+            elif isinstance(instances, dict):
+                for iid, rec in instances.items():
+                    if not isinstance(rec, dict):
+                        issues.append({
+                            "field": f"domains.{domain}.instances.{iid}",
+                            "severity": "error",
+                            "message": "instance record must be an object",
+                        })
+                        continue
+                    if "type" in rec and not isinstance(rec.get("type"), str):
+                        issues.append({
+                            "field": f"domains.{domain}.instances.{iid}.type",
+                            "severity": "error",
+                            "message": "type must be a string",
+                        })
 
     return issues

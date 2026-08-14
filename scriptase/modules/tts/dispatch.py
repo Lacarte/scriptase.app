@@ -84,9 +84,12 @@ def resolve_provider_id(config=None) -> tuple[str, str]:
         value = config.get(key)
         if isinstance(value, str) and value:
             return value, reason
-    stored = settings_manager.get_domain_settings(DOMAIN).get("selected_provider")
-    if isinstance(stored, str) and stored:
-        return stored, "selection"
+    instance_id, type_id, _settings = settings_manager.resolve_instance(DOMAIN)
+    if isinstance(type_id, str) and type_id:
+        # Selection is instance-keyed (step 3.1); callers that still need a
+        # single id for hub lookup receive the provider type. The instance id
+        # is recoverable via resolve_instance when provenance needs it.
+        return type_id, "selection"
     return DOMAINS[DOMAIN].default_provider, "default"
 
 

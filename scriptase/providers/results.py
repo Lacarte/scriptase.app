@@ -124,15 +124,14 @@ class Provenance:
     `model_revision`). Snapshotting configuration is not reproducibility with
     generative providers; these three pin what the provider actually produced so
     a repair can vary one axis ("preserve character, change lighting") rather
-    than re-rolling. `provider_instance_id` is reserved for the type/instance
-    split (step 3.1); until then it is empty and `provider_id` remains the
-    identity axis.
+    than re-rolling. `provider_instance_id` is the configured instance that ran
+    (step 3.1); `provider_id` remains the discovered provider type id.
     """
 
     invocation_id: str = ""
     domain: str = ""
     provider_id: str = ""
-    # Populated once step 3.1 splits type from instance; empty until then.
+    # Configured instance id (step 3.1). Empty only for pre-3.1 recorded results.
     provider_instance_id: str = ""
     provider_version: str = ""
     contract_version: int = 1

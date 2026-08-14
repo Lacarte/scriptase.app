@@ -31,7 +31,9 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 # v4 = S7 scene_blueprint selection `builtin` → `n8n` (step 13.4).
 # v5 = domain rename: scene_blueprint → scene_director, storyboard → image,
 #      animator → video (step 0.2).
-SETTINGS_VERSION = 5
+# v6 = provider type/instance split (step 3.1): selected_provider + per_provider
+#      → selected_instance_id + instances.
+SETTINGS_VERSION = 6
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -164,6 +166,95 @@ def migrate_to_v5(data: dict, legacy_user: dict) -> dict:
     return data
 
 
+@_register(6)
+def migrate_to_v6(data: dict, legacy_user: dict) -> dict:
+    """Split provider type from provider instance (step 3.1 / contracts §7).
+
+    Each `per_provider.<type_id>` entry becomes a default instance whose
+    `instance_id` equals the provider type id, so wire values and routes that
+    still speak type ids keep resolving after the upgrade. The domain selection
+    moves from `selected_provider` to `selected_instance_id` without changing
+    which provider type is selected.
+    """
+    domains = data.setdefault("domains", {})
+    for domain_id, spec in DOMAINS.items():
+        block = domains.get(domain_id)
+        if not isinstance(block, dict):
+            block = {}
+            domains[domain_id] = block
+
+        # Already on the post-3.1 shape (re-entry / partial write).
+        if "instances" in block and "selected_instance_id" in block:
+            block.pop("selected_provider", None)
+            block.pop("per_provider", None)
+            continue
+
+        per_provider = block.get("per_provider")
+        if not isinstance(per_provider, dict):
+            per_provider = {}
+
+        selected = block.get("selected_provider")
+        if not (isinstance(selected, str) and selected.strip()):
+            selected = spec.default_provider
+        selected = normalize_selection_alias(selected, domain=domain_id)
+
+        instances: dict = {}
+        if isinstance(block.get("instances"), dict):
+            # Preserve any instances already written, then fill from per_provider.
+            for iid, rec in block["instances"].items():
+                if isinstance(iid, str) and isinstance(rec, dict):
+                    instances[iid] = _normalize_instance_record(iid, rec)
+
+        for type_id, settings in per_provider.items():
+            if not isinstance(type_id, str) or not type_id:
+                continue
+            canonical_type = normalize_selection_alias(type_id, domain=domain_id)
+            if canonical_type in instances:
+                # Settings already present win; only fill an empty settings bag.
+                existing = instances[canonical_type]
+                if not existing.get("settings") and isinstance(settings, dict):
+                    existing["settings"] = dict(settings)
+                continue
+            instances[canonical_type] = {
+                "type": canonical_type,
+                "label": canonical_type,
+                "settings": dict(settings) if isinstance(settings, dict) else {},
+            }
+
+        if selected and selected not in instances:
+            instances[selected] = {
+                "type": selected,
+                "label": selected,
+                "settings": {},
+            }
+
+        # A domain with neither selection nor per_provider still needs a default
+        # instance so the store is complete after the upgrade.
+        if not instances and spec.default_provider:
+            default_id = spec.default_provider
+            instances[default_id] = {
+                "type": default_id,
+                "label": default_id,
+                "settings": {},
+            }
+            selected = default_id
+
+        domains[domain_id] = {
+            "selected_instance_id": selected,
+            "instances": instances,
+        }
+
+    return data
+
+
+def _normalize_instance_record(instance_id: str, rec: dict) -> dict:
+    """Coerce a partial instance record into the frozen post-3.1 shape."""
+    type_id = rec.get("type") if isinstance(rec.get("type"), str) and rec.get("type") else instance_id
+    label = rec.get("label") if isinstance(rec.get("label"), str) and rec.get("label") else type_id
+    settings = rec.get("settings") if isinstance(rec.get("settings"), dict) else {}
+    return {"type": type_id, "label": label, "settings": dict(settings)}
+
+
 def apply_migrations(data: dict, legacy_user: dict | None = None) -> tuple[dict, bool]:
     """Upgrade `data` to `SETTINGS_VERSION`.
 
@@ -208,4 +299,5 @@ __all__ = [
     "migrate_to_v3",
     "migrate_to_v4",
     "migrate_to_v5",
+    "migrate_to_v6",
 ]

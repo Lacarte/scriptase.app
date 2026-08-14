@@ -787,7 +787,7 @@ class ShippedCatalogTests(unittest.TestCase):
                             'id', 'label', 'domain', 'kind', 'version', 'contract_version',
                             'aliases', 'requires', 'capabilities', 'open_url',
                             'docs_url', 'description', 'availability',
-                            'has_settings', 'warnings',
+                            'has_settings', 'warnings', 'provider_type',
                         },
                     )
                     blob = repr(payload)

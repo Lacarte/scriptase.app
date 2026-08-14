@@ -140,15 +140,18 @@ def _validate_project_id(value: str) -> str:
 
 
 def _selected_provider(domain: str) -> str | None:
-    """The domain's stored selection, then its catalog default (§24.1 rules 3-4)."""
+    """The domain's selected provider *type*, then its catalog default (§24.1).
+
+    Step 3.1 stores a selected *instance* id; this helper returns the type of
+    that instance so option sources and node defaults keep speaking package ids.
+    """
     from scriptase.providers import settings_manager
     from scriptase.providers.domains import DOMAINS
     from scriptase.providers.hub import hub
 
-    stored = settings_manager.load_settings().get("domains", {})
-    candidate = (stored.get(domain) or {}).get("selected_provider")
+    _iid, type_id, _settings = settings_manager.resolve_instance(domain)
     spec = DOMAINS.get(domain)
-    for provider_id in (candidate, spec.default_provider if spec else None):
+    for provider_id in (type_id, spec.default_provider if spec else None):
         if provider_id:
             provider = hub.get(domain, provider_id)
             if provider is not None:
@@ -301,9 +304,11 @@ def _provider_models(ctx: OptionContext) -> list:
     from scriptase.providers.hub import hub
 
     domain = ctx.domain
-    provider_id = ctx.provider or settings_manager.get_domain_settings(domain).get(
-        "selected_provider"
-    )
+    if ctx.provider:
+        provider_id = ctx.provider
+        instance_key = ctx.provider
+    else:
+        instance_key, provider_id, _stored = settings_manager.resolve_instance(domain)
     instance = hub.get(domain, provider_id) if provider_id else None
     if instance is None:
         return []
@@ -313,7 +318,9 @@ def _provider_models(ctx: OptionContext) -> list:
     try:
         models = hook(
             instance.resolve_settings(
-                settings_manager.get_provider_settings(domain, instance.id)
+                settings_manager.get_provider_settings(
+                    domain, instance_key or instance.id
+                )
             )
         )
     except Exception as exc:

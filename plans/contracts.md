@@ -336,8 +336,8 @@ Scriptase Job records exist**, because these fields cannot be retrofitted onto p
 Provenance
 - invocation_id
 - domain
-- provider_id                  # provider type id today; remains after 3.1
-- provider_instance_id         # empty until 3.1; then the configured instance that ran
+- provider_id                  # provider type id (discovered package id)
+- provider_instance_id         # configured instance that ran (step 3.1)
 - provider_version
 - contract_version
 - settings_version
@@ -549,9 +549,9 @@ domains: { <domain>: { selected_instance_id, instances: {
              <instance_id>: { type, label, settings } } } }
 ```
 
-Until 3.1 lands, the ported shape
-`domains.<domain>.{selected_provider, per_provider.<id>}` remains authoritative; 3.1
-migrates forward with selection intact.
+Pre-3.1 documents used `domains.<domain>.{selected_provider, per_provider.<id>}`;
+settings migration v6 rewrites them to the shape above with selection intact
+(`instance_id == type` for each migrated default binding).
 
 Rules:
 
@@ -806,7 +806,7 @@ decision freeze.
 | Cost currency normalisation | Record as reported; convert at report time | 9.3 |
 | Error-code rename for domains | None — domains alias, codes do not | — |
 | Per-unit provenance runtime | Shape frozen in §1.7 / §2; runtime fallback | 8.3 |
-| Provider type/instance split | `provider_instance_id` reserved empty until split | 3.1 |
+| Provider type/instance split | `provider_instance_id` populated; settings `instances` map | 3.1 |
 | Secret references | `{"$secret": "<ref>"}` wire form frozen; resolver | 3.4 |
 | Durable approval engine state | Status token frozen; worker-release behaviour | 2.6 |
 | Stage projection endpoint | Shape frozen in §10 | 2.2 |

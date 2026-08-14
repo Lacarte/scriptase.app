@@ -73,7 +73,8 @@ def resolve_provider(*candidates):
 
 
 def _selected_provider() -> str:
-    return settings_manager.get_domain_settings(DOMAIN).get("selected_provider") or ""
+    _iid, type_id, _settings = settings_manager.resolve_instance(DOMAIN)
+    return type_id or ""
 
 
 def _invocation(instance, project_id: str, options: dict):

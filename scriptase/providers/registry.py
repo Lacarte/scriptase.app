@@ -183,6 +183,13 @@ class ProviderInstance:
         self._schema_loaded = False
 
         self._create_lock = threading.RLock()
+        # Constructed provider objects keyed by configured instance id
+        # (step 3.1: memoize per (type, instance_id)).
+        self._instances: dict[str, Any] = {}
+        self._create_errors: dict[str, str] = {}
+        self._construction_seqs: dict[str, int] = {}
+        # Legacy single-slot mirrors used by `constructed` / `create_error` when
+        # only the default instance (instance_id == type id) has been built.
         self._instance: Any = None
         self._create_error: str | None = None
         self._construction_seq: int | None = None
@@ -291,9 +298,20 @@ class ProviderInstance:
             not schema_tools.is_empty(resolved.get(key)) for key in self.requires
         )
 
-    def availability(self, settings: dict | None = None) -> str:
-        """Cheap, synchronous availability state (contracts.md §21.5)."""
-        if self.create_callable is None or self._create_error is not None:
+    def availability(
+        self,
+        settings: dict | None = None,
+        *,
+        instance_id: str | None = None,
+    ) -> str:
+        """Cheap, synchronous availability state (contracts.md §21.5).
+
+        Availability is a pure function of the passed-in settings dict, so two
+        configured instances of this type can disagree. Construction failure is
+        tracked per instance id (step 3.1).
+        """
+        key = instance_id or self.id
+        if self.create_callable is None or key in self._create_errors:
             return DEGRADED
         if self.schema_failed:
             return DEGRADED
@@ -395,52 +413,85 @@ class ProviderInstance:
 
     @property
     def constructed(self) -> bool:
-        return self._instance is not None
+        return bool(self._instances) or self._instance is not None
 
     @property
     def create_error(self) -> str | None:
-        return self._create_error
+        if self._create_error is not None:
+            return self._create_error
+        return self._create_errors.get(self.id)
 
     @property
     def construction_seq(self) -> int | None:
         """Monotonic construction order, used to shut down in reverse."""
-        return self._construction_seq
+        if self._construction_seq is not None:
+            return self._construction_seq
+        if not self._construction_seqs:
+            return None
+        return min(self._construction_seqs.values())
 
-    def create(self) -> Any:
-        """Construct the provider at most once per process.
+    def create(self, instance_id: str | None = None) -> Any:
+        """Construct the provider at most once per configured instance id.
 
-        Never called at import time or during discovery, and never while the
-        registry lock is held: the lock taken here belongs to this instance alone.
+        Memoized per `(type, instance_id)` (step 3.1). When `instance_id` is
+        omitted the default instance of this type is used (`instance_id ==
+        type id`). Never called at import time or during discovery, and never
+        while the registry lock is held: the lock taken here belongs to this
+        type package alone.
         """
-        if self._instance is not None:
-            return self._instance
+        key = instance_id or self.id
+        existing = self._instances.get(key)
+        if existing is not None:
+            return existing
         with self._create_lock:
-            if self._instance is not None:
-                return self._instance
+            existing = self._instances.get(key)
+            if existing is not None:
+                return existing
             if self._retired:
                 raise ProviderConstructionError(self.domain, self.id, "provider was retired")
-            if self._create_error is not None:
-                raise ProviderConstructionError(self.domain, self.id, self._create_error)
+            prior_error = self._create_errors.get(key)
+            if prior_error is not None:
+                raise ProviderConstructionError(self.domain, self.id, prior_error)
             factory = self.create_callable
             if factory is None:
-                self._create_error = "no create() factory found in the provider package"
-                self.add_warning(self._create_error)
-                raise ProviderConstructionError(self.domain, self.id, self._create_error)
+                message = "no create() factory found in the provider package"
+                self._create_errors[key] = message
+                if key == self.id:
+                    self._create_error = message
+                self.add_warning(message)
+                raise ProviderConstructionError(self.domain, self.id, message)
             try:
-                instance = factory()
+                built = factory()
             except Exception as e:
-                self._create_error = v.sanitize_message(f"create() raised: {e}")
-                self.add_warning(self._create_error)
-                logger.error("[registry] create() failed for {}/{}: {}", self.domain, self.id, e)
-                raise ProviderConstructionError(self.domain, self.id, self._create_error) from None
-            if instance is None:
-                self._create_error = "create() returned None"
-                self.add_warning(self._create_error)
-                raise ProviderConstructionError(self.domain, self.id, self._create_error)
-            self._instance = instance
-            self._construction_seq = next(_construction_counter)
-            logger.info("[registry] Constructed provider '{}' in {}", self.id, self.domain)
-            return instance
+                message = v.sanitize_message(f"create() raised: {e}")
+                self._create_errors[key] = message
+                if key == self.id:
+                    self._create_error = message
+                self.add_warning(message)
+                logger.error(
+                    "[registry] create() failed for {}/{} instance={}: {}",
+                    self.domain, self.id, key, e,
+                )
+                raise ProviderConstructionError(self.domain, self.id, message) from None
+            if built is None:
+                message = "create() returned None"
+                self._create_errors[key] = message
+                if key == self.id:
+                    self._create_error = message
+                self.add_warning(message)
+                raise ProviderConstructionError(self.domain, self.id, message)
+            seq = next(_construction_counter)
+            self._instances[key] = built
+            self._construction_seqs[key] = seq
+            # Keep the legacy single-slot mirrors coherent for the default instance.
+            if key == self.id:
+                self._instance = built
+                self._construction_seq = seq
+            logger.info(
+                "[registry] Constructed provider '{}' instance '{}' in {}",
+                self.id, key, self.domain,
+            )
+            return built
 
     # -- invocation leases (contracts.md §21.2 item 6) ---------------------
 
@@ -482,41 +533,62 @@ class ProviderInstance:
         self.shutdown()
 
     def shutdown(self) -> None:
-        """Release a constructed provider. Best-effort and idempotent (§21.1)."""
+        """Release every constructed instance. Best-effort and idempotent (§21.1)."""
         with self._create_lock:
             if self._shutdown_done:
                 return
             self._shutdown_done = True
-            instance = self._instance
+            built = list(self._instances.items())
+            if not built and self._instance is not None:
+                built = [(self.id, self._instance)]
+            self._instances = {}
             self._instance = None
-        if instance is None:
-            return
-        hook = getattr(instance, "shutdown", None)
-        if not callable(hook):
-            return
-        try:
-            hook()
-            logger.debug("[registry] Shut down provider '{}' in {}", self.id, self.domain)
-        except Exception as e:
-            # Never raised: one provider's teardown may not abort the rest (§21.1).
-            self.add_warning(f"shutdown() failed: {e}")
-            logger.error("[registry] shutdown() failed for {}/{}: {}", self.domain, self.id, e)
+            self._construction_seqs = {}
+            self._construction_seq = None
+        for key, instance in built:
+            hook = getattr(instance, "shutdown", None)
+            if not callable(hook):
+                continue
+            try:
+                hook()
+                logger.debug(
+                    "[registry] Shut down provider '{}' instance '{}' in {}",
+                    self.id, key, self.domain,
+                )
+            except Exception as e:
+                # Never raised: one provider's teardown may not abort the rest (§21.1).
+                self.add_warning(f"shutdown() failed: {e}")
+                logger.error(
+                    "[registry] shutdown() failed for {}/{} instance={}: {}",
+                    self.domain, self.id, key, e,
+                )
 
     # -- serialization (contracts.md §25) ----------------------------------
 
-    def to_dict(self, settings: dict | None = None) -> dict:
+    def to_dict(
+        self,
+        settings: dict | None = None,
+        *,
+        instance_id: str | None = None,
+    ) -> dict:
         """Browser-safe projection (contracts.md §25).
 
         Never exposes modules, paths, settings values, or the manifest's internal
         `environment` map. `settings` is read only to compute `availability` and
-        is never echoed back.
+        is never echoed back. `instance_id` scopes the availability computation
+        to one configured binding of this type (step 3.1).
         """
         payload = self.manifest.public_dict()
+        # `provider_type` is the discovered package id; `id` remains for
+        # pre-3.1 clients. They are equal for a type catalog entry.
+        payload["provider_type"] = self.id
         payload.update({
             'has_settings': self.settings_schema() is not None,
-            'availability': self.availability(settings),
+            'availability': self.availability(settings, instance_id=instance_id),
             'warnings': list(self.warnings),
         })
+        if instance_id:
+            payload["instance_id"] = instance_id
         return payload
 
 

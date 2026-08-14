@@ -118,7 +118,7 @@ class ProviderGateCase(unittest.TestCase):
             "version": settings_manager.SETTINGS_VERSION,
             "general": {},
             "domains": {
-                domain: {"selected_provider": None, "per_provider": {}}
+                domain: {"selected_instance_id": None, "instances": {}}
                 for domain in DOMAINS
             },
         }
@@ -151,7 +151,14 @@ class ProviderGateCase(unittest.TestCase):
             self.addCleanup(setattr, module, "OUTPUT_DIR", original)
 
     def stored(self, domain, provider_id, values):
-        self.settings["domains"][domain]["per_provider"][provider_id] = dict(values)
+        block = self.settings["domains"][domain]
+        block.setdefault("instances", {})
+        existing = block["instances"].get(provider_id) or {}
+        block["instances"][provider_id] = {
+            "type": existing.get("type") or provider_id,
+            "label": existing.get("label") or provider_id,
+            "settings": dict(values),
+        }
 
     def invocation(self, domain, **overrides):
         _folder, provider_id = SHAPES[domain]
@@ -329,7 +336,7 @@ class CatalogApiTests(FixtureCatalogCase):
             "/api/providers/script/fixture_document/settings",
             json={"api_key": "***", "voice_of": "protagonist"},
         )
-        saved = self.settings["domains"]["script"]["per_provider"]["fixture_document"]
+        saved = self.settings["domains"]["script"]["instances"]["fixture_document"]["settings"]
         self.assertEqual(saved["api_key"], "sk-fixture-secret")
         self.assertEqual(saved["voice_of"], "protagonist")
 
@@ -359,7 +366,7 @@ class CatalogApiTests(FixtureCatalogCase):
         self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
         self.assertEqual(resp.get_json()["selected"], "fixture_document")
         self.assertEqual(
-            self.settings["domains"]["script"]["selected_provider"], "fixture_document"
+            self.settings["domains"]["script"]["selected_instance_id"], "fixture_document"
         )
 
     def test_health_comes_from_the_provider_hook(self):

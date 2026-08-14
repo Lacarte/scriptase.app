@@ -74,10 +74,16 @@ class SingleSourceOfDomainTruthTests(unittest.TestCase):
         defaults = settings_manager._default_settings()
         self.assertEqual(list(defaults['domains']), list(DOMAINS))
         for domain_id, spec in DOMAINS.items():
+            block = defaults['domains'][domain_id]
+            self.assertEqual(block['selected_instance_id'], spec.default_provider)
             self.assertEqual(
-                defaults['domains'][domain_id]['selected_provider'], spec.default_provider
+                block['instances'][spec.default_provider]['type'],
+                spec.default_provider,
             )
-            self.assertEqual(defaults['domains'][domain_id]['per_provider'], {})
+            self.assertEqual(
+                block['instances'][spec.default_provider]['settings'],
+                {},
+            )
 
     def test_validate_settings_accepts_every_catalog_domain(self):
         issues = settings_manager.validate_settings(settings_manager._default_settings())
@@ -85,7 +91,7 @@ class SingleSourceOfDomainTruthTests(unittest.TestCase):
 
     def test_validate_settings_warns_on_unknown_domain(self):
         data = settings_manager._default_settings()
-        data['domains']['music'] = {'selected_provider': None, 'per_provider': {}}
+        data['domains']['music'] = {'selected_instance_id': None, 'instances': {}}
         issues = settings_manager.validate_settings(data)
         self.assertEqual(
             [i['field'] for i in issues if i['severity'] == 'warning'], ['domains.music']

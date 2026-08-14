@@ -93,7 +93,18 @@ class ProviderApiTestCase(unittest.TestCase):
         self.settings = {
             'version': settings_manager.SETTINGS_VERSION,
             'general': {},
-            'domains': {'demo': {'selected_provider': 'alpha', 'per_provider': {}}},
+            'domains': {
+                'demo': {
+                    'selected_instance_id': 'alpha',
+                    'instances': {
+                        'alpha': {
+                            'type': 'alpha',
+                            'label': 'alpha',
+                            'settings': {},
+                        }
+                    },
+                }
+            },
         }
         self.saved = []
 
@@ -125,7 +136,14 @@ class ProviderApiTestCase(unittest.TestCase):
         return hub
 
     def provider_settings(self, provider_id, values):
-        self.settings['domains']['demo']['per_provider'][provider_id] = values
+        domain = self.settings['domains']['demo']
+        domain.setdefault('instances', {})
+        existing = domain['instances'].get(provider_id) or {}
+        domain['instances'][provider_id] = {
+            'type': existing.get('type') or provider_id,
+            'label': existing.get('label') or provider_id,
+            'settings': values,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -389,7 +407,7 @@ class SelectionTests(ProviderApiTestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.get_json()['selected'], 'bravo')
         self.assertEqual(
-            self.saved[-1]['domains']['demo']['selected_provider'], 'bravo'
+            self.saved[-1]['domains']['demo']['selected_instance_id'], 'bravo'
         )
 
     def test_an_alias_is_normalized_to_the_canonical_id_before_it_is_stored(self):
@@ -397,7 +415,7 @@ class SelectionTests(ProviderApiTestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.get_json()['selected'], 'bravo')
         self.assertEqual(
-            self.saved[-1]['domains']['demo']['selected_provider'], 'bravo'
+            self.saved[-1]['domains']['demo']['selected_instance_id'], 'bravo'
         )
 
     def test_an_unconfigured_provider_may_still_be_selected(self):
@@ -408,7 +426,7 @@ class SelectionTests(ProviderApiTestCase):
         self.assertEqual(body['availability'], NEEDS_CONFIGURATION)
         # Non-blocking: the write happened and the issues came back to prompt with.
         self.assertEqual(
-            self.saved[-1]['domains']['demo']['selected_provider'], 'bravo'
+            self.saved[-1]['domains']['demo']['selected_instance_id'], 'bravo'
         )
         self.assertIsInstance(body['issues'], list)
 
@@ -429,7 +447,8 @@ class SelectionTests(ProviderApiTestCase):
         written = self.saved[-1]
         self.assertEqual(written['general'], {'sync_folder': 'D:/keep-me'})
         self.assertEqual(
-            written['domains']['demo']['per_provider']['alpha'], {'voice': 'Ashley'}
+            written['domains']['demo']['instances']['alpha']['settings'],
+            {'voice': 'Ashley'},
         )
 
     def test_a_secret_never_appears_in_the_selection_response(self):
@@ -452,23 +471,47 @@ class SettingsDocumentTests(ProviderApiTestCase):
     def test_patch_deep_merges_and_leaves_siblings_alone(self):
         resp = self.client.patch(
             '/api/settings/v2',
-            json={'domains': {'demo': {'per_provider': {'alpha': {'voice': 'Carter'}}}}},
+            json={
+                'domains': {
+                    'demo': {
+                        'instances': {
+                            'alpha': {
+                                'type': 'alpha',
+                                'label': 'alpha',
+                                'settings': {'voice': 'Carter'},
+                            }
+                        }
+                    }
+                }
+            },
         )
         self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
-        stored = self.saved[-1]['domains']['demo']['per_provider']['alpha']
+        stored = self.saved[-1]['domains']['demo']['instances']['alpha']['settings']
         self.assertEqual(stored['voice'], 'Carter')
         # The untouched sibling — and the secret — survive the merge.
         self.assertEqual(stored['api_key'], self.SECRET)
-        self.assertEqual(self.saved[-1]['domains']['demo']['selected_provider'], 'alpha')
+        self.assertEqual(
+            self.saved[-1]['domains']['demo']['selected_instance_id'], 'alpha'
+        )
 
     def test_patch_treats_the_redaction_sentinel_as_unchanged(self):
         self.client.patch(
             '/api/settings/v2',
-            json={'domains': {'demo': {'per_provider': {
-                'alpha': {'api_key': ss.REDACTION_SENTINEL}
-            }}}},
+            json={
+                'domains': {
+                    'demo': {
+                        'instances': {
+                            'alpha': {
+                                'type': 'alpha',
+                                'label': 'alpha',
+                                'settings': {'api_key': ss.REDACTION_SENTINEL},
+                            }
+                        }
+                    }
+                }
+            },
         )
-        stored = self.saved[-1]['domains']['demo']['per_provider']['alpha']
+        stored = self.saved[-1]['domains']['demo']['instances']['alpha']['settings']
         self.assertEqual(stored['api_key'], self.SECRET)
 
     def test_patch_replaces_a_list_wholesale_rather_than_merging_it(self):
@@ -489,7 +532,8 @@ class SettingsDocumentTests(ProviderApiTestCase):
         written = self.saved[-1]
         self.assertEqual(written['general']['sync_folder'], 'D:/imported')
         self.assertEqual(
-            written['domains']['demo']['per_provider']['alpha']['api_key'], self.SECRET
+            written['domains']['demo']['instances']['alpha']['settings']['api_key'],
+            self.SECRET,
         )
 
 

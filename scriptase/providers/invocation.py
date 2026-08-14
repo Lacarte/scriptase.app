@@ -428,12 +428,15 @@ class ProviderInvocation:
     progress: ProgressReporter = field(default_factory=ProgressReporter)
     log: ProviderLogger = field(default_factory=ProviderLogger)
     deadline_s: float | None = None
-    # Durable per-provider values with the env fallback already resolved. May
+    # Durable per-instance values with the env fallback already resolved. May
     # contain secrets; never echoed into a result (§30.1, §22.6).
     settings: Mapping[str, Any] = field(default_factory=dict)
     # Per-run node/request values. Never contains secrets.
     options: Mapping[str, Any] = field(default_factory=dict)
     selection_reason: str = "default"
+    # Configured instance that ran (step 3.1). Defaults to the provider type id
+    # when the caller has not yet been instance-aware (default-instance convention).
+    provider_instance_id: str = ""
 
     @property
     def deadline(self) -> float:
@@ -449,6 +452,7 @@ class ProviderInvocation:
         return {
             "domain": self.domain,
             "provider_id": self.provider_id,
+            "provider_instance_id": self.provider_instance_id or self.provider_id,
             "project_id": self.project_id,
             "execution_id": self.execution_id,
             "node_id": self.node_id,
@@ -473,6 +477,7 @@ def build_invocation(
     deadline_s: float | None = None,
     attempt: int = 1,
     selection_reason: str = "default",
+    provider_instance_id: str = "",
 ) -> ProviderInvocation:
     """Build a `ProviderInvocation` from an `AdapterContext` (§30.6).
 
@@ -485,6 +490,7 @@ def build_invocation(
     settings = dict(settings or {})
     options = dict(options or {})
     secrets = collect_secrets(settings)
+    instance_id = provider_instance_id or provider_id
 
     stop_requested = context_value(context, "stop_requested") if context is not None else None
     progress_sink = context_value(context, "progress") if context is not None else None
@@ -509,6 +515,7 @@ def build_invocation(
             {
                 "domain": domain,
                 "provider_id": provider_id,
+                "provider_instance_id": instance_id,
                 "project_id": project_id,
                 "execution_id": execution_id or "",
                 "node_id": node_id or "",
@@ -520,6 +527,7 @@ def build_invocation(
         settings=settings,
         options=options,
         selection_reason=selection_reason,
+        provider_instance_id=instance_id,
     )
 
 

@@ -164,18 +164,25 @@ class ProviderHub:
             return []
         return self.discover(domain).list_providers()
 
-    def create(self, domain: str, provider_id: str):
-        """Construct — or return the memoized — provider object for `(domain, id)`.
+    def create(
+        self,
+        domain: str,
+        provider_id: str,
+        instance_id: str | None = None,
+    ):
+        """Construct — or return the memoized — provider object.
 
-        Raises `ProviderConstructionError` when the provider cannot be built and
-        returns `None` only when no such provider is registered. The construction
-        lock lives on the instance, so provider code never runs under the hub lock
-        (contracts.md §21.1).
+        Memoized per `(type, instance_id)` (step 3.1). When `instance_id` is
+        omitted the default instance of the type is used (`instance_id ==
+        provider_id`). Raises `ProviderConstructionError` when the provider
+        cannot be built and returns `None` only when no such provider type is
+        registered. The construction lock lives on the type package, so provider
+        code never runs under the hub lock (contracts.md §21.1).
         """
         provider = self.get(domain, provider_id)
         if provider is None:
             return None
-        return provider.create()
+        return provider.create(instance_id=instance_id or provider_id)
 
     def catalog(
         self,
@@ -185,10 +192,11 @@ class ProviderHub:
         """Serialize every domain for API responses.
 
         Args:
-            selected: optional `domain -> selected_provider_id` mapping.
-            settings_for: optional `(domain, provider_id) -> dict` lookup used to
-                compute availability. Defaults to the canonical settings store;
-                pass an explicit callable to serialize against other settings.
+            selected: optional `domain -> selected_instance_id` mapping.
+            settings_for: optional `(domain, provider_type_or_instance_id) -> dict`
+                lookup used to compute availability. Defaults to the canonical
+                settings store; pass an explicit callable to serialize against
+                other settings.
         """
         selected = selected or {}
         if settings_for is None:
@@ -198,8 +206,27 @@ class ProviderHub:
             stored = settings_manager.load_settings().get("domains", {})
 
             def settings_for(domain: str, provider_id: str) -> dict:
-                per_provider = (stored.get(domain) or {}).get("per_provider") or {}
-                return per_provider.get(provider_id) or {}
+                block = stored.get(domain) or {}
+                instances = block.get("instances") or {}
+                # Prefer the selected instance of this type, else the default
+                # instance id (type id), else any stored instance of that type.
+                selected_id = block.get("selected_instance_id")
+                if (
+                    isinstance(selected_id, str)
+                    and selected_id in instances
+                    and instances[selected_id].get("type") == provider_id
+                ):
+                    rec = instances[selected_id]
+                    return dict(rec.get("settings") or {})
+                if provider_id in instances:
+                    rec = instances[provider_id]
+                    return dict(rec.get("settings") or {})
+                for rec in instances.values():
+                    if isinstance(rec, dict) and rec.get("type") == provider_id:
+                        return dict(rec.get("settings") or {})
+                # Pre-migration / in-memory test blobs may still use per_provider.
+                per_provider = block.get("per_provider") or {}
+                return dict(per_provider.get(provider_id) or {})
 
         return {
             domain: self.discover(domain).to_dict(

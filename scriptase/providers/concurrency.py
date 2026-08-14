@@ -1,4 +1,4 @@
-"""Capability-derived execution exclusivity — step 15.1.
+"""Capability-derived execution exclusivity — step 15.1 / 3.1.
 
 Some providers cannot run two invocations at once: `kokoro` holds one ONNX
 session and one G2P engine for the whole process, so two concurrent
@@ -9,9 +9,9 @@ existed in the provider package (contracts.md B5 / K1).
 
 Exclusivity is now **declared**, not hardcoded: a provider sets
 `capabilities={"exclusive_execution": True}` in its manifest and the platform
-serializes it. The lock is keyed by `(domain, provider_id)`, so two providers
-never contend with each other and a provider that does not declare the
-capability pays nothing.
+serializes it. The lock is keyed by `(domain, provider_type, instance_id)`
+(step 3.1), so two configured instances never contend with each other and a
+provider that does not declare the capability pays nothing.
 
 The lock is re-entrant on purpose. A legacy route may already hold it when it
 reaches a provider method that takes it again; with a plain `Lock` that is a
@@ -27,18 +27,24 @@ from typing import Any, Iterator
 
 EXCLUSIVE_EXECUTION = "exclusive_execution"
 
-_locks: dict[tuple[str, str], threading.RLock] = {}
+_locks: dict[tuple[str, str, str], threading.RLock] = {}
 _locks_guard = threading.Lock()
 
 
-def exclusive_lock(domain: str, provider_id: str) -> threading.RLock:
-    """The one process-wide lock for `(domain, provider_id)`.
+def exclusive_lock(
+    domain: str,
+    provider_id: str,
+    instance_id: str | None = None,
+) -> threading.RLock:
+    """The one process-wide lock for `(domain, provider_type, instance_id)`.
 
-    Always returns the same object for the same pair, whoever asks and however
+    Always returns the same object for the same triple, whoever asks and however
     the provider module was loaded — the property the two duplicated Kokoro
-    locks did not have.
+    locks did not have. When `instance_id` is omitted it defaults to the
+    provider type id (the default-instance convention from step 3.1).
     """
-    key = (str(domain or ""), str(provider_id or ""))
+    type_id = str(provider_id or "")
+    key = (str(domain or ""), type_id, str(instance_id or type_id))
     with _locks_guard:
         lock = _locks.get(key)
         if lock is None:
@@ -56,25 +62,31 @@ def is_exclusive(capabilities: Any) -> bool:
 
 @contextmanager
 def exclusive_execution(
-    domain: str, provider_id: str, *, capabilities: Any = None
+    domain: str,
+    provider_id: str,
+    *,
+    instance_id: str | None = None,
+    capabilities: Any = None,
 ) -> Iterator[None]:
     """Serialize this block iff the provider declares `exclusive_execution`.
 
     `capabilities` may be the manifest's capability mapping. When it is omitted
-    the manifest is resolved through the hub, so a caller that only knows the two
+    the manifest is resolved through the hub, so a caller that only knows the
     identifiers still gets the declared behavior.
     """
+    type_id = str(provider_id or "")
+    resolved_instance = str(instance_id or type_id)
     if capabilities is None:
-        capabilities = _capabilities_for(domain, provider_id)
+        capabilities = _capabilities_for(domain, type_id)
     if not is_exclusive(capabilities):
         yield
         return
-    with exclusive_lock(domain, provider_id):
+    with exclusive_lock(domain, type_id, resolved_instance):
         yield
 
 
 def _capabilities_for(domain: str, provider_id: str) -> dict:
-    """Manifest capabilities for a provider, or `{}` when it cannot be resolved.
+    """Manifest capabilities for a provider type, or `{}` when unresolved.
 
     Resolution failure means "not exclusive" rather than an error: exclusivity is
     an optimization of correctness for one provider, and an unknown provider is

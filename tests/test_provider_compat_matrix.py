@@ -161,22 +161,23 @@ class SelectionAliasAndSettingsFormatTests(unittest.TestCase):
         once, changed = apply_migrations(copy.deepcopy(v1), legacy)
         self.assertTrue(changed)
         self.assertEqual(once["version"], SETTINGS_VERSION)
-        self.assertEqual(once["domains"]["tts"]["selected_provider"], "inworld")
+        self.assertEqual(once["domains"]["tts"]["selected_instance_id"], "inworld")
         self.assertEqual(
-            once["domains"]["image"]["selected_provider"], "gemini_ws"
+            once["domains"]["image"]["selected_instance_id"], "gemini_ws"
         )
         # Explicit selection always wins over the legacy key, and is normalized.
         self.assertEqual(
-            once["domains"]["video"]["selected_provider"], "grok_automa"
+            once["domains"]["video"]["selected_instance_id"], "grok_automa"
         )
         self.assertEqual(
-            once["domains"]["tts"]["per_provider"]["inworld"]["api_key"], "sk-keep"
+            once["domains"]["tts"]["instances"]["inworld"]["settings"]["api_key"],
+            "sk-keep",
         )
         # Every catalog domain is present after the upgrade.
         self.assertEqual(set(once["domains"]), set(DOMAINS))
-        self.assertEqual(once["domains"]["script"]["selected_provider"], "gemini")
+        self.assertEqual(once["domains"]["script"]["selected_instance_id"], "gemini")
         self.assertEqual(
-            once["domains"]["scene_director"]["selected_provider"], "n8n"
+            once["domains"]["scene_director"]["selected_instance_id"], "n8n"
         )
 
         twice, changed_again = apply_migrations(copy.deepcopy(once), legacy)

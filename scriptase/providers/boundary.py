@@ -205,6 +205,9 @@ def invoke(
         started_at=started_at,
         duration_ms=max(0, round((time.perf_counter() - started) * 1000)),
         cache_hit=cache_hit,
+        provider_instance_id=(
+            invocation.provider_instance_id or invocation.provider_id
+        ),
     )
     # Provenance is platform-authored but still crosses the same boundary, and
     # it is the one place a settings value is echoed at all (§31.3, §36 L6).

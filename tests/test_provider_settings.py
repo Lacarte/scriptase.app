@@ -516,7 +516,7 @@ class SeedingTests(unittest.TestCase):
         self.assertNotIn('ws-secret', json.dumps(seeded))
         # The INWORLD_API_KEY selection side effect is frozen as removed (§22.6).
         self.assertEqual(
-            seeded['domains']['tts']['selected_provider'],
+            seeded['domains']['tts']['selected_instance_id'],
             DOMAINS['tts'].default_provider,
         )
 
@@ -546,27 +546,28 @@ class MigrationSequencingTests(unittest.TestCase):
     def test_the_legacy_selection_is_adopted_and_normalized(self):
         legacy = {'sts-tts-provider': 'inworld', 'sts-storyboard-provider': 'gemini'}
         migrated, _ = apply_migrations(json.loads(json.dumps(V1_SETTINGS)), legacy)
-        self.assertEqual(migrated['domains']['tts']['selected_provider'], 'inworld')
+        self.assertEqual(migrated['domains']['tts']['selected_instance_id'], 'inworld')
         self.assertEqual(
-            migrated['domains']['image']['selected_provider'], 'gemini_ws'
+            migrated['domains']['image']['selected_instance_id'], 'gemini_ws'
         )
 
     def test_an_explicit_selection_always_beats_the_legacy_key(self):
         data = json.loads(json.dumps(V1_SETTINGS))
         data['domains']['tts']['selected_provider'] = 'kokoro'
         migrated, _ = apply_migrations(data, {'sts-tts-provider': 'inworld'})
-        self.assertEqual(migrated['domains']['tts']['selected_provider'], 'kokoro')
+        self.assertEqual(migrated['domains']['tts']['selected_instance_id'], 'kokoro')
 
     def test_migration_is_lossless(self):
         migrated, _ = apply_migrations(json.loads(json.dumps(V1_SETTINGS)), {})
         self.assertEqual(
-            migrated['domains']['tts']['per_provider'], {'inworld': {'api_key': 'sk'}}
+            migrated['domains']['tts']['instances']['inworld']['settings'],
+            {'api_key': 'sk'},
         )
         # Domains added to the catalog after the file was written are backfilled.
         self.assertEqual(set(migrated['domains']), set(DOMAINS))
         for domain_id, spec in DOMAINS.items():
-            self.assertTrue(migrated['domains'][domain_id]['selected_provider'])
-            self.assertIn('per_provider', migrated['domains'][domain_id])
+            self.assertTrue(migrated['domains'][domain_id]['selected_instance_id'])
+            self.assertIn('instances', migrated['domains'][domain_id])
 
     def test_an_already_current_document_is_idempotent(self):
         once, _ = apply_migrations(json.loads(json.dumps(V1_SETTINGS)), {})
@@ -617,7 +618,9 @@ class MigrationAtWriteBoundaryTests(unittest.TestCase):
         loaded = settings_manager.load_settings()
         self.assertEqual(loaded['version'], SETTINGS_VERSION)
         self.assertEqual(self._read()['version'], SETTINGS_VERSION)
-        self.assertEqual(self._read()['domains']['tts']['selected_provider'], 'inworld')
+        self.assertEqual(
+            self._read()['domains']['tts']['selected_instance_id'], 'inworld'
+        )
 
         # A second load must not rewrite the file.
         with patch.object(settings_manager, 'save_settings') as saver:
@@ -636,7 +639,9 @@ class MigrationAtWriteBoundaryTests(unittest.TestCase):
 
         # The next load retries the migration and completes it.
         self.assertEqual(settings_manager.load_settings()['version'], SETTINGS_VERSION)
-        self.assertEqual(self._read()['domains']['tts']['selected_provider'], 'inworld')
+        self.assertEqual(
+            self._read()['domains']['tts']['selected_instance_id'], 'inworld'
+        )
 
 
 # -- §22.6 / §25 API egress ---------------------------------------------------
@@ -657,20 +662,25 @@ class ProviderApiRedactionTests(unittest.TestCase):
         self.client = app.test_client()
 
         self.settings = settings_manager._default_settings()
-        self.settings['domains']['tts']['per_provider']['inworld'] = {
-            'api_key': self.SECRET, 'voice': 'Ashley'
+        self.settings['domains']['tts']['instances']['inworld'] = {
+            'type': 'inworld',
+            'label': 'inworld',
+            'settings': {'api_key': self.SECRET, 'voice': 'Ashley'},
         }
         self.saved = []
 
-        loader = patch.object(
-            settings_manager, 'load_settings', side_effect=lambda: json.loads(
-                json.dumps(self.settings)
-            )
-        )
+        def _load():
+            return json.loads(json.dumps(self.settings))
+
+        def _save(data):
+            self.saved.append(data)
+            self.settings = json.loads(json.dumps(data))
+
+        loader = patch.object(settings_manager, 'load_settings', side_effect=_load)
         loader.start()
         self.addCleanup(loader.stop)
 
-        saver = patch.object(settings_manager, 'save_settings', side_effect=self.saved.append)
+        saver = patch.object(settings_manager, 'save_settings', side_effect=_save)
         saver.start()
         self.addCleanup(saver.stop)
 
@@ -693,23 +703,24 @@ class ProviderApiRedactionTests(unittest.TestCase):
             json={'api_key': ss.REDACTION_SENTINEL, 'voice': 'Carter'},
         )
         self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
-        stored = self.saved[-1]['domains']['tts']['per_provider']['inworld']
+        stored = self.saved[-1]['domains']['tts']['instances']['inworld']['settings']
         self.assertEqual(stored['api_key'], self.SECRET)
         self.assertEqual(stored['voice'], 'Carter')
 
     def test_a_whole_document_round_trip_preserves_the_stored_secret(self):
         document = self.client.get('/api/settings/v2').get_json()
-        document['domains']['tts']['selected_provider'] = 'kokoro'
+        document['domains']['tts']['selected_instance_id'] = 'kokoro'
         resp = self.client.put('/api/settings/v2', json=document)
         self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
         written = self.saved[-1]
         self.assertEqual(
-            written['domains']['tts']['per_provider']['inworld']['api_key'], self.SECRET
+            written['domains']['tts']['instances']['inworld']['settings']['api_key'],
+            self.SECRET,
         )
-        self.assertEqual(written['domains']['tts']['selected_provider'], 'kokoro')
+        self.assertEqual(written['domains']['tts']['selected_instance_id'], 'kokoro')
 
     def test_the_environment_value_never_reaches_a_response(self):
-        self.settings['domains']['tts']['per_provider']['inworld']['api_key'] = ''
+        self.settings['domains']['tts']['instances']['inworld']['settings']['api_key'] = ''
         with patch.dict(os.environ, {'INWORLD_API_KEY': 'env-only-secret'}, clear=False):
             for path in ('/api/settings/v2', '/api/providers/tts/inworld/settings',
                          '/api/providers'):
@@ -724,7 +735,7 @@ class ProviderApiRedactionTests(unittest.TestCase):
         self.assertEqual(by_id['inworld']['availability'], AVAILABLE)
         self.assertEqual(by_id['kokoro']['availability'], AVAILABLE)
 
-        self.settings['domains']['tts']['per_provider']['inworld']['api_key'] = ''
+        self.settings['domains']['tts']['instances']['inworld']['settings']['api_key'] = ''
         with patch.dict(os.environ, {}, clear=True):
             catalog = self.client.get('/api/providers').get_json()['domains']
         by_id = {p['id']: p for p in catalog['tts']['providers']}
