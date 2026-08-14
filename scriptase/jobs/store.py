@@ -115,11 +115,48 @@ def _validate_draft(data: dict[str, Any]):
         raise JobValidationError(validation_problems(exc)) from exc
 
 
+def _jobs_index():
+    from scriptase.engine.storage_index import get_storage_index, jobs_index_path
+    return get_storage_index(jobs_index_path(_jobs_dir))
+
+
+def _index_job(document: Job) -> None:
+    try:
+        _jobs_index().upsert_job(document.to_document())
+    except Exception:
+        pass
+
+
+def _ensure_jobs_index() -> None:
+    from scriptase.engine.storage_index import count_json_documents
+
+    index = _jobs_index()
+    file_count = count_json_documents(_jobs_dir, id_prefix="job_")
+    if file_count > 0 and index.count_jobs() == 0:
+
+        def _load_summary(job_id: str) -> dict[str, Any]:
+            # Avoid get_job (which re-enters indexing / migration writes) during
+            # rebuild — read and migrate the raw document only.
+            raw = safe_json_read(_path(job_id))
+            migrated, _changed = apply_migrations(raw)
+            return {
+                "id": migrated.get("id") or job_id,
+                "channel_id": migrated.get("channel_id"),
+                "status": migrated.get("status"),
+                "created_at": migrated.get("created_at"),
+                "workflow_id": migrated.get("workflow_id"),
+                "execution_id": migrated.get("execution_id"),
+            }
+
+        index.rebuild_jobs(_jobs_dir, load_summary=_load_summary)
+
+
 def _write(document: Job) -> Job:
     assert_snapshot_has_no_credentials(document.channel_snapshot)
     os.makedirs(_jobs_dir, exist_ok=True)
     path = _path(document.id)
     safe_json_write(path, document.to_document(), indent=2)
+    _index_job(document)
     return document
 
 
@@ -212,6 +249,34 @@ def list_jobs(
 ) -> list[Job]:
     """Return jobs newest-first (by created_at, then id)."""
     os.makedirs(_jobs_dir, exist_ok=True)
+    try:
+        _ensure_jobs_index()
+        job_ids = _jobs_index().list_job_ids(
+            channel_id=channel_id, status=status, limit=limit
+        )
+        items: list[Job] = []
+        for job_id in job_ids:
+            try:
+                items.append(get_job(job_id))
+            except (JobNotFound, JobValidationError, ValueError, OSError):
+                continue
+        # Re-sort after load: index order matches created_at, but migration
+        # edge cases are cheap to normalize.
+        items.sort(
+            key=lambda item: (item.created_at or "", item.id),
+            reverse=True,
+        )
+        return items[:limit]
+    except Exception:
+        return _list_jobs_scan(channel_id=channel_id, status=status, limit=limit)
+
+
+def _list_jobs_scan(
+    *,
+    channel_id: str | None = None,
+    status: str | None = None,
+    limit: int = 200,
+) -> list[Job]:
     items: list[Job] = []
     for filename in os.listdir(_jobs_dir):
         if not filename.endswith(".json") or filename.endswith(".json.bak"):
@@ -413,6 +478,11 @@ def delete_job(job_id: str) -> None:
                 os.replace(path, dest)
             except OSError:
                 shutil.move(path, dest)
+
+        try:
+            _jobs_index().delete_job(job_id)
+        except Exception:
+            pass
 
 
 def job_summary(document: Job) -> dict[str, Any]:

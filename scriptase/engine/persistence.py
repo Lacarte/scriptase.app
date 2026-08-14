@@ -351,6 +351,14 @@ def execution_path(execution_id: str, *, root: str | None = None) -> str:
     return safe_join(root or EXECUTIONS_DIR, f"{_strict_execution_id(execution_id)}.json")
 
 
+def execution_snapshot_path(execution_id: str, *, root: str | None = None) -> str:
+    """Sidecar for the immutable workflow snapshot (step 10.2 incremental writes)."""
+    return safe_join(
+        root or EXECUTIONS_DIR,
+        f"{_strict_execution_id(execution_id)}.workflow_snapshot.json",
+    )
+
+
 def generate_execution_id(*, root: str | None = None) -> str:
     alphabet = string.ascii_uppercase + string.digits
     for _ in range(200):
@@ -360,17 +368,121 @@ def generate_execution_id(*, root: str | None = None) -> str:
     raise RuntimeError("Could not allocate an execution id")
 
 
-def save_execution(record, *, root: str | None = None, secrets=()) -> dict:
-    """Atomically persist a redacted execution record and return that exact shape."""
+def _execution_index(root: str | None = None):
+    from .storage_index import get_storage_index, workflows_index_path
+    directory = root or EXECUTIONS_DIR
+    return get_storage_index(workflows_index_path(execution_root=directory))
+
+
+def _queue_index(root: str | None = None):
+    from .storage_index import get_storage_index, queue_index_path
+    directory = root or QUEUE_DIR
+    return get_storage_index(queue_index_path(queue_root=directory))
+
+
+def _ensure_execution_index(directory: str) -> None:
+    """Rebuild the executions index when documents exist but the table is empty."""
+    from .storage_index import count_json_documents
+
+    index = _execution_index(directory)
+    file_count = count_json_documents(directory, id_prefix="ex_")
+    if file_count > 0 and index.count_executions() == 0:
+        index.rebuild_executions(
+            directory,
+            load_record=lambda execution_id: load_execution(execution_id, root=directory),
+        )
+
+
+def _ensure_queue_index(directory: str) -> None:
+    from .storage_index import count_json_documents
+
+    index = _queue_index(directory)
+    file_count = count_json_documents(directory, id_prefix="ex_")
+    if file_count > 0 and index.count_queue() == 0:
+        index.rebuild_queue(
+            directory,
+            load_record=lambda execution_id: load_queue_record(execution_id, root=directory),
+        )
+
+
+def save_execution(
+    record,
+    *,
+    root: str | None = None,
+    secrets=(),
+    mode: str = "full",
+) -> dict:
+    """Atomically persist a redacted execution record and return that exact shape.
+
+    ``mode``:
+
+    * ``"full"`` — write the complete document (including ``workflow_snapshot``)
+      with a ``.bak`` rotation. Used at start, terminal finish, and other
+      authoritative checkpoints.
+    * ``"incremental"`` — write only the mutable envelope (status, nodes,
+      approval, timestamps). The immutable ``workflow_snapshot`` is stored once
+      in a sidecar and not rewritten on every node status transition
+      (step 10.2). No ``.bak`` copy is taken for these high-frequency writes.
+    """
+    if mode not in {"full", "incremental"}:
+        raise ValueError("mode must be 'full' or 'incremental'")
     document = record.to_dict() if hasattr(record, "to_dict") else deepcopy(record)
     document = redact(document, secrets=secrets)
-    _strict_execution_id(document.get("execution_id"))
-    safe_json_write(execution_path(document["execution_id"], root=root), document, indent=2)
+    execution_id = _strict_execution_id(document.get("execution_id"))
+    directory = root or EXECUTIONS_DIR
+    path = execution_path(execution_id, root=directory)
+    snapshot = document.get("workflow_snapshot")
+    snap_path = execution_snapshot_path(execution_id, root=directory)
+
+    if isinstance(snapshot, dict):
+        # Snapshot is immutable for the life of a run — write the sidecar once.
+        if not os.path.isfile(snap_path):
+            safe_json_write(snap_path, snapshot, indent=2)
+
+    if mode == "full":
+        # Terminal / checkpoint form: single self-contained document so
+        # direct file readers and archives keep working unchanged.
+        safe_json_write(path, document, indent=2, backup=True)
+    else:
+        envelope = {key: value for key, value in document.items() if key != "workflow_snapshot"}
+        envelope["_snapshot_ref"] = os.path.basename(snap_path)
+        safe_json_write(path, envelope, indent=2, backup=False)
+
+    try:
+        _execution_index(directory).upsert_execution(document)
+    except Exception:
+        # Index is a performance aid; a failed upsert must never fail a run.
+        # The next list_* call rebuilds from disk if the table is empty.
+        pass
     return document
 
 
 def load_execution(execution_id: str, *, root: str | None = None) -> dict:
-    return safe_json_read(execution_path(execution_id, root=root))
+    directory = root or EXECUTIONS_DIR
+    document = safe_json_read(execution_path(execution_id, root=directory))
+    if not isinstance(document, dict):
+        return document
+    needs_snapshot = (
+        "workflow_snapshot" not in document
+        or document.get("_snapshot_ref")
+        or not isinstance(document.get("workflow_snapshot"), dict)
+    )
+    if needs_snapshot:
+        snap_path = execution_snapshot_path(execution_id, root=directory)
+        ref = document.pop("_snapshot_ref", None)
+        if ref and isinstance(ref, str):
+            # Managed relative name only — never honour absolute paths.
+            candidate = safe_join(directory, os.path.basename(ref))
+            if os.path.isfile(candidate):
+                snap_path = candidate
+        if os.path.isfile(snap_path):
+            document["workflow_snapshot"] = safe_json_read(snap_path)
+        else:
+            document.pop("_snapshot_ref", None)
+            document.setdefault("workflow_snapshot", {})
+    else:
+        document.pop("_snapshot_ref", None)
+    return document
 
 
 def list_executions(workflow_id: str, *, limit: int = 100, root: str | None = None) -> tuple[list[dict], int]:
@@ -378,6 +490,17 @@ def list_executions(workflow_id: str, *, limit: int = 100, root: str | None = No
         raise ValueError("workflow_id must match wf_XXXXXX")
     directory = root or EXECUTIONS_DIR
     os.makedirs(directory, exist_ok=True)
+    try:
+        _ensure_execution_index(directory)
+        return _execution_index(directory).list_executions(workflow_id, limit=limit)
+    except Exception:
+        # Fall back to the pre-10.2 full scan if the index is unusable.
+        return _list_executions_scan(workflow_id, limit=limit, directory=directory)
+
+
+def _list_executions_scan(
+    workflow_id: str, *, limit: int, directory: str
+) -> tuple[list[dict], int]:
     items = []
     for filename in os.listdir(directory):
         execution_id = filename[:-5] if filename.endswith(".json") else ""
@@ -417,8 +540,14 @@ def save_queue_record(record, *, root: str | None = None) -> dict:
         raise ValueError("Invalid queue status")
     if document.get("source") not in {"manual", "schedule", "watch", "webhook"}:
         raise ValueError("Invalid queue source")
-    safe_json_write(queue_path(document["execution_id"], root=root), redact(document), indent=2)
-    return document
+    redacted = redact(document)
+    directory = root or QUEUE_DIR
+    safe_json_write(queue_path(document["execution_id"], root=directory), redacted, indent=2)
+    try:
+        _queue_index(directory).upsert_queue(redacted)
+    except Exception:
+        pass
+    return redacted
 
 
 def load_queue_record(execution_id: str, *, root: str | None = None) -> dict:
@@ -432,6 +561,16 @@ def list_queue_records(
         raise ValueError("workflow_id must match wf_XXXXXX")
     directory = root or QUEUE_DIR
     os.makedirs(directory, exist_ok=True)
+    try:
+        _ensure_queue_index(directory)
+        return _queue_index(directory).list_queue(workflow_id, limit=limit)
+    except Exception:
+        return _list_queue_scan(workflow_id, limit=limit, directory=directory)
+
+
+def _list_queue_scan(
+    workflow_id: str, *, limit: int, directory: str
+) -> tuple[list[dict], int]:
     items = []
     for filename in os.listdir(directory):
         execution_id = filename[:-5] if filename.endswith(".json") else ""
@@ -447,3 +586,4 @@ def list_queue_records(
         key=lambda item: (item.get("requested_at") or "", item["execution_id"]), reverse=True
     )
     return items[:limit], len(items)
+

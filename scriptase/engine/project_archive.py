@@ -156,6 +156,8 @@ def project_summaries(workflow_id: str, *, output_dir: str) -> list[dict[str, An
     for entry in os.scandir(root):
         if not entry.is_file(follow_symlinks=False) or not entry.name.endswith(".json"):
             continue
+        if ".workflow_snapshot." in entry.name:
+            continue
         try:
             record = _read_json(entry.path)
         except ProjectArchiveError:
@@ -181,10 +183,21 @@ def create_archive(workflow_id: str, project_id: str, destination: BinaryIO, *, 
         for entry in os.scandir(execution_root):
             if not entry.is_file(follow_symlinks=False) or not entry.name.endswith(".json"):
                 continue
+            # Step 10.2 snapshot sidecars are not execution records.
+            if ".workflow_snapshot." in entry.name:
+                continue
             try:
                 record = _read_json(entry.path)
             except ProjectArchiveError:
                 continue
+            # Incremental envelopes may keep the snapshot external; merge so
+            # archive members stay self-contained.
+            if record.get("_snapshot_ref") or not isinstance(record.get("workflow_snapshot"), dict):
+                try:
+                    from .persistence import load_execution
+                    record = load_execution(entry.name[:-5], root=execution_root)
+                except (OSError, ValueError):
+                    pass
             if record.get("workflow_id") == workflow_id and record.get("project_id") == project_id:
                 executions.append((entry.name, record))
     if not executions:

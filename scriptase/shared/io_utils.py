@@ -80,13 +80,21 @@ def _replace_with_retry(tmp_path: str, path: str) -> None:
             time.sleep(_REPLACE_DELAY * (attempt + 1))
 
 
-def safe_json_write(path: str, data: dict, *, indent: int | None = None, ensure_ascii: bool = False) -> None:
+def safe_json_write(
+    path: str,
+    data: dict,
+    *,
+    indent: int | None = None,
+    ensure_ascii: bool = False,
+    backup: bool = True,
+) -> None:
     """Write JSON atomically: tmp file → flush/fsync → rename over target.
 
     On Windows ``os.rename`` fails if the target exists, so we fall back to
     ``shutil.move`` after removing the old file.  A ``.bak`` copy of the
     previous version is kept so ``safe_json_read`` can recover from
-    corruption.
+    corruption unless ``backup=False`` (used for high-frequency incremental
+    execution envelope writes in step 10.2).
 
     Raises ``OSError`` on failure (caller should handle).
     """
@@ -102,7 +110,7 @@ def safe_json_write(path: str, data: dict, *, indent: int | None = None, ensure_
             os.fsync(f.fileno())
 
         # 2. Rotate current file → .bak (keep one backup)
-        if os.path.isfile(path):
+        if backup and os.path.isfile(path):
             bak_path = path + ".bak"
             try:
                 shutil.copy2(path, bak_path)

@@ -85,11 +85,14 @@ def _pinned_payload_refs(value: Any, output_dir: str) -> set[str]:
     return refs
 
 
-def _json_documents(directory: str) -> Iterable[dict[str, Any]]:
+def _json_documents(directory: str) -> Iterable[tuple[dict[str, Any], str]]:
     if not os.path.isdir(directory):
         return
     for entry in os.scandir(directory):
         if not entry.is_file(follow_symlinks=False) or not entry.name.endswith(".json"):
+            continue
+        # Step 10.2: workflow snapshot sidecars are merged via load_execution.
+        if ".workflow_snapshot." in entry.name:
             continue
         try:
             with open(entry.path, "r", encoding="utf-8") as handle:
@@ -97,15 +100,28 @@ def _json_documents(directory: str) -> Iterable[dict[str, Any]]:
         except (OSError, ValueError):
             continue
         if isinstance(value, dict):
-            yield value
+            yield value, entry.name
 
 
 def referenced_artifacts(*, output_dir: str = OUTPUT_DIR) -> set[str]:
     """Return roots held by execution records and pinned viewer payloads."""
     output_dir = os.path.abspath(output_dir)
     workflow_root = os.path.join(output_dir, "workflows")
-    documents = list(_json_documents(os.path.join(workflow_root, "executions")))
-    documents.extend(_json_documents(workflow_root))
+    execution_root = os.path.join(workflow_root, "executions")
+    documents: list[dict[str, Any]] = []
+    for document, name in _json_documents(execution_root):
+        # Incremental envelopes need the snapshot merged for pinned refs.
+        if document.get("_snapshot_ref") or not isinstance(document.get("workflow_snapshot"), dict):
+            if isinstance(document.get("execution_id"), str) or name.endswith(".json"):
+                try:
+                    from .persistence import load_execution
+                    execution_id = document.get("execution_id") or name[:-5]
+                    document = load_execution(execution_id, root=execution_root)
+                except (OSError, ValueError, TypeError):
+                    pass
+        documents.append(document)
+    for document, _name in _json_documents(workflow_root):
+        documents.append(document)
     refs: set[str] = set()
     for document in documents:
         # Execution records are authoritative for every emitted artifact.

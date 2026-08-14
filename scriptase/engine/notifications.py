@@ -76,6 +76,28 @@ def _record_path(execution_id: str, *, root: str) -> str:
     return safe_join(root, f"{execution_id}.json")
 
 
+def _notification_index(output_dir: str):
+    from .storage_index import get_storage_index, workflows_index_path
+    return get_storage_index(workflows_index_path(output_dir=output_dir))
+
+
+def _index_notification(record: Mapping[str, Any], *, output_dir: str) -> None:
+    try:
+        _notification_index(output_dir).upsert_notification(record)
+    except Exception:
+        pass
+
+
+def _ensure_notification_index(output_dir: str) -> None:
+    from .storage_index import count_json_documents
+
+    root = _root(output_dir)
+    index = _notification_index(output_dir)
+    file_count = count_json_documents(root, id_prefix="ex_")
+    if file_count > 0 and index.count_notifications() == 0:
+        index.rebuild_notifications(root)
+
+
 def dispatch_run_notification(
     workflow: Mapping[str, Any], execution: Mapping[str, Any], *, output_dir: str
 ) -> dict | None:
@@ -113,6 +135,7 @@ def dispatch_run_notification(
             "schema_version": 1,
         }
         safe_json_write(path, record, indent=2)
+        _index_notification(record, output_dir=output_dir)
 
     deliveries: dict[str, dict[str, Any]] = {}
     if settings.get("windows_toast"):
@@ -142,6 +165,7 @@ def dispatch_run_notification(
             current = safe_json_read(path)
             current["deliveries"] = deliveries
             safe_json_write(path, current, indent=2)
+            _index_notification(current, output_dir=output_dir)
             record = current
     return record
 
@@ -184,6 +208,16 @@ def list_notifications(workflow_id: str, *, output_dir: str, limit: int = 100) -
         raise ValueError("limit must be between 1 and 200")
     root = _root(output_dir)
     os.makedirs(root, exist_ok=True)
+    try:
+        _ensure_notification_index(output_dir)
+        return _notification_index(output_dir).list_notifications(workflow_id, limit=limit)
+    except Exception:
+        return _list_notifications_scan(workflow_id, root=root, limit=limit)
+
+
+def _list_notifications_scan(
+    workflow_id: str, *, root: str, limit: int
+) -> tuple[list[dict], int, int]:
     items = []
     for filename in os.listdir(root):
         if not filename.endswith(".json"):
@@ -194,7 +228,10 @@ def list_notifications(workflow_id: str, *, output_dir: str, limit: int = 100) -
             continue
         if record.get("workflow_id") == workflow_id:
             items.append(record)
-    items.sort(key=lambda item: (item.get("created_at") or "", item.get("notification_id") or ""), reverse=True)
+    items.sort(
+        key=lambda item: (item.get("created_at") or "", item.get("notification_id") or ""),
+        reverse=True,
+    )
     unseen = sum(not item.get("seen", False) for item in items)
     return items[:limit], len(items), unseen
 
@@ -207,17 +244,22 @@ def mark_notifications_seen(workflow_id: str, *, output_dir: str) -> int:
     # center acknowledges the complete durable log for this workflow.
     os.makedirs(root, exist_ok=True)
     with _LOCK:
-        items = []
-        for filename in os.listdir(root):
-            if not filename.endswith(".json"):
-                continue
-            try:
-                record = safe_json_read(safe_join(root, filename))
-            except (OSError, ValueError):
-                continue
-            if record.get("workflow_id") == workflow_id and not record.get("seen", False):
-                items.append(record)
+        try:
+            _ensure_notification_index(output_dir)
+            items = _notification_index(output_dir).list_unseen_notifications(workflow_id)
+            if not items:
+                # Index may lag if records were written before step 10.2.
+                scanned, _total, _unseen = _list_notifications_scan(
+                    workflow_id, root=root, limit=10_000
+                )
+                items = [item for item in scanned if not item.get("seen", False)]
+        except Exception:
+            scanned, _total, _unseen = _list_notifications_scan(
+                workflow_id, root=root, limit=10_000
+            )
+            items = [item for item in scanned if not item.get("seen", False)]
         for record in items:
             record["seen"] = True
             safe_json_write(_record_path(record["execution_id"], root=root), record, indent=2)
+            _index_notification(record, output_dir=output_dir)
     return len(items)

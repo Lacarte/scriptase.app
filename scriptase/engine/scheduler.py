@@ -1113,7 +1113,11 @@ class WorkflowScheduler:
                 ts=now_iso(), level="info", message=f"Node status changed to {status}"
             ).__dict__))
             self.record.nodes[node_id] = deepcopy(record)
-            self._persist_unlocked()
+            # Node status transitions are the hot path (~3 writes per node).
+            # Incremental mode keeps the workflow snapshot off the rewrite
+            # (step 10.2) so a 20-node run no longer does ~60 full-document
+            # writes of the entire snapshot.
+            self._persist_unlocked(mode="incremental")
             if self.on_status:
                 self.on_status(node_id, status)
             self._emit({
@@ -1129,14 +1133,19 @@ class WorkflowScheduler:
     def _commit_node_record(self, node_id: str, node_record: NodeExecutionRecord) -> None:
         with self._state_lock:
             self.record.nodes[node_id] = deepcopy(node_record)
-            self._persist_unlocked()
+            self._persist_unlocked(mode="incremental")
 
     def _persist(self) -> dict[str, Any]:
         with self._state_lock:
             return self._persist_unlocked()
 
-    def _persist_unlocked(self) -> dict[str, Any]:
-        return save_execution(self.record, root=self.execution_root, secrets=self.redactor.secrets)
+    def _persist_unlocked(self, *, mode: str = "full") -> dict[str, Any]:
+        return save_execution(
+            self.record,
+            root=self.execution_root,
+            secrets=self.redactor.secrets,
+            mode=mode,
+        )
 
     def _emit(self, event: dict[str, Any]) -> None:
         if self.on_event:
