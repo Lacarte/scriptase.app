@@ -90,6 +90,7 @@ _GENERIC_MESSAGE = {
     "tts": "The speech provider failed while synthesizing audio.",
     "image": "The image provider failed while generating images.",
     "video": "The video provider failed while generating assets.",
+    "review": "The review provider failed while analysing the subject.",
 }
 _GENERIC_FALLBACK = "The provider failed while handling the request."
 

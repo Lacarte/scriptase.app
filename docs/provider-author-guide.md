@@ -98,6 +98,7 @@ Every package exports `create()` — a zero-arg factory returning the provider i
 | `tts` | sync artifact | `synthesize(text, settings, …)` → `invoke(…)` |
 | `image` | async multi-asset | `submit` / `poll` (media-job service) |
 | `video` | async multi-asset | `submit` / `poll` (media-job service) |
+| `review` | sync document | `review(request)` → `invoke(request, invocation)` |
 
 ### Sync document example (script / scene_director)
 
@@ -119,7 +120,7 @@ Kind `extension` must export `register_runtime(app, sock)` (emitted as `runtime.
 
 ## 5. Results and errors
 
-One envelope serves all five domains: `ProviderResult` (`scriptase.providers.results`). Only `payload` varies by domain. Status is `succeeded`, `partial`, or `failed`.
+One envelope serves every catalog domain: `ProviderResult` (`scriptase.providers.results`). Only `payload` varies by domain. Status is `succeeded`, `partial`, or `failed`.
 
 - Raise `ProviderError(code, message, details=…)` for expected failures. Codes come from the frozen catalog (see the [Provider Reference](providers.md#stable-provider-error-codes)).
 - Never copy `str(exc)` from an unknown exception into a result — the boundary wraps it with a generic per-domain message.
@@ -333,6 +334,49 @@ Field tables are loaded from each domain's request/result models at generation t
 | `errors` | `int` | yes | — |
 | `manifest_ref` | `str` | no | `""` |
 
+### Review (`review`)
+
+- **Default provider:** `semantic`
+- **Package:** `scriptase.review.providers`
+- **Providers folder:** `scriptase/review/providers`
+- **Execution shape:** sync document
+- **Concrete seam:** `review(request)` → `invoke(request, invocation)`
+
+#### Capability vocabulary
+
+`async_job`, `batch`, `cancel`, `exclusive_execution`, `image_review`, `progress`, `push_callbacks`, `single_scene`, `structured_output`, `test_connection`, `text_review`, `video_review`
+
+#### Request model (`scriptase.review.providers.contract:ReviewRequest`)
+
+| Field | Type | Required | Default |
+|---|---|---|---|
+| `job_id` | `str` | yes | — |
+| `subject_kind` | `Literal` | no | `"text"` |
+| `scene_id` | `str | None` | no | `null` |
+| `target_node_id` | `str | None` | no | `null` |
+| `target_artifact_id` | `str | None` | no | `null` |
+| `text` | `str` | no | `""` |
+| `artifact_ref` | `str` | no | `""` |
+| `caption` | `str` | no | `""` |
+| `image_prompt` | `str` | no | `""` |
+| `expected_subject` | `str` | no | `""` |
+| `expected_style` | `str` | no | `""` |
+| `expected_text` | `str` | no | `""` |
+| `expected_duration_s` | `float | None` | no | `null` |
+| `duration_s` | `float | None` | no | `null` |
+| `structured` | `dict[str, Any]` | no | factory |
+| `required_keys` | `list[str]` | no | factory |
+
+#### Result payload (`scriptase.review.providers.contract:ReviewResultPayload`)
+
+| Field | Type | Required | Default |
+|---|---|---|---|
+| `issues` | `list[dict[str, Any]]` | no | factory |
+| `subject_kind` | `Literal` | no | `"text"` |
+| `capability` | `str` | no | `"text_review"` |
+| `issue_count` | `int` | no | `0` |
+| `clean` | `bool` | no | `true` |
+
 ## Current catalog
 
 Snapshot of providers discovered when this guide was generated.
@@ -344,6 +388,7 @@ Snapshot of providers discovered when this guide was generated.
 | `tts` | `inworld`, `kokoro` |
 | `image` | `gemini_ws`, `wavespeed_direct`, `wavespeed_webhook` |
 | `video` | `grok_automa`, `kie_ai` |
+| `review` | `semantic` |
 
 ## Troubleshooting
 

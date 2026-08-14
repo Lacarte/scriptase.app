@@ -5,7 +5,7 @@
 
 # Provider Reference
 
-Live catalog: **5 domains**, **11 registered providers**.
+Live catalog: **6 domains**, **12 registered providers**.
 
 This document is generated from the domain catalog (`scriptase.providers.domains`) and the process-wide hub (`scriptase.providers.hub`). It is the same discovery surface served by `GET /api/providers`. Music and Captions are deliberately **not** provider domains — they remain local services without a provider dimension.
 
@@ -25,6 +25,7 @@ python -m scriptase.engine.docs --check
 | `tts` | Text to Speech | `kokoro` | `scriptase.modules.tts.providers` | sync artifact |
 | `image` | Image | `gemini_ws` | `scriptase.modules.image.providers` | async multi-asset |
 | `video` | Video | `grok_automa` | `scriptase.modules.video.providers` | async multi-asset |
+| `review` | Review | `semantic` | `scriptase.review.providers` | sync document |
 
 ## Shared capabilities
 
@@ -209,6 +210,49 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 | `errors` | `int` | yes | — |
 | `manifest_ref` | `str` | no | `""` |
 
+### Review (`review`)
+
+- **Default provider:** `semantic`
+- **Package:** `scriptase.review.providers`
+- **Providers folder:** `scriptase/review/providers`
+- **Execution shape:** sync document
+- **Concrete seam:** `review(request)` → `invoke(request, invocation)`
+
+#### Capability vocabulary
+
+`async_job`, `batch`, `cancel`, `exclusive_execution`, `image_review`, `progress`, `push_callbacks`, `single_scene`, `structured_output`, `test_connection`, `text_review`, `video_review`
+
+#### Request model (`scriptase.review.providers.contract:ReviewRequest`)
+
+| Field | Type | Required | Default |
+|---|---|---|---|
+| `job_id` | `str` | yes | — |
+| `subject_kind` | `Literal` | no | `"text"` |
+| `scene_id` | `str | None` | no | `null` |
+| `target_node_id` | `str | None` | no | `null` |
+| `target_artifact_id` | `str | None` | no | `null` |
+| `text` | `str` | no | `""` |
+| `artifact_ref` | `str` | no | `""` |
+| `caption` | `str` | no | `""` |
+| `image_prompt` | `str` | no | `""` |
+| `expected_subject` | `str` | no | `""` |
+| `expected_style` | `str` | no | `""` |
+| `expected_text` | `str` | no | `""` |
+| `expected_duration_s` | `float | None` | no | `null` |
+| `duration_s` | `float | None` | no | `null` |
+| `structured` | `dict[str, Any]` | no | factory |
+| `required_keys` | `list[str]` | no | factory |
+
+#### Result payload (`scriptase.review.providers.contract:ReviewResultPayload`)
+
+| Field | Type | Required | Default |
+|---|---|---|---|
+| `issues` | `list[dict[str, Any]]` | no | factory |
+| `subject_kind` | `Literal` | no | `"text"` |
+| `capability` | `str` | no | `"text_review"` |
+| `issue_count` | `int` | no | `0` |
+| `clean` | `bool` | no | `true` |
+
 ## Registered providers
 
 Providers are discovered by scanning each domain's `providers/` folder. There is no central registration table.
@@ -349,6 +393,20 @@ Prompt-driven scene assets through the Kie AI API (text-to-video).
 - **Aliases:** `kie-ai`
 - **Requires settings:** `api_key`
 - **Capabilities:** `async_job`, `batch`, `progress`, `resolution_select`, `single_scene`, `test_connection`, `text_to_video`
+
+### `review` providers
+
+| Id | Label | Kind | Version | Contract | Capabilities |
+|---|---|---|---|---|---|
+| `semantic` | Semantic reviewer | `local` | `1.0.0` | v2 | `batch`, `image_review`, `single_scene`, `structured_output`, `test_connection`, `text_review`, `video_review` |
+
+#### `semantic` — Semantic reviewer
+
+Offline semantic reviewer that emits structured ReviewIssue findings for text, image, video, and structured subjects. Deterministic heuristics only — no network, no credentials. AI review providers can replace this package without framework changes.
+
+- **Kind:** `local`
+- **Version:** `1.0.0` (contract v2)
+- **Capabilities:** `batch`, `image_review`, `single_scene`, `structured_output`, `test_connection`, `text_review`, `video_review`
 
 ## Stable provider error codes
 

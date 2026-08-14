@@ -38,6 +38,7 @@ DOMAIN_DEADLINE_S = {
     "tts": 900.0,
     "image": 1800.0,
     "video": 7200.0,
+    "review": 600.0,
 }
 DEFAULT_DEADLINE_S = 900.0
 

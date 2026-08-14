@@ -44,17 +44,22 @@ def _write_provider(base, provider_id, domain='tts', label=None, body=None):
 
 
 class DomainCatalogTests(unittest.TestCase):
-    def test_catalog_declares_exactly_five_domains_in_order(self):
+    def test_catalog_declares_domains_in_order(self):
+        # Step 7.3 added `review` as a sixth domain via DomainSpec data only.
         self.assertEqual(
             list(DOMAINS),
-            ['script', 'scene_director', 'tts', 'image', 'video'],
+            ['script', 'scene_director', 'tts', 'image', 'video', 'review'],
         )
 
     def test_every_spec_is_complete(self):
         for domain_id, spec in DOMAINS.items():
             self.assertEqual(spec.id, domain_id)
             self.assertTrue(spec.label)
-            self.assertTrue(spec.package.startswith('scriptase.modules.'))
+            self.assertTrue(
+                spec.package.startswith('scriptase.modules.')
+                or spec.package.startswith('scriptase.review.'),
+                spec.package,
+            )
             self.assertTrue(os.path.isabs(spec.providers_base))
             self.assertTrue(spec.default_provider)
             self.assertIn('test_connection', spec.capability_vocabulary)

@@ -6,7 +6,7 @@ paths, sensitive keys, `bytes`, non-JSON types, and oversized fields *at the
 boundary*, so no raw provider exception, credential, arbitrary filesystem path,
 or provider-specific response can reach a workflow record or an API response.
 
-One envelope serves all five domains; only `payload` varies by domain.
+One envelope serves every catalog domain; only `payload` varies by domain.
 """
 
 from __future__ import annotations
@@ -363,7 +363,7 @@ _ENVELOPE_KEYS = frozenset({
 
 @dataclass
 class ProviderResult:
-    """One envelope for all five domains (§31.1, `result_version: 1`)."""
+    """One envelope for every catalog domain (§31.1, `result_version: 1`)."""
 
     domain: str = ""
     provider_id: str = ""

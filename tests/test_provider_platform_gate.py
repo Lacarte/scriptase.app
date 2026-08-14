@@ -7,7 +7,7 @@ judgement.
 
 Coverage matrix (what this file owns vs what it re-asserts lightly):
 
-  DoD 1  five domains dispatch only through registered providers;
+  DoD 1  catalog domains dispatch only through registered providers;
          Music + Captions stay local services.
   DoD 2  no concrete provider IDs in generic nodes / adapters / UI
          (allowlist scan — reuses the ZeroTouch surfaces).
@@ -63,10 +63,11 @@ from scriptase.engine.validation import validate_workflow, validation_errors
 
 
 # proposition-final.md: Music and Captions are deliberately out of scope.
-AI_DOMAINS = ("script", "scene_director", "tts", "image", "video")
+# Step 7.3 added `review` (semantic quality analysis) as a sixth domain.
+AI_DOMAINS = ("script", "scene_director", "tts", "image", "video", "review")
 OUT_OF_SCOPE = ("music", "captions")
 
-# Node type → domain for the five converted provider nodes.
+# Node type → domain for the converted provider nodes.
 PROVIDER_NODES = {
     "story.generate": "script",
     "scenes.blueprint": "scene_director",
@@ -118,6 +119,7 @@ EXPECTED_SHIPPED = {
     "tts": {"kokoro", "inworld"},
     "image": {"gemini_ws", "wavespeed_webhook", "wavespeed_direct"},
     "video": {"grok_automa", "kie_ai"},
+    "review": {"semantic"},
 }
 
 
@@ -146,13 +148,13 @@ def _source_tree_files(*roots: str) -> list[Path]:
 
 
 class DomainCatalogGateTests(unittest.TestCase):
-    """DoD 1 + 6 — five domains, registered providers, catalog/health surface."""
+    """DoD 1 + 6 — catalog domains, registered providers, catalog/health surface."""
 
     @classmethod
     def setUpClass(cls):
         hub.discover_all()
 
-    def test_exactly_five_ai_domains_and_no_music_captions(self):
+    def test_ai_domains_and_no_music_captions(self):
         self.assertEqual(tuple(DOMAINS), AI_DOMAINS)
         for name in OUT_OF_SCOPE:
             self.assertNotIn(name, DOMAINS)

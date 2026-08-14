@@ -1,9 +1,9 @@
 """Domain catalog — the single declaration of the supported provider domains.
 
-Frozen by contracts.md §19.1: exactly five domains (Music and Captions are out of
-scope by owner decision). Adding a sixth domain is one `DomainSpec` entry plus a
-provider folder — it must not require editing the registry class, the settings
-manager, a route, or a Vue component.
+Music and Captions are out of scope by owner decision (local services, not
+provider domains). Adding a domain is one `DomainSpec` entry plus a provider
+folder — it must not require editing the registry class, the settings manager, a
+route, or a Vue component. Step 7.3 added `review` that way.
 
 This module is the only place a domain name is written down. `ProviderRegistry.VALID_DOMAINS`,
 `settings_manager.validate_settings`, and `settings_manager._default_settings` all derive
@@ -156,6 +156,24 @@ DOMAINS: dict[str, DomainSpec] = {
             legacy_selection_key="sts-asset-provider",
             request_model="scriptase.modules.video.providers.contract:AnimatorRequest",
             result_model="scriptase.modules.video.providers.contract:AnimatorResultPayload",
+        ),
+        # Step 7.3 — sixth domain. Semantic / AI review producing structured
+        # ReviewIssue records. Deterministic technical validators (7.1) stay
+        # outside the provider platform; this domain is the expensive layer.
+        DomainSpec(
+            id="review",
+            label="Review",
+            package="scriptase.review.providers",
+            providers_base=_base("scriptase", "review", "providers"),
+            default_provider="semantic",
+            capability_vocabulary=_caps(
+                "image_review",
+                "video_review",
+                "text_review",
+                "structured_output",
+            ),
+            request_model="scriptase.review.providers.contract:ReviewRequest",
+            result_model="scriptase.review.providers.contract:ReviewResultPayload",
         ),
     )
 }

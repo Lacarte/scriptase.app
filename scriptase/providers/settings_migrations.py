@@ -34,7 +34,8 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 # v6 = provider type/instance split (step 3.1): selected_provider + per_provider
 #      → selected_instance_id + instances.
 # v7 = secret references (step 3.4): plaintext credentials → {"$secret": ref}.
-SETTINGS_VERSION = 7
+# v8 = backfill domains added to the catalog after v6 (step 7.3 `review`).
+SETTINGS_VERSION = 8
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -269,6 +270,36 @@ def migrate_to_v7(data: dict, legacy_user: dict) -> dict:
     return extract_plaintext_from_document(data)
 
 
+@_register(8)
+def migrate_to_v8(data: dict, legacy_user: dict) -> dict:
+    """Backfill domain blocks for catalog entries added after the v6 split.
+
+    Step 7.3 adds ``review``. Future domains get the same treatment: any
+    ``DomainSpec`` missing from ``settings.json`` receives a default instance
+    of its catalog default provider. Existing blocks are never rewritten.
+    """
+    domains = data.setdefault("domains", {})
+    for domain_id, spec in DOMAINS.items():
+        block = domains.get(domain_id)
+        if isinstance(block, dict) and (
+            block.get("selected_instance_id") or block.get("instances")
+        ):
+            continue
+        default = spec.default_provider
+        instances: dict = {}
+        if default:
+            instances[default] = {
+                "type": default,
+                "label": default,
+                "settings": {},
+            }
+        domains[domain_id] = {
+            "selected_instance_id": default,
+            "instances": instances,
+        }
+    return data
+
+
 def apply_migrations(data: dict, legacy_user: dict | None = None) -> tuple[dict, bool]:
     """Upgrade `data` to `SETTINGS_VERSION`.
 
@@ -315,4 +346,5 @@ __all__ = [
     "migrate_to_v4",
     "migrate_to_v5",
     "migrate_to_v6",
+    "migrate_to_v8",
 ]

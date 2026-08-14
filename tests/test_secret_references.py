@@ -288,7 +288,8 @@ class MigrationV7Tests(SecretStoreIsolationTests):
         migrated, changed = apply_migrations(data, {})
         self.assertTrue(changed)
         self.assertEqual(migrated["version"], SETTINGS_VERSION)
-        self.assertEqual(SETTINGS_VERSION, 7)
+        # v7 introduced secret refs; v8 backfills catalog domains (step 7.3).
+        self.assertGreaterEqual(SETTINGS_VERSION, 7)
         key = migrated["domains"]["tts"]["instances"]["inworld"]["settings"]["api_key"]
         self.assertTrue(is_secret_ref(key))
 

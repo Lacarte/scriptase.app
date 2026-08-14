@@ -59,6 +59,7 @@ _SEAM_BY_DOMAIN = {
     "tts": "`synthesize(text, settings, …)` → `invoke(…)`",
     "image": "`submit` / `poll` (media-job service)",
     "video": "`submit` / `poll` (media-job service)",
+    "review": "`review(request)` → `invoke(request, invocation)`",
 }
 
 
@@ -529,7 +530,7 @@ def generate_provider_author_guide() -> str:
         "",
         "## 5. Results and errors",
         "",
-        "One envelope serves all five domains: `ProviderResult` "
+        "One envelope serves every catalog domain: `ProviderResult` "
         "(`scriptase.providers.results`). Only `payload` varies by domain. "
         "Status is `succeeded`, `partial`, or `failed`.",
         "",
