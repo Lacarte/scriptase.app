@@ -2,7 +2,11 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// Build output lands in ../static/dist, which Flask serves in production.
+// Build output lands in ../static/dist. Flask mounts that directory at
+// static_url_path="/static", so production asset URLs must be rooted there.
+// Dev keeps base "/" and proxies /api + /output to the backend.
+const isProd = process.env.NODE_ENV === 'production'
+
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -10,6 +14,7 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  base: isProd ? '/static/' : '/',
   build: {
     outDir: '../static/dist',
     emptyOutDir: true,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
+import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import { API_BASE, APP_NAME } from './shared/constants.js'
@@ -11,6 +12,7 @@ describe('scaffold', () => {
       history: createMemoryHistory(),
       routes: [
         { path: '/', component: { template: `<div>${APP_NAME}</div>` } },
+        { path: '/workflow', component: { template: '<div>workflow</div>' } },
         { path: '/channels', component: { template: '<div>channels</div>' } },
       ],
     })
@@ -18,9 +20,10 @@ describe('scaffold', () => {
     await router.isReady()
 
     const wrapper = mount(App, {
-      global: { plugins: [router] },
+      global: { plugins: [router, createPinia()] },
     })
     expect(wrapper.text()).toContain(APP_NAME)
+    expect(wrapper.text()).toContain('Workflow')
     expect(wrapper.text()).toContain('Channels')
   })
 

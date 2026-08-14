@@ -1,0 +1,2719 @@
+{
+  "schema_version": 1,
+  "name": "150-node canvas performance fixture",
+  "description": "Deterministic generated fixture for large-canvas interaction regressions.",
+  "nodes": [
+    {
+      "id": "fixture_node_001",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 001",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-1"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_002",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 002",
+      "position": {
+        "x": 240,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-2"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_003",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 003",
+      "position": {
+        "x": 480,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-3"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_004",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 004",
+      "position": {
+        "x": 720,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-4"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_005",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 005",
+      "position": {
+        "x": 960,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-5"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_006",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 006",
+      "position": {
+        "x": 1200,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-6"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_007",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 007",
+      "position": {
+        "x": 1440,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-7"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_008",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 008",
+      "position": {
+        "x": 1680,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-8"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_009",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 009",
+      "position": {
+        "x": 1920,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-9"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_010",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 010",
+      "position": {
+        "x": 2160,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-10"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_011",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 011",
+      "position": {
+        "x": 2400,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-11"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_012",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 012",
+      "position": {
+        "x": 2640,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-12"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_013",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 013",
+      "position": {
+        "x": 2880,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-13"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_014",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 014",
+      "position": {
+        "x": 3120,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-14"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_015",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 015",
+      "position": {
+        "x": 3360,
+        "y": 0
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-15"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_016",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 016",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-16"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_017",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 017",
+      "position": {
+        "x": 240,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-17"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_018",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 018",
+      "position": {
+        "x": 480,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-18"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_019",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 019",
+      "position": {
+        "x": 720,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-19"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_020",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 020",
+      "position": {
+        "x": 960,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-20"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_021",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 021",
+      "position": {
+        "x": 1200,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-21"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_022",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 022",
+      "position": {
+        "x": 1440,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-22"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_023",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 023",
+      "position": {
+        "x": 1680,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-23"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_024",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 024",
+      "position": {
+        "x": 1920,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-24"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_025",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 025",
+      "position": {
+        "x": 2160,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-25"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_026",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 026",
+      "position": {
+        "x": 2400,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-26"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_027",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 027",
+      "position": {
+        "x": 2640,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-27"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_028",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 028",
+      "position": {
+        "x": 2880,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-28"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_029",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 029",
+      "position": {
+        "x": 3120,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-29"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_030",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 030",
+      "position": {
+        "x": 3360,
+        "y": 120
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-30"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_031",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 031",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-31"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_032",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 032",
+      "position": {
+        "x": 240,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-32"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_033",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 033",
+      "position": {
+        "x": 480,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-33"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_034",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 034",
+      "position": {
+        "x": 720,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-34"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_035",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 035",
+      "position": {
+        "x": 960,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-35"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_036",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 036",
+      "position": {
+        "x": 1200,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-36"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_037",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 037",
+      "position": {
+        "x": 1440,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-37"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_038",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 038",
+      "position": {
+        "x": 1680,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-38"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_039",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 039",
+      "position": {
+        "x": 1920,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-39"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_040",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 040",
+      "position": {
+        "x": 2160,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-40"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_041",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 041",
+      "position": {
+        "x": 2400,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-41"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_042",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 042",
+      "position": {
+        "x": 2640,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-42"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_043",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 043",
+      "position": {
+        "x": 2880,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-43"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_044",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 044",
+      "position": {
+        "x": 3120,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-44"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_045",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 045",
+      "position": {
+        "x": 3360,
+        "y": 240
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-45"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_046",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 046",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-46"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_047",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 047",
+      "position": {
+        "x": 240,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-47"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_048",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 048",
+      "position": {
+        "x": 480,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-48"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_049",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 049",
+      "position": {
+        "x": 720,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-49"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_050",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 050",
+      "position": {
+        "x": 960,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-50"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_051",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 051",
+      "position": {
+        "x": 1200,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-51"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_052",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 052",
+      "position": {
+        "x": 1440,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-52"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_053",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 053",
+      "position": {
+        "x": 1680,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-53"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_054",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 054",
+      "position": {
+        "x": 1920,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-54"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_055",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 055",
+      "position": {
+        "x": 2160,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-55"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_056",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 056",
+      "position": {
+        "x": 2400,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-56"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_057",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 057",
+      "position": {
+        "x": 2640,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-57"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_058",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 058",
+      "position": {
+        "x": 2880,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-58"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_059",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 059",
+      "position": {
+        "x": 3120,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-59"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_060",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 060",
+      "position": {
+        "x": 3360,
+        "y": 360
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-60"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_061",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 061",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-61"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_062",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 062",
+      "position": {
+        "x": 240,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-62"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_063",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 063",
+      "position": {
+        "x": 480,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-63"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_064",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 064",
+      "position": {
+        "x": 720,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-64"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_065",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 065",
+      "position": {
+        "x": 960,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-65"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_066",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 066",
+      "position": {
+        "x": 1200,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-66"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_067",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 067",
+      "position": {
+        "x": 1440,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-67"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_068",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 068",
+      "position": {
+        "x": 1680,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-68"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_069",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 069",
+      "position": {
+        "x": 1920,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-69"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_070",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 070",
+      "position": {
+        "x": 2160,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-70"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_071",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 071",
+      "position": {
+        "x": 2400,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-71"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_072",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 072",
+      "position": {
+        "x": 2640,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-72"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_073",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 073",
+      "position": {
+        "x": 2880,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-73"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_074",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 074",
+      "position": {
+        "x": 3120,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-74"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_075",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 075",
+      "position": {
+        "x": 3360,
+        "y": 480
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-75"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_076",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 076",
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-76"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_077",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 077",
+      "position": {
+        "x": 240,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-77"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_078",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 078",
+      "position": {
+        "x": 480,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-78"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_079",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 079",
+      "position": {
+        "x": 720,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-79"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_080",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 080",
+      "position": {
+        "x": 960,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-80"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_081",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 081",
+      "position": {
+        "x": 1200,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-81"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_082",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 082",
+      "position": {
+        "x": 1440,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-82"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_083",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 083",
+      "position": {
+        "x": 1680,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-83"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_084",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 084",
+      "position": {
+        "x": 1920,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-84"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_085",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 085",
+      "position": {
+        "x": 2160,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-85"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_086",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 086",
+      "position": {
+        "x": 2400,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-86"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_087",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 087",
+      "position": {
+        "x": 2640,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-87"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_088",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 088",
+      "position": {
+        "x": 2880,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-88"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_089",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 089",
+      "position": {
+        "x": 3120,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-89"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_090",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 090",
+      "position": {
+        "x": 3360,
+        "y": 600
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-90"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_091",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 091",
+      "position": {
+        "x": 0,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-91"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_092",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 092",
+      "position": {
+        "x": 240,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-92"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_093",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 093",
+      "position": {
+        "x": 480,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-93"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_094",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 094",
+      "position": {
+        "x": 720,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-94"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_095",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 095",
+      "position": {
+        "x": 960,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-95"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_096",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 096",
+      "position": {
+        "x": 1200,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-96"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_097",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 097",
+      "position": {
+        "x": 1440,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-97"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_098",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 098",
+      "position": {
+        "x": 1680,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-98"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_099",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 099",
+      "position": {
+        "x": 1920,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-99"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_100",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 100",
+      "position": {
+        "x": 2160,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-100"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_101",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 101",
+      "position": {
+        "x": 2400,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-101"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_102",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 102",
+      "position": {
+        "x": 2640,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-102"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_103",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 103",
+      "position": {
+        "x": 2880,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-103"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_104",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 104",
+      "position": {
+        "x": 3120,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-104"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_105",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 105",
+      "position": {
+        "x": 3360,
+        "y": 720
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-105"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_106",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 106",
+      "position": {
+        "x": 0,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-106"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_107",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 107",
+      "position": {
+        "x": 240,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-107"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_108",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 108",
+      "position": {
+        "x": 480,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-108"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_109",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 109",
+      "position": {
+        "x": 720,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-109"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_110",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 110",
+      "position": {
+        "x": 960,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-110"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_111",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 111",
+      "position": {
+        "x": 1200,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-111"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_112",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 112",
+      "position": {
+        "x": 1440,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-112"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_113",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 113",
+      "position": {
+        "x": 1680,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-113"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_114",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 114",
+      "position": {
+        "x": 1920,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-114"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_115",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 115",
+      "position": {
+        "x": 2160,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-115"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_116",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 116",
+      "position": {
+        "x": 2400,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-116"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_117",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 117",
+      "position": {
+        "x": 2640,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-117"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_118",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 118",
+      "position": {
+        "x": 2880,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-118"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_119",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 119",
+      "position": {
+        "x": 3120,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-119"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_120",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 120",
+      "position": {
+        "x": 3360,
+        "y": 840
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-120"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_121",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 121",
+      "position": {
+        "x": 0,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-121"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_122",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 122",
+      "position": {
+        "x": 240,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-122"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_123",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 123",
+      "position": {
+        "x": 480,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-123"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_124",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 124",
+      "position": {
+        "x": 720,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-124"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_125",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 125",
+      "position": {
+        "x": 960,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-125"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_126",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 126",
+      "position": {
+        "x": 1200,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-126"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_127",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 127",
+      "position": {
+        "x": 1440,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-127"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_128",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 128",
+      "position": {
+        "x": 1680,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-128"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_129",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 129",
+      "position": {
+        "x": 1920,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-129"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_130",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 130",
+      "position": {
+        "x": 2160,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-130"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_131",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 131",
+      "position": {
+        "x": 2400,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-131"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_132",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 132",
+      "position": {
+        "x": 2640,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-132"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_133",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 133",
+      "position": {
+        "x": 2880,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-133"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_134",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 134",
+      "position": {
+        "x": 3120,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-134"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_135",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 135",
+      "position": {
+        "x": 3360,
+        "y": 960
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-135"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_136",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 136",
+      "position": {
+        "x": 0,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-136"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_137",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 137",
+      "position": {
+        "x": 240,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-137"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_138",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 138",
+      "position": {
+        "x": 480,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-138"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_139",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 139",
+      "position": {
+        "x": 720,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-139"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_140",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 140",
+      "position": {
+        "x": 960,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-140"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_141",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 141",
+      "position": {
+        "x": 1200,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-141"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_142",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 142",
+      "position": {
+        "x": 1440,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-142"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_143",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 143",
+      "position": {
+        "x": 1680,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-143"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_144",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 144",
+      "position": {
+        "x": 1920,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-144"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_145",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 145",
+      "position": {
+        "x": 2160,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-145"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_146",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 146",
+      "position": {
+        "x": 2400,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-146"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_147",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 147",
+      "position": {
+        "x": 2640,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-147"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_148",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 148",
+      "position": {
+        "x": 2880,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-148"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_149",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 149",
+      "position": {
+        "x": 3120,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-149"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    },
+    {
+      "id": "fixture_node_150",
+      "type": "stub.input",
+      "type_version": 1,
+      "name": "Sample 150",
+      "position": {
+        "x": 3360,
+        "y": 1080
+      },
+      "configuration": {
+        "port_type": "text",
+        "payload": "fixture-150"
+      },
+      "disabled": false,
+      "on_error": {
+        "policy": "stop"
+      }
+    }
+  ],
+  "edges": [],
+  "variables": {},
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "settings": {
+    "on_error": "stop",
+    "auto_attach_stubs": false
+  },
+  "extensions": {}
+}

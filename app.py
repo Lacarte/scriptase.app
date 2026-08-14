@@ -151,9 +151,11 @@ def _register_spa_fallback(app: Flask) -> None:
             "or start the Vite dev server on :5173.</p>"
         ), 200
 
+    @app.get("/workflow")
+    @app.get("/workflow/<path:_rest>")
     @app.get("/channels")
     @app.get("/channels/<path:_rest>")
-    def spa_channels(_rest=None):
+    def spa_client_routes(_rest=None):
         if index.is_file():
             return send_from_directory(dist, "index.html")
         return spa_root()
