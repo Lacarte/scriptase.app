@@ -387,7 +387,10 @@ def save_queue_record(record, *, root: str | None = None) -> dict:
     """Atomically persist a queue record beside the execution store."""
     document = record.to_dict() if hasattr(record, "to_dict") else deepcopy(record)
     _strict_execution_id(document.get("execution_id"))
-    if document.get("status") not in {"pending", "running", "done", "failed", "cancelled"}:
+    # awaiting_approval is a durable pause (step 2.6): worker released, not terminal.
+    if document.get("status") not in {
+        "pending", "running", "done", "failed", "cancelled", "awaiting_approval",
+    }:
         raise ValueError("Invalid queue status")
     if document.get("source") not in {"manual", "schedule", "watch", "webhook"}:
         raise ValueError("Invalid queue source")

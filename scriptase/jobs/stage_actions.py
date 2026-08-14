@@ -11,8 +11,8 @@ maps onto a ported run mode the canvas already uses:
   Run From Here  → from_node
 
 View Input / View Output / Provider / History / Approve are inspect or
-checkpoint actions — not new run modes. Approve is wired for display at 2.4
-and becomes durable at 2.6.
+checkpoint actions — not new run modes. Approve resumes a durable
+``awaiting_approval`` pause via the engine (step 2.6).
 
 ``-P`` never appears in a stage name; provider capability is metadata only.
 """

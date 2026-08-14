@@ -11,6 +11,8 @@ Job creation (Step 0 / step 2.5)
 * ``POST   /api/jobs`` — create from Channel + source + workflow + mode
 * ``GET    /api/jobs/<job_id>`` — full document (snapshot is secret-free)
 * ``POST   /api/jobs/<job_id>/start`` — run through the ported engine
+* ``POST   /api/jobs/<job_id>/approve`` — durable checkpoint approve + resume (2.6)
+* ``POST   /api/jobs/<job_id>/reject`` — durable checkpoint reject (2.6)
 * ``DELETE /api/jobs/<job_id>`` — soft-delete into TRASH
 
 Stage projection (step 2.2)
@@ -38,6 +40,8 @@ from scriptase.engine.validation import WORKFLOW_ID_RE
 from scriptase.jobs.models import JOB_ID_RE, JOB_STATUSES
 from scriptase.jobs.orchestration import (
     JobOrchestrationError,
+    approve_job,
+    reject_job,
     start_job,
     sync_job_from_execution,
 )
@@ -116,7 +120,14 @@ def _store_error(exc: Exception):
             {"problems": exc.problems},
         )
     if isinstance(exc, JobOrchestrationError):
-        status = 409 if exc.code in {"JOB_ALREADY_RUNNING"} else 422
+        status = 409 if exc.code in {
+            "JOB_ALREADY_RUNNING",
+            "JOB_NOT_AWAITING",
+            "EXECUTION_NOT_AWAITING",
+            "CHECKPOINT_NOT_AWAITING",
+            "APPROVAL_EXPIRED",
+            "EXECUTION_TERMINAL",
+        } else 422
         if exc.code in {"WORKFLOW_NOT_FOUND", "WORKFLOW_REQUIRED"}:
             status = 422
         return _error(exc.code, str(exc), status, exc.details)
@@ -279,6 +290,80 @@ def jobs_start(job_id: str):
             wait=wait,
             timeout=timeout,
         )
+    except (
+        JobNotFound,
+        JobTerminal,
+        JobValidationError,
+        JobOrchestrationError,
+        ValueError,
+    ) as exc:
+        return _store_error(exc)
+    return jsonify({
+        "job": _job_public(document),
+        "execution_id": document.execution_id,
+        "status": document.status,
+    })
+
+
+@jobs_bp.route("/api/jobs/<job_id>/approve", methods=["POST"])
+def jobs_approve(job_id: str):
+    """Approve a durable checkpoint and resume the Job (step 2.6).
+
+    Body (optional):
+      decided_by  actor label (never a credential)
+      wait        bool — block until terminal or next pause
+      timeout     float seconds when wait is true
+    """
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    body, error = _json_body(allow_empty=True)
+    if error:
+        return error
+    decided_by = None
+    if body and body.get("decided_by") is not None:
+        decided_by = str(body.get("decided_by") or "").strip() or None
+    wait = bool(body.get("wait", False)) if body else False
+    try:
+        timeout = float(body.get("timeout", 120.0)) if body else 120.0
+    except (TypeError, ValueError):
+        return _error("BAD_REQUEST", "timeout must be a number", 400)
+    if timeout <= 0 or timeout > 3600:
+        return _error("BAD_REQUEST", "timeout must be between 0 and 3600 seconds", 400)
+    try:
+        document = approve_job(
+            job_id,
+            decided_by=decided_by,
+            wait=wait,
+            timeout=timeout,
+        )
+    except (
+        JobNotFound,
+        JobTerminal,
+        JobValidationError,
+        JobOrchestrationError,
+        ValueError,
+    ) as exc:
+        return _store_error(exc)
+    return jsonify({
+        "job": _job_public(document),
+        "execution_id": document.execution_id,
+        "status": document.status,
+    })
+
+
+@jobs_bp.route("/api/jobs/<job_id>/reject", methods=["POST"])
+def jobs_reject(job_id: str):
+    """Reject a durable checkpoint and fail the Job (step 2.6)."""
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    body, error = _json_body(allow_empty=True)
+    if error:
+        return error
+    decided_by = None
+    if body and body.get("decided_by") is not None:
+        decided_by = str(body.get("decided_by") or "").strip() or None
+    try:
+        document = reject_job(job_id, decided_by=decided_by)
     except (
         JobNotFound,
         JobTerminal,

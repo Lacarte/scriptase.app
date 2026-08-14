@@ -15,8 +15,24 @@ from config import OUTPUT_DIR, generate_project_id
 from scriptase.shared.io_utils import JobStore, now_iso
 
 from .adapters.common import PROJECT_ID_RE
+from .approval import (
+    APPROVED_STATUS,
+    EXPIRED_STATUS,
+    REJECTED_STATUS,
+    ApprovalCheckpoint,
+    ApprovalError,
+    approval_summary,
+    approvals_root,
+    decide_checkpoint,
+    delete_resume_state,
+    expire_if_due,
+    find_awaiting_for_execution,
+    load_checkpoint,
+    load_resume_state,
+    resume_root,
+)
 from .events import EventBroker, ExecutionEventBuffer, TERMINAL_STATUSES
-from .models import QueueRecord
+from .models import ExecutionRecord, NodeExecutionRecord, QueueRecord
 from .notifications import dispatch_run_notification
 from .persistence import (
     generate_execution_id,
@@ -29,6 +45,9 @@ from .registry import get_node_type
 from .sample_data import validate_stub_payload
 from .scheduler import WorkflowScheduler, calculate_scope, resolve_executor
 from .validation import validate_workflow, validation_errors
+
+# Non-terminal durable pause — must never be treated as a finished run.
+AWAITING_APPROVAL_STATUS = "awaiting_approval"
 
 
 class ExecutionRequestError(ValueError):
@@ -155,6 +174,7 @@ class ExecutionManager:
         force: bool = False,
         source: str = "manual",
         input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
+        checkpoint_after_node_ids: list[str] | None = None,
     ) -> tuple[str, str]:
         if source not in {"manual", "schedule", "watch", "webhook"}:
             raise ExecutionRequestError("BAD_REQUEST", "Unsupported run source")
@@ -187,6 +207,13 @@ class ExecutionManager:
                 )
                 queue_record.finished_at = now_iso()
                 save_queue_record(queue_record, root=self.queue_root)
+            elif (
+                event.get("node_id") is None
+                and event.get("status") == AWAITING_APPROVAL_STATUS
+            ):
+                queue_record.status = AWAITING_APPROVAL_STATUS
+                queue_record.finished_at = None
+                save_queue_record(queue_record, root=self.queue_root)
             stream.emit(event)
 
         scheduler = WorkflowScheduler(
@@ -201,6 +228,7 @@ class ExecutionManager:
             executor_resolver=self.executor_resolver,
             force=force,
             input_overrides=overrides,
+            checkpoint_after_node_ids=checkpoint_after_node_ids,
         )
         scheduler.record.status = "queued"
         save_execution(scheduler.record, root=self.execution_root, secrets=scheduler.redactor.secrets)
@@ -308,6 +336,13 @@ class ExecutionManager:
             })
         finally:
             status = handle.scheduler.record.status
+            if status == AWAITING_APPROVAL_STATUS:
+                # Durable pause: release the worker, leave finished_at null,
+                # and do not dispatch a terminal notification.
+                handle.queue_record.status = AWAITING_APPROVAL_STATUS
+                handle.queue_record.finished_at = None
+                save_queue_record(handle.queue_record, root=self.queue_root)
+                return
             handle.queue_record.status = (
                 "done" if status in {"succeeded", "partial"}
                 else "cancelled" if status == "cancelled"
@@ -330,6 +365,9 @@ class ExecutionManager:
         record = load_execution(execution_id, root=self.execution_root)
         if record.get("status") in TERMINAL_STATUSES:
             raise ExecutionRequestError("EXECUTION_TERMINAL", "Execution is already terminal")
+        # Cancelling a durable pause is a terminal decision, not a live stop.
+        if record.get("status") == AWAITING_APPROVAL_STATUS:
+            return self._cancel_awaiting_approval(execution_id, record)
         handle = self.active.get(execution_id)
         if handle is None:
             raise ExecutionRequestError("EXECUTION_NOT_ACTIVE", "Execution is not active")
@@ -342,6 +380,380 @@ class ExecutionManager:
             "type": "execution_status", "node_id": None, "status": "cancelling"
         })
         return "cancelling"
+
+    def approve(
+        self,
+        execution_id: str,
+        *,
+        decided_by: str | None = None,
+        checkpoint_id: str | None = None,
+    ) -> str:
+        """Approve a durable checkpoint and resume the same execution.
+
+        Survives process restart: loads resume state from disk, re-queues the
+        project worker, and continues from the exact pause point.
+        """
+        return self._decide_and_resume(
+            execution_id,
+            decision=APPROVED_STATUS,
+            decided_by=decided_by,
+            checkpoint_id=checkpoint_id,
+        )
+
+    def reject(
+        self,
+        execution_id: str,
+        *,
+        decided_by: str | None = None,
+        checkpoint_id: str | None = None,
+    ) -> str:
+        """Reject a durable checkpoint and mark the execution failed."""
+        record = load_execution(execution_id, root=self.execution_root)
+        if record.get("status") in TERMINAL_STATUSES:
+            raise ExecutionRequestError("EXECUTION_TERMINAL", "Execution is already terminal")
+        if record.get("status") != AWAITING_APPROVAL_STATUS:
+            raise ExecutionRequestError(
+                "EXECUTION_NOT_AWAITING",
+                "Execution is not awaiting approval",
+            )
+        checkpoint = self._resolve_checkpoint(execution_id, record, checkpoint_id)
+        try:
+            decide_checkpoint(
+                checkpoint.checkpoint_id,
+                decision=REJECTED_STATUS,
+                decided_by=decided_by,
+                root=approvals_root(self.output_dir),
+            )
+        except ApprovalError as exc:
+            raise ExecutionRequestError(exc.code, exc.message, details=exc.details) from exc
+        timestamp = now_iso()
+        record["status"] = "failed"
+        record["finished_at"] = timestamp
+        approval = dict(record.get("approval") or {})
+        approval["status"] = REJECTED_STATUS
+        approval["decided_by"] = decided_by or "user"
+        approval["decided_at"] = timestamp
+        record["approval"] = approval
+        node_id = approval.get("node_id") or checkpoint.node_id
+        nodes = record.get("nodes") if isinstance(record.get("nodes"), dict) else {}
+        if node_id and node_id in nodes and isinstance(nodes[node_id], dict):
+            nodes[node_id]["status"] = "failed"
+            nodes[node_id]["error"] = {
+                "code": "APPROVAL_REJECTED",
+                "message": "Checkpoint was rejected",
+            }
+        save_execution(record, root=self.execution_root)
+        # Drop any stale in-memory handle so subsequent loads read disk.
+        self.active.pop(execution_id, None)
+        try:
+            delete_resume_state(execution_id, root=resume_root(self.output_dir))
+        except Exception:
+            pass
+        self.events.create(execution_id).emit({
+            "type": "execution_finished",
+            "node_id": None,
+            "status": "failed",
+            "approval": approval,
+        })
+        return "failed"
+
+    def _decide_and_resume(
+        self,
+        execution_id: str,
+        *,
+        decision: str,
+        decided_by: str | None,
+        checkpoint_id: str | None,
+    ) -> str:
+        record = load_execution(execution_id, root=self.execution_root)
+        if record.get("status") in TERMINAL_STATUSES:
+            raise ExecutionRequestError("EXECUTION_TERMINAL", "Execution is already terminal")
+        if record.get("status") != AWAITING_APPROVAL_STATUS:
+            raise ExecutionRequestError(
+                "EXECUTION_NOT_AWAITING",
+                "Execution is not awaiting approval",
+            )
+        checkpoint = self._resolve_checkpoint(execution_id, record, checkpoint_id)
+        # Honour expiry policy before approving.
+        try:
+            refreshed = expire_if_due(
+                checkpoint.checkpoint_id,
+                root=approvals_root(self.output_dir),
+            )
+            if refreshed.status == EXPIRED_STATUS:
+                self._mark_execution_expired(execution_id, record, refreshed)
+                raise ExecutionRequestError(
+                    "APPROVAL_EXPIRED",
+                    "Checkpoint expired before approval",
+                    details={"checkpoint_id": refreshed.checkpoint_id},
+                )
+            decide_checkpoint(
+                checkpoint.checkpoint_id,
+                decision=decision,
+                decided_by=decided_by,
+                root=approvals_root(self.output_dir),
+            )
+        except ApprovalError as exc:
+            if exc.code == "APPROVAL_EXPIRED":
+                self._mark_execution_expired(execution_id, record, checkpoint)
+            raise ExecutionRequestError(exc.code, exc.message, details=exc.details) from exc
+
+        if decision != APPROVED_STATUS:
+            return decision
+
+        try:
+            resume_state = load_resume_state(
+                execution_id, root=resume_root(self.output_dir)
+            )
+        except ApprovalError as exc:
+            raise ExecutionRequestError(exc.code, exc.message, details=exc.details) from exc
+
+        # Rebuild an ExecutionRecord so resume keeps the same execution_id.
+        existing = self._record_from_document(record)
+        approval = dict(record.get("approval") or {})
+        approval["status"] = APPROVED_STATUS
+        approval["decided_by"] = decided_by or "user"
+        approval["decided_at"] = now_iso()
+        existing.approval = approval
+        existing.status = "queued"
+        existing.finished_at = None
+
+        snapshot = deepcopy(resume_state.workflow_snapshot)
+        # Drop the approved node from extensions so the scheduler does not
+        # pause on it again after resume promotes it to succeeded.
+        extensions = snapshot.get("extensions")
+        if isinstance(extensions, dict):
+            raw_checkpoints = extensions.get("approval_checkpoints")
+            if isinstance(raw_checkpoints, list):
+                extensions = dict(extensions)
+                extensions["approval_checkpoints"] = [
+                    node_id
+                    for node_id in raw_checkpoints
+                    if str(node_id) != resume_state.checkpoint_node_id
+                ]
+                snapshot["extensions"] = extensions
+
+        stop_event = threading.Event()
+        queue_record = QueueRecord(
+            execution_id=execution_id,
+            workflow_id=str(snapshot.get("workflow_id") or existing.workflow_id),
+            project_id=resume_state.project_id or existing.project_id,
+            source="manual",
+            requested_run_mode=resume_state.run_mode or existing.run_mode,
+            target_node_ids=[],
+            requested_at=now_iso(),
+            status="pending",
+        )
+        stream = self.events.create(execution_id)
+
+        def emit(event: dict[str, Any]) -> None:
+            if event.get("node_id") is None and event.get("status") in TERMINAL_STATUSES:
+                status = event["status"]
+                queue_record.status = (
+                    "done" if status in {"succeeded", "partial"}
+                    else "cancelled" if status == "cancelled"
+                    else "failed"
+                )
+                queue_record.finished_at = now_iso()
+                save_queue_record(queue_record, root=self.queue_root)
+            elif (
+                event.get("node_id") is None
+                and event.get("status") == AWAITING_APPROVAL_STATUS
+            ):
+                queue_record.status = AWAITING_APPROVAL_STATUS
+                queue_record.finished_at = None
+                save_queue_record(queue_record, root=self.queue_root)
+            stream.emit(event)
+
+        scheduler = WorkflowScheduler(
+            snapshot,
+            project_id=resume_state.project_id,
+            execution_id=execution_id,
+            output_dir=self.output_dir,
+            run_mode=resume_state.run_mode,
+            scope_node_ids=list(resume_state.scope_node_ids),
+            stop_requested=stop_event.is_set,
+            on_event=emit,
+            executor_resolver=self.executor_resolver,
+            force=resume_state.force,
+            input_overrides=resume_state.input_overrides,
+            resume_state=resume_state,
+            existing_record=existing,
+        )
+        save_execution(scheduler.record, root=self.execution_root, secrets=scheduler.redactor.secrets)
+        save_queue_record(queue_record, root=self.queue_root)
+        stream.emit({
+            "type": "execution_status",
+            "node_id": None,
+            "status": "queued",
+            "approval": approval,
+        })
+
+        handle = ActiveExecution(
+            scheduler=scheduler, stop_event=stop_event, queue_record=queue_record
+        )
+        self.active.set(execution_id, handle)
+        resolved_project = resume_state.project_id
+        with self._queue_lock:
+            queue = self._project_queues.setdefault(resolved_project, deque())
+            queue.append(handle)
+            worker = self._project_workers.get(resolved_project)
+            if worker is None or not worker.is_alive():
+                worker = threading.Thread(
+                    target=self._drain_project,
+                    args=(resolved_project,),
+                    name=f"workflow-queue-{resolved_project}",
+                    daemon=True,
+                )
+                self._project_workers[resolved_project] = worker
+                handle.thread = worker
+                worker.start()
+            else:
+                handle.thread = worker
+        return "resuming"
+
+    def _resolve_checkpoint(
+        self,
+        execution_id: str,
+        record: Mapping[str, Any],
+        checkpoint_id: str | None,
+    ) -> ApprovalCheckpoint:
+        if checkpoint_id:
+            try:
+                return load_checkpoint(
+                    checkpoint_id, root=approvals_root(self.output_dir)
+                )
+            except ApprovalError as exc:
+                raise ExecutionRequestError(exc.code, exc.message, details=exc.details) from exc
+        approval = record.get("approval") if isinstance(record.get("approval"), Mapping) else {}
+        linked = approval.get("checkpoint_id") if isinstance(approval, Mapping) else None
+        if linked:
+            try:
+                return load_checkpoint(str(linked), root=approvals_root(self.output_dir))
+            except ApprovalError as exc:
+                raise ExecutionRequestError(exc.code, exc.message, details=exc.details) from exc
+        found = find_awaiting_for_execution(
+            execution_id, root=approvals_root(self.output_dir)
+        )
+        if found is None:
+            raise ExecutionRequestError(
+                "CHECKPOINT_NOT_FOUND",
+                "No awaiting checkpoint for this execution",
+            )
+        return found
+
+    def _mark_execution_expired(
+        self,
+        execution_id: str,
+        record: dict[str, Any],
+        checkpoint: ApprovalCheckpoint,
+    ) -> None:
+        timestamp = now_iso()
+        record["status"] = "failed"
+        record["finished_at"] = timestamp
+        approval = approval_summary(checkpoint)
+        approval["status"] = EXPIRED_STATUS
+        approval["decided_at"] = timestamp
+        approval["decided_by"] = checkpoint.decided_by or "policy"
+        record["approval"] = approval
+        node_id = checkpoint.node_id
+        nodes = record.get("nodes") if isinstance(record.get("nodes"), dict) else {}
+        if node_id and node_id in nodes and isinstance(nodes[node_id], dict):
+            nodes[node_id]["status"] = "failed"
+            nodes[node_id]["error"] = {
+                "code": "APPROVAL_EXPIRED",
+                "message": "Checkpoint expired before approval",
+            }
+        save_execution(record, root=self.execution_root)
+        self.active.pop(execution_id, None)
+        try:
+            delete_resume_state(execution_id, root=resume_root(self.output_dir))
+        except Exception:
+            pass
+        self.events.create(execution_id).emit({
+            "type": "execution_finished",
+            "node_id": None,
+            "status": "failed",
+            "approval": approval,
+        })
+
+    def _cancel_awaiting_approval(
+        self,
+        execution_id: str,
+        record: dict[str, Any],
+    ) -> str:
+        timestamp = now_iso()
+        approval = dict(record.get("approval") or {})
+        checkpoint_id = approval.get("checkpoint_id")
+        if checkpoint_id:
+            try:
+                decide_checkpoint(
+                    str(checkpoint_id),
+                    decision=REJECTED_STATUS,
+                    decided_by="cancel",
+                    root=approvals_root(self.output_dir),
+                )
+            except ApprovalError:
+                pass
+        record["status"] = "cancelled"
+        record["finished_at"] = timestamp
+        approval["status"] = REJECTED_STATUS
+        approval["decided_by"] = "cancel"
+        approval["decided_at"] = timestamp
+        record["approval"] = approval
+        node_id = approval.get("node_id")
+        nodes = record.get("nodes") if isinstance(record.get("nodes"), dict) else {}
+        if node_id and node_id in nodes and isinstance(nodes[node_id], dict):
+            nodes[node_id]["status"] = "cancelled"
+        save_execution(record, root=self.execution_root)
+        self.active.pop(execution_id, None)
+        try:
+            delete_resume_state(execution_id, root=resume_root(self.output_dir))
+        except Exception:
+            pass
+        self.events.create(execution_id).emit({
+            "type": "execution_finished",
+            "node_id": None,
+            "status": "cancelled",
+        })
+        return "cancelled"
+
+    @staticmethod
+    def _record_from_document(document: Mapping[str, Any]) -> ExecutionRecord:
+        nodes_raw = document.get("nodes") if isinstance(document.get("nodes"), Mapping) else {}
+        nodes: dict[str, NodeExecutionRecord] = {}
+        for node_id, raw in nodes_raw.items():
+            if not isinstance(raw, Mapping):
+                nodes[str(node_id)] = NodeExecutionRecord()
+                continue
+            nodes[str(node_id)] = NodeExecutionRecord(
+                status=str(raw.get("status") or "idle"),
+                attempts=int(raw.get("attempts") or 0),
+                duration_ms=raw.get("duration_ms"),
+                fingerprint=raw.get("fingerprint"),
+                cache=dict(raw["cache"]) if isinstance(raw.get("cache"), Mapping) else None,
+                from_sample_data=bool(raw.get("from_sample_data")),
+                resolved_inputs_summary=dict(raw.get("resolved_inputs_summary") or {}),
+                outputs_summary=dict(raw.get("outputs_summary") or {}),
+                artifact_refs=list(raw.get("artifact_refs") or []),
+                logs=list(raw.get("logs") or []),
+                attempt_errors=list(raw.get("attempt_errors") or []),
+                error=dict(raw["error"]) if isinstance(raw.get("error"), Mapping) else None,
+            )
+        return ExecutionRecord(
+            execution_id=str(document.get("execution_id") or ""),
+            workflow_id=str(document.get("workflow_id") or ""),
+            workflow_snapshot=dict(document.get("workflow_snapshot") or {}),
+            project_id=str(document.get("project_id") or ""),
+            run_mode=str(document.get("run_mode") or "full"),
+            scope_node_ids=list(document.get("scope_node_ids") or []),
+            status=str(document.get("status") or "running"),
+            started_at=str(document.get("started_at") or ""),
+            finished_at=document.get("finished_at"),
+            nodes=nodes,
+            approval=dict(document["approval"]) if isinstance(document.get("approval"), Mapping) else None,
+            schema_version=int(document.get("schema_version") or 1),
+        )
 
     def _cancel_pending_locked(self, handle: ActiveExecution) -> None:
         timestamp = now_iso()

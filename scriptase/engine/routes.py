@@ -700,6 +700,68 @@ def workflow_execution_stop(execution_id):
     return jsonify({"execution_id": execution_id, "status": status}), 202
 
 
+@workflows_bp.route("/api/workflow/executions/<execution_id>/approve", methods=["POST"])
+def workflow_execution_approve(execution_id):
+    """Approve a durable checkpoint and resume the execution (step 2.6)."""
+    denied = _require_loopback()
+    if denied:
+        return denied
+    body, failure = _json_body(allow_empty=True)
+    if failure:
+        return failure
+    decided_by = None
+    checkpoint_id = None
+    if body:
+        if body.get("decided_by") is not None:
+            decided_by = str(body.get("decided_by") or "").strip() or None
+        if body.get("checkpoint_id") is not None:
+            checkpoint_id = str(body.get("checkpoint_id") or "").strip() or None
+    try:
+        status = execution_manager.approve(
+            execution_id,
+            decided_by=decided_by,
+            checkpoint_id=checkpoint_id,
+        )
+    except FileNotFoundError:
+        return _error("NOT_FOUND", "Execution not found", 404)
+    except ExecutionRequestError as exc:
+        return _error(exc.code, str(exc), 409, exc.details)
+    except ValueError as exc:
+        return _error("BAD_REQUEST", str(exc), 400)
+    return jsonify({"execution_id": execution_id, "status": status}), 202
+
+
+@workflows_bp.route("/api/workflow/executions/<execution_id>/reject", methods=["POST"])
+def workflow_execution_reject(execution_id):
+    """Reject a durable checkpoint and fail the execution (step 2.6)."""
+    denied = _require_loopback()
+    if denied:
+        return denied
+    body, failure = _json_body(allow_empty=True)
+    if failure:
+        return failure
+    decided_by = None
+    checkpoint_id = None
+    if body:
+        if body.get("decided_by") is not None:
+            decided_by = str(body.get("decided_by") or "").strip() or None
+        if body.get("checkpoint_id") is not None:
+            checkpoint_id = str(body.get("checkpoint_id") or "").strip() or None
+    try:
+        status = execution_manager.reject(
+            execution_id,
+            decided_by=decided_by,
+            checkpoint_id=checkpoint_id,
+        )
+    except FileNotFoundError:
+        return _error("NOT_FOUND", "Execution not found", 404)
+    except ExecutionRequestError as exc:
+        return _error(exc.code, str(exc), 409, exc.details)
+    except ValueError as exc:
+        return _error("BAD_REQUEST", str(exc), 400)
+    return jsonify({"execution_id": execution_id, "status": status}), 202
+
+
 @workflows_bp.route("/api/workflow/queue", methods=["GET"])
 def workflow_queue_list():
     denied = _require_loopback()

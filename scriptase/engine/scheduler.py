@@ -31,6 +31,17 @@ from scriptase.providers.validation import sanitize_message
 
 from .adapters import AdapterContext, AdapterError
 from .adapters.common import PROJECT_ID_RE
+from .approval import (
+    ApprovalRequired,
+    ResumeState,
+    approval_summary,
+    checkpoint_node_ids_from_workflow,
+    create_checkpoint,
+    delete_resume_state,
+    resume_root as approval_resume_root,
+    save_resume_state,
+    approvals_root as approval_checkpoints_root,
+)
 from .cache import CacheLookup, NodeCache, canonical_fingerprint, fingerprint_components, output_fingerprint
 from .expressions import ExpressionError, resolve_configuration, validate_expressions
 from .registry import get_node_type
@@ -237,6 +248,13 @@ class ScheduleResult:
 class _NodeOutcome:
     stop: bool = False
     cancelled: bool = False
+    awaiting_approval: bool = False
+    approval_reason: str | None = None
+    approval_stage_key: str | None = None
+    approval_expires_at: str | None = None
+    approval_job_id: str | None = None
+    # True when the node already produced outputs that resume must restore.
+    approval_has_outputs: bool = False
 
 
 def _summarize(value: Any, *, depth: int = 0) -> Any:
@@ -435,6 +453,12 @@ class WorkflowScheduler:
         sleeper: Callable[[float], None] = time.sleep,
         input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
         max_workers: int = 4,
+        # Durable approval (step 2.6): pause after these node ids succeed.
+        checkpoint_after_node_ids: list[str] | None = None,
+        # Resume a previous awaiting_approval execution from persisted state.
+        resume_state: ResumeState | None = None,
+        # Optional pre-built execution record (resume keeps ids/timestamps).
+        existing_record: ExecutionRecord | None = None,
     ):
         if isinstance(max_workers, bool) or not isinstance(max_workers, int) or max_workers < 1:
             raise ValueError("max_workers must be a positive integer")
@@ -477,16 +501,32 @@ class WorkflowScheduler:
             output_dir=output_dir,
         )
         self.redactor = Redactor(workflow)
-        self.record = ExecutionRecord(
-            execution_id=self.execution_id,
-            workflow_id=str(workflow.get("workflow_id", "")),
-            workflow_snapshot=self.redactor(workflow),
-            project_id=project_id,
-            run_mode=run_mode,
-            scope_node_ids=self.scope_node_ids,
-            started_at=now_iso(),
-            nodes={node["id"]: NodeExecutionRecord() for node in workflow.get("nodes", [])},
-        )
+        # Merge explicit constructor list with workflow.extensions.approval_checkpoints.
+        configured = list(checkpoint_after_node_ids or [])
+        for node_id in checkpoint_node_ids_from_workflow(workflow):
+            if node_id not in configured:
+                configured.append(node_id)
+        self.checkpoint_after_node_ids = set(configured)
+        self.resume_state = resume_state
+        # Nodes already approved this execution — never re-pause on them.
+        self._already_approved_nodes: set[str] = set()
+        if resume_state is not None and resume_state.checkpoint_node_id:
+            self._already_approved_nodes.add(resume_state.checkpoint_node_id)
+        if existing_record is not None:
+            self.record = existing_record
+            if not self.record.started_at:
+                self.record.started_at = now_iso()
+        else:
+            self.record = ExecutionRecord(
+                execution_id=self.execution_id,
+                workflow_id=str(workflow.get("workflow_id", "")),
+                workflow_snapshot=self.redactor(workflow),
+                project_id=project_id,
+                run_mode=run_mode,
+                scope_node_ids=self.scope_node_ids,
+                started_at=now_iso(),
+                nodes={node["id"]: NodeExecutionRecord() for node in workflow.get("nodes", [])},
+            )
 
     def run(self) -> ScheduleResult:
         scope = set(self.scope_node_ids)
@@ -506,24 +546,44 @@ class WorkflowScheduler:
         errors: dict[str, dict[str, Any]] = {}
         completed: set[str] = set()
         remaining = {node_id: len(graph.incoming[node_id]) for node_id in graph.nodes}
+
+        # Resume from a durable approval pause: restore completed work, then
+        # continue only the unfinished subgraph (step 2.6).
+        if self.resume_state is not None:
+            self._seed_from_resume(
+                graph,
+                statuses,
+                node_outputs,
+                node_output_fingerprints,
+                completed,
+                remaining,
+            )
+
         ready = [
             (graph.saved_order[node_id], node_id)
             for node_id, dependency_count in remaining.items()
-            if dependency_count == 0
+            if dependency_count == 0 and node_id not in completed
         ]
         heapq.heapify(ready)
+        self.record.status = "running"
+        self.record.finished_at = None
+        # Clear prior approval pointer once we are actively running again.
+        if self.resume_state is not None:
+            self.record.approval = None
         self._persist()
         self._emit({"type": "execution_status", "node_id": None, "status": "running"})
 
         stopped = False
         cancelled = False
         exclusive_running = False
+        approval_outcome: _NodeOutcome | None = None
+        approval_node_id: str | None = None
 
         def finish(node_id: str) -> None:
             completed.add(node_id)
             for target in graph.dependents[node_id]:
                 remaining[target] -= 1
-                if remaining[target] == 0:
+                if remaining[target] == 0 and target not in completed:
                     heapq.heappush(ready, (graph.saved_order[target], target))
 
         with ProjectLock(self.project_id, lock_root=self.lock_root, execution_id=self.execution_id):
@@ -536,81 +596,125 @@ class WorkflowScheduler:
                     if self.stop_requested():
                         cancelled = True
 
-                    made_progress = False
-                    while ready and len(running) < self.max_workers and not exclusive_running:
-                        # Preserve the v1 stop-policy boundary at run start:
-                        # establish the first root successfully before opening
-                        # the pool to independent ready work.  Once a node has
-                        # completed, normal branch parallelism applies.
-                        if not completed and running:
+                    # Once a checkpoint fires, drain in-flight work but do not
+                    # schedule anything new — then release the worker.
+                    if approval_outcome is not None:
+                        if not running:
                             break
-                        _, node_id = ready[0]
-                        node = graph.nodes[node_id]
-                        incoming_edges = graph.incoming[node_id]
-                        active_edges = [
-                            edge for edge in incoming_edges
-                            if self._edge_was_activated(edge, statuses, node_outputs)
-                        ]
-                        if node.get("type") == "utility.merge":
-                            inactive_resolved = all(
-                                edge in active_edges
-                                or statuses.get(edge["source_node"]) in {"succeeded", "skipped"}
-                                for edge in incoming_edges
-                            )
-                            incoming_active = inactive_resolved and bool(active_edges)
-                        else:
-                            incoming_active = len(active_edges) == len(incoming_edges)
+                    else:
+                        made_progress = False
+                        while (
+                            ready
+                            and len(running) < self.max_workers
+                            and not exclusive_running
+                            and approval_outcome is None
+                        ):
+                            # Preserve the v1 stop-policy boundary at run start:
+                            # establish the first root successfully before opening
+                            # the pool to independent ready work.  Once a node has
+                            # completed, normal branch parallelism applies.
+                            if not completed and running:
+                                break
+                            _, node_id = ready[0]
+                            node = graph.nodes[node_id]
+                            incoming_edges = graph.incoming[node_id]
+                            active_edges = [
+                                edge for edge in incoming_edges
+                                if self._edge_was_activated(edge, statuses, node_outputs)
+                            ]
+                            if node.get("type") == "utility.merge":
+                                inactive_resolved = all(
+                                    edge in active_edges
+                                    or statuses.get(edge["source_node"]) in {"succeeded", "skipped"}
+                                    for edge in incoming_edges
+                                )
+                                incoming_active = inactive_resolved and bool(active_edges)
+                            else:
+                                incoming_active = len(active_edges) == len(incoming_edges)
 
-                        if cancelled or stopped or node.get("disabled") or not incoming_active:
+                            if cancelled or stopped or node.get("disabled") or not incoming_active:
+                                heapq.heappop(ready)
+                                record = deepcopy(self.record.nodes[node_id])
+                                record.duration_ms = 0
+                                self._status(
+                                    statuses,
+                                    node_id,
+                                    "cancelled" if cancelled else "skipped",
+                                    node_record=record,
+                                )
+                                finish(node_id)
+                                made_progress = True
+                                continue
+
+                            parallel_safe = self._parallel_safe(node)
+                            if not parallel_safe and running:
+                                break
+
                             heapq.heappop(ready)
-                            record = deepcopy(self.record.nodes[node_id])
-                            record.duration_ms = 0
-                            self._status(
-                                statuses,
+                            future = pool.submit(
+                                self._execute_node,
                                 node_id,
-                                "cancelled" if cancelled else "skipped",
-                                node_record=record,
+                                node,
+                                graph,
+                                statuses,
+                                node_outputs,
+                                node_output_fingerprints,
+                                errors,
+                                active_edges,
                             )
-                            finish(node_id)
+                            running[future] = node_id
+                            exclusive_running = not parallel_safe
                             made_progress = True
-                            continue
+                            if exclusive_running:
+                                break
 
-                        parallel_safe = self._parallel_safe(node)
-                        if not parallel_safe and running:
+                        if not running:
+                            if made_progress:
+                                continue
                             break
-
-                        heapq.heappop(ready)
-                        future = pool.submit(
-                            self._execute_node,
-                            node_id,
-                            node,
-                            graph,
-                            statuses,
-                            node_outputs,
-                            node_output_fingerprints,
-                            errors,
-                            active_edges,
-                        )
-                        running[future] = node_id
-                        exclusive_running = not parallel_safe
-                        made_progress = True
-                        if exclusive_running:
-                            break
-
-                    if not running:
-                        if made_progress:
-                            continue
-                        break
 
                     done, _ = wait(tuple(running), return_when=FIRST_COMPLETED)
                     for future in sorted(done, key=lambda item: graph.saved_order[running[item]]):
                         node_id = running.pop(future)
                         outcome = future.result()
-                        stopped = stopped or outcome.stop
-                        cancelled = cancelled or outcome.cancelled
                         if not self._parallel_safe(graph.nodes[node_id]):
                             exclusive_running = False
+                        if outcome.awaiting_approval and approval_outcome is None:
+                            approval_outcome = outcome
+                            approval_node_id = node_id
+                            # Node stays incomplete (awaiting_approval); do not
+                            # unlock dependents until human approval + resume.
+                            completed.add(node_id)
+                            continue
+                        stopped = stopped or outcome.stop
+                        cancelled = cancelled or outcome.cancelled
                         finish(node_id)
+
+        if approval_outcome is not None and approval_node_id is not None and not cancelled and not stopped:
+            persisted = self._enter_awaiting_approval(
+                approval_node_id,
+                statuses,
+                node_outputs,
+                node_output_fingerprints,
+                reason=approval_outcome.approval_reason or "policy",
+                stage_key=approval_outcome.approval_stage_key,
+                expires_at=approval_outcome.approval_expires_at,
+                job_id=approval_outcome.approval_job_id,
+                has_outputs=approval_outcome.approval_has_outputs,
+            )
+            executed = [node_id for node_id in order if node_id in completed]
+            ordered_outputs = {
+                node_id: node_outputs[node_id] for node_id in order if node_id in node_outputs
+            }
+            ordered_errors = {node_id: errors[node_id] for node_id in order if node_id in errors}
+            return ScheduleResult(
+                "awaiting_approval",
+                executed,
+                statuses,
+                ordered_outputs,
+                ordered_errors,
+                persisted,
+            )
 
         handled = any(
             self._error_policy(graph.nodes[node_id])["policy"] in {"continue_error", "skip_optional"}
@@ -621,6 +725,15 @@ class WorkflowScheduler:
         )
         self.record.status = overall
         self.record.finished_at = now_iso()
+        self.record.approval = None
+        # Successful terminal run no longer needs the resume snapshot.
+        try:
+            delete_resume_state(
+                self.execution_id,
+                root=approval_resume_root(self.output_dir),
+            )
+        except Exception:
+            pass
         persisted = self._persist()
         self._emit({"type": "execution_finished", "node_id": None, "status": overall})
         executed = [node_id for node_id in order if node_id in completed]
@@ -804,11 +917,45 @@ class WorkflowScheduler:
                 node_output_fingerprints[node_id] = output_fp
                 node_record.duration_ms = max(0, round((time.perf_counter() - started) * 1000))
                 node_record.error = None
+                # Configured checkpoint: hold outputs, mark awaiting_approval,
+                # and release the worker (step 2.6). Resume promotes to succeeded.
+                if (
+                    node_id in self.checkpoint_after_node_ids
+                    and node_id not in self._already_approved_nodes
+                ):
+                    self._status(
+                        statuses, node_id, "awaiting_approval", node_record=node_record
+                    )
+                    return _NodeOutcome(
+                        awaiting_approval=True,
+                        approval_reason="policy",
+                        approval_has_outputs=True,
+                        approval_job_id=self._job_id_from_workflow(),
+                        approval_stage_key=self._stage_key_hint(node),
+                    )
                 self._status(statuses, node_id, "succeeded", node_record=node_record)
                 return _NodeOutcome()
             except CancellationRequested as exc:
                 failure = exc
                 cancelled = True
+            except ApprovalRequired as exc:
+                # Adapter requested a durable human checkpoint. Do not treat
+                # this as a failure — persist and release the worker.
+                node_record.duration_ms = max(0, round((time.perf_counter() - started) * 1000))
+                node_record.error = {
+                    "code": "APPROVAL_REQUIRED",
+                    "message": exc.message,
+                    "details": exc.details,
+                }
+                self._status(statuses, node_id, "awaiting_approval", node_record=node_record)
+                return _NodeOutcome(
+                    awaiting_approval=True,
+                    approval_reason=exc.reason,
+                    approval_stage_key=exc.stage_key or self._stage_key_hint(node),
+                    approval_expires_at=exc.expires_at,
+                    approval_job_id=exc.job_id or self._job_id_from_workflow(),
+                    approval_has_outputs=exc.has_outputs,
+                )
             except Exception as exc:  # adapters are a plugin boundary
                 failure = exc
             finally:
@@ -974,6 +1121,156 @@ class WorkflowScheduler:
             interval = min(0.1, remaining)
             self.sleeper(interval)
             remaining = max(0.0, remaining - interval)
+
+    def _job_id_from_workflow(self) -> str | None:
+        extensions = self.workflow.get("extensions")
+        if isinstance(extensions, Mapping):
+            job_id = extensions.get("job_id")
+            if isinstance(job_id, str) and job_id.strip():
+                return job_id.strip()
+        return None
+
+    @staticmethod
+    def _stage_key_hint(node: Mapping[str, Any]) -> str | None:
+        """Best-effort stage key for checkpoint records (Production projection)."""
+        try:
+            from scriptase.jobs.stage_projection import PRIMARY_STAGE_BY_TYPE
+        except Exception:
+            return None
+        type_key = str(node.get("type") or "")
+        return PRIMARY_STAGE_BY_TYPE.get(type_key)
+
+    def _seed_from_resume(
+        self,
+        graph: WorkflowGraph,
+        statuses: dict[str, str],
+        node_outputs: dict[str, dict[str, Any]],
+        node_output_fingerprints: dict[str, str],
+        completed: set[str],
+        remaining: dict[str, int],
+    ) -> None:
+        """Restore completed work from a durable approval pause."""
+        state = self.resume_state
+        if state is None:
+            return
+        checkpoint_node = state.checkpoint_node_id
+        for node_id, status in state.node_statuses.items():
+            if node_id not in graph.nodes:
+                continue
+            if node_id == checkpoint_node:
+                # Promote the approved node to succeeded when it held outputs;
+                # otherwise leave it idle so it re-runs.
+                if state.has_outputs and node_id in state.node_outputs:
+                    statuses[node_id] = "succeeded"
+                    node_outputs[node_id] = deepcopy(state.node_outputs[node_id])
+                    if node_id in state.node_output_fingerprints:
+                        node_output_fingerprints[node_id] = state.node_output_fingerprints[node_id]
+                    completed.add(node_id)
+                    record = deepcopy(self.record.nodes.get(node_id) or NodeExecutionRecord())
+                    record.status = "succeeded"
+                    record.error = None
+                    if not record.outputs_summary and node_id in node_outputs:
+                        record.outputs_summary = self.redactor(_summarize(node_outputs[node_id]))
+                        record.artifact_refs = self.redactor(_artifact_refs(node_outputs[node_id]))
+                    self.record.nodes[node_id] = record
+                else:
+                    statuses[node_id] = "idle"
+                continue
+            if status in {"succeeded", "skipped", "failed", "cancelled"}:
+                statuses[node_id] = status
+                completed.add(node_id)
+                if node_id in state.node_outputs:
+                    node_outputs[node_id] = deepcopy(state.node_outputs[node_id])
+                if node_id in state.node_output_fingerprints:
+                    node_output_fingerprints[node_id] = state.node_output_fingerprints[node_id]
+
+        # Recompute remaining dependency counts from restored statuses so the
+        # ready queue only contains unfinished, dependency-satisfied nodes.
+        for node_id in graph.nodes:
+            if node_id in completed:
+                remaining[node_id] = 0
+                continue
+            count = 0
+            for edge in graph.incoming[node_id]:
+                source = edge["source_node"]
+                if source not in completed:
+                    count += 1
+            remaining[node_id] = count
+
+    def _enter_awaiting_approval(
+        self,
+        node_id: str,
+        statuses: dict[str, str],
+        node_outputs: dict[str, dict[str, Any]],
+        node_output_fingerprints: dict[str, str],
+        *,
+        reason: str,
+        stage_key: str | None,
+        expires_at: str | None,
+        job_id: str | None,
+        has_outputs: bool,
+    ) -> dict[str, Any]:
+        """Persist checkpoint + resume state and release the worker thread.
+
+        ``finished_at`` stays null — awaiting_approval is non-terminal and may
+        return to running after approve (contracts.md §1.5 / §11).
+        """
+        checkpoint = create_checkpoint(
+            execution_id=self.execution_id,
+            node_id=node_id,
+            reason=reason or "policy",
+            job_id=job_id,
+            stage_key=stage_key,
+            expires_at=expires_at,
+            has_outputs=has_outputs,
+            root=approval_checkpoints_root(self.output_dir),
+        )
+        # Capture every completed node's full outputs for restart-safe resume.
+        # Statuses include the awaiting node itself.
+        resume = ResumeState(
+            execution_id=self.execution_id,
+            checkpoint_id=checkpoint.checkpoint_id,
+            checkpoint_node_id=node_id,
+            workflow_snapshot=deepcopy(self.workflow),
+            project_id=self.project_id,
+            run_mode=self.run_mode,
+            scope_node_ids=list(self.scope_node_ids),
+            node_statuses={key: str(value) for key, value in statuses.items()},
+            node_outputs={
+                key: deepcopy(value)
+                for key, value in node_outputs.items()
+                if isinstance(value, Mapping)
+            },
+            node_output_fingerprints=dict(node_output_fingerprints),
+            force=self.force,
+            input_overrides=deepcopy(self.input_overrides),
+            has_outputs=has_outputs,
+        )
+        save_resume_state(resume, root=approval_resume_root(self.output_dir))
+
+        self.record.status = "awaiting_approval"
+        self.record.finished_at = None
+        self.record.approval = approval_summary(checkpoint)
+        # Ensure the checkpoint node is recorded as awaiting_approval.
+        if node_id in self.record.nodes:
+            node_record = deepcopy(self.record.nodes[node_id])
+            node_record.status = "awaiting_approval"
+            self.record.nodes[node_id] = node_record
+        statuses[node_id] = "awaiting_approval"
+        persisted = self._persist()
+        self._emit({
+            "type": "execution_status",
+            "node_id": None,
+            "status": "awaiting_approval",
+            "approval": approval_summary(checkpoint),
+        })
+        self._emit({
+            "type": "approval_required",
+            "node_id": node_id,
+            "status": "awaiting_approval",
+            "approval": approval_summary(checkpoint),
+        })
+        return persisted
 
     @staticmethod
     def _edge_was_activated(

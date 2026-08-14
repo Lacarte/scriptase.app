@@ -340,6 +340,7 @@ class DeriveStatusTests(unittest.TestCase):
         self.assertEqual(derive_job_status("queued"), "queued")
         self.assertEqual(derive_job_status("running"), "running")
         self.assertEqual(derive_job_status("cancelling"), "running")
+        self.assertEqual(derive_job_status("awaiting_approval"), "awaiting_approval")
         self.assertEqual(derive_job_status("succeeded"), "completed")
         self.assertEqual(derive_job_status("partial"), "completed")
         self.assertEqual(derive_job_status("failed"), "failed")

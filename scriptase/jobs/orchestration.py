@@ -43,10 +43,12 @@ from scriptase.shared.io_utils import now_iso
 # Execution-record status → Job status (contracts.md §6).
 # ``partial`` is a successful terminal run with some skipped nodes.
 # ``cancelling`` is still in flight — surface as ``running``.
+# ``awaiting_approval`` is a durable pause (step 2.6) — not terminal.
 _EXECUTION_TO_JOB_STATUS: dict[str, str] = {
     "queued": "queued",
     "running": "running",
     "cancelling": "running",
+    "awaiting_approval": "awaiting_approval",
     "succeeded": "completed",
     "partial": "completed",
     "failed": "failed",
@@ -362,6 +364,20 @@ def sync_job_from_execution(
     finished_at = execution.get("finished_at")
     completed_at = finished_at if job_status in TERMINAL_STATUSES else job.completed_at
 
+    # status_reason distinguishes approval / budget / user_pause (contracts.md §6).
+    status_reason = job.status_reason
+    if job_status == "awaiting_approval":
+        approval = execution.get("approval") if isinstance(execution.get("approval"), Mapping) else {}
+        reason = None
+        if isinstance(approval, Mapping):
+            reason = approval.get("reason")
+        status_reason = str(reason or "approval")
+    elif job_status in {"running", "queued"} and job.status == "awaiting_approval":
+        # Resumed past the checkpoint — clear the pause reason.
+        status_reason = None
+    elif job_status in TERMINAL_STATUSES:
+        status_reason = None if job_status == "completed" else job.status_reason
+
     # Harvest artifact refs while we have the record.
     artifact_ids = _harvest_artifacts(job, execution)
 
@@ -369,6 +385,7 @@ def sync_job_from_execution(
         "status": job_status,
         "execution_id": execution.get("execution_id") or execution_id,
         "started_at": started_at,
+        "status_reason": status_reason,
         "allow_terminal": job.status in TERMINAL_STATUSES,
     }
     if job_status in TERMINAL_STATUSES:
@@ -414,6 +431,94 @@ def wait_for_job(
     return sync_job_from_execution(job.id, manager=active_manager)
 
 
+def approve_job(
+    job_id: str,
+    *,
+    manager: ExecutionManager | None = None,
+    decided_by: str | None = None,
+    wait: bool = False,
+    timeout: float = 120.0,
+) -> Job:
+    """Approve the Job's durable checkpoint and resume the linked execution.
+
+    Step 2.6 engine primitive consumed by Assisted mode (Phase 9) and the
+    Production Approve action. Releases no new worker until approve is called;
+    after approve the project queue runs the remaining graph from the resume
+    point.
+    """
+    job = get_job(job_id)
+    if job.status in TERMINAL_STATUSES:
+        raise JobTerminal(job.id, job.status)
+    if not job.execution_id:
+        raise JobOrchestrationError(
+            "JOB_NOT_STARTED",
+            f"Job {job_id} has no execution_id",
+        )
+    # Sync first so a race between engine pause and Job store is closed.
+    job = sync_job_from_execution(job.id, manager=manager)
+    if job.status != "awaiting_approval":
+        raise JobOrchestrationError(
+            "JOB_NOT_AWAITING",
+            f"Job {job.id} is not awaiting approval (status={job.status})",
+            details={"status": job.status, "execution_id": job.execution_id},
+        )
+
+    active_manager = manager or execution_manager
+    try:
+        active_manager.approve(job.execution_id, decided_by=decided_by)
+    except ExecutionRequestError as exc:
+        raise JobOrchestrationError(exc.code, str(exc), details=exc.details) from exc
+
+    job = update_job(
+        job.id,
+        status="running",
+        status_reason=None,
+    )
+
+    if wait:
+        _wait_for_execution(active_manager, job.execution_id, timeout=timeout)
+        return sync_job_from_execution(job.id, manager=active_manager)
+
+    thread = threading.Thread(
+        target=_finalize_job_async,
+        args=(job.id, job.execution_id, active_manager),
+        name=f"job-approve-finalize-{job.id}",
+        daemon=True,
+    )
+    thread.start()
+    return job
+
+
+def reject_job(
+    job_id: str,
+    *,
+    manager: ExecutionManager | None = None,
+    decided_by: str | None = None,
+) -> Job:
+    """Reject the Job's durable checkpoint and fail the linked execution."""
+    job = get_job(job_id)
+    if job.status in TERMINAL_STATUSES:
+        raise JobTerminal(job.id, job.status)
+    if not job.execution_id:
+        raise JobOrchestrationError(
+            "JOB_NOT_STARTED",
+            f"Job {job_id} has no execution_id",
+        )
+    job = sync_job_from_execution(job.id, manager=manager)
+    if job.status != "awaiting_approval":
+        raise JobOrchestrationError(
+            "JOB_NOT_AWAITING",
+            f"Job {job.id} is not awaiting approval (status={job.status})",
+            details={"status": job.status, "execution_id": job.execution_id},
+        )
+    active_manager = manager or execution_manager
+    try:
+        active_manager.reject(job.execution_id, decided_by=decided_by)
+    except ExecutionRequestError as exc:
+        raise JobOrchestrationError(exc.code, str(exc), details=exc.details) from exc
+    return sync_job_from_execution(job.id, manager=active_manager)
+
+
 def collect_execution_artifact_refs(execution: Mapping[str, Any]) -> list[str]:
     """Stable-order list of managed artifact refs from an execution record."""
     nodes = execution.get("nodes") if isinstance(execution.get("nodes"), Mapping) else {}
@@ -444,18 +549,43 @@ def _wait_for_execution(
     *,
     timeout: float,
 ) -> None:
-    handle = manager.active.get(execution_id)
-    if handle is None:
-        return
-    thread = handle.thread
-    if thread is not None and thread.is_alive():
-        thread.join(timeout=timeout)
-        if thread.is_alive():
+    """Block until the execution is terminal **or** durably awaiting approval.
+
+    ``awaiting_approval`` releases the worker, so the active handle may already
+    be gone while the record still shows the pause — treat that as settled.
+    """
+    import time
+
+    deadline = time.monotonic() + max(0.0, float(timeout))
+    while True:
+        handle = manager.active.get(execution_id)
+        if handle is not None:
+            thread = handle.thread
+            if thread is not None and thread.is_alive():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise JobOrchestrationError(
+                        "JOB_TIMEOUT",
+                        f"Execution {execution_id} did not finish within {timeout}s",
+                        details={"execution_id": execution_id},
+                    )
+                thread.join(timeout=min(0.25, remaining))
+                continue
+        # Worker gone — read the persisted record.
+        try:
+            record = load_execution(execution_id, root=manager.execution_root)
+        except FileNotFoundError:
+            return
+        status = str(record.get("status") or "")
+        if status in {"succeeded", "failed", "cancelled", "partial", "awaiting_approval"}:
+            return
+        if time.monotonic() >= deadline:
             raise JobOrchestrationError(
                 "JOB_TIMEOUT",
                 f"Execution {execution_id} did not finish within {timeout}s",
-                details={"execution_id": execution_id},
+                details={"execution_id": execution_id, "status": status},
             )
+        time.sleep(0.05)
 
 
 def _finalize_job_async(
@@ -565,12 +695,14 @@ def assert_job_is_not_a_node() -> None:
 
 __all__ = [
     "JobOrchestrationError",
+    "approve_job",
     "assert_job_is_not_a_node",
     "collect_execution_artifact_refs",
     "derive_job_status",
     "kind_for_artifact_ref",
     "load_job_workflow",
     "prepare_workflow_for_job",
+    "reject_job",
     "start_job",
     "sync_job_from_execution",
     "wait_for_job",

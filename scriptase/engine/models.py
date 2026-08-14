@@ -42,6 +42,9 @@ class ExecutionRecord:
     started_at: str = ""
     finished_at: str | None = None
     nodes: dict[str, NodeExecutionRecord] = field(default_factory=dict)
+    # Compact active-checkpoint pointer (contracts.md §11 / step 2.6).
+    # Full resume payloads live in engine.approval resume files, not here.
+    approval: dict[str, Any] | None = None
     schema_version: int = 1
 
     def to_dict(self) -> dict[str, Any]:
