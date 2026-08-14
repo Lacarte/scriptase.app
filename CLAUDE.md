@@ -46,6 +46,35 @@ webhook is retired, OpenRouter's balance is negative, and one video provider
 needs a human driving a browser. A skipped `live` test is expected; a skipped
 anything-else is a defect.
 
+## Running the app
+
+`start.bat` is the only entry point. It provisions and launches; the second run
+is a ~2s no-op.
+
+```bash
+start.bat                 # dev: Flask :5000 + Vite :5173 with HMR
+start.bat -Mode prod      # build the frontend, serve it from Flask alone
+start.bat -Mode setup     # provision only, do not launch
+start.bat -NoPull         # skip the fast-forward pull from origin
+start.bat -Reinstall      # force a dependency reinstall
+```
+
+What it does before launching: fast-forward pull from origin, verify Python
+3.10+/Node 18+, create or repair `venv/`, reinstall Python deps when
+`requirements.txt` changes and Node deps when `package-lock.json` changes
+(SHA-256 stamps beside each artifact), and load `.env`.
+
+Three things worth knowing:
+
+- **`.env` is read by the launcher, not by Python.** `config.py` uses
+  `os.environ` only, so the backend carries no dotenv dependency and tests stay
+  hermetic. Setting a real environment variable overrides `.env`.
+- **Children die with the launcher.** Flask and Vite are placed in a Windows Job
+  Object with `KILL_ON_JOB_CLOSE`, so closing the window cannot orphan a process
+  holding port 5000. Don't add port-killing or window-title-killing back.
+- **The pull never blocks startup.** It is `--ff-only`, skipped when the tree is
+  dirty, and every failure warns and launches on local code.
+
 ## Layout
 
 ```
