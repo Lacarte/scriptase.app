@@ -226,6 +226,8 @@ class ExecutionManager:
             str(node_id): list(ids)
             for node_id, ids in (source_artifact_ids or {}).items()
         }
+        # Nodes fed by sample bindings (step 4.2) — scheduler stamps from_sample_data.
+        sample_fed_nodes: list[str] = []
         if input_bindings:
             try:
                 from scriptase.artifacts.input_sources import (
@@ -238,7 +240,7 @@ class ExecutionManager:
                     "BAD_REQUEST", "Input bindings are unavailable"
                 ) from exc
             try:
-                bound_overrides, bound_sources = resolve_input_bindings(
+                bound_overrides, bound_sources, sample_fed = resolve_input_bindings(
                     input_bindings,
                     current_job_id=current_job_id,
                     port_types=port_types_for_workflow(workflow),
@@ -266,6 +268,9 @@ class ExecutionManager:
                 existing = list(recorded_sources.get(node_id) or [])
                 existing.extend(ids)
                 recorded_sources[node_id] = list(dict.fromkeys(existing))
+            for node_id in sample_fed:
+                if node_id not in sample_fed_nodes:
+                    sample_fed_nodes.append(node_id)
 
         overrides = self._validate_input_overrides(workflow, overrides)
         snapshot = prepare_snapshot(workflow, input_overrides=overrides)
@@ -325,6 +330,7 @@ class ExecutionManager:
             force=force,
             input_overrides=overrides,
             source_artifact_ids=recorded_sources,
+            sample_fed_node_ids=sample_fed_nodes,
             checkpoint_after_node_ids=checkpoint_after_node_ids,
         )
         scheduler.record.status = "queued"

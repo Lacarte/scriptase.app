@@ -73,6 +73,8 @@ vi.mock('./api.js', () => ({
   getJob: vi.fn(),
   createJob: vi.fn(),
   startJob: vi.fn(),
+  testJobNode: vi.fn(),
+  getNodeTypes: vi.fn(),
   deleteJob: vi.fn(),
 }))
 
@@ -599,6 +601,43 @@ describe('StepDetailPanel', () => {
     expect(text).not.toMatch(/Composer\s*-P/)
   })
 
+  it('opens the Test Node panel on Test click (step 4.2)', async () => {
+    const stage = {
+      key: 'videos',
+      label: 'Video Generator',
+      status: 'idle',
+      node_ids: ['n_animator'],
+      provider_capable: true,
+      active_provider_instance_id: 'wavespeed_main',
+      artifacts: [],
+    }
+    const wrapper = mount(StepDetailPanel, {
+      props: {
+        stage,
+        workflowId: 'wf_ABCDEF',
+        workflow: {
+          nodes: [{ id: 'n_animator', type: 'animator.generate' }],
+        },
+        nodeRecords: {},
+        jobId: 'job_TEST01',
+        nodeTypes: {
+          'animator.generate': {
+            inputs: [
+              { id: 'scenes', type: 'scenes', required: true },
+              { id: 'storyboard', type: 'storyboard_images', required: true },
+            ],
+          },
+        },
+      },
+    })
+    expect(wrapper.find('.test-node-panel').exists()).toBe(false)
+    await wrapper.find('.action-test').trigger('click')
+    expect(wrapper.find('.test-node-panel').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Video Generator — Test Node')
+    expect(wrapper.text()).toContain('will not advance')
+    expect(wrapper.text()).toContain('Test Node')
+  })
+
   it('hides Provider on Script stage for Paste mode even if graph is provider-capable', () => {
     const stage = {
       key: 'script',
@@ -793,6 +832,7 @@ describe('ProductionPage', () => {
       defaults: { execution_mode: 'manual', source: { mode: 'paste' } },
     })
     channelsApi.listChannels.mockResolvedValue({ channels: [], total: 0 })
+    api.getNodeTypes.mockResolvedValue({ node_types: {} })
     api.getWorkflowStages.mockResolvedValue({ projection: projection() })
     api.getWorkflow.mockResolvedValue({
       workflow: {

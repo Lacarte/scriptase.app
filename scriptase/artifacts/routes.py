@@ -360,7 +360,7 @@ def artifacts_resolve_inputs():
         port_types = port_types_for_workflow(workflow)
 
     try:
-        overrides, sources = resolve_input_bindings(
+        overrides, sources, sample_fed = resolve_input_bindings(
             bindings,
             current_job_id=current_job_id,
             port_types=port_types,
@@ -377,6 +377,7 @@ def artifacts_resolve_inputs():
 
     return jsonify({
         "input_overrides": overrides,
+        "sample_fed_node_ids": sample_fed,
         "source_artifact_ids": sources,
     })
 

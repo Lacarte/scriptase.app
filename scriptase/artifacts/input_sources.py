@@ -472,18 +472,25 @@ def resolve_input_bindings(
     *,
     current_job_id: str | None = None,
     port_types: Mapping[tuple[str, str], str] | None = None,
-) -> tuple[dict[str, dict[str, Any]], dict[str, list[str]]]:
+) -> tuple[dict[str, dict[str, Any]], dict[str, list[str]], list[str]]:
     """Resolve ``{node_id: {port_id: binding}}`` to overrides and source ids.
 
-    Returns ``(input_overrides, source_artifact_ids_by_node)``.
+    Returns
+    -------
+    (input_overrides, source_artifact_ids_by_node, sample_fed_node_ids)
+        ``sample_fed_node_ids`` lists nodes that received at least one
+        ``source: "sample"`` binding so the scheduler can stamp
+        ``from_sample_data`` (step 4.2 — stub/sample-derived output is never
+        mistaken for real output).
     """
     if bindings is None:
-        return {}, {}
+        return {}, {}, []
     if not isinstance(bindings, Mapping):
         raise InputSourceError("BAD_REQUEST", "input_bindings must be an object")
 
     overrides: dict[str, dict[str, Any]] = {}
     sources: dict[str, list[str]] = {}
+    sample_fed: list[str] = []
     type_map = port_types or {}
 
     for node_id, ports in bindings.items():
@@ -495,11 +502,17 @@ def resolve_input_bindings(
         node_key = str(node_id)
         overrides[node_key] = {}
         collected: list[str] = []
+        node_sample = False
         for port_id, binding in ports.items():
             port_key = str(port_id)
             port_type = type_map.get((node_key, port_key))
             if port_type is None and isinstance(binding, Mapping):
                 port_type = _optional_str(binding.get("port_type"))
+            if (
+                isinstance(binding, Mapping)
+                and _optional_str(binding.get("source")) == "sample"
+            ):
+                node_sample = True
             payload, ids = resolve_binding(
                 binding,
                 port_type=port_type,
@@ -508,8 +521,10 @@ def resolve_input_bindings(
             overrides[node_key][port_key] = payload
             collected.extend(ids)
         sources[node_key] = list(dict.fromkeys(collected))
+        if node_sample:
+            sample_fed.append(node_key)
 
-    return overrides, sources
+    return overrides, sources, list(dict.fromkeys(sample_fed))
 
 
 def source_artifact_ids_from_inputs(inputs: Mapping[str, Any] | None) -> list[str]:

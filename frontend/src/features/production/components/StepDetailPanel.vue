@@ -1,11 +1,12 @@
 <script setup>
 /**
- * Per-stage detail panel (§18 / step 2.4).
+ * Per-stage detail panel (§18 / step 2.4 + Test Node panel at 4.2).
  *
  * Executable actions (Run / Test / Regenerate / Run From Here) post the same
- * body the Workflow canvas would send to POST /api/workflow/run. Inspect
- * actions read the current execution's node records. Approve is shown now and
- * becomes durable at 2.6.
+ * body the Workflow canvas would send to POST /api/workflow/run. Test opens
+ * the Test Node panel (input picker → node_isolated) instead of firing
+ * immediately. Inspect actions read the current execution's node records.
+ * Approve is durable at 2.6.
  */
 import { computed, ref, watch } from 'vue'
 
@@ -20,6 +21,7 @@ import {
 } from '../stageActions.js'
 import { sourceModeLabel, sourceModeRequiresProvider } from '../sourceModes.js'
 import { statusLabel } from '../stageStatus.js'
+import TestNodePanel from './TestNodePanel.vue'
 
 const props = defineProps({
   stage: { type: Object, default: null },
@@ -39,16 +41,27 @@ const props = defineProps({
    * provider UI. Paste / Manual pass false even if the graph has story.generate.
    */
   scriptProviderRequired: { type: Boolean, default: null },
+  /** Bound Job id — Test Node never advances this Job (step 4.2). */
+  jobId: { type: String, default: '' },
+  /**
+   * node type → definition (inputs/ports) from GET /api/workflow/node-types.
+   * Used by the Test Node panel to render InputPickers.
+   */
+  nodeTypes: { type: Object, default: () => ({}) },
+  /** Last Test Node result for the primary node (from_sample_data, etc.). */
+  testResult: { type: Object, default: null },
 })
 
-const emit = defineEmits(['run', 'inspect'])
+const emit = defineEmits(['run', 'inspect', 'test-run'])
 
 const inspectPane = ref(null) // 'input' | 'output' | 'history' | 'provider' | null
+const showTestPanel = ref(false)
 
 watch(
   () => props.stage?.key,
   () => {
     inspectPane.value = null
+    showTestPanel.value = false
   },
 )
 
@@ -105,6 +118,24 @@ const scriptModeDisplay = computed(() => {
 const executableActions = ['run', 'test', 'regenerate', 'run_from_here']
 const inspectActions = ['view_input', 'view_output', 'provider', 'history', 'approve']
 
+const primaryNodeType = computed(() => {
+  const id = primaryNodeId.value
+  if (!id) return ''
+  const node = (props.workflow?.nodes || []).find((n) => n.id === id)
+  return node?.type || ''
+})
+
+const primaryPorts = computed(() => {
+  const typeKey = primaryNodeType.value
+  const def = typeKey ? props.nodeTypes?.[typeKey] : null
+  return Array.isArray(def?.inputs) ? def.inputs : []
+})
+
+const providerLabel = computed(() => {
+  if (!showProviderUi.value) return ''
+  return props.stage?.active_provider_instance_id || 'Not selected'
+})
+
 function showProviderAction(action) {
   if (action !== 'provider') return true
   // Provider selection appears only where the stage needs one (§6, §19).
@@ -113,6 +144,12 @@ function showProviderAction(action) {
 
 function actionDisabled(action) {
   if (action === 'approve') return !approveEnabled.value
+  if (action === 'test') {
+    // Test opens the panel even while another production run is active —
+    // the test path never advances the Job. Still block while a test is
+    // itself running (props.running).
+    return !hasMembers.value || !(props.workflowId || props.workflow) || props.running
+  }
   if (isExecutableAction(action)) return !canRunActions.value
   // Inspect actions need a stage; history/input/output prefer a record.
   if (!props.stage) return true
@@ -146,6 +183,13 @@ function onAction(action) {
     emit('inspect', { action, stage: props.stage, nodeId: primaryNodeId.value })
     return
   }
+  if (action === 'test') {
+    // Step 4.2: open the Test Node panel rather than firing isolation blind.
+    if (actionDisabled(action)) return
+    showTestPanel.value = !showTestPanel.value
+    inspectPane.value = null
+    return
+  }
   if (!isExecutableAction(action) || actionDisabled(action)) return
 
   const body = buildStageRunRequest(action, props.stage, {
@@ -159,6 +203,18 @@ function onAction(action) {
     runMode: body.run_mode,
     targetNodeIds: body.target_node_ids,
     requiresProvider: showProviderUi.value && actionRequiresProvider(action, props.stage),
+  })
+}
+
+function onTestRun(payload) {
+  emit('test-run', {
+    stage: props.stage,
+    nodeId: payload.nodeId,
+    runMode: payload.runMode,
+    inputBindings: payload.inputBindings,
+    currentJobId: payload.currentJobId || props.jobId || undefined,
+    workflowId: props.workflowId || undefined,
+    workflow: props.workflowId ? undefined : props.workflow || undefined,
   })
 }
 
@@ -284,9 +340,23 @@ function pretty(value) {
       <p v-if="actionError" class="action-error" role="alert">{{ actionError }}</p>
       <p v-else-if="actionMessage" class="action-message" role="status">{{ actionMessage }}</p>
       <p v-else-if="running" class="action-message muted" role="status">Starting run…</p>
-      <p v-else-if="executionActive" class="action-message muted" role="status">
+      <p v-else-if="executionActive && !showTestPanel" class="action-message muted" role="status">
         A run is in progress. Wait for it to finish before starting another.
       </p>
+
+      <TestNodePanel
+        v-if="showTestPanel && primaryNodeId"
+        :title="stage.label"
+        :node-id="primaryNodeId"
+        :node-type="primaryNodeType"
+        :ports="primaryPorts"
+        :current-job-id="jobId"
+        :provider-label="providerLabel"
+        :running="running"
+        :last-result="testResult"
+        @run="onTestRun"
+        @close="showTestPanel = false"
+      />
 
       <section v-if="inspectPane === 'input'" class="inspect-pane" aria-label="Resolved inputs">
         <h3>View Input</h3>

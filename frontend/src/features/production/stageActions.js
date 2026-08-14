@@ -57,7 +57,7 @@ export const ACTION_LABELS = Object.freeze({
 
 export const ACTION_HINTS = Object.freeze({
   run: 'Execute this stage with upstream dependencies resolved first.',
-  test: 'Run only this stage’s primary node in isolation (stub-fed inputs).',
+  test: 'Open the Test Node panel: isolate this stage’s primary node with the input picker. Never advances the Job.',
   regenerate: 'Re-run only this stage’s primary node.',
   run_from_here: 'Run this stage and eligible downstream stages.',
   view_input: 'Inspect resolved inputs recorded for the primary node.',

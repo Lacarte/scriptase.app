@@ -47,4 +47,11 @@ describe('artifacts input picker helpers (step 4.1)', () => {
       },
     })
   })
+
+  it('defaults sample bindings with a port_type for Test Node', () => {
+    expect(makeBinding('sample', { port_type: 'scenes' })).toEqual({
+      source: 'sample',
+      port_type: 'scenes',
+    })
+  })
 })

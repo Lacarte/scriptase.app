@@ -11,6 +11,7 @@ Job creation (Step 0 / step 2.5)
 * ``POST   /api/jobs`` — create from Channel + source + workflow + mode
 * ``GET    /api/jobs/<job_id>`` — full document (snapshot is secret-free)
 * ``POST   /api/jobs/<job_id>/start`` — run through the ported engine
+* ``POST   /api/jobs/<job_id>/test-node`` — isolated Test Node run; never advances Job (4.2)
 * ``POST   /api/jobs/<job_id>/approve`` — durable checkpoint approve + resume (2.6)
 * ``POST   /api/jobs/<job_id>/reject`` — durable checkpoint reject (2.6)
 * ``DELETE /api/jobs/<job_id>`` — soft-delete into TRASH
@@ -44,6 +45,7 @@ from scriptase.jobs.orchestration import (
     reject_job,
     start_job,
     sync_job_from_execution,
+    run_node_test,
 )
 from scriptase.jobs.source_modes import job_creation_catalog
 from scriptase.jobs.stage_projection import (
@@ -303,6 +305,84 @@ def jobs_start(job_id: str):
         "execution_id": document.execution_id,
         "status": document.status,
     })
+
+
+@jobs_bp.route("/api/jobs/<job_id>/test-node", methods=["POST"])
+def jobs_test_node(job_id: str):
+    """Test a single node in isolation without advancing the Job (step 4.2).
+
+    Body:
+      target_node_ids   list[str] — required; primary node to test
+      input_bindings?   {node_id: {port_id: binding}} from the input picker
+      input_overrides?  pre-resolved payloads (optional alternative)
+      force?            bool
+      wait?             bool — block until terminal (tests / short runs)
+      timeout?          float seconds when wait is true (default 120)
+
+    The Job's status, current_stage, and artifact set are unchanged. Results
+    keep the engine ``from_sample_data`` marker when sample bindings feed the
+    node. The returned ``execution_id`` is exploratory and is **not** written
+    onto the Job.
+    """
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    body, error = _json_body()
+    if error:
+        return error
+
+    targets = body.get("target_node_ids")
+    if not isinstance(targets, list) or not targets:
+        return _error("BAD_REQUEST", "target_node_ids must be a non-empty list", 400)
+    if not all(isinstance(item, str) and item for item in targets):
+        return _error("BAD_REQUEST", "target_node_ids must be non-empty strings", 400)
+
+    input_bindings = body.get("input_bindings")
+    if input_bindings is not None and not isinstance(input_bindings, dict):
+        return _error("BAD_REQUEST", "input_bindings must be an object", 400)
+    input_overrides = body.get("input_overrides")
+    if input_overrides is not None and not isinstance(input_overrides, dict):
+        return _error("BAD_REQUEST", "input_overrides must be an object", 400)
+
+    force = bool(body.get("force", False))
+    wait = bool(body.get("wait", False))
+    try:
+        timeout = float(body.get("timeout", 120.0))
+    except (TypeError, ValueError):
+        return _error("BAD_REQUEST", "timeout must be a number", 400)
+    if timeout <= 0 or timeout > 3600:
+        return _error("BAD_REQUEST", "timeout must be between 0 and 3600 seconds", 400)
+
+    try:
+        result = run_node_test(
+            job_id,
+            target_node_ids=targets,
+            input_bindings=input_bindings,
+            input_overrides=input_overrides,
+            force=force,
+            wait=wait,
+            timeout=timeout,
+        )
+    except (
+        JobNotFound,
+        JobValidationError,
+        JobOrchestrationError,
+        ValueError,
+    ) as exc:
+        return _store_error(exc)
+
+    payload = {
+        "job": _job_public(result["job"]),
+        "execution_id": result["execution_id"],
+        "project_id": result["project_id"],
+        "status": result["status"],
+        "run_mode": result["run_mode"],
+        "target_node_ids": result["target_node_ids"],
+    }
+    if result.get("execution") is not None:
+        payload["execution"] = result["execution"]
+    response = jsonify(payload)
+    response.status_code = 202
+    return response
 
 
 @jobs_bp.route("/api/jobs/<job_id>/approve", methods=["POST"])

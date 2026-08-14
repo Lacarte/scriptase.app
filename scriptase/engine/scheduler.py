@@ -453,6 +453,8 @@ class WorkflowScheduler:
         sleeper: Callable[[float], None] = time.sleep,
         input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
         source_artifact_ids: Mapping[str, list[str]] | None = None,
+        # Step 4.2: nodes whose inputs came from sample bindings (not graph stubs).
+        sample_fed_node_ids: list[str] | None = None,
         max_workers: int = 4,
         # Durable approval (step 2.6): pause after these node ids succeed.
         checkpoint_after_node_ids: list[str] | None = None,
@@ -469,6 +471,9 @@ class WorkflowScheduler:
         self.source_artifact_ids = {
             str(node_id): list(dict.fromkeys(ids))
             for node_id, ids in (source_artifact_ids or {}).items()
+        }
+        self.sample_fed_node_ids = {
+            str(node_id) for node_id in (sample_fed_node_ids or []) if node_id
         }
         provided_inputs = {
             (node_id, port_id)
@@ -776,6 +781,7 @@ class WorkflowScheduler:
         node_record = deepcopy(self.record.nodes[node_id])
         node_record.from_sample_data = (
             node.get("type") == "stub.input"
+            or node_id in self.sample_fed_node_ids
             or any(
                 self.record.nodes[edge["source_node"]].from_sample_data
                 for edge in graph.incoming[node_id]

@@ -227,6 +227,13 @@ Binding `source` is one of: `current_job`, `job`, `library`, `upload`, `manual`,
 `GET/POST /api/artifacts`, `GET /api/artifacts/<id>`, `GET /api/artifacts/<id>/payload`,
 `POST /api/artifacts/upload`, `POST /api/artifacts/resolve-inputs`.
 
+**Test Node (step 4.2 / §9).** `POST /api/jobs/<job_id>/test-node` runs
+`node_isolated` for the given `target_node_ids` with optional `input_bindings`.
+It returns `202 {job, execution_id, project_id, status, run_mode, target_node_ids}`
+and **never** rewrites the Job's `status`, `current_stage`, `artifacts`, or
+`execution_id`. Sample bindings stamp `from_sample_data` on the node record so
+stub-derived output is never mistaken for real output.
+
 **Cache fingerprint** inputs: node type, type version, configuration, inputs, upstream
 artifact fingerprints, adapter cache schema version. Artifact integrity is re-verified on
 lookup.

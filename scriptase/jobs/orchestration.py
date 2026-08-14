@@ -271,6 +271,131 @@ def load_job_workflow(job: Job) -> dict[str, Any]:
         ) from exc
 
 
+def run_node_test(
+    job_id: str,
+    *,
+    target_node_ids: list[str],
+    input_bindings: Mapping[str, Mapping[str, Any]] | None = None,
+    input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
+    manager: ExecutionManager | None = None,
+    project_id: str | None = None,
+    force: bool = False,
+    wait: bool = False,
+    timeout: float = 120.0,
+    workflow: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run one node in isolation for a Job **without advancing the Job**.
+
+    Step 4.2 / product §9. Uses ``run_mode=node_isolated`` with the input
+    picker bindings from 4.1. The Job's ``status``, ``current_stage``,
+    ``artifacts``, and ``execution_id`` are left unchanged — a test run is
+    exploratory and must never be mistaken for Job progress.
+
+    Named ``run_node_test`` (not ``test_*``) so pytest does not collect it.
+
+    Returns
+    -------
+    dict
+        ``job`` (unchanged snapshot), ``execution_id``, ``project_id``,
+        ``status`` (queued, or terminal when ``wait``), optional ``execution``
+        record when ``wait`` is True.
+    """
+    if not target_node_ids or not isinstance(target_node_ids, list):
+        raise JobOrchestrationError(
+            "BAD_REQUEST",
+            "target_node_ids must be a non-empty list",
+        )
+    cleaned_targets = [str(item) for item in target_node_ids if item]
+    if not cleaned_targets:
+        raise JobOrchestrationError(
+            "BAD_REQUEST",
+            "target_node_ids must contain at least one node id",
+        )
+
+    job = get_job(job_id)
+    # Snapshot identity fields the done-when test asserts are immutable.
+    before_status = job.status
+    before_stage = job.current_stage
+    before_artifacts = list(job.artifacts)
+    before_execution_id = job.execution_id
+
+    source_workflow = workflow if workflow is not None else load_job_workflow(job)
+    prepared = prepare_workflow_for_job(job, source_workflow)
+
+    active_manager = manager or execution_manager
+    try:
+        execution_id, resolved_project = active_manager.start(
+            prepared,
+            run_mode="node_isolated",
+            target_node_ids=cleaned_targets,
+            project_id=project_id,
+            force=force,
+            source="manual",
+            input_bindings=input_bindings,
+            input_overrides=input_overrides,
+            current_job_id=job.id,
+        )
+    except ExecutionRequestError as exc:
+        raise JobOrchestrationError(exc.code, str(exc), details=exc.details) from exc
+
+    result: dict[str, Any] = {
+        "job": get_job(job_id),
+        "execution_id": execution_id,
+        "project_id": resolved_project,
+        "status": "queued",
+        "run_mode": "node_isolated",
+        "target_node_ids": cleaned_targets,
+    }
+
+    if wait:
+        _wait_for_execution(active_manager, execution_id, timeout=timeout)
+        record = _load_execution_record(execution_id, manager=active_manager)
+        result["status"] = (record or {}).get("status") or "queued"
+        result["execution"] = record
+
+    # Hard guarantee: never rewrite Job progress from a test run.
+    after = get_job(job_id)
+    if (
+        after.status != before_status
+        or after.current_stage != before_stage
+        or list(after.artifacts) != before_artifacts
+        or after.execution_id != before_execution_id
+    ):
+        # Roll back if anything mutated the Job — test runs must not stick.
+        try:
+            update_job(
+                job_id,
+                status=before_status,
+                current_stage=before_stage,
+                artifacts=before_artifacts,
+                execution_id=before_execution_id,
+                allow_terminal=True,
+            )
+        except Exception:
+            pass
+        raise JobOrchestrationError(
+            "TEST_ADVANCED_JOB",
+            "Test node run mutated Job status, stage, or artifacts",
+            details={
+                "before": {
+                    "status": before_status,
+                    "current_stage": before_stage,
+                    "artifacts": before_artifacts,
+                    "execution_id": before_execution_id,
+                },
+                "after": {
+                    "status": after.status,
+                    "current_stage": after.current_stage,
+                    "artifacts": list(after.artifacts),
+                    "execution_id": after.execution_id,
+                },
+            },
+        )
+
+    result["job"] = after
+    return result
+
+
 def start_job(
     job_id: str,
     *,
@@ -721,5 +846,6 @@ __all__ = [
     "reject_job",
     "start_job",
     "sync_job_from_execution",
+    "run_node_test",
     "wait_for_job",
 ]

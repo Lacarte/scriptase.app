@@ -109,6 +109,27 @@ export function startJob(jobId, opts = {}) {
   })
 }
 
+/**
+ * Test a node in isolation without advancing the Job (step 4.2).
+ *
+ * @param {string} jobId
+ * @param {object} body
+ * @param {string[]} body.target_node_ids
+ * @param {object} [body.input_bindings]
+ * @param {object} [body.input_overrides]
+ * @param {boolean} [body.force]
+ * @param {boolean} [body.wait]
+ * @param {number} [body.timeout]
+ */
+export function testJobNode(jobId, body) {
+  return apiPost(`/jobs/${encodeURIComponent(jobId)}/test-node`, body)
+}
+
 export function deleteJob(jobId) {
   return apiDelete(`/jobs/${encodeURIComponent(jobId)}`)
+}
+
+/** Registry payload used by the Test Node panel for port definitions. */
+export function getNodeTypes() {
+  return apiGet('/workflow/node-types')
 }

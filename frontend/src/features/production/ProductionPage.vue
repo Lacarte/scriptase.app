@@ -12,7 +12,15 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { getJob, listExecutions, listWorkflows } from './api.js'
+import {
+  getExecution,
+  getJob,
+  getNodeTypes,
+  listExecutions,
+  listWorkflows,
+  runWorkflow,
+  testJobNode,
+} from './api.js'
 import JobCreatePanel from './components/JobCreatePanel.vue'
 import StepDetailPanel from './components/StepDetailPanel.vue'
 import { useProductionStages } from './composables/useProductionStages.js'
@@ -55,6 +63,10 @@ const showJobCreate = ref(false)
 const activeJobId = ref('')
 const activeJobSourceMode = ref(null)
 const activeJobExecutionMode = ref(null)
+/** Registry definitions for the Test Node panel port list (step 4.2). */
+const nodeTypes = ref({})
+/** Last Test Node result shown in the detail panel. */
+const testResult = ref(null)
 
 const selectedStage = computed(() =>
   stages.value.find((s) => s.key === selectedStageKey.value) || null,
@@ -272,10 +284,97 @@ async function onStageRun({ action, body }) {
       workflow_id: workflowId.value || selectedWorkflowId.value,
       execution_id: result.execution_id,
     }
+    if (activeJobId.value) query.job_id = activeJobId.value
     await router.replace({ name: 'production', query })
     await refreshExecutions(query.workflow_id)
   } catch {
     // actionError is already set on the composable.
+  }
+}
+
+/**
+ * Test Node panel submit (step 4.2).
+ *
+ * When a Job is bound, posts to /api/jobs/<id>/test-node so status / stage /
+ * artifacts never change. Without a Job, falls back to /api/workflow/run with
+ * node_isolated (or node_with_deps when the picker chose run_deps).
+ */
+async function onTestRun(payload) {
+  const nodeId = payload?.nodeId
+  if (!nodeId) return
+  actionError.value = ''
+  actionMessage.value = ''
+  actionRunning.value = true
+  testResult.value = null
+  try {
+    let executionId = null
+    if (payload.currentJobId || activeJobId.value) {
+      const jobId = payload.currentJobId || activeJobId.value
+      const data = await testJobNode(jobId, {
+        target_node_ids: [nodeId],
+        input_bindings: payload.inputBindings || undefined,
+        force: false,
+      })
+      executionId = data.execution_id
+      actionMessage.value = `Test started (Job ${jobId} unchanged) → ${data.execution_id}`
+    } else {
+      const body = {
+        run_mode: payload.runMode || 'node_isolated',
+        target_node_ids: [nodeId],
+        force: false,
+        input_bindings: payload.inputBindings || undefined,
+      }
+      if (payload.workflowId || workflowId.value || selectedWorkflowId.value) {
+        body.workflow_id = payload.workflowId || workflowId.value || selectedWorkflowId.value
+      } else if (payload.workflow || workflowDocument.value) {
+        body.workflow = payload.workflow || workflowDocument.value
+      } else {
+        throw new Error('No workflow selected for Test Node')
+      }
+      const data = await runWorkflow(body)
+      executionId = data.execution_id
+      actionMessage.value = `Test started → ${data.execution_id}`
+    }
+
+    if (executionId) {
+      // Brief poll for a terminal snapshot so the panel can show
+      // from_sample_data. Do NOT hydrate the Production stage list from a
+      // test execution — that would look like Job progress.
+      const deadline = Date.now() + 8000
+      let settled = false
+      while (Date.now() < deadline && !settled) {
+        try {
+          const execData = await getExecution(executionId)
+          const execution = execData?.execution || execData
+          const nodeRec = execution?.nodes?.[nodeId] || {}
+          const status = execution?.status || 'queued'
+          testResult.value = {
+            status: nodeRec.status || status,
+            from_sample_data: Boolean(nodeRec.from_sample_data),
+            outputs_summary: nodeRec.outputs_summary || {},
+            error: nodeRec.error || null,
+            execution_id: executionId,
+          }
+          if (['succeeded', 'failed', 'cancelled', 'partial'].includes(status)) {
+            settled = true
+            break
+          }
+        } catch {
+          testResult.value = {
+            status: 'queued',
+            from_sample_data: false,
+            outputs_summary: {},
+            error: null,
+            execution_id: executionId,
+          }
+        }
+        await new Promise((r) => setTimeout(r, 200))
+      }
+    }
+  } catch (err) {
+    actionError.value = err?.message || String(err)
+  } finally {
+    actionRunning.value = false
   }
 }
 
@@ -313,6 +412,12 @@ watch(
 
 onMounted(async () => {
   await refreshWorkflows()
+  try {
+    const registry = await getNodeTypes()
+    nodeTypes.value = registry?.node_types || {}
+  } catch {
+    nodeTypes.value = {}
+  }
   await bindFromRoute()
 })
 </script>
@@ -452,8 +557,12 @@ onMounted(async () => {
         :action-message="actionMessage"
         :script-source-mode="activeJobSourceMode"
         :script-provider-required="scriptProviderVisible"
+        :job-id="activeJobId"
+        :node-types="nodeTypes"
+        :test-result="testResult"
         @run="onStageRun"
         @inspect="onStageInspect"
+        @test-run="onTestRun"
       />
     </div>
 
