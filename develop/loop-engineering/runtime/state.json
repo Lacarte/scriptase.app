@@ -21,8 +21,7 @@
     "3.2",
     "3.3",
     "3.4",
-    "3.5",
-    "4.1"
+    "3.5"
   ],
   "history": [
     {
@@ -426,6 +425,12 @@
       "step": "4.1",
       "event": "start",
       "detail": ""
+    },
+    {
+      "ts": "2026-08-14T13:03:21",
+      "step": "4.1",
+      "event": "validation_red",
+      "detail": "pytest FAILED:\nTraceback (most recent call last):\n  File \"D:\\@Workspace\\@Development\\@Projects\\SCRIPTASE.app\\venv\\lib\\site-packages\\loguru\\_handler.py\", line 206, in emit\n    self._sink.write(str_record)\n  File \"D:\\@Workspace\\@Development\\@Projects\\SCRIPTASE.app\\venv\\lib\\site-packages\\loguru\\_simple_sinks.py\", line 16, in write\n    self._stream.write(message)\nValueError: I/O operation on closed fi"
     }
   ]
 }
