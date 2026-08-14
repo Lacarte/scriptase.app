@@ -1,9 +1,13 @@
 /**
- * Step 2.3 — Production page.
+ * Step 2.3 — Production page (live stages + shared SSE).
+ * Step 2.4 — Step detail panel (actions → existing run modes).
  *
- * Done when: running one Job updates the Production view and the Workflow
- * canvas simultaneously from a single execution, and both survive a mid-run
- * page reload without losing state.
+ * 2.3 done when: running one Job updates Production and the Workflow canvas
+ * simultaneously from a single execution, and both survive a mid-run reload.
+ *
+ * 2.4 done when: each action on a step produces the same execution record a
+ * canvas-initiated run would, proven by comparing request bodies field by
+ * field (and the backend suite compares full records).
  *
  * Guards:
  * - Stages come from the projection API (no hardcoded step array)
@@ -11,6 +15,9 @@
  * - No setInterval / polling client
  * - Ring-buffer reset snapshot rebuilds stage status
  * - Mid-run reload hydrates from GET stages + execution, then reopens SSE
+ * - Step actions POST /api/workflow/run with the same body as the canvas
+ * - No new run modes; Provider UI only on provider-capable stages
+ * - -P never appears in stage names
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -25,8 +32,17 @@ import {
   recomputeStagesFromNodes,
   statusLabel,
 } from './stageStatus.js'
+import {
+  ACTION_RUN_MODES,
+  actionRequiresProvider,
+  buildStageRunRequest,
+  isExecutableAction,
+  runModeForAction,
+  stagePrimaryTarget,
+} from './stageActions.js'
 import { useProductionStages } from './composables/useProductionStages.js'
 import ProductionPage from './ProductionPage.vue'
+import StepDetailPanel from './components/StepDetailPanel.vue'
 import * as api from './api.js'
 import { useWorkflowStore } from '@/features/workflow/stores/workflow.js'
 import { api as workflowApi } from '@/shared/api/client.js'
@@ -35,9 +51,11 @@ vi.mock('./api.js', () => ({
   getWorkflowStages: vi.fn(),
   getExecutionStages: vi.fn(),
   getExecution: vi.fn(),
+  getWorkflow: vi.fn(),
   projectWorkflowBody: vi.fn(),
   listWorkflows: vi.fn(),
   listExecutions: vi.fn(),
+  runWorkflow: vi.fn(),
 }))
 
 class FakeEventSource {
@@ -136,6 +154,7 @@ describe('useProductionStages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     FakeEventSource.reset()
+    api.getWorkflow.mockResolvedValue({ workflow: { nodes: [], edges: [] } })
   })
 
   it('loads stages from the workflow projection API (no hardcoded list)', async () => {
@@ -303,6 +322,7 @@ describe('Production + Workflow share one execution', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     FakeEventSource.reset()
+    api.getWorkflow.mockResolvedValue({ workflow: { nodes: [], edges: [] } })
   })
 
   it('updates Production stages and the Workflow store from the same event sequence', async () => {
@@ -365,6 +385,205 @@ describe('Production + Workflow share one execution', () => {
   })
 })
 
+describe('stageActions mapping (step 2.4)', () => {
+  const voiceStage = {
+    key: 'voice',
+    label: 'Voice',
+    node_ids: ['n_tts'],
+    provider_capable: true,
+    active_provider_instance_id: 'elevenlabs',
+  }
+  const composerStage = {
+    key: 'composer',
+    label: 'Composer',
+    node_ids: ['n_assemble', 'n_captions'],
+    provider_capable: false,
+  }
+  const workflow = {
+    nodes: [
+      { id: 'n_tts', type: 'tts.generate' },
+      { id: 'n_assemble', type: 'assemble.project' },
+      { id: 'n_captions', type: 'captions.generate' },
+    ],
+  }
+
+  it('maps every executable action onto a ported run mode', () => {
+    expect(ACTION_RUN_MODES).toEqual({
+      run: 'node_with_deps',
+      test: 'node_isolated',
+      regenerate: 'retry_failed',
+      run_from_here: 'from_node',
+    })
+    for (const [action, mode] of Object.entries(ACTION_RUN_MODES)) {
+      expect(isExecutableAction(action)).toBe(true)
+      expect(runModeForAction(action)).toBe(mode)
+    }
+    expect(isExecutableAction('view_input')).toBe(false)
+    expect(isExecutableAction('approve')).toBe(false)
+  })
+
+  it('prefers primary assemble over captions for Composer', () => {
+    expect(stagePrimaryTarget(composerStage, workflow)).toBe('n_assemble')
+    expect(stagePrimaryTarget(voiceStage, workflow)).toBe('n_tts')
+  })
+
+  it('builds the same request body the canvas runWorkflow would send', () => {
+    for (const [action, mode] of Object.entries(ACTION_RUN_MODES)) {
+      const productionBody = buildStageRunRequest(action, voiceStage, {
+        workflowId: 'wf_ABCDEF',
+        workflow,
+      })
+      // Canvas store.runWorkflow posts exactly this shape.
+      const canvasBody = {
+        workflow_id: 'wf_ABCDEF',
+        run_mode: mode,
+        target_node_ids: ['n_tts'],
+        force: false,
+      }
+      expect(productionBody).toEqual(canvasBody)
+    }
+  })
+
+  it('shows provider requirement only on provider-capable executable actions', () => {
+    expect(actionRequiresProvider('run', voiceStage)).toBe(true)
+    expect(actionRequiresProvider('run', composerStage)).toBe(false)
+    expect(actionRequiresProvider('view_input', voiceStage)).toBe(false)
+  })
+})
+
+describe('useProductionStages.runStageAction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    FakeEventSource.reset()
+    api.getWorkflowStages.mockResolvedValue({ projection: projection() })
+    api.getWorkflow.mockResolvedValue({
+      workflow: {
+        workflow_id: 'wf_ABCDEF',
+        nodes: [
+          { id: 'n_script', type: 'script.input' },
+          { id: 'n_tts', type: 'tts.generate' },
+          { id: 'n_assemble', type: 'assemble.project' },
+          { id: 'n_captions', type: 'captions.generate' },
+        ],
+      },
+    })
+    api.runWorkflow.mockResolvedValue({
+      execution_id: 'ex_STAGE1',
+      project_id: 'pm_STAGE1',
+      status: 'queued',
+    })
+  })
+
+  it('posts the canvas-identical body and opens the shared SSE stream', async () => {
+    const host = mountHarness()
+    await host.vm.api.loadWorkflow('wf_ABCDEF')
+    const stages = stageList(host)
+    const voice = stages.find((s) => s.key === 'voice')
+    const result = await host.vm.api.runStageAction('run', voice, {
+      EventSourceImpl: FakeEventSource,
+    })
+    expect(api.runWorkflow).toHaveBeenCalledWith({
+      workflow_id: 'wf_ABCDEF',
+      run_mode: 'node_with_deps',
+      target_node_ids: ['n_tts'],
+      force: false,
+    })
+    expect(result.execution_id).toBe('ex_STAGE1')
+    expect(result.body.run_mode).toBe('node_with_deps')
+    expect(FakeEventSource.latest().url).toBe(
+      '/api/workflow/executions/ex_STAGE1/events',
+    )
+  })
+
+  it.each([
+    ['test', 'node_isolated'],
+    ['regenerate', 'retry_failed'],
+    ['run_from_here', 'from_node'],
+  ])('action %s sends run_mode %s', async (action, mode) => {
+    const host = mountHarness()
+    await host.vm.api.loadWorkflow('wf_ABCDEF')
+    const voice = stageList(host).find((s) => s.key === 'voice')
+    await host.vm.api.runStageAction(action, voice, {
+      EventSourceImpl: FakeEventSource,
+    })
+    expect(api.runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        run_mode: mode,
+        target_node_ids: ['n_tts'],
+      }),
+    )
+  })
+})
+
+describe('StepDetailPanel', () => {
+  it('renders §18 actions and hides Provider on non-capable stages', async () => {
+    const stage = {
+      key: 'composer',
+      label: 'Composer',
+      status: 'idle',
+      node_ids: ['n_assemble', 'n_captions'],
+      provider_capable: false,
+      artifacts: [],
+    }
+    const wrapper = mount(StepDetailPanel, {
+      props: {
+        stage,
+        workflowId: 'wf_ABCDEF',
+        workflow: {
+          nodes: [
+            { id: 'n_assemble', type: 'assemble.project' },
+            { id: 'n_captions', type: 'captions.generate' },
+          ],
+        },
+        nodeRecords: {},
+      },
+    })
+    const text = wrapper.text()
+    expect(text).toContain('Run')
+    expect(text).toContain('Test')
+    expect(text).toContain('Regenerate')
+    expect(text).toContain('Run From Here')
+    expect(text).toContain('View Input')
+    expect(text).toContain('View Output')
+    expect(text).toContain('History')
+    expect(text).toContain('Approve')
+    // Provider button is omitted when the stage is not provider-capable.
+    expect(wrapper.find('.action-provider').exists()).toBe(false)
+    expect(text).toContain('Local (not provider-capable)')
+    expect(text).not.toMatch(/Composer\s*-P/)
+  })
+
+  it('emits a canvas-shaped run payload when Run is clicked', async () => {
+    const stage = {
+      key: 'voice',
+      label: 'Voice',
+      status: 'idle',
+      node_ids: ['n_tts'],
+      provider_capable: true,
+      active_provider_instance_id: 'elevenlabs',
+      artifacts: [],
+    }
+    const wrapper = mount(StepDetailPanel, {
+      props: {
+        stage,
+        workflowId: 'wf_ABCDEF',
+        workflow: { nodes: [{ id: 'n_tts', type: 'tts.generate' }] },
+        nodeRecords: {},
+      },
+    })
+    await wrapper.get('.action-run').trigger('click')
+    const events = wrapper.emitted('run')
+    expect(events).toHaveLength(1)
+    expect(events[0][0].body).toEqual({
+      workflow_id: 'wf_ABCDEF',
+      run_mode: 'node_with_deps',
+      target_node_ids: ['n_tts'],
+      force: false,
+    })
+    expect(events[0][0].requiresProvider).toBe(true)
+  })
+})
+
 describe('ProductionPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -377,6 +596,17 @@ describe('ProductionPage', () => {
     })
     api.listExecutions.mockResolvedValue({ executions: [], total: 0 })
     api.getWorkflowStages.mockResolvedValue({ projection: projection() })
+    api.getWorkflow.mockResolvedValue({
+      workflow: {
+        workflow_id: 'wf_ABCDEF',
+        nodes: [
+          { id: 'n_script', type: 'script.input' },
+          { id: 'n_tts', type: 'tts.generate' },
+          { id: 'n_assemble', type: 'assemble.project' },
+          { id: 'n_captions', type: 'captions.generate' },
+        ],
+      },
+    })
   })
 
   it('renders projected stage labels from the API', async () => {
@@ -460,6 +690,35 @@ describe('ProductionPage', () => {
     )
 
     globalThis.EventSource = Original
+  })
+
+  it('shows step detail actions when a stage is selected', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/production', name: 'production', component: ProductionPage },
+        { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
+      ],
+    })
+    await router.push({ name: 'production', query: { workflow_id: 'wf_ABCDEF' } })
+    await router.isReady()
+
+    const wrapper = mount(ProductionPage, {
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    // Click the Voice stage row.
+    const rows = wrapper.findAll('.stage-row')
+    const voiceRow = rows.find((r) => r.text().includes('Voice'))
+    expect(voiceRow).toBeTruthy()
+    await voiceRow.trigger('click')
+    await nextTick()
+
+    expect(wrapper.text()).toContain('Run From Here')
+    expect(wrapper.text()).toContain('View Input')
+    expect(wrapper.find('.action-run').exists()).toBe(true)
+    expect(wrapper.find('.action-provider').exists()).toBe(true)
   })
 })
 

@@ -125,6 +125,11 @@ export function nodeRecordsFromExecution(execution) {
       duration_ms: record.duration_ms,
       error: record.error ?? null,
       artifact_refs: Array.isArray(record.artifact_refs) ? [...record.artifact_refs] : [],
+      // Step 2.4 View Input / View Output / History read these fields.
+      resolved_inputs_summary: record.resolved_inputs_summary ?? {},
+      outputs_summary: record.outputs_summary ?? {},
+      attempt_errors: Array.isArray(record.attempt_errors) ? [...record.attempt_errors] : [],
+      from_sample_data: Boolean(record.from_sample_data),
     }
   }
   return out

@@ -20,6 +20,22 @@ SSE (shared with the canvas — no second stream protocol):
 |---|---|
 | `GET /api/workflow/executions/<id>/events` | Sequenced events; `id:` frames + reset snapshot |
 
+Step actions (step 2.4) start runs through the **same** endpoint the canvas uses:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/workflow/run` | Run / Test / Regenerate / Run From Here |
+
+| Action | Run mode |
+|---|---|
+| Run | `node_with_deps` |
+| Test | `node_isolated` |
+| Regenerate | `retry_failed` |
+| Run From Here | `from_node` |
+
+View Input / View Output / Provider / History / Approve are inspect or
+checkpoint actions — not new run modes. Approve becomes durable at 2.6.
+
 The default full-video spine is Script → Voice → Timing → Segments → Scenes →
 Images → Videos → Review → Composer → Export. Side branches (captions, music)
 collapse into Composer — adding a parallel caption branch must not add a step.
@@ -27,16 +43,15 @@ collapse into Composer — adding a parallel caption branch must not add a step.
 ## Layout
 
 ```
-api.js                         stage + workflow/execution listing clients
+api.js                         stage + workflow/execution listing + run client
 stageStatus.js                 pure aggregation (mirrors backend priorities)
+stageActions.js                §18 action → run_mode + request body (mirrors backend)
 composables/useProductionStages.js
-                               load projection, open SSE, reload hydrate
-ProductionPage.vue             §3.1 step list + stage inspector shell
+                               load projection, open SSE, run stage actions
+components/StepDetailPanel.vue §18 action toolbar + inspect panes
+ProductionPage.vue             §3.1 step list + detail panel host
 ```
 
-Do not hardcode a step array here, and do not add a second polling mechanism.
-Either one silently diverges the two views the first time a branch is added.
-
-Step detail actions (Run / Test / Regenerate / Run From Here / Approve) land in
-2.4 and map onto existing engine run modes only. Job creation and Script stage
-modes land in 2.5.
+Do not hardcode a step array here, and do not add a second polling mechanism
+or a second execution path. Either one silently diverges the two views.
+Job creation and Script stage modes land in 2.5.

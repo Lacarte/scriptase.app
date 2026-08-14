@@ -6,14 +6,16 @@
  * canvas SSE stream (ring-buffer reset + Last-Event-ID). No step array is
  * hardcoded here, and there is no second polling mechanism.
  *
- * Step detail actions (Run / Test / Regenerate / …) land in step 2.4.
+ * Step detail actions (step 2.4) map onto existing engine run modes only.
  * Job creation and Script stage modes land in step 2.5.
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { listExecutions, listWorkflows } from './api.js'
+import StepDetailPanel from './components/StepDetailPanel.vue'
 import { useProductionStages } from './composables/useProductionStages.js'
+import { ACTION_LABELS } from './stageActions.js'
 import { statusLabel } from './stageStatus.js'
 
 const route = useRoute()
@@ -22,15 +24,21 @@ const router = useRouter()
 const {
   stages,
   workflowId,
+  workflowDocument,
   executionId,
   executionStatus,
   loading,
   error,
   streamError,
+  nodeRecords,
+  actionRunning,
+  actionError,
+  actionMessage,
   hasStages,
   active,
   loadWorkflow,
   hydrateFromExecution,
+  runStageAction,
   dispose,
 } = useProductionStages()
 
@@ -144,6 +152,43 @@ function stageOrdinal(stage) {
   if (typeof stage.ordinal === 'number') return stage.ordinal + 1
   return '·'
 }
+
+/**
+ * Step detail executable action — same /api/workflow/run body the canvas sends.
+ * After queueing, bind the new execution into the route so reload survives.
+ */
+async function onStageRun({ action, body }) {
+  if (!selectedStage.value) return
+  try {
+    const result = await runStageAction(action, selectedStage.value, { body })
+    selectedExecutionId.value = result.execution_id
+    const query = {
+      workflow_id: workflowId.value || selectedWorkflowId.value,
+      execution_id: result.execution_id,
+    }
+    await router.replace({ name: 'production', query })
+    await refreshExecutions(query.workflow_id)
+  } catch {
+    // actionError is already set on the composable.
+  }
+}
+
+function onStageInspect({ action }) {
+  if (action === 'approve') {
+    // Durable approval is step 2.6; surface a clear message until then.
+    actionMessage.value = canShowApproveMessage(selectedStage.value)
+      ? 'Approval received — durable checkpoint resume lands in step 2.6.'
+      : 'Approve is available when a stage is awaiting approval (step 2.6).'
+  }
+}
+
+function canShowApproveMessage(stage) {
+  return String(stage?.status || '') === 'awaiting_approval'
+}
+
+// Keep ACTION_LABELS referenced so tree-shaking never drops the module edge
+// used by tests that import labels alongside the page.
+void ACTION_LABELS
 
 watch(
   () => [route.query.execution_id, route.query.executionId, route.query.workflow_id, route.query.workflowId],
@@ -267,59 +312,19 @@ onMounted(async () => {
         </li>
       </ol>
 
-      <aside class="stage-detail" aria-live="polite">
-        <template v-if="selectedStage">
-          <h2>{{ selectedStage.label }}</h2>
-          <dl class="detail-grid">
-            <div>
-              <dt>Key</dt>
-              <dd><code>{{ selectedStage.key }}</code></dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{{ statusLabel(selectedStage.status) }}</dd>
-            </div>
-            <div>
-              <dt>Nodes</dt>
-              <dd>
-                <ul v-if="(selectedStage.node_ids || []).length" class="node-ids">
-                  <li v-for="nid in selectedStage.node_ids" :key="nid">
-                    <code>{{ nid }}</code>
-                  </li>
-                </ul>
-                <span v-else class="muted">None in this workflow</span>
-              </dd>
-            </div>
-            <div v-if="selectedStage.provider_capable">
-              <dt>Provider</dt>
-              <dd>
-                {{ selectedStage.active_provider_instance_id || 'Not selected' }}
-              </dd>
-            </div>
-            <div v-if="(selectedStage.artifacts || []).length">
-              <dt>Artifacts</dt>
-              <dd>
-                <ul class="node-ids">
-                  <li v-for="ref in selectedStage.artifacts" :key="ref">
-                    <code>{{ ref }}</code>
-                  </li>
-                </ul>
-              </dd>
-            </div>
-          </dl>
-          <p class="detail-hint muted">
-            Step actions (Run, Test, Regenerate, Run From Here, Approve…) arrive
-            in the next step. They map onto the same engine run modes the canvas
-            already uses — no second execution path.
-          </p>
-        </template>
-        <template v-else>
-          <p class="muted empty-detail">
-            Select a stage to inspect its member nodes. Status updates live from
-            the shared execution stream.
-          </p>
-        </template>
-      </aside>
+      <StepDetailPanel
+        :stage="selectedStage"
+        :workflow-id="workflowId || selectedWorkflowId"
+        :workflow="workflowDocument"
+        :node-records="nodeRecords"
+        :execution-id="executionId || ''"
+        :execution-active="active"
+        :running="actionRunning"
+        :action-error="actionError"
+        :action-message="actionMessage"
+        @run="onStageRun"
+        @inspect="onStageInspect"
+      />
     </div>
 
     <div v-else-if="!loading" class="empty muted">
@@ -596,70 +601,6 @@ button.ghost {
   background: rgba(167, 139, 250, 0.12);
   color: var(--accent-secondary, #a78bfa);
   border-color: rgba(167, 139, 250, 0.35);
-}
-
-.stage-detail {
-  background: var(--bg-surface, #161d2a);
-  border: 1px solid var(--border, #1e2a3a);
-  border-radius: 12px;
-  padding: 1rem 1.1rem;
-  min-height: 12rem;
-}
-
-.stage-detail h2 {
-  margin: 0 0 0.85rem;
-  font-size: 1.15rem;
-  font-family: var(--font-display, system-ui, sans-serif);
-}
-
-.detail-grid {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.detail-grid dt {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-muted, #6b7f93);
-  margin-bottom: 0.15rem;
-}
-
-.detail-grid dd {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.detail-grid code,
-.node-ids code {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.8rem;
-  background: var(--bg-dark, #0f1520);
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-}
-
-.node-ids {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.detail-hint {
-  margin: 1.1rem 0 0;
-  font-size: 0.82rem;
-  line-height: 1.4;
-}
-
-.empty-detail {
-  margin: 0;
-  line-height: 1.45;
 }
 
 .empty {
