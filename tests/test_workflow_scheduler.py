@@ -585,8 +585,14 @@ def test_a_cancelled_animator_node_is_recorded_as_cancelled(tmp_path, monkeypatc
     monkeypatch.setattr(animator_runtime, "is_extension_connected", lambda: True)
 
     with pytest.raises(Exception) as caught:
+        # has_storyboard=True: grok_automa is image_to_video-only (step 6.2
+        # capability gate). Cancel is observed after the gate, during the wait.
         animator._step_assets(
-            SCENES, {"provider": "grok_automa"}, "pm_ABC123", _cancelling_context()
+            SCENES,
+            {"provider_id": "grok_automa"},
+            "pm_ABC123",
+            _cancelling_context(),
+            has_storyboard=True,
         )
     assert caught.value.code == "CANCELLED"
 

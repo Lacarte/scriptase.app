@@ -848,6 +848,10 @@ KNOWN_PROVIDER_LITERALS = {
     ("scriptase/providers/compatibility.py", "grok_automa"),
     ("scriptase/providers/compatibility.py", "kie_ai"),
     ("scriptase/providers/compatibility.py", "kie-ai"),
+    # Step 6.2 — the text_to_video built-in template must pin a text_to_video
+    # provider; domain default is image_to_video (grok_automa) and must not
+    # be silently substituted at run time.
+    ("scriptase/engine/templates.py", "kie_ai"),
     # V2's `app.py` carried two: an `/api/health` key probing Inworld package
     # availability, and a boot banner printing the frozen `…-gemini-…` /
     # `…-grok-…` WebSocket paths. Step 0.2's application factory has neither —

@@ -317,7 +317,12 @@ class ImageVideoAdapterSceneSpecTests(unittest.TestCase):
              mock.patch.object(video_adapter, "resolve_provider", return_value=object()), \
              mock.patch.object(video_adapter, "_resolved_settings", return_value={}), \
              mock.patch.object(video_adapter, "_canonical_provider_id", return_value="fixture"), \
-             mock.patch.object(video_adapter, "provider_id", return_value="fixture"):
+             mock.patch.object(video_adapter, "provider_id", return_value="fixture"), \
+             mock.patch.object(
+                 video_adapter,
+                 "_provider_capabilities",
+                 return_value={"image_to_video": True, "text_to_video": True},
+             ):
             result = video_adapter._step_assets(
                 {
                     "scenes": [
@@ -330,6 +335,8 @@ class ImageVideoAdapterSceneSpecTests(unittest.TestCase):
                 {"aspect_ratio": "9:16", "mode": "video"},
                 "pm_TEST",
                 mock.Mock(project_id="pm_TEST"),
+                # Storyboard optional (6.2); fixture grants both motion modes.
+                has_storyboard=True,
             )
 
         self.assertEqual(result["ready"], 1)

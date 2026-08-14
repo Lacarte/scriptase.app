@@ -358,6 +358,7 @@ class CompatibilitySmokeTests(unittest.TestCase):
             [item["template_id"] for item in templates],
             [
                 "full_video",
+                "text_to_video",
                 "narration_only",
                 "storyboard_only",
                 "reexport_existing_project",

@@ -161,10 +161,84 @@ def reexport_existing_project_template() -> dict:
     return doc
 
 
+def text_to_video_template() -> dict:
+    """Full production without a Storyboard node (step 6.2).
+
+    Scene Director output feeds the Animator directly. The video provider is
+    ``kie_ai`` (``text_to_video``). The default ``full_video`` template still
+    routes through image-to-video for visual consistency.
+    """
+    doc = workflow_draft(
+        name="Text to Video",
+        description=(
+            "Complete production without storyboard images — "
+            "Scene Director prompts drive a text_to_video provider"
+        ),
+    )
+    doc["template_id"] = "text_to_video"
+    doc["nodes"] = [
+        _node("n_trigger", "trigger.manual", 0, 220),
+        _node("n_setup", "project.setup", 220, 80),
+        _node("n_script", "script.input", 220, 340),
+        _node("n_tts", "tts.generate", 500, 340),
+        _node("n_align", "timing.align", 760, 340),
+        _node("n_segment", "segment.run", 1020, 340),
+        _node("n_scenes", "scenes.blueprint", 1280, 340),
+        # No storyboard.generate — optional image dependency (step 6.2).
+        _node(
+            "n_animator",
+            "animator.generate",
+            1540,
+            340,
+            config={"provider_id": "kie_ai"},
+        ),
+        _node("n_captions", "captions.generate", 1280, 570),
+        _node("n_music", "music.select", 760, 80),
+        _node("n_assemble", "assemble.project", 1800, 340),
+        _node("n_timeline", "timeline.project", 2060, 340),
+        _node("n_export", "export.video", 2320, 340),
+        _node(
+            "n_output",
+            "workflow.output",
+            2580,
+            340,
+            config={"port_type": "video_file", "label": "Final video"},
+        ),
+    ]
+    doc["edges"] = [
+        _edge("e_trigger_setup", "n_trigger", "control", "n_setup", "trigger", "control"),
+        _edge("e_trigger_script", "n_trigger", "control", "n_script", "trigger", "control"),
+        _edge("e_script_tts", "n_script", "script", "n_tts", "script"),
+        _edge("e_setup_tts", "n_setup", "settings", "n_tts", "settings"),
+        _edge("e_tts_align_audio", "n_tts", "audio", "n_align", "audio"),
+        _edge("e_script_align", "n_script", "script", "n_align", "script"),
+        _edge("e_align_segment", "n_align", "alignment", "n_segment", "alignment"),
+        _edge("e_segment_scenes", "n_segment", "segments", "n_scenes", "segments"),
+        _edge("e_script_scenes", "n_script", "script", "n_scenes", "script"),
+        _edge("e_setup_scenes", "n_setup", "settings", "n_scenes", "settings"),
+        _edge("e_scenes_animator", "n_scenes", "scenes", "n_animator", "scenes"),
+        _edge("e_setup_animator", "n_setup", "settings", "n_animator", "settings"),
+        _edge("e_align_captions", "n_align", "alignment", "n_captions", "alignment"),
+        _edge("e_setup_music", "n_setup", "settings", "n_music", "settings"),
+        _edge("e_animator_assemble", "n_animator", "assets", "n_assemble", "assets"),
+        _edge("e_tts_assemble", "n_tts", "metadata", "n_assemble", "metadata"),
+        _edge("e_scenes_assemble", "n_scenes", "scenes", "n_assemble", "scenes"),
+        _edge("e_captions_assemble", "n_captions", "captions", "n_assemble", "captions"),
+        _edge("e_music_assemble", "n_music", "track", "n_assemble", "music"),
+        _edge("e_setup_assemble", "n_setup", "settings", "n_assemble", "settings"),
+        _edge("e_assemble_timeline", "n_assemble", "project", "n_timeline", "project"),
+        _edge("e_timeline_export", "n_timeline", "project", "n_export", "project"),
+        _edge("e_setup_export", "n_setup", "settings", "n_export", "settings"),
+        _edge("e_export_output", "n_export", "video", "n_output", "value"),
+    ]
+    return doc
+
+
 def serialize_templates() -> list[dict]:
     result = []
     for template in (
         full_video_template(),
+        text_to_video_template(),
         narration_only_template(),
         storyboard_only_template(),
         reexport_existing_project_template(),

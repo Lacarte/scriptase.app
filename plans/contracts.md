@@ -717,6 +717,24 @@ capability API, selector, node inspector, or step detail UI
 `capability_vocabulary` so the browser can refuse undeclared keys even if a
 stale row carries one.
 
+### 8.4 Optional image dependency (video)
+
+Step 6.2 / product §7.4. The `animator.generate` storyboard port remains
+optional (`storyboard:storyboard_images?`). Routing is capability-based
+(`scriptase/modules/video/routing.py`):
+
+| Graph shape | Required / preferred capability | Behaviour |
+|---|---|---|
+| Storyboard edge connected | Prefer `image_to_video` | Default full-video path; stills feed i2v providers |
+| No storyboard edge | Require `text_to_video` | Scene Director prompts only; `image_to_video`-only providers fail with `PROVIDER_REQUEST_INVALID` |
+
+A text_to_video-only provider may still run when storyboard is connected
+(stills are ignored). Never silently substitute a different provider.
+
+Built-in templates: `full_video` keeps Storyboard → Animator (i2v);
+`text_to_video` omits the image node and selects `kie_ai`
+(`tests/test_optional_image_dependency.py`).
+
 ---
 
 ## 9. ReviewIssue
@@ -940,6 +958,7 @@ decision freeze.
 | Timing strategy AUTO | Native word timings when advertised; else force-align; identical alignment schema | 5.3 |
 | Prompt evaluation harness | Structural drift over golden fixtures + offline planner; prompt-builder markers; no credits | 5.4 |
 | Image / video domain split | Separate capability vocabularies; undeclared caps never offered | 6.1 |
+| Optional image dependency | Storyboard optional; text_to_video without image node; full_video i2v unchanged | 6.2 |
 | Review provider domain | Uses standard result envelope + ReviewIssue | 7.3 |
 | V2 project import | Map niche presets → Channels; keep output/ layout | 10.1 / 1.3 |
 | Indexed storage for runs/queue/jobs | Performance only; no schema meaning change | 10.2 |

@@ -767,6 +767,7 @@ Echo a JSON value for node-author verification.
 | Template | Name | Nodes | Description |
 |---|---|---|---|
 | `full_video` | Full Video | `trigger.manual`, `project.setup`, `script.input`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `storyboard.generate`, `animator.generate`, `captions.generate`, `music.select`, `assemble.project`, `timeline.project`, `export.video`, `workflow.output` | Complete ScriptToScene production workflow |
+| `text_to_video` | Text to Video | `trigger.manual`, `project.setup`, `script.input`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `animator.generate`, `captions.generate`, `music.select`, `assemble.project`, `timeline.project`, `export.video`, `workflow.output` | Complete production without storyboard images — Scene Director prompts drive a text_to_video provider |
 | `narration_only` | Narration Only | `trigger.manual`, `script.input`, `tts.generate`, `workflow.output` | Turn a script into narration audio |
 | `storyboard_only` | Storyboard Only | `trigger.manual`, `script.input`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `storyboard.generate`, `workflow.output` | Generate storyboard images from a script |
 | `reexport_existing_project` | Re-export Existing Project | `trigger.manual`, `project.existing`, `export.video`, `workflow.output` | Render a new export from an existing timeline project |

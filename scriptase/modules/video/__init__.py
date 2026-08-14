@@ -4,7 +4,9 @@ Own capability vocabulary (step 6.1): ``image_to_video``, ``text_to_video``,
 ``reference_image``, ``duration_control``.
 
 An image is **not** a mandatory input to every video provider; routing is
-capability-based (step 6.2).
+capability-based (step 6.2). See ``scriptase.modules.video.routing`` —
+storyboard present prefers ``image_to_video``; absent requires
+``text_to_video``.
 
 Nothing may import business logic from ``routes.py`` or ``animation_routes.py``.
 ``animator_bp`` and ``animation_bp`` are this package's own transport and are

@@ -125,7 +125,11 @@ class ValidationTests(unittest.TestCase):
     def test_built_in_templates_are_typed_valid_and_schedulable(self):
         templates = serialize_templates()
         self.assertEqual([item["template_id"] for item in templates], [
-            "full_video", "narration_only", "storyboard_only", "reexport_existing_project",
+            "full_video",
+            "text_to_video",
+            "narration_only",
+            "storyboard_only",
+            "reexport_existing_project",
         ])
 
         def resolver(node):

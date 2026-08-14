@@ -145,7 +145,8 @@ def test_scenes_explicit_config_beats_project_settings(monkeypatch):
     (video, "_step_assets", "scenes", "assets"),
 ])
 def test_provider_adapters_expose_typed_outputs(monkeypatch, module, method, input_port, output_port):
-    monkeypatch.setattr(module, method, lambda *args: {"total": 1, "ready": 1, "errors": 0})
+    # *args/**kwargs: video._step_assets gained has_storyboard= (step 6.2).
+    monkeypatch.setattr(module, method, lambda *args, **kwargs: {"total": 1, "ready": 1, "errors": 0})
     monkeypatch.setattr(module, "with_artifacts", lambda payload, *paths: payload)
     result = module.generate({input_port: {"scenes": [{"image_prompt": "p"}]}}, {}, CTX)
     assert result[output_port]["ready"] == 1
@@ -158,7 +159,7 @@ def test_provider_adapters_expose_typed_outputs(monkeypatch, module, method, inp
 def test_provider_adapters_fail_when_no_assets_produced(monkeypatch, module, method, input_port, code):
     # Live finding (step 6.1): a rejected provider key errors every scene but
     # still completes the manifest; the node must fail, not report success.
-    monkeypatch.setattr(module, method, lambda *args: {"total": 2, "ready": 0, "errors": 2})
+    monkeypatch.setattr(module, method, lambda *args, **kwargs: {"total": 2, "ready": 0, "errors": 2})
     with pytest.raises(AdapterError) as raised:
         module.generate({input_port: {"scenes": [{"image_prompt": "p"}]}}, {}, CTX)
     assert raised.value.code == code
