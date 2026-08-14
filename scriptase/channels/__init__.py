@@ -8,3 +8,49 @@ Scene Director deterministic and a Channel genuinely reusable.
 Channels reference provider *instance ids*, never duplicated account
 configuration, and never credentials.
 """
+
+from scriptase.channels.models import (
+    CHANNEL_ID_RE,
+    CHANNEL_SCHEMA_VERSION,
+    ChannelDraft,
+    ChannelProfile,
+    PatternEntry,
+    VisualDirection,
+    parse_channel,
+    parse_draft,
+    validation_problems,
+)
+from scriptase.channels.store import (
+    ChannelConflict,
+    ChannelNotFound,
+    ChannelValidationError,
+    channel_summary,
+    create_channel,
+    default_draft,
+    delete_channel,
+    get_channel,
+    list_channels,
+    update_channel,
+)
+
+__all__ = [
+    "CHANNEL_ID_RE",
+    "CHANNEL_SCHEMA_VERSION",
+    "ChannelDraft",
+    "ChannelProfile",
+    "PatternEntry",
+    "VisualDirection",
+    "parse_channel",
+    "parse_draft",
+    "validation_problems",
+    "ChannelConflict",
+    "ChannelNotFound",
+    "ChannelValidationError",
+    "channel_summary",
+    "create_channel",
+    "default_draft",
+    "delete_channel",
+    "get_channel",
+    "list_channels",
+    "update_channel",
+]
