@@ -20,6 +20,11 @@ from scriptase.channels.models import (
     parse_draft,
     validation_problems,
 )
+from scriptase.channels.presets import (
+    preset_to_channel_draft,
+    seed_starter_channels,
+)
+from scriptase.channels.routes import channels_bp
 from scriptase.channels.store import (
     ChannelConflict,
     ChannelNotFound,
@@ -53,4 +58,7 @@ __all__ = [
     "get_channel",
     "list_channels",
     "update_channel",
+    "preset_to_channel_draft",
+    "seed_starter_channels",
+    "channels_bp",
 ]

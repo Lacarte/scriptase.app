@@ -1,24 +1,47 @@
-"""Niche presets — user-facing combinations of visual style + story tone + defaults.
+"""Niche presets catalog + starter-Channel migration (step 1.3).
 
-This compatibility data becomes starter Channels in step 1.3. Selecting one currently auto-fills:
-  - category (broad topic)
-  - visual_style (template ID for scene rendering)
-  - story_tone (narration tone keyword)
-  - voice, speed (TTS defaults)
-  - editing_style (future: pacing preset)
+Catalog API (still used by script / scene_director while those surfaces
+resolve a selected preset):
 
-Presets are stored in _data/niche_presets.json. The Python DEFAULTS below are
-used only when the JSON file doesn't exist yet (first run).
+  - category, visual_style, story_tone, voice, speed
+
+Migration API (this step): every preset becomes an editable starter
+``ChannelProfile`` via ``preset_to_channel_draft`` / ``seed_starter_channels``.
+Mapping:
+
+  label        → Channel.name
+  niche        → content.niche
+  story_tone   → content.tone
+  duration     → content.duration_target
+  category     → content.audience  (broad topic label; no dedicated field)
+  visual_style → visual_direction.style
+  voice/speed  → audio_defaults.{voice,speed}
+
+Provider instance ids are left empty — a Channel never duplicates account
+configuration; instances are selected later (step 3.x).
+
+Presets live in ``scriptase/channels/data/niche_presets.json``. The Python
+``_DEFAULTS`` below fill any gaps when the JSON is missing or older.
 """
 
+from __future__ import annotations
+
 import json
+import os
 import re
+import threading
+from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 from scriptase.modules.scene_director.templates import SCENE_STYLE_TEMPLATES, TEMPLATES_BY_ID
 
-_DATA_DIR = Path(__file__).resolve().parent.parent / "_data"
+_DATA_DIR = Path(__file__).resolve().parent / "data"
 _PRESETS_FILE = _DATA_DIR / "niche_presets.json"
+_SEED_LOCK = threading.Lock()
+# Seed index lives next to channel documents: maps preset_id → channel_id so
+# re-seeding is idempotent and deleted starters can be recreated.
+_STARTERS_INDEX_NAME = "_starters.json"
 _VALID_TAGS = ("tiktok", "youtube", "shorts", "trending")
 _DEFAULT_VOICE = "af_heart"
 _DEFAULT_SPEED = 1.0
@@ -1465,3 +1488,209 @@ def resolve_niche(config: dict) -> dict:
         "speed": speed,
         "inworld_voice": resolve_inworld_voice(resolved_category, resolved_tone),
     }
+
+
+# ---------------------------------------------------------------------------
+# Starter Channel migration (step 1.3)
+# ---------------------------------------------------------------------------
+
+# Structured default pattern — contracts.md §5. Same as store.default_draft.
+_DEFAULT_PATTERN = [
+    {"narrative_role": "hook", "shot": "extreme close-up"},
+    {"narrative_role": "explanation", "shot": "medium cinematic"},
+    {"narrative_role": "emotional_beat", "shot": "wide environmental"},
+    {"narrative_role": "ending", "shot": "symbolic visual"},
+]
+
+
+def preset_to_channel_draft(preset_id: str, preset: dict | None = None) -> dict[str, Any]:
+    """Map one niche preset onto a ChannelDraft payload.
+
+    Does not assign id / version / timestamps — the store owns those.
+    Credentials and provider instance ids are never filled from a preset.
+    """
+    key = normalize_preset_id(preset_id)
+    if not key:
+        raise ValueError("preset_id is required")
+
+    source = dict(preset) if isinstance(preset, dict) else {}
+    if not source:
+        source = dict(get_presets().get(key) or {})
+    if not source:
+        raise ValueError(f"Unknown niche preset '{key}'")
+
+    name = _clean_text(source.get("label") or key.replace("_", " ").title(), max_length=120)
+    if not name:
+        name = key.replace("_", " ").title()
+
+    niche = _clean_text(source.get("niche") or key, max_length=80)
+    tone = normalize_story_tone(source.get("story_tone")) or _clean_text(
+        source.get("story_tone"), max_length=40
+    )
+    audience = normalize_category(source.get("category")) or _clean_text(
+        source.get("category"), max_length=40
+    )
+    duration = source.get("duration", _DEFAULT_DURATION)
+    try:
+        duration_target = int(duration) if duration is not None else None
+    except (TypeError, ValueError):
+        duration_target = _DEFAULT_DURATION
+    if duration_target is not None and duration_target < 1:
+        duration_target = None
+
+    style = normalize_visual_style(source.get("visual_style")) or _clean_text(
+        source.get("visual_style"), max_length=80
+    )
+    voice = _clean_text(source.get("voice") or _DEFAULT_VOICE, max_length=80)
+    speed = _normalize_speed(source.get("speed"), default=_DEFAULT_SPEED)
+
+    draft = {
+        "name": name,
+        "branding": {
+            "logo_asset_id": None,
+            "enabled": False,
+            "position": "bottom-right",
+            "size": 0.12,
+            "opacity": 1.0,
+            "margin": 0.04,
+        },
+        "content": {
+            "niche": niche,
+            "language": "en",
+            "audience": audience,
+            "script_style": "",
+            "tone": tone,
+            "mood": "",
+            "hook_style": "",
+            "cta_style": "",
+            "duration_target": duration_target,
+        },
+        "visual_direction": {
+            "style": style,
+            "pattern": deepcopy(_DEFAULT_PATTERN),
+            "palette": "",
+            "lighting": "",
+            "camera": "",
+            "character_style": "",
+            "continuity": "",
+            "negative_prompt": "",
+            "references": [],
+        },
+        "audio_defaults": {
+            "tts_provider_instance_id": None,
+            "voice": voice,
+            "speed": speed,
+            "music_profile": "",
+            "loudness": None,
+            "ducking": None,
+        },
+        "captions": {},
+        "provider_defaults": {},
+        "fallback_policies": {},
+        "review_policy": {},
+        "budget": {},
+        "export_defaults": {"aspect_ratio": "9:16"},
+        "default_workflow_id": None,
+    }
+    return draft
+
+
+def _starters_index_path() -> str:
+    from scriptase.channels import store as channel_store
+
+    return os.path.join(channel_store._channels_dir, _STARTERS_INDEX_NAME)
+
+
+def _load_starters_index() -> dict[str, str]:
+    path = _starters_index_path()
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, value in raw.items():
+        preset_key = normalize_preset_id(key)
+        channel_id = str(value or "").strip()
+        if preset_key and channel_id:
+            out[preset_key] = channel_id
+    return out
+
+
+def _save_starters_index(index: dict[str, str]) -> None:
+    from scriptase.channels import store as channel_store
+    from scriptase.shared.io_utils import safe_json_write
+
+    os.makedirs(channel_store._channels_dir, exist_ok=True)
+    safe_json_write(_starters_index_path(), index, indent=2)
+
+
+def seed_starter_channels(*, force: bool = False) -> dict[str, Any]:
+    """Ensure every niche preset has a corresponding starter Channel.
+
+    Idempotent: a preset already mapped in ``_starters.json`` whose channel
+    still exists is left alone. Pass ``force=True`` to recreate missing
+    mapped channels only (never overwrites an existing editable Channel).
+
+    Returns ``{created, skipped, total_presets, channel_ids}``.
+    """
+    from scriptase.channels.store import (
+        ChannelNotFound,
+        create_channel,
+        get_channel,
+    )
+
+    with _SEED_LOCK:
+        presets = get_presets()
+        index = _load_starters_index()
+        created: list[str] = []
+        skipped: list[str] = []
+        channel_ids: dict[str, str] = {}
+
+        for preset_id, preset in sorted(presets.items()):
+            existing_id = index.get(preset_id)
+            if existing_id and not force:
+                try:
+                    get_channel(existing_id)
+                except ChannelNotFound:
+                    existing_id = None
+                except Exception:
+                    existing_id = None
+                if existing_id:
+                    skipped.append(preset_id)
+                    channel_ids[preset_id] = existing_id
+                    continue
+
+            if existing_id and force:
+                try:
+                    get_channel(existing_id)
+                    skipped.append(preset_id)
+                    channel_ids[preset_id] = existing_id
+                    continue
+                except ChannelNotFound:
+                    pass
+
+            draft = preset_to_channel_draft(preset_id, preset)
+            document = create_channel(draft)
+            index[preset_id] = document.id
+            created.append(preset_id)
+            channel_ids[preset_id] = document.id
+
+        _save_starters_index(index)
+        return {
+            "created": len(created),
+            "skipped": len(skipped),
+            "total_presets": len(presets),
+            "created_preset_ids": created,
+            "channel_ids": channel_ids,
+        }
+
+
+def list_starter_mappings() -> dict[str, str]:
+    """Return the preset_id → channel_id map (read-only)."""
+    return dict(_load_starters_index())
+

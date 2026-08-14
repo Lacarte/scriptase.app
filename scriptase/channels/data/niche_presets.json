@@ -1,0 +1,363 @@
+{
+  "dark_psychology_stickman": {
+    "label": "Stickman Dark Psychology",
+    "description": "Minimalist stickman visuals with dark psychological narration. Suspenseful tone, fast-paced for TikTok/Shorts.",
+    "category": "psychology",
+    "niche": "dark_psychology",
+    "visual_style": "stickman_animation",
+    "story_tone": "suspenseful",
+    "voice": "af_heart",
+    "speed": 0.95,
+    "duration": 35,
+    "tags": [
+      "trending",
+      "tiktok",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "dark_psychology_cinematic": {
+    "label": "Cinematic Dark Psychology",
+    "description": "Cinematic visuals with psychological tension. Film-quality lighting and dramatic framing for manipulation/influence stories.",
+    "category": "psychology",
+    "niche": "dark_psychology",
+    "visual_style": "cinematic",
+    "story_tone": "suspenseful",
+    "voice": "af_heart",
+    "speed": 0.95,
+    "duration": 60,
+    "tags": [
+      "youtube",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "dark_psychology_noir": {
+    "label": "Noir Dark Psychology",
+    "description": "Film noir shadows and mystery atmosphere for dark psychology content. Deep male voice, slow pacing.",
+    "category": "psychology",
+    "niche": "dark_psychology",
+    "visual_style": "noir",
+    "story_tone": "suspenseful",
+    "voice": "am_michael",
+    "speed": 0.9,
+    "duration": 75,
+    "tags": [
+      "youtube"
+    ],
+    "custom": false
+  },
+  "true_crime_cinematic": {
+    "label": "Cinematic True Crime",
+    "description": "Cinematic visuals for true crime investigations. Evidence boards, forensic detail, dramatic narration.",
+    "category": "crime",
+    "niche": "true_crime",
+    "visual_style": "cinematic",
+    "story_tone": "dramatic",
+    "voice": "am_michael",
+    "speed": 0.9,
+    "duration": 90,
+    "tags": [
+      "youtube"
+    ],
+    "custom": false
+  },
+  "true_crime_noir": {
+    "label": "Noir True Crime",
+    "description": "Noir-style true crime with rain-slicked streets, venetian blind shadows, and cold case atmosphere.",
+    "category": "crime",
+    "niche": "true_crime",
+    "visual_style": "noir",
+    "story_tone": "dramatic",
+    "voice": "am_michael",
+    "speed": 0.85,
+    "duration": 90,
+    "tags": [
+      "youtube"
+    ],
+    "custom": false
+  },
+  "horror_cinematic": {
+    "label": "Cinematic Horror",
+    "description": "Dark, atmospheric horror with cinematic quality. Eerie shadows, desaturated tones, slow-building dread.",
+    "category": "horror",
+    "niche": "horror",
+    "visual_style": "dark_horror",
+    "story_tone": "suspenseful",
+    "voice": "af_heart",
+    "speed": 0.9,
+    "duration": 60,
+    "tags": [
+      "youtube",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "horror_stickman": {
+    "label": "Stickman Horror",
+    "description": "Simple stickman art with unsettling horror stories. Minimal visuals let the narration build tension.",
+    "category": "horror",
+    "niche": "horror",
+    "visual_style": "stickman_animation",
+    "story_tone": "suspenseful",
+    "voice": "af_heart",
+    "speed": 0.95,
+    "duration": 35,
+    "tags": [
+      "tiktok",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "horror_anime": {
+    "label": "Anime Horror",
+    "description": "Japanese anime-style horror with expressive characters, vivid colors, and supernatural dread.",
+    "category": "horror",
+    "niche": "horror",
+    "visual_style": "anime",
+    "story_tone": "suspenseful",
+    "voice": "af_heart",
+    "speed": 1.0,
+    "duration": 40,
+    "tags": [
+      "shorts"
+    ],
+    "custom": false
+  },
+  "stoicism_cinematic": {
+    "label": "Cinematic Stoicism",
+    "description": "Cinematic visuals with stoic philosophy narration. Marble busts, ancient ruins, educational tone.",
+    "category": "philosophy",
+    "niche": "stoicism",
+    "visual_style": "cinematic",
+    "story_tone": "educational",
+    "voice": "am_michael",
+    "speed": 0.9,
+    "duration": 60,
+    "tags": [
+      "youtube",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "stoicism_stickman": {
+    "label": "Stickman Stoicism",
+    "description": "Whiteboard-style stickman illustrations for stoic philosophy lessons. Clear, educational, bite-sized.",
+    "category": "philosophy",
+    "niche": "stoicism",
+    "visual_style": "stickman_animation",
+    "story_tone": "educational",
+    "voice": "am_michael",
+    "speed": 0.95,
+    "duration": 35,
+    "tags": [
+      "tiktok",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "motivation_stickman": {
+    "label": "Stickman Motivation",
+    "description": "Simple stickman visuals with uplifting, inspirational narration. Call-to-action endings.",
+    "category": "motivation",
+    "niche": "motivation",
+    "visual_style": "stickman_animation",
+    "story_tone": "inspirational",
+    "voice": "af_heart",
+    "speed": 1.0,
+    "duration": 30,
+    "tags": [
+      "tiktok",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "motivation_cinematic": {
+    "label": "Cinematic Motivation",
+    "description": "Epic cinematic visuals with inspirational narration. Sunrise shots, mountain peaks, triumphant moments.",
+    "category": "motivation",
+    "niche": "motivation",
+    "visual_style": "motivational",
+    "story_tone": "inspirational",
+    "voice": "am_michael",
+    "speed": 0.95,
+    "duration": 60,
+    "tags": [
+      "youtube",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "biblical_cinematic": {
+    "label": "Cinematic Biblical",
+    "description": "Cinematic visuals for biblical stories. Divine lighting, sacred imagery, dramatic weight.",
+    "category": "religion",
+    "niche": "biblical",
+    "visual_style": "cinematic",
+    "story_tone": "dramatic",
+    "voice": "am_michael",
+    "speed": 0.85,
+    "duration": 90,
+    "tags": [
+      "youtube"
+    ],
+    "custom": false
+  },
+  "biblical_gothic": {
+    "label": "Gothic Biblical",
+    "description": "Gothic cathedral aesthetics for religious content. Candlelight, stained glass, dark Victorian elegance.",
+    "category": "religion",
+    "niche": "biblical",
+    "visual_style": "gothic",
+    "story_tone": "dramatic",
+    "voice": "am_michael",
+    "speed": 0.85,
+    "duration": 90,
+    "tags": [
+      "youtube"
+    ],
+    "custom": false
+  },
+  "conspiracy_noir": {
+    "label": "Noir Conspiracy",
+    "description": "Film noir visuals for conspiracy and occult stories. Secret symbols, shadowy agendas, hidden truths.",
+    "category": "mystery",
+    "niche": "conspiracy",
+    "visual_style": "noir",
+    "story_tone": "suspenseful",
+    "voice": "am_michael",
+    "speed": 0.9,
+    "duration": 75,
+    "tags": [
+      "youtube"
+    ],
+    "custom": false
+  },
+  "conspiracy_cinematic": {
+    "label": "Cinematic Conspiracy",
+    "description": "Cinematic visuals for conspiracy theories. Underground bunkers, coded manuscripts, suspenseful reveals.",
+    "category": "mystery",
+    "niche": "conspiracy",
+    "visual_style": "cinematic",
+    "story_tone": "suspenseful",
+    "voice": "am_michael",
+    "speed": 0.9,
+    "duration": 60,
+    "tags": [
+      "youtube",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "anime_romance": {
+    "label": "Anime Romance",
+    "description": "Anime-style romance with expressive characters, vivid colors, and emotional story arcs.",
+    "category": "romance",
+    "niche": "romance",
+    "visual_style": "anime",
+    "story_tone": "dramatic",
+    "voice": "af_heart",
+    "speed": 1.0,
+    "duration": 45,
+    "tags": [
+      "shorts"
+    ],
+    "custom": false
+  },
+  "children_storybook_wholesome": {
+    "label": "Wholesome Storybook",
+    "description": "Soft pastel storybook illustrations with gentle, age-appropriate narration. Warm and magical.",
+    "category": "children",
+    "niche": "children",
+    "visual_style": "children_storybook",
+    "story_tone": "wholesome",
+    "voice": "af_heart",
+    "speed": 0.9,
+    "duration": 45,
+    "tags": [
+      "youtube"
+    ],
+    "custom": false
+  },
+  "scifi_cyberpunk": {
+    "label": "Cyberpunk Sci-Fi",
+    "description": "Neon-soaked cyberpunk visuals for sci-fi stories. Futuristic tech, rain-slicked chrome, dramatic pacing.",
+    "category": "science",
+    "niche": "sci_fi",
+    "visual_style": "cyberpunk",
+    "story_tone": "dramatic",
+    "voice": "am_michael",
+    "speed": 1.0,
+    "duration": 60,
+    "tags": [
+      "youtube",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "wealth_cinematic": {
+    "label": "Cinematic Wealth & Luxury",
+    "description": "Luxury lifestyle visuals with aspirational narration. Penthouses, supercars, golden hour opulence.",
+    "category": "motivation",
+    "niche": "wealth",
+    "visual_style": "cinematic",
+    "story_tone": "inspirational",
+    "voice": "am_michael",
+    "speed": 0.95,
+    "duration": 60,
+    "tags": [
+      "youtube",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "reddit_story_cinematic": {
+    "label": "Reddit Story",
+    "description": "Relatable everyday visuals for Reddit-style personal stories. Candid, grounded, dramatic twists.",
+    "category": "anecdote",
+    "niche": "reddit",
+    "visual_style": "reddit_story",
+    "story_tone": "dramatic",
+    "voice": "af_heart",
+    "speed": 1.0,
+    "duration": 45,
+    "tags": [
+      "tiktok",
+      "youtube",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "two_choices_cinematic": {
+    "label": "Two Things Can Happen",
+    "description": "Split-screen branching choices. Every scene shows two possible outcomes side by side.",
+    "category": "psychology",
+    "niche": "two_choices",
+    "visual_style": "two_choices",
+    "story_tone": "suspenseful",
+    "voice": "af_heart",
+    "speed": 1.0,
+    "duration": 35,
+    "tags": [
+      "tiktok",
+      "shorts"
+    ],
+    "custom": false
+  },
+  "existential_philosophy": {
+    "label": "Existential Philosophy",
+    "description": "Futuristic abstract visuals with philosophical narration. High-contrast mind exploration for deep-thinking content.",
+    "category": "philosophy",
+    "niche": "existential",
+    "visual_style": "existential",
+    "story_tone": "dramatic",
+    "voice": "af_heart",
+    "speed": 0.9,
+    "duration": 60,
+    "tags": [
+      "youtube",
+      "shorts"
+    ],
+    "custom": false
+  }
+}

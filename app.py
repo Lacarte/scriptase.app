@@ -52,6 +52,7 @@ def register_blueprints(app: Flask) -> None:
     seven `compose_*` ones below without moving a single behaviour: the logic
     they used to hold now lives in `scriptase/modules/compose/*_service.py`.
     """
+    from scriptase.channels import channels_bp
     from scriptase.engine.routes import workflows_bp
     from scriptase.modules.captions import captions_bp
     from scriptase.modules.compose import (
@@ -76,6 +77,7 @@ def register_blueprints(app: Flask) -> None:
 
     app.register_blueprint(workflows_bp)
     app.register_blueprint(providers_bp)
+    app.register_blueprint(channels_bp)
 
     for blueprint in (
         story_bp,
@@ -98,6 +100,8 @@ def register_blueprints(app: Flask) -> None:
         compose_export_bp,
     ):
         app.register_blueprint(blueprint)
+
+    _register_spa_fallback(app)
 
 
 def init_provider_platform(app: Flask, sock) -> None:
@@ -124,6 +128,35 @@ def _configure_cors(app: Flask) -> None:
     )
     origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
     CORS(app, origins=origins or None)
+
+
+def _register_spa_fallback(app: Flask) -> None:
+    """Serve the Vite production build's index.html for client-side routes.
+
+    API and engine-managed paths stay first-match; only bare UI routes fall
+    through here. Absent dist (dev / fresh clone) the handler 404s cleanly.
+    """
+    from flask import send_from_directory
+
+    dist = config.STATIC_DIST_DIR
+    index = dist / "index.html"
+
+    @app.get("/")
+    def spa_root():
+        if index.is_file():
+            return send_from_directory(dist, "index.html")
+        return (
+            "<!doctype html><title>Scriptase</title>"
+            "<p>Frontend not built. Run <code>cd frontend && npm run build</code> "
+            "or start the Vite dev server on :5173.</p>"
+        ), 200
+
+    @app.get("/channels")
+    @app.get("/channels/<path:_rest>")
+    def spa_channels(_rest=None):
+        if index.is_file():
+            return send_from_directory(dist, "index.html")
+        return spa_root()
 
 
 def _configure_sock(app: Flask):

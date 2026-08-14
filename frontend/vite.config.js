@@ -18,6 +18,8 @@ export default defineConfig({
     // The backend is loopback-only; the dev server proxies to it.
     proxy: {
       '/api': 'http://127.0.0.1:5000',
+      // Managed branding assets are served from /output/branding/...
+      '/output': 'http://127.0.0.1:5000',
     },
   },
   test: {
