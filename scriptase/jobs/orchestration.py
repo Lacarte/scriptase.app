@@ -547,6 +547,17 @@ def sync_job_from_execution(
     # Harvest artifact refs while we have the record.
     artifact_ids = _harvest_artifacts(job, execution)
 
+    # Step 9.3: accumulate generation count and cost from provenance-backed
+    # node cost snapshots onto Job.budget_spent (idempotent recompute).
+    budget_spent = None
+    try:
+        from scriptase.jobs.cost import budget_spent_from_execution
+
+        spent, _records = budget_spent_from_execution(job, execution)
+        budget_spent = spent
+    except Exception:
+        budget_spent = None
+
     updates: dict[str, Any] = {
         "status": job_status,
         "execution_id": execution.get("execution_id") or execution_id,
@@ -554,6 +565,8 @@ def sync_job_from_execution(
         "status_reason": status_reason,
         "allow_terminal": job.status in TERMINAL_STATUSES,
     }
+    if budget_spent is not None:
+        updates["budget_spent"] = budget_spent
     if job_status in TERMINAL_STATUSES:
         updates["completed_at"] = completed_at or now_iso()
 
@@ -563,6 +576,15 @@ def sync_job_from_execution(
         # Race: another finalizer already flipped the Job. Re-read and continue
         # with artifact merge under allow_terminal.
         job = get_job(job_id)
+        if budget_spent is not None:
+            try:
+                job = update_job(
+                    job.id,
+                    budget_spent=budget_spent,
+                    allow_terminal=True,
+                )
+            except Exception:
+                pass
 
     if artifact_ids:
         job = add_artifact_ids(job.id, artifact_ids, allow_terminal=True)

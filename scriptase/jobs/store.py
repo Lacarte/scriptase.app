@@ -421,6 +421,7 @@ def job_summary(document: Job) -> dict[str, Any]:
     source_mode = (
         source.mode if hasattr(source, "mode") else (source or {}).get("mode")
     )
+    spent = document.budget_spent
     return {
         "id": document.id,
         "channel_id": document.channel_id,
@@ -432,6 +433,10 @@ def job_summary(document: Job) -> dict[str, Any]:
         "current_stage": document.current_stage,
         "artifact_count": len(document.artifacts),
         "execution_id": document.execution_id,
+        "budget_spent": {
+            "generations": int(spent.generations),
+            "cost": float(spent.cost),
+        },
         "created_at": document.created_at,
         "started_at": document.started_at,
         "completed_at": document.completed_at,

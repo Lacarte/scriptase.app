@@ -43,6 +43,7 @@ from .approval import (
     approvals_root as approval_checkpoints_root,
 )
 from .cache import CacheLookup, NodeCache, canonical_fingerprint, fingerprint_components, output_fingerprint
+from .cost_snapshot import cost_snapshot_from_result, is_provider_node_type
 from .expressions import ExpressionError, resolve_configuration, validate_expressions
 from .registry import get_node_type
 from .models import ExecutionLog, ExecutionRecord, NodeExecutionRecord
@@ -843,6 +844,12 @@ class WorkflowScheduler:
             node_record.outputs_summary = self.redactor(_summarize(result))
             node_record.cache = {"hit": True, "reason": "pinned_payload"}
             node_record.duration_ms = 0
+            node_record.cost = cost_snapshot_from_result(
+                result,
+                cache_hit=True,
+                configuration=configuration,
+                is_provider_node=is_provider_node_type(node.get("type")),
+            )
             self._status(statuses, node_id, "succeeded", node_record=node_record)
             return _NodeOutcome()
 
@@ -871,6 +878,13 @@ class WorkflowScheduler:
                 node_record.outputs_summary = self.redactor(_summarize(result))
                 node_record.artifact_refs = self.redactor(_artifact_refs(result))
                 node_record.duration_ms = 0
+                # Step 9.3: cache hits do not consume generation budget.
+                node_record.cost = cost_snapshot_from_result(
+                    result,
+                    cache_hit=True,
+                    configuration=configuration,
+                    is_provider_node=is_provider_node_type(node.get("type")),
+                )
                 self._status(statuses, node_id, "succeeded", node_record=node_record)
                 return _NodeOutcome()
 
@@ -922,6 +936,13 @@ class WorkflowScheduler:
                 node_outputs[node_id] = result
                 node_record.outputs_summary = self.redactor(_summarize(result))
                 node_record.artifact_refs = self.redactor(_artifact_refs(result))
+                # Step 9.3: durable cost/generation snapshot from provenance.
+                node_record.cost = cost_snapshot_from_result(
+                    result,
+                    cache_hit=False,
+                    configuration=configuration,
+                    is_provider_node=is_provider_node_type(node.get("type")),
+                )
                 if self.redactor(result) != result:
                     output_fp, cache_failure = None, "sensitive_output"
                 elif cacheable:

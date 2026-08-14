@@ -875,6 +875,7 @@ class ExecutionManager:
                 logs=list(raw.get("logs") or []),
                 attempt_errors=list(raw.get("attempt_errors") or []),
                 error=dict(raw["error"]) if isinstance(raw.get("error"), Mapping) else None,
+                cost=dict(raw["cost"]) if isinstance(raw.get("cost"), Mapping) else None,
             )
         return ExecutionRecord(
             execution_id=str(document.get("execution_id") or ""),

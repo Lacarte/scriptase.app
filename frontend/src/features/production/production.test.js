@@ -71,6 +71,7 @@ vi.mock('./api.js', () => ({
   getJobDefaults: vi.fn(),
   listJobs: vi.fn(),
   getJob: vi.fn(),
+  getJobCost: vi.fn(),
   createJob: vi.fn(),
   startJob: vi.fn(),
   testJobNode: vi.fn(),

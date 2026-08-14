@@ -29,6 +29,7 @@ from scriptase.providers.results import (
     Provenance,
     ProviderResult,
     coerce_result,
+    extract_cost,
     extract_reproducibility,
     resolve_ref,
     validate_egress,
@@ -270,10 +271,13 @@ def build_provenance(
     """
     from scriptase.providers import settings_manager
 
+    result_meta = result.metadata if result is not None else None
     repro = extract_reproducibility(
-        metadata=result.metadata if result is not None else None,
+        metadata=result_meta,
         options=invocation.options,
     )
+    # Step 9.3: harvest cost as reported; never invent, never convert here.
+    cost = extract_cost(metadata=result_meta)
     return Provenance(
         invocation_id=invocation.invocation_id,
         domain=invocation.domain,
@@ -295,6 +299,7 @@ def build_provenance(
         seed=repro["seed"],
         request_id=repro["request_id"],
         model_revision=repro["model_revision"],
+        cost=cost,
     )
 
 

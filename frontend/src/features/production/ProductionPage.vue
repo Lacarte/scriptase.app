@@ -15,6 +15,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   getExecution,
   getJob,
+  getJobCost,
   getNodeTypes,
   listExecutions,
   listWorkflows,
@@ -63,6 +64,10 @@ const showJobCreate = ref(false)
 const activeJobId = ref('')
 const activeJobSourceMode = ref(null)
 const activeJobExecutionMode = ref(null)
+/** Job cost report (step 9.3) — generations + cost by stage / instance. */
+const jobCost = ref(null)
+const jobCostLoading = ref(false)
+const jobCostError = ref('')
 /** Registry definitions for the Test Node panel port list (step 4.2). */
 const nodeTypes = ref({})
 /** Last Test Node result shown in the detail panel. */
@@ -118,11 +123,31 @@ async function refreshExecutions(wfId) {
   }
 }
 
+async function refreshJobCost(jobId) {
+  if (!jobId) {
+    jobCost.value = null
+    jobCostError.value = ''
+    return
+  }
+  jobCostLoading.value = true
+  jobCostError.value = ''
+  try {
+    const data = await getJobCost(jobId)
+    jobCost.value = data?.cost || data || null
+  } catch (err) {
+    jobCost.value = null
+    jobCostError.value = err?.message || String(err)
+  } finally {
+    jobCostLoading.value = false
+  }
+}
+
 async function bindJobFromRoute(jobId) {
   if (!jobId) {
     activeJobId.value = ''
     activeJobSourceMode.value = null
     activeJobExecutionMode.value = null
+    jobCost.value = null
     return
   }
   try {
@@ -134,6 +159,8 @@ async function bindJobFromRoute(jobId) {
     if (job.workflow_id) {
       selectedWorkflowId.value = job.workflow_id
     }
+    // Load cost report in parallel with stage hydrate (step 9.3).
+    void refreshJobCost(activeJobId.value)
     if (job.execution_id) {
       selectedExecutionId.value = job.execution_id
       await hydrateFromExecution(job.execution_id)
@@ -218,6 +245,7 @@ async function onJobStarted({ job, executionId: exId }) {
     selectedExecutionId.value = exId
   }
   await router.replace({ name: 'production', query })
+  if (job?.id) void refreshJobCost(job.id)
   if (exId) {
     await hydrateFromExecution(exId)
     await refreshExecutions(job?.workflow_id || selectedWorkflowId.value)
@@ -226,6 +254,39 @@ async function onJobStarted({ job, executionId: exId }) {
     await refreshExecutions(job.workflow_id)
   }
 }
+
+function formatCostAmount(amount, currency = 'USD') {
+  if (amount == null || Number.isNaN(Number(amount))) return '—'
+  const n = Number(amount)
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currency || 'USD',
+      maximumFractionDigits: 4,
+    }).format(n)
+  } catch {
+    return `${n.toFixed(4)} ${currency || ''}`.trim()
+  }
+}
+
+const costStageRows = computed(() => {
+  const byStage = jobCost.value?.by_stage || {}
+  return Object.entries(byStage).map(([key, row]) => ({
+    key,
+    generations: row?.generations ?? 0,
+    cost: row?.cost ?? 0,
+  }))
+})
+
+const costInstanceRows = computed(() => {
+  const byInst = jobCost.value?.by_provider_instance || {}
+  return Object.entries(byInst).map(([key, row]) => ({
+    key,
+    label: row?.provider_instance_id || row?.provider_id || key,
+    generations: row?.generations ?? 0,
+    cost: row?.cost ?? 0,
+  }))
+})
 
 function onJobCreated({ job }) {
   activeJobId.value = job?.id || ''
@@ -508,6 +569,96 @@ onMounted(async () => {
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <p v-if="streamError && !error" class="stream-warn" role="status">{{ streamError }}</p>
+
+    <!-- Step 9.3: Job cost accounting (generations + cost by stage / instance) -->
+    <section
+      v-if="activeJobId && (jobCost || jobCostLoading || jobCostError)"
+      class="cost-panel"
+      aria-label="Job cost report"
+    >
+      <header class="cost-header">
+        <h2>Cost</h2>
+        <span v-if="jobCostLoading" class="muted cost-meta">Loading…</span>
+        <span
+          v-else-if="jobCost?.reconcile"
+          class="cost-meta"
+          :class="jobCost.reconcile.ok ? 'reconcile-ok' : 'reconcile-warn'"
+          :title="jobCost.reconcile.ok
+            ? 'budget_spent matches provenance records'
+            : 'budget_spent diverges from provenance sum'"
+        >
+          {{ jobCost.reconcile.ok ? 'Reconciled' : 'Out of sync' }}
+        </span>
+      </header>
+      <p v-if="jobCostError" class="error" role="alert">{{ jobCostError }}</p>
+      <template v-else-if="jobCost">
+        <div class="cost-totals">
+          <div class="cost-stat">
+            <span class="cost-stat-label">Generations</span>
+            <strong class="cost-stat-value">{{ jobCost.totals?.generations ?? 0 }}</strong>
+          </div>
+          <div class="cost-stat">
+            <span class="cost-stat-label">Cost</span>
+            <strong class="cost-stat-value">
+              {{ formatCostAmount(jobCost.totals?.cost, jobCost.currency) }}
+            </strong>
+          </div>
+          <div
+            v-if="jobCost.budget?.max_generations != null || jobCost.budget?.max_cost != null"
+            class="cost-stat"
+          >
+            <span class="cost-stat-label">Ceiling</span>
+            <strong class="cost-stat-value ceiling">
+              <template v-if="jobCost.budget?.max_generations != null">
+                {{ jobCost.budget.max_generations }} gen
+              </template>
+              <template v-if="jobCost.budget?.max_cost != null">
+                · {{ formatCostAmount(jobCost.budget.max_cost, jobCost.budget.currency || jobCost.currency) }}
+              </template>
+            </strong>
+          </div>
+        </div>
+        <div v-if="costStageRows.length" class="cost-breakdown">
+          <h3>By stage</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Stage</th>
+                <th>Generations</th>
+                <th>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in costStageRows" :key="row.key">
+                <td>{{ row.key }}</td>
+                <td>{{ row.generations }}</td>
+                <td>{{ formatCostAmount(row.cost, jobCost.currency) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="costInstanceRows.length" class="cost-breakdown">
+          <h3>By provider instance</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Instance</th>
+                <th>Generations</th>
+                <th>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in costInstanceRows" :key="row.key">
+                <td class="mono">{{ row.label }}</td>
+                <td>{{ row.generations }}</td>
+                <td>{{ formatCostAmount(row.cost, jobCost.currency) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
+    </section>
+
     <p v-if="loading" class="muted">Loading stages…</p>
 
     <div v-else-if="hasStages" class="stage-layout">
@@ -853,5 +1004,112 @@ button.ghost {
 .empty {
   padding: 2rem 0;
   line-height: 1.5;
+}
+
+.cost-panel {
+  margin: 0 0 1.25rem;
+  padding: 0.9rem 1rem 1rem;
+  background: var(--bg-surface, #161d2a);
+  border: 1px solid var(--border, #1e2a3a);
+  border-radius: 10px;
+}
+
+.cost-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.cost-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.cost-meta {
+  font-size: 0.75rem;
+  font-family: var(--font-mono, monospace);
+}
+
+.reconcile-ok {
+  color: var(--accent-ready, #26de81);
+}
+
+.reconcile-warn {
+  color: var(--accent-active, #ff9f43);
+}
+
+.cost-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.cost-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 5.5rem;
+}
+
+.cost-stat-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #6b7f93);
+}
+
+.cost-stat-value {
+  font-size: 1.15rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.cost-stat-value.ceiling {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary, #8899aa);
+}
+
+.cost-breakdown {
+  margin-top: 0.65rem;
+}
+
+.cost-breakdown h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary, #8899aa);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cost-breakdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.cost-breakdown th,
+.cost-breakdown td {
+  text-align: left;
+  padding: 0.3rem 0.45rem;
+  border-bottom: 1px solid var(--border, #1e2a3a);
+}
+
+.cost-breakdown th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted, #6b7f93);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cost-breakdown td.mono {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
 }
 </style>

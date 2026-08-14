@@ -252,6 +252,77 @@ def extract_reproducibility(
     }
 
 
+def extract_cost(
+    *,
+    metadata: Mapping[str, Any] | None = None,
+    cost: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Lift a cost block from platform-visible surfaces (step 9.3).
+
+    Providers never write ``Provenance`` directly. They may surface cost in
+    result ``metadata.cost`` (or a top-level ``cost`` mapping the platform
+    already carries). Values are **never invented**: missing stays ``None``.
+
+    Shape (contracts.md §2 / §12.1)::
+
+        {amount, currency, unit_count, unit}
+
+    ``amount`` is recorded as reported (decimal string or number). Currency
+    conversion happens only at report time (9.3), never on ingest.
+    """
+    raw: Any = cost
+    if not isinstance(raw, Mapping):
+        meta = dict(metadata or {})
+        raw = meta.get("cost")
+    if not isinstance(raw, Mapping):
+        return None
+
+    amount = raw.get("amount")
+    if amount is None or amount == "":
+        # amount is required for a cost report; unit-only blocks are ignored.
+        return None
+
+    # Preserve reported form: prefer string decimals when provided as str,
+    # otherwise coerce numbers to a stable decimal string.
+    if isinstance(amount, bool):
+        return None
+    if isinstance(amount, (int, float)):
+        amount_out: str | int | float = amount
+    else:
+        text = str(amount).strip()
+        if not text:
+            return None
+        try:
+            # Validate numeric; keep the original text when it was a string.
+            float(text)
+            amount_out = text
+        except (TypeError, ValueError):
+            return None
+
+    currency = str(raw.get("currency") or "USD").strip().upper() or "USD"
+    if len(currency) > 8:
+        currency = currency[:8]
+
+    unit_count = raw.get("unit_count")
+    if unit_count is None or unit_count == "":
+        unit_count_out: float | int | None = None
+    else:
+        try:
+            unit_count_out = float(unit_count)
+        except (TypeError, ValueError):
+            unit_count_out = None
+
+    unit = raw.get("unit")
+    unit_out = str(unit).strip()[:64] if unit not in (None, "") else ""
+
+    return {
+        "amount": amount_out,
+        "currency": currency,
+        "unit_count": unit_count_out,
+        "unit": unit_out or None,
+    }
+
+
 # -- per-unit results (contracts.md §31.5) ----------------------------------
 
 
@@ -669,6 +740,7 @@ __all__ = [
     "coerce_result",
     "dedupe_refs",
     "derive_status",
+    "extract_cost",
     "extract_reproducibility",
     "normalize_ref",
     "resolve_ref",

@@ -10,6 +10,7 @@ Job creation (Step 0 / step 2.5)
 * ``GET    /api/jobs`` — list (newest first)
 * ``POST   /api/jobs`` — create from Channel + source + workflow + mode
 * ``GET    /api/jobs/<job_id>`` — full document (snapshot is secret-free)
+* ``GET    /api/jobs/<job_id>/cost`` — cost accounting report (9.3)
 * ``GET    /api/jobs/<job_id>/repair-history`` — full repair sequence (8.4)
 * ``POST   /api/jobs/<job_id>/start`` — run through the ported engine
 * ``POST   /api/jobs/<job_id>/test-node`` — isolated Test Node run; never advances Job (4.2)
@@ -261,6 +262,41 @@ def jobs_get(job_id: str):
     except (JobNotFound, JobValidationError, ValueError) as exc:
         return _store_error(exc)
     return jsonify({"job": _job_public(document)})
+
+
+@jobs_bp.route("/api/jobs/<job_id>/cost", methods=["GET"])
+def jobs_cost_report(job_id: str):
+    """Accumulated generation count and cost for a Job (step 9.3).
+
+    Breaks spend down by Production stage and provider instance, and
+    reconciles the sum with ``budget_spent`` / provenance cost records.
+    Currency conversion (if any) is applied only in this report payload.
+    """
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    try:
+        document = get_job(job_id)
+        # Refresh spend from the linked execution when present so the report
+        # matches the latest provenance-backed node snapshots.
+        if document.execution_id:
+            try:
+                document = sync_job_from_execution(document.id)
+            except Exception:
+                pass
+    except (JobNotFound, JobValidationError, ValueError) as exc:
+        return _store_error(exc)
+
+    from scriptase.jobs.cost import build_cost_report
+
+    execution = None
+    if document.execution_id:
+        try:
+            execution = load_execution(document.execution_id)
+        except Exception:
+            execution = None
+
+    report = build_cost_report(document, execution=execution)
+    return jsonify({"cost": report})
 
 
 @jobs_bp.route("/api/jobs/<job_id>/repair-history", methods=["GET"])

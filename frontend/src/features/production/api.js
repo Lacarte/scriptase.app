@@ -89,6 +89,14 @@ export function getJob(jobId) {
 }
 
 /**
+ * Cost accounting report for a Job (step 9.3).
+ * Totals + per-stage + per-provider-instance, reconciled with provenance.
+ */
+export function getJobCost(jobId) {
+  return apiGet(`/jobs/${encodeURIComponent(jobId)}/cost`)
+}
+
+/**
  * Create a Job from Channel + source + workflow + execution mode.
  * @param {object} draft
  */

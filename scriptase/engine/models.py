@@ -31,6 +31,11 @@ class NodeExecutionRecord:
     logs: list[dict[str, Any]] = field(default_factory=list)
     attempt_errors: list[dict[str, Any]] = field(default_factory=list)
     error: dict[str, Any] | None = None
+    # Step 9.3: compact accounting snapshot lifted from result provenance.
+    # Stored outside outputs_summary so string decimals survive _summarize.
+    # Shape: {amount?, currency?, unit_count?, unit?, provider_instance_id?,
+    #         provider_id?, generations, cache_hit, invocation_id?}.
+    cost: dict[str, Any] | None = None
 
 
 @dataclass

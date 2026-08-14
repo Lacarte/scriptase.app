@@ -208,6 +208,24 @@ def channels_get(channel_id: str):
     return jsonify({"channel": document.to_document()})
 
 
+@channels_bp.route("/api/channels/<channel_id>/cost", methods=["GET"])
+def channels_cost_report(channel_id: str):
+    """Channel-level cost rollup across its Jobs (step 9.3)."""
+    if not CHANNEL_ID_RE.fullmatch(channel_id or ""):
+        return _error("BAD_REQUEST", "channel_id must match ch_[A-Z0-9]{6}", 400)
+    try:
+        get_channel(channel_id)
+    except (ChannelNotFound, ChannelValidationError, ValueError) as exc:
+        return _store_error(exc)
+
+    from scriptase.jobs.cost import build_channel_cost_report
+    from scriptase.jobs.store import list_jobs
+
+    jobs = list_jobs(channel_id=channel_id, limit=500)
+    report = build_channel_cost_report(channel_id, jobs)
+    return jsonify({"cost": report})
+
+
 @channels_bp.route("/api/channels/<channel_id>", methods=["PUT"])
 def channels_update(channel_id: str):
     if not CHANNEL_ID_RE.fullmatch(channel_id or ""):
