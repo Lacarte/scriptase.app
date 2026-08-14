@@ -191,6 +191,19 @@ def generate_scenes(
         result["custom_style_notes"] = custom_style_notes
     finalize_scene_result(result, scene_blueprints, visual_bible)
 
+    # Step 5.1: stamp stable scene ids + narration onto SceneSpec rows, and
+    # re-emit each scene through the frozen §8 shape so scenes.json and the
+    # provider envelope share one contract.
+    from scriptase.modules.scene_director.providers.contract import (
+        stamp_scene_specs_from_segments,
+    )
+
+    stamped = stamp_scene_specs_from_segments(
+        result.get("scenes") or [],
+        speech_segments,
+    )
+    result["scenes"] = [spec.to_port_dict() for spec in stamped]
+
     story_tone = config.get("story_tone") or config.get("tone") or ""
     _assign_hook_animations(result, story_tone)
 

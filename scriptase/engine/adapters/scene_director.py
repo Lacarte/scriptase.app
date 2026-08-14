@@ -10,6 +10,10 @@ from __future__ import annotations
 import os
 
 from config import SCENES_DIR
+from scriptase.modules.scene_director.providers.contract import (
+    SceneBlueprintResultPayload,
+    coerce_scene_specs,
+)
 from scriptase.providers.errors import ProviderError
 from scriptase.providers.hub import hub
 
@@ -63,11 +67,22 @@ def blueprint(inputs, config, context):
     # forgets to stamp it (P33 / contracts §43).
     if not result.get("provider"):
         result["provider"] = type_id
+    # Step 5.1: normalize every scene through SceneSpec so the scenes port
+    # always carries the frozen §8 field set for image/video adapters.
+    try:
+        typed = SceneBlueprintResultPayload.from_mapping(result)
+        result["scenes"] = typed.scenes_as_dicts()
+    except (TypeError, ValueError):
+        specs = coerce_scene_specs(result.get("scenes") or [])
+        if specs:
+            result["scenes"] = [spec.to_port_dict() for spec in specs]
     payload = with_artifacts(result, path)
     prompts = with_artifacts(
         {
             "project_id": pid,
-            "image_prompts": [s.get("image_prompt", "") for s in result.get("scenes", [])],
+            "image_prompts": [
+                s.get("image_prompt", "") for s in result.get("scenes", [])
+            ],
         },
         path,
     )

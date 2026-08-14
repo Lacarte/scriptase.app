@@ -83,7 +83,12 @@ class SceneBlueprintProvider(ABC):
             segment_result, configuration, project_id=invocation.project_id
         )
         path = document.pop("path", None)
-        payload = SceneBlueprintResultPayload.from_mapping(document).model_dump()
+        # Coerce every scene through SceneSpec so the envelope always carries
+        # the frozen §8 shape (step 5.1), including legacy scenes.json rows.
+        typed = SceneBlueprintResultPayload.from_mapping(document)
+        payload = typed.model_dump(mode="python")
+        # Prefer the port-friendly scene dicts (plural + singular hint aliases).
+        payload["scenes"] = typed.scenes_as_dicts()
         refs = [normalize_ref(path)] if path else []
         if refs:
             payload = {**payload, "document_ref": refs[0]}

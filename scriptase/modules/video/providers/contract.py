@@ -20,6 +20,8 @@ from typing import Any, Iterable, Mapping
 
 from pydantic import BaseModel, Field, field_validator
 
+from scriptase.modules.scene_director.providers.contract import SceneSpec, coerce_scene_specs
+
 
 DEFAULT_ASPECT_RATIO = "9:16"
 DEFAULT_MODE = "video"
@@ -83,38 +85,57 @@ class AnimatorRequest(BaseModel):
         return [{"scene": scene.index, "prompt": scene.prompt} for scene in self.scenes]
 
     @classmethod
-    def from_scenes(
+    def from_scene_specs(
         cls,
-        scenes: Iterable[Mapping[str, Any]],
+        scenes: Iterable[SceneSpec],
         *,
         aspect_ratio: Any = DEFAULT_ASPECT_RATIO,
         mode: Any = DEFAULT_MODE,
     ) -> "AnimatorRequest":
-        """Build a request from any of the historical scene shapes.
+        """Build a request from typed :class:`SceneSpec` rows (step 5.1).
 
-        Accepts `index`/`scene` for the unit index, `prompt`/`image_prompt` for
-        the text, and optional `reference_ref` for image-to-video inputs.
+        Uses ``SceneSpec.motion_prompt`` (falling back to ``image_prompt``) so
+        the video adapter never digs in a loose dict for prompt text.
         """
         units: list[dict] = []
         for position, scene in enumerate(scenes or ()):
-            if not isinstance(scene, Mapping):
+            if not isinstance(scene, SceneSpec):
+                scene = SceneSpec.coerce(scene, position=position)
+            prompt = scene.motion_prompt_text()
+            if not prompt:
                 continue
-            prompt = scene.get("prompt")
-            if prompt in (None, ""):
-                prompt = scene.get("image_prompt")
-            if not str(prompt or "").strip():
-                continue
-            index = scene.get("index")
-            if index is None:
-                index = scene.get("scene")
-            if index is None:
-                index = position
-            entry: dict[str, Any] = {"index": int(index), "prompt": prompt}
-            ref = scene.get("reference_ref")
+            entry: dict[str, Any] = {
+                "index": scene.unit_index(position),
+                "prompt": prompt,
+            }
+            ref = getattr(scene, "reference_ref", None)
+            if ref in (None, ""):
+                extras = getattr(scene, "__pydantic_extra__", None) or {}
+                ref = extras.get("reference_ref") if isinstance(extras, Mapping) else None
             if ref not in (None, ""):
                 entry["reference_ref"] = ref
             units.append(entry)
         return cls(scenes=units, aspect_ratio=aspect_ratio, mode=mode)
+
+    @classmethod
+    def from_scenes(
+        cls,
+        scenes: Iterable[Any],
+        *,
+        aspect_ratio: Any = DEFAULT_ASPECT_RATIO,
+        mode: Any = DEFAULT_MODE,
+    ) -> "AnimatorRequest":
+        """Build a request from SceneSpec or any historical scene shape.
+
+        Accepts typed ``SceneSpec`` instances and legacy mappings
+        (`index`/`scene`, `prompt`/`image_prompt`/`motion_prompt`,
+        optional `reference_ref`).
+        """
+        return cls.from_scene_specs(
+            coerce_scene_specs(scenes),
+            aspect_ratio=aspect_ratio,
+            mode=mode,
+        )
 
 
 class AnimatorResultPayload(BaseModel):

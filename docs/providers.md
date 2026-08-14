@@ -108,7 +108,7 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 
 | Field | Type | Required | Default |
 |---|---|---|---|
-| `scenes` | `list[dict[str, Any]]` | no | factory |
+| `scenes` | `list[SceneSpec]` | no | factory |
 | `style_spec` | `dict[str, Any]` | no | factory |
 | `style_prompt` | `str` | no | `""` |
 | `analysis` | `dict[str, Any]` | no | factory |

@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from config import STORYBOARD_DIR
 
 from scriptase.modules.image.providers.contract import StoryboardRequest
+from scriptase.modules.scene_director.providers.contract import coerce_scene_specs
 
 from .common import (
     AdapterError,
@@ -63,9 +64,11 @@ def _resolved_settings(provider: str) -> dict:
 
 def _step_storyboard(scenes_result, config, pid, context):
     """Run the selected provider; the shared media-job service owns the wait."""
+    # Step 5.1: adapters consume SceneSpec, not loose dicts.
+    specs = coerce_scene_specs((scenes_result or {}).get("scenes") or [])
     try:
-        request = StoryboardRequest.from_scenes(
-            scenes_result.get("scenes") or [],
+        request = StoryboardRequest.from_scene_specs(
+            specs,
             aspect_ratio=config.get("aspect_ratio") or "9:16",
             style=config.get("style"),
         )

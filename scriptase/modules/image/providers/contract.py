@@ -17,6 +17,8 @@ from typing import Any, Iterable, Mapping
 
 from pydantic import BaseModel, Field, field_validator
 
+from scriptase.modules.scene_director.providers.contract import SceneSpec, coerce_scene_specs
+
 
 DEFAULT_ASPECT_RATIO = "9:16"
 
@@ -72,35 +74,46 @@ class StoryboardRequest(BaseModel):
         return [{"scene": scene.index, "prompt": scene.prompt} for scene in self.scenes]
 
     @classmethod
-    def from_scenes(
+    def from_scene_specs(
         cls,
-        scenes: Iterable[Mapping[str, Any]],
+        scenes: Iterable[SceneSpec],
         *,
         aspect_ratio: Any = DEFAULT_ASPECT_RATIO,
         style: Any = "",
     ) -> "StoryboardRequest":
-        """Build a request from any of the three historical scene shapes.
+        """Build a request from typed :class:`SceneSpec` rows (step 5.1).
 
-        Accepts `index`/`scene` for the unit index and `prompt`/`image_prompt`
-        for the text, so the workflow node, the legacy page, and the pipeline
-        all reach the same provider without a caller-side translation.
+        Uses ``SceneSpec.image_prompt`` — never a free-form loose dict lookup.
         """
         units: list[dict] = []
         for position, scene in enumerate(scenes or ()):
-            if not isinstance(scene, Mapping):
+            if not isinstance(scene, SceneSpec):
+                scene = SceneSpec.coerce(scene, position=position)
+            prompt = scene.image_prompt_text()
+            if not prompt:
                 continue
-            prompt = scene.get("prompt")
-            if prompt in (None, ""):
-                prompt = scene.get("image_prompt")
-            if not str(prompt or "").strip():
-                continue
-            index = scene.get("index")
-            if index is None:
-                index = scene.get("scene")
-            if index is None:
-                index = position
-            units.append({"index": int(index), "prompt": prompt})
+            units.append({"index": scene.unit_index(position), "prompt": prompt})
         return cls(scenes=units, aspect_ratio=aspect_ratio, style=style)
+
+    @classmethod
+    def from_scenes(
+        cls,
+        scenes: Iterable[Any],
+        *,
+        aspect_ratio: Any = DEFAULT_ASPECT_RATIO,
+        style: Any = "",
+    ) -> "StoryboardRequest":
+        """Build a request from SceneSpec or any historical scene shape.
+
+        Accepts typed ``SceneSpec`` instances and legacy mappings
+        (`index`/`scene`, `prompt`/`image_prompt`) so the workflow node, the
+        legacy page, and the pipeline all reach the same provider.
+        """
+        return cls.from_scene_specs(
+            coerce_scene_specs(scenes),
+            aspect_ratio=aspect_ratio,
+            style=style,
+        )
 
 
 class StoryboardResultPayload(BaseModel):

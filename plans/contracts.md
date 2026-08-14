@@ -33,7 +33,7 @@ notification, or export.
 | ChannelProfile | §5 | 1.1 / 1.3 |
 | Job | §6 | 1.4 / 1.5 |
 | ProviderInstance | §7 | 3.1 / 3.2 |
-| SceneSpec | §8 | 5.1 |
+| SceneSpec | §8 | 5.1 (implemented) |
 | ReviewIssue + repair routing table | §9 | 7.2 / 8.1 |
 | Stage projection | §10 | 2.2 |
 | ApprovalCheckpoint | §11 | 2.6 |
@@ -601,7 +601,9 @@ Rules:
 
 ## 8. SceneSpec
 
-Per product §11. Implemented at 5.1. Carried on the stable scene id from §4.
+Per product §11. Implemented at 5.1
+(`scriptase.modules.scene_director.providers.contract:SceneSpec`). Carried on the
+stable scene id from §4. `SceneItem` is a backward-compatible alias of `SceneSpec`.
 
 ```
 SceneSpec
@@ -615,13 +617,15 @@ SceneSpec
 - mood
 - continuity               # e.g. "same protagonist and wardrobe as previous scene"
 - narrative_role           # hook | buildup | explanation | emotional_beat | peak |
-                           # transition | cta | ending
+                           # transition | cta | ending | text_accent
 - overlay_hints / sfx_hints
 ```
 
-The Image and Video adapters consume `SceneSpec`, not loose dicts. **No prompt text lives
-outside a provider package** — the Scene Director composes from Channel visual direction
-and the provider owns wording. Round-trips through the provider result envelope.
+`SceneBlueprintResultPayload.scenes` is `list[SceneSpec]`. The Image and Video adapters
+consume `SceneSpec` via `from_scene_specs` / `coerce_scene_specs`, not loose dicts.
+**No prompt text lives outside a provider package** — the Scene Director composes from
+Channel visual direction and the provider owns wording. Round-trips through the provider
+result envelope (enforced by `tests/test_scene_spec.py`).
 
 ---
 
@@ -841,7 +845,7 @@ decision freeze.
 | Secret references | `{"$secret": "<ref>"}` wire form frozen; resolver in `ProviderInstance.resolve_settings`; secret store + settings migration v7 | 3.4 |
 | Durable approval engine state | Status token frozen; worker-release behaviour | 2.6 |
 | Stage projection endpoint | Shape frozen in §10 | 2.2 |
-| SceneSpec round-trip | Shape frozen in §8 | 5.1 |
+| SceneSpec round-trip | Shape frozen in §8; `tests/test_scene_spec.py` | 5.1 |
 | Review provider domain | Uses standard result envelope + ReviewIssue | 7.3 |
 | V2 project import | Map niche presets → Channels; keep output/ layout | 10.1 / 1.3 |
 | Indexed storage for runs/queue/jobs | Performance only; no schema meaning change | 10.2 |

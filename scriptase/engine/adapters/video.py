@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from config import ANIMATOR_DIR
 
+from scriptase.modules.scene_director.providers.contract import coerce_scene_specs
 from scriptase.modules.video.providers.contract import AnimatorRequest
 
 from .common import (
@@ -63,9 +64,12 @@ def _resolved_settings(provider: str) -> dict:
 
 def _step_assets(scenes_result, config, pid, context):
     """Run the selected provider; the shared media-job service owns the wait."""
+    # Step 5.1: adapters consume SceneSpec, not loose dicts. Motion prompt is
+    # preferred; image_prompt is the i2v fallback inside SceneSpec.
+    specs = coerce_scene_specs((scenes_result or {}).get("scenes") or [])
     try:
-        request = AnimatorRequest.from_scenes(
-            scenes_result.get("scenes") or [],
+        request = AnimatorRequest.from_scene_specs(
+            specs,
             aspect_ratio=config.get("aspect_ratio") or "9:16",
             mode=config.get("mode") or "video",
         )

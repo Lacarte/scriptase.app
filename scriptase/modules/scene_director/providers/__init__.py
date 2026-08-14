@@ -11,8 +11,13 @@ the shared ABC is `base.SceneBlueprintProvider`.
 
 from scriptase.modules.scene_director.providers.base import SceneBlueprintProvider
 from scriptase.modules.scene_director.providers.contract import (
+    SCENESPEC_FIELDS,
     SceneBlueprintRequest,
     SceneBlueprintResultPayload,
+    SceneItem,
+    SceneSpec,
+    coerce_scene_specs,
+    stamp_scene_specs_from_segments,
 )
 from scriptase.providers.hub import bind_domain
 
@@ -29,4 +34,9 @@ __all__ = [
     'SceneBlueprintProvider',
     'SceneBlueprintRequest',
     'SceneBlueprintResultPayload',
+    'SceneSpec',
+    'SceneItem',
+    'SCENESPEC_FIELDS',
+    'coerce_scene_specs',
+    'stamp_scene_specs_from_segments',
 ]

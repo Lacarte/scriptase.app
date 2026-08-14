@@ -267,18 +267,49 @@ def scenes_document_to_result(
     ):
         if key in data and data[key] is not None:
             metadata[key] = data[key]
+    from scriptase.modules.scene_director.providers.contract import (
+        SceneBlueprintResultPayload,
+        coerce_scene_specs,
+    )
+
+    # Step 5.1: coerce through SceneSpec so the envelope carries §8 fields.
+    # Empty scene lists stay empty (legacy callers may inspect a partial doc);
+    # non-empty lists go through the full payload model.
+    if scenes:
+        typed = SceneBlueprintResultPayload.from_mapping({
+            "scenes": scenes,
+            "style_spec": data.get("style_spec") or {},
+            "style_prompt": data.get("style_prompt") or "",
+            "analysis": data.get("analysis") or {},
+            "coherence": coherence,
+            "sfx_report": sfx if isinstance(sfx, Mapping) else None,
+            "total_duration_s": total,
+        })
+        scenes_out = typed.scenes_as_dicts()
+        style_spec = typed.style_spec
+        style_prompt = typed.style_prompt
+        analysis = typed.analysis
+        total_out = typed.total_duration_s
+        sfx_out = typed.sfx_report
+    else:
+        scenes_out = [s.to_port_dict() for s in coerce_scene_specs(scenes)]
+        style_spec = dict(data.get("style_spec") or {})
+        style_prompt = str(data.get("style_prompt") or "")
+        analysis = dict(data.get("analysis") or {})
+        total_out = float(total or 0.0)
+        sfx_out = dict(sfx) if sfx is not None else None
     return ProviderResult(
         domain="scene_director",
         provider_id=provider_id or str(data.get("provider") or ""),
         provider_version=provider_version,
         payload={
-            "scenes": [dict(s) if isinstance(s, Mapping) else s for s in scenes],
-            "style_spec": dict(data.get("style_spec") or {}),
-            "style_prompt": str(data.get("style_prompt") or ""),
-            "analysis": dict(data.get("analysis") or {}),
+            "scenes": scenes_out,
+            "style_spec": style_spec,
+            "style_prompt": style_prompt,
+            "analysis": analysis,
             "coherence": coherence,
-            "sfx_report": dict(sfx) if sfx is not None else None,
-            "total_duration_s": float(total or 0.0),
+            "sfx_report": sfx_out,
+            "total_duration_s": total_out,
             "document_ref": document_ref,
         },
         artifact_refs=dedupe_refs([document_ref]),
