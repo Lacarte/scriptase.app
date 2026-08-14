@@ -45,19 +45,27 @@ def _wait_for(predicate, timeout=4.0):
 
 
 def _wait_done(manager: ExecutionManager, execution_id: str, timeout: float = 5.0):
+    """Wait until the execution is terminal **and** its pool worker has exited.
+
+    The execution record is saved terminal before ``_pool_worker`` decrements
+    ``running_count`` (notification + finally still run). Returning on disk
+    status alone races the ``assert manager.running_count == 0`` that follows.
+    """
     deadline = time.monotonic() + timeout
+    record = None
     while time.monotonic() < deadline:
         try:
             record = load_execution(execution_id, root=manager.execution_root)
         except FileNotFoundError:
             time.sleep(0.01)
             continue
+        handle = manager.active.get(execution_id)
+        thread = handle.thread if handle is not None else None
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=0.05)
+            continue
         if record.get("status") in {"succeeded", "failed", "cancelled", "partial"}:
             return record
-        handle = manager.active.get(execution_id)
-        if handle is not None and handle.thread is not None and handle.thread.is_alive():
-            handle.thread.join(timeout=0.05)
-            continue
         time.sleep(0.01)
     raise AssertionError(f"execution {execution_id} did not finish within {timeout}s")
 

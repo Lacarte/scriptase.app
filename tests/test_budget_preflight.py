@@ -7,6 +7,7 @@ provider is called.
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -153,8 +154,14 @@ class BudgetPreflightUnitTests(unittest.TestCase):
 
 class BudgetJobStartTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="scriptase_budget_")
+        # ignore_cleanup_errors: Windows refuses rmtree while a pool worker still
+        # holds a handle under output/workflows (async start tests).
+        self.temp = tempfile.TemporaryDirectory(
+            prefix="scriptase_budget_",
+            ignore_cleanup_errors=True,
+        )
         root = self.temp.name
+        self._managers: list[ExecutionManager] = []
 
         self.old_channels = channel_store._channels_dir
         self.old_channel_trash = channel_store._trash_dir
@@ -193,13 +200,31 @@ class BudgetJobStartTests(unittest.TestCase):
         self.workflow_id = self.workflow["workflow_id"]
 
     def tearDown(self):
+        # Stop leftover pool workers before restoring paths / removing the tree.
+        for manager in self._managers:
+            for execution_id, handle in manager.active.items():
+                try:
+                    manager.stop(execution_id)
+                except Exception:
+                    pass
+                thread = handle.thread
+                if thread is not None and thread.is_alive():
+                    thread.join(timeout=5.0)
         channel_store._channels_dir = self.old_channels
         channel_store._trash_dir = self.old_channel_trash
         job_store._jobs_dir = self.old_jobs
         job_store._trash_dir = self.old_job_trash
         self._wf_mod.WORKFLOWS_DIR = self.old_workflows_dir
         self._wf_mod.EXECUTIONS_DIR = self.old_executions_dir
-        self.temp.cleanup()
+        try:
+            self.temp.cleanup()
+        except OSError:
+            shutil.rmtree(self.temp.name, ignore_errors=True)
+
+    def _manager(self, **kwargs) -> ExecutionManager:
+        manager = ExecutionManager(output_dir=self.output_dir, **kwargs)
+        self._managers.append(manager)
+        return manager
 
     def _make_channel(self, *, max_generations=None, max_cost=None):
         draft = channel_default_draft(name="Budget Channel")
@@ -238,9 +263,7 @@ class BudgetJobStartTests(unittest.TestCase):
 
             return execute
 
-        manager = ExecutionManager(
-            output_dir=self.output_dir, executor_resolver=resolver
-        )
+        manager = self._manager(executor_resolver=resolver)
         with self.assertRaises(JobOrchestrationError) as ctx:
             start_job(job.id, manager=manager, workflow=self.workflow)
         self.assertEqual(ctx.exception.code, "BUDGET_EXCEEDED")
@@ -263,9 +286,7 @@ class BudgetJobStartTests(unittest.TestCase):
 
             return execute
 
-        manager = ExecutionManager(
-            output_dir=self.output_dir, executor_resolver=resolver
-        )
+        manager = self._manager(executor_resolver=resolver)
         with self.assertRaises(JobOrchestrationError) as ctx:
             start_job(job.id, manager=manager, workflow=self.workflow)
         self.assertEqual(ctx.exception.code, "BUDGET_EXCEEDED")
@@ -281,9 +302,7 @@ class BudgetJobStartTests(unittest.TestCase):
 
             return execute
 
-        manager = ExecutionManager(
-            output_dir=self.output_dir, executor_resolver=resolver
-        )
+        manager = self._manager(executor_resolver=resolver)
         # Tiny workflow has no provider stages; ceiling is present but free.
         tiny = _tiny_workflow(workflow_id=self.workflow_id)
         started = start_job(job.id, manager=manager, workflow=tiny, wait=True)
@@ -306,13 +325,21 @@ class BudgetJobStartTests(unittest.TestCase):
 
             return execute
 
-        manager = ExecutionManager(
-            output_dir=self.output_dir, executor_resolver=resolver
-        )
+        manager = self._manager(executor_resolver=resolver)
         # start_job itself must not raise BUDGET_EXCEEDED.
         started = start_job(job.id, manager=manager, workflow=self.workflow)
         self.assertIsNotNone(started.execution_id)
         self.assertNotEqual(started.status_reason, "budget")
+        # Admission is the assertion; cancel the background full-pipeline run
+        # so tearDown can remove the temp tree on Windows.
+        if started.execution_id:
+            try:
+                manager.stop(started.execution_id)
+            except Exception:
+                pass
+            handle = manager.active.get(started.execution_id)
+            if handle is not None and handle.thread is not None:
+                handle.thread.join(timeout=5.0)
 
 
 if __name__ == "__main__":
