@@ -6,12 +6,17 @@ import { invalidateOptionSources } from '@/shared/composables/useOptionSources.j
 import { AVAILABLE, UNAVAILABLE } from '../availability.js'
 
 /**
- * The one frontend view of the provider catalog (step 12.1).
+ * The one frontend view of the provider catalog (step 12.1 / 3.2).
  *
- * `GET /api/providers` is authoritative: every provider list, label, capability,
- * availability state, and per-domain selection in the app is read from here.
- * Nothing about a provider is hardcoded in a component or in static frontend
- * data, so adding, removing, or relabeling a provider is a backend-only change.
+ * `GET /api/providers` is authoritative: every provider type, configured
+ * instance, label, capability, availability state, and per-domain selection
+ * in the app is read from here. Nothing about a provider is hardcoded in a
+ * component or in static frontend data, so adding, removing, or relabeling a
+ * provider is a backend-only change.
+ *
+ * Step 3.2 keys health, settings, schemas, and selection on **instance** id.
+ * Provider types remain discoverable for labels and capabilities; two
+ * instances of one type hold independent availability and settings.
  *
  * Two axes are kept apart, per contracts.md §21.5. **Availability** ships with
  * the catalog, costs nothing, and answers "can this be used?". **Health** costs
@@ -25,8 +30,17 @@ const CATALOG_URL = '/api/providers'
 // so provider edits arrive on the workflow reload stream (dev_reload.py).
 const DEV_RELOAD_URL = '/api/workflow/dev-reload/events'
 
-function healthKey(domain, providerId) {
-  return `${domain}/${providerId}`
+function healthKey(domain, instanceId) {
+  return `${domain}/${instanceId}`
+}
+
+/**
+ * Type-scoped URL that also accepts instance ids (backend `_resolve_instance`).
+ * Default bindings use `id == type`; second bindings use their own instance id
+ * in the same path segment.
+ */
+function instanceApiBase(domain, instanceId) {
+  return `${CATALOG_URL}/${domain}/${encodeURIComponent(instanceId)}`
 }
 
 /**
@@ -57,10 +71,10 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
   const loading = ref(false)
   const error = ref('')
   const devReloadEnabled = ref(false)
-  // `domain/provider_id` -> the last HealthResult seen for that provider.
+  // `domain/instance_id` -> the last HealthResult seen for that instance.
   const health = ref({})
-  // `domain/provider_id` -> that provider's settings schema, or null when it
-  // ships none. Cached because the node inspector asks per selected node.
+  // `domain/instance_id` -> that instance's type settings schema, or null when
+  // it ships none. Cached because the node inspector asks per selected node.
   const schemas = ref({})
 
   let inFlight = null
@@ -125,17 +139,52 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     return domainEntry(domain)?.providers || []
   }
 
+  function instancesFor(domain) {
+    return domainEntry(domain)?.instances || []
+  }
+
   function excludedFor(domain) {
     return (domainEntry(domain)?.excluded || []).map((e) => excludedAsProvider(e, domain))
   }
 
-  /** Every identity the domain knows about — registered first, then excluded. */
+  /**
+   * Selectable identities for a domain: configured instances when present,
+   * otherwise discovered types (as default instances). Excluded packages
+   * trail so a broken folder still renders.
+   */
   function catalogEntriesFor(domain) {
+    const instances = instancesFor(domain)
+    if (instances.length) {
+      return [
+        ...instances.map((inst) => instanceAsEntry(domain, inst)),
+        ...excludedFor(domain),
+      ]
+    }
     return [...providersFor(domain), ...excludedFor(domain)]
   }
 
+  /** Project a catalog `instances[]` row onto the selector entry shape. */
+  function instanceAsEntry(domain, inst) {
+    const type = resolveProvider(domain, inst.provider_type)
+    return {
+      id: inst.instance_id,
+      instance_id: inst.instance_id,
+      provider_type: inst.provider_type,
+      label: inst.label || type?.label || inst.instance_id,
+      domain,
+      aliases: type?.aliases || [],
+      capabilities: type?.capabilities || {},
+      has_settings: type?.has_settings ?? true,
+      availability: inst.availability || type?.availability || 'needs_configuration',
+      warnings: type?.warnings || [],
+      open_url: type?.open_url || null,
+      docs_url: type?.docs_url || null,
+      selected: inst.selected === true,
+    }
+  }
+
   /**
-   * Resolve an id through canonical id then alias.
+   * Resolve a type id through canonical id then alias.
    *
    * Deprecated provider identities are carried as aliases rather than a flag
    * (§20.1), so this is also how a legacy value stored before a rename still
@@ -151,63 +200,98 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     )
   }
 
+  /** Resolve an instance id (or default type id) to a selector entry. */
+  function resolveInstance(domain, instanceId) {
+    if (!instanceId) return null
+    const inst = instancesFor(domain).find((row) => row.instance_id === instanceId)
+    if (inst) return instanceAsEntry(domain, inst)
+    // Default-instance convention: instance_id == type id, not yet in the map.
+    const type = resolveProvider(domain, instanceId)
+    if (!type) return null
+    return {
+      id: type.id,
+      instance_id: type.id,
+      provider_type: type.id,
+      label: type.label,
+      domain,
+      aliases: type.aliases || [],
+      capabilities: type.capabilities || {},
+      has_settings: type.has_settings,
+      availability: type.availability,
+      warnings: type.warnings || [],
+      open_url: type.open_url || null,
+      docs_url: type.docs_url || null,
+      selected: selectedId(domain) === type.id,
+    }
+  }
+
+  /** Selected instance id for the domain. */
   function selectedId(domain) {
-    return domainEntry(domain)?.selected ?? null
+    const entry = domainEntry(domain)
+    if (!entry) return null
+    return entry.selected_instance_id ?? entry.selected ?? null
   }
 
   /**
-   * The provider a domain will actually use, following the frozen precedence
+   * The instance a domain will actually use, following the frozen precedence
    * chain (§24.1) for the rules a browser can evaluate: the stored selection,
-   * then the domain default. Falling back to a usable provider beats rendering
-   * an empty dropdown over a populated domain. Step 16.1 removed the retired
-   * app-config read-through — settings.json is the only selection store.
+   * then the domain default. Falling back to a usable binding beats rendering
+   * an empty dropdown over a populated domain.
    */
   function selectedProvider(domain) {
     const entry = domainEntry(domain)
     if (!entry) return null
-    const list = entry.providers || []
+    const selected = selectedId(domain)
     return (
-      resolveProvider(domain, entry.selected) ||
-      resolveProvider(domain, entry.default_provider) ||
-      list.find((p) => p.availability === AVAILABLE) ||
-      list[0] ||
+      resolveInstance(domain, selected) ||
+      resolveInstance(domain, entry.default_provider) ||
+      catalogEntriesFor(domain).find((p) => p.availability === AVAILABLE) ||
+      catalogEntriesFor(domain)[0] ||
       null
     )
   }
 
-  function availabilityOf(domain, providerId) {
-    const provider = resolveProvider(domain, providerId)
+  function selectedInstance(domain) {
+    return selectedProvider(domain)
+  }
+
+  function availabilityOf(domain, instanceOrTypeId) {
+    const inst = resolveInstance(domain, instanceOrTypeId)
+    if (inst) return inst.availability
+    const provider = resolveProvider(domain, instanceOrTypeId)
     if (provider) return provider.availability
-    const excluded = excludedFor(domain).find((e) => e.id === providerId)
+    const excluded = excludedFor(domain).find((e) => e.id === instanceOrTypeId)
     return excluded ? UNAVAILABLE : null
   }
 
-  function capabilitiesOf(domain, providerId) {
-    return resolveProvider(domain, providerId)?.capabilities || {}
+  function capabilitiesOf(domain, instanceOrTypeId) {
+    const inst = resolveInstance(domain, instanceOrTypeId)
+    if (inst) return inst.capabilities || {}
+    return resolveProvider(domain, instanceOrTypeId)?.capabilities || {}
   }
 
-  function supports(domain, providerId, capability) {
-    return capabilitiesOf(domain, providerId)[capability] === true
+  function supports(domain, instanceOrTypeId, capability) {
+    return capabilitiesOf(domain, instanceOrTypeId)[capability] === true
   }
 
   // ── Health (explicit action only, cached apart from the catalog) ────────
 
-  function healthFor(domain, providerId) {
-    return health.value[healthKey(domain, providerId)] || null
+  function healthFor(domain, instanceId) {
+    return health.value[healthKey(domain, instanceId)] || null
   }
 
-  function recordHealth(domain, providerId, result) {
-    health.value = { ...health.value, [healthKey(domain, providerId)]: result }
+  function recordHealth(domain, instanceId, result) {
+    health.value = { ...health.value, [healthKey(domain, instanceId)]: result }
     return result
   }
 
   /** Probe stored settings. Never throws: a failed probe *is* a health state. */
-  async function checkHealth(domain, providerId) {
+  async function checkHealth(domain, instanceId) {
     try {
-      const data = await api.get(`${CATALOG_URL}/${domain}/${providerId}/health`)
-      return recordHealth(domain, providerId, data.health)
+      const data = await api.get(`${instanceApiBase(domain, instanceId)}/health`)
+      return recordHealth(domain, instanceId, data.health)
     } catch (err) {
-      return recordHealth(domain, providerId, {
+      return recordHealth(domain, instanceId, {
         status: 'fail',
         message: apiErrorText(err, 'Health check failed'),
       })
@@ -215,9 +299,11 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
   }
 
   /** Probe a candidate settings patch without saving it. */
-  async function testProvider(domain, providerId, settings = {}) {
-    const data = await api.post(`${CATALOG_URL}/${domain}/${providerId}/test`, { body: settings })
-    return recordHealth(domain, providerId, data.health)
+  async function testProvider(domain, instanceId, settings = {}) {
+    const data = await api.post(`${instanceApiBase(domain, instanceId)}/test`, {
+      body: settings,
+    })
+    return recordHealth(domain, instanceId, data.health)
   }
 
   // ── Selection and settings writes ──────────────────────────────────────
@@ -225,20 +311,20 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
   /**
    * One targeted write, not a read-modify-write of the whole settings document
    * (§24.2). Selection is non-blocking: a `needs_configuration` or failing
-   * provider may be chosen, and the issues travel back so the caller can prompt.
+   * instance may be chosen, and the issues travel back so the caller can prompt.
    */
-  async function selectProvider(domain, providerId) {
-    if (selectedId(domain) === providerId) return { switched: false }
+  async function selectProvider(domain, instanceId) {
+    if (selectedId(domain) === instanceId) return { switched: false }
 
     const result = await api.put(`${CATALOG_URL}/${domain}/selection`, {
-      body: { provider_id: providerId },
+      body: { instance_id: instanceId },
     })
 
-    // The server answers with the canonical id — an alias is never stored.
+    // The server answers with the canonical instance id — an alias is never stored.
     applySelection(domain, result)
     // Any dropdown resolved against this domain now has a different answer: a
     // context-free caller follows the selection (§23.4). Keeping the old list
-    // is how one provider's voices end up offered for another provider's node.
+    // is how one instance's voices end up offered for another instance's node.
     invalidateOptionSources({ domain })
     return {
       switched: true,
@@ -251,42 +337,58 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
   function applySelection(domain, result) {
     const entry = domainEntry(domain)
     if (!entry) return
+    const selectedInstanceId = result.selected_instance_id || result.selected
+    const instances = (entry.instances || []).map((row) => ({
+      ...row,
+      selected: row.instance_id === selectedInstanceId,
+      availability:
+        row.instance_id === selectedInstanceId && result.availability
+          ? result.availability
+          : row.availability,
+    }))
+    const typeId = result.provider_type || selectedInstanceId
     const providers = (entry.providers || []).map((p) =>
-      p.id === result.selected && result.availability
+      p.id === typeId && result.availability
         ? { ...p, availability: result.availability }
         : p,
     )
     domains.value = {
       ...domains.value,
-      [domain]: { ...entry, selected: result.selected, providers },
+      [domain]: {
+        ...entry,
+        selected: selectedInstanceId,
+        selected_instance_id: selectedInstanceId,
+        instances,
+        providers,
+      },
     }
   }
 
-  function getProviderSettings(domain, providerId) {
-    return api.get(`${CATALOG_URL}/${domain}/${providerId}/settings`)
+  function getProviderSettings(domain, instanceId) {
+    return api.get(`${instanceApiBase(domain, instanceId)}/settings`)
   }
 
-  // ── Settings schemas, cached per provider ──────────────────────────────
+  // ── Settings schemas, cached per instance ──────────────────────────────
   //
-  // The node inspector renders a per-run options form for whichever provider
+  // The node inspector renders a per-run options form for whichever instance
   // the *node* selects, which is not necessarily the domain's selection, so it
-  // cannot reuse `useDomainProvider`'s single-provider load. Concurrent asks
+  // cannot reuse `useDomainProvider`'s single-instance load. Concurrent asks
   // share one request: a workflow with three provider-backed nodes must not
   // fetch the same schema three times.
 
   const schemaRequests = new Map()
 
-  function schemaFor(domain, providerId) {
-    return schemas.value[healthKey(domain, providerId)] ?? null
+  function schemaFor(domain, instanceId) {
+    return schemas.value[healthKey(domain, instanceId)] ?? null
   }
 
-  async function loadProviderSchema(domain, providerId) {
-    if (!domain || !providerId) return null
-    const key = healthKey(domain, providerId)
+  async function loadProviderSchema(domain, instanceId) {
+    if (!domain || !instanceId) return null
+    const key = healthKey(domain, instanceId)
     if (key in schemas.value) return schemas.value[key]
     if (schemaRequests.has(key)) return schemaRequests.get(key)
 
-    const request = getProviderSettings(domain, providerId)
+    const request = getProviderSettings(domain, instanceId)
       .then((data) => data.schema || null)
       // A provider that is not installed, or ships no schema, has no form —
       // which is a state the inspector renders, not an error it reports. The
@@ -305,8 +407,8 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
    * Save and re-read the catalog: filling in a required key flips availability
    * from `needs_configuration` to `available`, and that is not derivable here.
    */
-  async function saveProviderSettings(domain, providerId, settings) {
-    const result = await api.put(`${CATALOG_URL}/${domain}/${providerId}/settings`, {
+  async function saveProviderSettings(domain, instanceId, settings) {
+    const result = await api.put(`${instanceApiBase(domain, instanceId)}/settings`, {
       body: settings,
     })
     // Changing an API key changes what the provider can offer (§23.4).
@@ -315,30 +417,32 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     return result
   }
 
-  function validateProviderSettings(domain, providerId, settings = {}) {
-    return api.post(`${CATALOG_URL}/${domain}/${providerId}/validate`, { body: settings })
+  function validateProviderSettings(domain, instanceId, settings = {}) {
+    return api.post(`${instanceApiBase(domain, instanceId)}/validate`, {
+      body: settings,
+    })
   }
 
-  // ── Unsaved drafts (one per provider, never containing a secret) ────────
+  // ── Unsaved drafts (one per instance, never containing a secret) ────────
 
   /**
-   * Editing provider A, switching to B to compare, and coming back must not
-   * silently discard A's edits — so a draft is keyed by provider and outlives
+   * Editing instance A, switching to B to compare, and coming back must not
+   * silently discard A's edits — so a draft is keyed by instance and outlives
    * the modal. Secrets are stripped by the caller before they get here (§22.6).
    */
   const drafts = ref({})
 
-  function draftFor(domain, providerId) {
-    return drafts.value[healthKey(domain, providerId)] || null
+  function draftFor(domain, instanceId) {
+    return drafts.value[healthKey(domain, instanceId)] || null
   }
 
-  function setDraft(domain, providerId, values) {
-    drafts.value = { ...drafts.value, [healthKey(domain, providerId)]: { ...values } }
+  function setDraft(domain, instanceId, values) {
+    drafts.value = { ...drafts.value, [healthKey(domain, instanceId)]: { ...values } }
   }
 
-  function clearDraft(domain, providerId) {
+  function clearDraft(domain, instanceId) {
     const next = { ...drafts.value }
-    delete next[healthKey(domain, providerId)]
+    delete next[healthKey(domain, instanceId)]
     drafts.value = next
   }
 
@@ -374,11 +478,14 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     domainEntry,
     domainLabel,
     providersFor,
+    instancesFor,
     excludedFor,
     catalogEntriesFor,
     resolveProvider,
+    resolveInstance,
     selectedId,
     selectedProvider,
+    selectedInstance,
     availabilityOf,
     capabilitiesOf,
     supports,

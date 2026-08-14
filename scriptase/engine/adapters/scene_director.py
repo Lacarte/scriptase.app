@@ -28,9 +28,12 @@ DOMAIN = "scene_director"
 
 
 def _canonical_provider_id(selected: str) -> str:
-    """Resolve an id or alias to the registry's canonical provider id."""
-    instance = hub.get(DOMAIN, selected)
-    return instance.id if instance is not None else selected
+    """Resolve an instance id, type id, or alias to the registry type id."""
+    from .common import resolve_provider_binding
+
+    _iid, type_id = resolve_provider_binding(DOMAIN, selected)
+    package = hub.get(DOMAIN, type_id)
+    return package.id if package is not None else type_id
 
 
 def blueprint(inputs, config, context):
@@ -41,12 +44,14 @@ def blueprint(inputs, config, context):
     # resolves to the domain default (`n8n` after 13.4). The transitional
     # `builtin` value remains an input alias of that provider (§40.3). M4 needs
     # no `type_version` bump (§41.3) because nothing is renamed on the node.
+    # After 3.2 the stored value is an instance id.
     selected = provider_id(DOMAIN, merged)
-    canonical = _canonical_provider_id(selected)
+    type_id = _canonical_provider_id(selected)
     provider = resolve_provider(DOMAIN, selected)
     # Request-wins merge of portable saved settings + per-run provider_options.
     merged.update(provider_run_options(DOMAIN, selected, merged))
-    merged["provider_id"] = canonical
+    merged["provider_id"] = selected
+    merged["provider_type"] = type_id
     try:
         result = provider.generate(inputs["segments"], merged, project_id=pid)
     except ProviderError as exc:
@@ -57,7 +62,7 @@ def blueprint(inputs, config, context):
     # Ensure the document carries the resolved identity even when a provider
     # forgets to stamp it (P33 / contracts §43).
     if not result.get("provider"):
-        result["provider"] = canonical
+        result["provider"] = type_id
     payload = with_artifacts(result, path)
     prompts = with_artifacts(
         {

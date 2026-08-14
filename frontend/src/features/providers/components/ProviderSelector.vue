@@ -54,13 +54,13 @@ const statusText = computed(() =>
 )
 
 async function onSelect(event) {
-  const providerId = event.target.value
-  const result = await catalog.selectProvider(props.domain, providerId)
+  const instanceId = event.target.value
+  const result = await catalog.selectProvider(props.domain, instanceId)
   if (!result.switched) return
   if (result.needsConfiguration) {
-    emit('configure', { domain: props.domain, providerId })
+    emit('configure', { domain: props.domain, providerId: instanceId, instanceId })
   } else {
-    emit('select', { domain: props.domain, providerId })
+    emit('select', { domain: props.domain, providerId: instanceId, instanceId })
   }
 }
 
@@ -74,7 +74,11 @@ async function checkHealth() {
 }
 
 function openSettings() {
-  emit('configure', { domain: props.domain, providerId: selectedId.value })
+  emit('configure', {
+    domain: props.domain,
+    providerId: selectedId.value,
+    instanceId: selectedId.value,
+  })
 }
 
 watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })

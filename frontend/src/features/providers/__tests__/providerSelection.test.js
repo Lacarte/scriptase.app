@@ -63,7 +63,7 @@ describe('providerCatalog.selectProvider', () => {
 
     expect(api.put).toHaveBeenCalledTimes(1)
     expect(api.put).toHaveBeenCalledWith('/api/providers/tts/selection', {
-      body: { provider_id: 'inworld' },
+      body: { instance_id: 'inworld' },
     })
     expect(result).toMatchObject({ switched: true, needsConfiguration: false })
     expect(store.selectedId('tts')).toBe('inworld')

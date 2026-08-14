@@ -20,7 +20,7 @@ from threading import Event, Lock, Thread
 
 from loguru import logger
 
-from .options import invalidate_discovery_cache
+from .options import invalidate_discovery_cache, invalidate_settings_cache
 
 
 DEV_RELOAD_ENV = "STS_WORKFLOW_DEV_RELOAD"
@@ -211,10 +211,11 @@ class WorkflowDevReloader:
                 domain, ", ".join(reasons),
             )
         if report.swapped:
-            # A `cache="discovery"` option source now answers with a different
-            # provider list (§23.4); keeping the old answer would hide the
-            # provider the developer just added.
+            # Provider-list and settings-keyed option sources must refetch —
+            # keeping the old answer would hide a package the developer just
+            # added (§23.4 / 3.2).
             invalidate_discovery_cache()
+            invalidate_settings_cache()
             logger.success("Provider catalog hot-reloaded for {}", ", ".join(report.swapped))
 
     def _run(self):

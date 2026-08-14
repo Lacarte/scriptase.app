@@ -36,21 +36,27 @@ DOMAIN = "image"
 
 
 def _canonical_provider_id(selected: str) -> str:
-    """Resolve an id or alias to the registry's canonical provider id."""
+    """Resolve an instance id, type id, or alias to the registry type id."""
     from scriptase.providers.hub import hub
 
-    instance = hub.get(DOMAIN, selected)
-    return instance.id if instance is not None else selected
+    from .common import resolve_provider_binding
+
+    _iid, type_id = resolve_provider_binding(DOMAIN, selected)
+    package = hub.get(DOMAIN, type_id)
+    return package.id if package is not None else type_id
 
 
 def _resolved_settings(provider: str) -> dict:
-    """The provider's durable settings with the env fallback applied (§22.6)."""
+    """The instance's durable settings with the env fallback applied (§22.6)."""
     from scriptase.providers import settings_manager
     from scriptase.providers.hub import hub
 
-    saved = settings_manager.get_provider_settings(DOMAIN, provider)
-    instance = hub.get(DOMAIN, provider)
-    return instance.resolve_settings(saved) if instance is not None else dict(saved)
+    from .common import resolve_provider_binding
+
+    instance_id, type_id = resolve_provider_binding(DOMAIN, provider)
+    saved = settings_manager.get_instance_settings(DOMAIN, instance_id)
+    package = hub.get(DOMAIN, type_id)
+    return package.resolve_settings(saved) if package is not None else dict(saved)
 
 
 def _step_storyboard(scenes_result, config, pid, context):
@@ -67,7 +73,7 @@ def _step_storyboard(scenes_result, config, pid, context):
         ) from exc
 
     selected = config.get("storyboard_provider_override") or provider_id(DOMAIN, config)
-    canonical = _canonical_provider_id(selected)
+    type_id = _canonical_provider_id(selected)
     provider = resolve_provider(DOMAIN, selected)
     options = dict(config.get("storyboard_provider_options") or {})
     # `image_model` is still a node field for compatibility; it reaches the
@@ -77,14 +83,14 @@ def _step_storyboard(scenes_result, config, pid, context):
 
     return run_manifest_job(
         domain=DOMAIN,
-        provider=canonical,
+        provider=type_id,
         project_id=pid,
         context=context,
         scenes=request.legacy_scenes(),
         manifest_path=os.path.join(STORYBOARD_DIR, pid, "storyboard.json"),
         job_provider=provider,
         request=request,
-        settings=_resolved_settings(canonical),
+        settings=_resolved_settings(selected),
         options=options,
         failure_code="STORYBOARD_FAILED",
     )

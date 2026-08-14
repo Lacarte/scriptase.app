@@ -25,9 +25,12 @@ DOMAIN = "script"
 
 
 def _canonical_provider_id(selected: str) -> str:
-    """Resolve an id or alias to the registry's canonical provider id."""
-    instance = hub.get(DOMAIN, selected)
-    return instance.id if instance is not None else selected
+    """Resolve an instance id, type id, or alias to the registry type id."""
+    from .common import resolve_provider_binding
+
+    _iid, type_id = resolve_provider_binding(DOMAIN, selected)
+    package = hub.get(DOMAIN, type_id)
+    return package.id if package is not None else type_id
 
 
 def generate(inputs, config, context):
@@ -41,8 +44,10 @@ def generate(inputs, config, context):
     # resolves to the domain default (`gemini` after 13.2). The transitional
     # `builtin` value remains an input alias of that provider (§40.3). M4 needs
     # no `type_version` bump (§41.3) because nothing is renamed on the node.
+    # After 3.2 the stored value is an instance id; keep it on the wire so two
+    # bindings of one type stay distinct, and stamp provenance with the type.
     selected = provider_id(DOMAIN, configuration)
-    canonical = _canonical_provider_id(selected)
+    type_id = _canonical_provider_id(selected)
     provider = resolve_provider(DOMAIN, selected)
     # Request-wins merge of portable saved settings + per-run provider_options.
     # The merged keys become part of the configuration the provider sees; the
@@ -50,7 +55,8 @@ def generate(inputs, config, context):
     # stable for M4 while still differing when provider_id / provider_options
     # change (step 13.3 cache requirement).
     configuration.update(provider_run_options(DOMAIN, selected, configuration))
-    configuration["provider_id"] = canonical
+    configuration["provider_id"] = selected
+    configuration["provider_type"] = type_id
     try:
         result = provider.generate(
             configuration, project_id=configuration["project_name_id"]
@@ -64,7 +70,7 @@ def generate(inputs, config, context):
     # provider forgets to stamp it (P33 / contracts §43).
     metadata = result.get("metadata")
     if isinstance(metadata, dict) and not metadata.get("provider"):
-        metadata["provider"] = canonical
+        metadata["provider"] = type_id
     return outputs(
         script=result["story_text"],
         story=with_artifacts(result, path),

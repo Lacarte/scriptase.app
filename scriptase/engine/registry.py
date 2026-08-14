@@ -54,30 +54,31 @@ CACHE_POLICIES = frozenset({"static", "discovery", "settings"})
 # contracts.md §11/§23.1 — backend-approved async option sources. `caption_presets`
 # reconciles §2 (captions.generate: "approved preset id") with the allowlist.
 ASYNC_OPTION_SOURCES = {
+    # Step 3.2: `instance` lets a voice list follow the selected binding when
+    # two instances of one type hold different credentials / catalogs.
     "tts_voices": OptionSourceSpec(
-        context=("domain", "provider"), cache="settings", domain="tts"
+        context=("domain", "provider", "instance"), cache="settings", domain="tts"
     ),
-    "script_providers": OptionSourceSpec(cache="discovery", domain="script"),
+    # Instance lists change on settings writes (create/select instance), so
+    # these use the settings cache policy rather than discovery alone.
+    "script_providers": OptionSourceSpec(cache="settings", domain="script"),
     "scene_director_providers": OptionSourceSpec(
-        cache="discovery", domain="scene_director"
+        cache="settings", domain="scene_director"
     ),
-    "tts_providers": OptionSourceSpec(cache="discovery", domain="tts"),
-    "image_providers": OptionSourceSpec(cache="discovery", domain="image"),
-    "video_providers": OptionSourceSpec(cache="discovery", domain="video"),
+    "tts_providers": OptionSourceSpec(cache="settings", domain="tts"),
+    "image_providers": OptionSourceSpec(cache="settings", domain="image"),
+    "video_providers": OptionSourceSpec(cache="settings", domain="video"),
     # Read by an image provider's own `image_model` setting (§22.4). The
     # Storyboard page used to fetch this list itself and render a bespoke
     # `<select>` beside its webhook fields; step 12.4 moved the field into the
     # provider that consumes it, and this is how the option list follows.
     #
     # A source named by a provider's own `ui.options_source` is always resolved
-    # *for that provider*, so it must accept `domain` and `provider` — the
-    # settings renderer has no way to know which sources want them and sends
-    # both to every one. Shipped without them in 12.4, which made this dropdown
-    # answer `OPTION_CONTEXT_INVALID` on the Storyboard page;
-    # `test_provider_extensibility` now asserts the invariant for every source
-    # any provider schema names.
+    # *for that provider instance*, so it must accept `domain`, `provider`, and
+    # `instance` — the settings renderer has no way to know which sources want
+    # them and sends all three to every one.
     "image_models": OptionSourceSpec(
-        context=("domain", "provider"), cache="settings", domain="image"
+        context=("domain", "provider", "instance"), cache="settings", domain="image"
     ),
     "story_tones": OptionSourceSpec(),
     "style_templates": OptionSourceSpec(),

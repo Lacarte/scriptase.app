@@ -223,7 +223,7 @@ describe('provider settings renderer', () => {
     await flushPromises()
 
     expect(api.get).toHaveBeenCalledWith(
-      '/api/workflow/options/fixture_voices?domain=demo&provider=alpha',
+      '/api/workflow/options/fixture_voices?domain=demo&instance=alpha&provider=alpha',
     )
     expect(wrapper.find('#field-voice').findAll('option').map((o) => o.text()))
       .toEqual(['Alpha One'])

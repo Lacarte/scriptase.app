@@ -453,7 +453,11 @@ describe('ProviderSelector reads the catalog', () => {
     await wrapper.get('select').setValue('inworld')
     await flushPromises()
 
-    expect(wrapper.emitted('configure')).toEqual([[{ domain: 'tts', providerId: 'inworld' }]])
+    expect(wrapper.emitted('configure')).toEqual([[{
+      domain: 'tts',
+      providerId: 'inworld',
+      instanceId: 'inworld',
+    }]])
     expect(wrapper.emitted('select')).toBeUndefined()
   })
 

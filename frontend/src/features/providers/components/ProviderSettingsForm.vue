@@ -27,7 +27,7 @@ const props = defineProps({
   schema: { type: Object, default: () => ({}) },
   errors: { type: Array, default: () => [] },
   // Context for `ui.options_source`, so a provider's dropdown can resolve
-  // against itself rather than the global selection (§23.1).
+  // against this instance rather than the global selection (§23.1 / 3.2).
   domain: { type: String, default: '' },
   providerId: { type: String, default: '' },
 })
@@ -38,7 +38,11 @@ const required = computed(() => requiredKeys(props.schema))
 
 const optionContext = computed(() =>
   props.domain && props.providerId
-    ? { domain: props.domain, provider: props.providerId }
+    ? {
+        domain: props.domain,
+        provider: props.providerId,
+        instance: props.providerId,
+      }
     : {},
 )
 

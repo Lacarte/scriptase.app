@@ -26,11 +26,15 @@ describe('option source client', () => {
 
   it('builds a stable, sorted query string', async () => {
     serve()
-    useOptionSource('fixture_voices', { provider: 'alpha', domain: 'demo' })
+    useOptionSource('fixture_voices', {
+      provider: 'alpha',
+      domain: 'demo',
+      instance: 'alpha_main',
+    })
     await flushPromises()
 
     expect(api.get).toHaveBeenCalledWith(
-      '/api/workflow/options/fixture_voices?domain=demo&provider=alpha',
+      '/api/workflow/options/fixture_voices?domain=demo&instance=alpha_main&provider=alpha',
     )
   })
 
@@ -56,6 +60,21 @@ describe('option source client', () => {
     serve()
     useOptionSource('fixture_voices', { provider: 'alpha' })
     useOptionSource('fixture_voices', { provider: 'beta' })
+    await flushPromises()
+
+    expect(api.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('caches two instances of one type separately', async () => {
+    serve()
+    useOptionSource('fixture_voices', {
+      provider: 'alpha',
+      instance: 'alpha_main',
+    })
+    useOptionSource('fixture_voices', {
+      provider: 'alpha',
+      instance: 'alpha_backup',
+    })
     await flushPromises()
 
     expect(api.get).toHaveBeenCalledTimes(2)

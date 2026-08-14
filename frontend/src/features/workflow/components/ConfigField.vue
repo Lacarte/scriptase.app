@@ -41,7 +41,14 @@ const SELECT_TYPES = ['options', 'provider']
  * engine's voices however the node's provider was set.
  */
 const optionContext = computed(() => {
-  const available = { domain: props.providerDomain, provider: props.providerId }
+  // Step 3.2: the node may store an instance id in provider_id. Both `provider`
+  // and `instance` receive it; the server normalizes type vs instance and keys
+  // the cache so two bindings of one type resolve their own option lists.
+  const available = {
+    domain: props.providerDomain,
+    provider: props.providerId,
+    instance: props.providerId,
+  }
   const context = {}
   for (const name of props.field.options_context || []) {
     if (available[name]) context[name] = available[name]

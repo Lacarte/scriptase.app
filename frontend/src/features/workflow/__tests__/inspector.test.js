@@ -83,8 +83,9 @@ describe('ConfigField widgets', () => {
   it('scopes an option source to the node provider it declares a context for', async () => {
     // Step 15.2: the `voice` dropdown used to resolve context-free, so it
     // always answered with the default engine's voices however the node's
-    // provider was set. `options_context` comes from the registry, which reads
-    // it off the source's own spec.
+    // provider was set. Step 3.2 also sends `instance` so two bindings of one
+    // type resolve their own catalogs. `options_context` comes from the
+    // registry, which reads it off the source's own spec.
     clearOptionSourceCache()
     vi.spyOn(api, 'get').mockResolvedValue({
       source: 'tts_voices',
@@ -97,7 +98,7 @@ describe('ConfigField widgets', () => {
           label: 'Voice',
           type: 'options',
           options_source: 'tts_voices',
-          options_context: ['domain', 'provider'],
+          options_context: ['domain', 'provider', 'instance'],
           default: 'Ashley',
         },
         value: 'Ashley',
@@ -107,10 +108,10 @@ describe('ConfigField widgets', () => {
     })
     await flushPromises()
     expect(api.get).toHaveBeenCalledWith(
-      '/api/workflow/options/tts_voices?domain=tts&provider=inworld',
+      '/api/workflow/options/tts_voices?domain=tts&instance=inworld&provider=inworld',
     )
 
-    // Switching the node's provider re-resolves rather than reusing the answer.
+    // Switching the node's instance re-resolves rather than reusing the answer.
     api.get.mockResolvedValue({
       source: 'tts_voices',
       options: [{ value: 'af_heart', label: 'af_heart' }],
@@ -118,7 +119,7 @@ describe('ConfigField widgets', () => {
     await wrapper.setProps({ providerId: 'kokoro' })
     await flushPromises()
     expect(api.get).toHaveBeenLastCalledWith(
-      '/api/workflow/options/tts_voices?domain=tts&provider=kokoro',
+      '/api/workflow/options/tts_voices?domain=tts&instance=kokoro&provider=kokoro',
     )
     expect(wrapper.findAll('option').map((o) => o.element.value)).toContain('af_heart')
     vi.restoreAllMocks()

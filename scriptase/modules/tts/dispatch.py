@@ -68,11 +68,12 @@ _TRANSIENT_KEYS = frozenset({"wav_path"})
 
 
 def resolve_provider_id(config=None) -> tuple[str, str]:
-    """`(provider_id, selection_reason)` for a TTS request.
+    """`(instance_or_type_id, selection_reason)` for a TTS request.
 
     The §24.1 precedence chain, with the two historical override keys accepted
     as compatibility inputs so a caller that predates `provider_id` still
-    selects what it always did.
+    selects what it always did. After step 3.2 the request value is typically
+    an instance id; selection falls back to the domain's selected instance.
     """
     config = dict(config or {})
     for key, reason in (
@@ -85,29 +86,35 @@ def resolve_provider_id(config=None) -> tuple[str, str]:
         if isinstance(value, str) and value:
             return value, reason
     instance_id, type_id, _settings = settings_manager.resolve_instance(DOMAIN)
+    if isinstance(instance_id, str) and instance_id:
+        return instance_id, "selection"
     if isinstance(type_id, str) and type_id:
-        # Selection is instance-keyed (step 3.1); callers that still need a
-        # single id for hub lookup receive the provider type. The instance id
-        # is recoverable via resolve_instance when provenance needs it.
         return type_id, "selection"
     return DOMAINS[DOMAIN].default_provider, "default"
 
 
 def resolve_provider(config=None):
-    """The registered `ProviderInstance` this request runs on.
+    """The registered provider package this request runs on.
 
     Raises `PROVIDER_NOT_FOUND` — which the workflow layer reports as
     `PROVIDER_UNAVAILABLE` — rather than substituting another provider:
     silently synthesizing in a voice nobody asked for is worse than failing.
+
+    Step 3.2: the selection may be an instance id; the package is the type.
     """
-    provider_id, reason = resolve_provider_id(config)
-    instance = hub.get(DOMAIN, provider_id)
+    selected, reason = resolve_provider_id(config)
+    stored = settings_manager.get_instance_record(DOMAIN, selected)
+    if stored is not None:
+        type_id = stored.get("type") if isinstance(stored.get("type"), str) else selected
+    else:
+        type_id = selected
+    instance = hub.get(DOMAIN, type_id)
     if instance is None:
         raise ProviderError(
             PROVIDER_NOT_FOUND,
-            f"No TTS provider named '{provider_id}' is registered",
+            f"No TTS provider named '{selected}' is registered",
             domain=DOMAIN,
-            provider_id=provider_id,
+            provider_id=selected,
         )
     return instance, reason
 
@@ -214,9 +221,14 @@ def resolve_voice(instance, config=None, *, settings=None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def resolved_settings(instance, options=None) -> dict:
-    """Durable settings with the env fallback applied, then the per-run patch."""
-    saved = settings_manager.get_provider_settings(DOMAIN, instance.id)
+def resolved_settings(instance, options=None, *, instance_id: str | None = None) -> dict:
+    """Durable settings with the env fallback applied, then the per-run patch.
+
+    `instance_id` selects which configured binding's settings to read (step 3.2);
+    defaults to the package id (the default instance of the type).
+    """
+    key = instance_id or instance.id
+    saved = settings_manager.get_instance_settings(DOMAIN, key)
     return {**instance.resolve_settings(saved), **dict(options or {})}
 
 
@@ -266,10 +278,13 @@ def synthesize(
     provider ran: the keys `_step_timing`, `tts.json` readers, and the TTS
     history page have always read, plus `job_meta`.
     """
-    instance, selection_reason = resolve_provider(config)
+    package, selection_reason = resolve_provider(config)
+    selected_id, _ = resolve_provider_id(config)
+    stored = settings_manager.get_instance_record(DOMAIN, selected_id)
+    instance_id = selected_id if stored is not None else package.id
     options = dict((config or {}).get("tts_provider_options") or {})
-    settings = resolved_settings(instance, options)
-    voice = resolve_voice(instance, config, settings=settings)
+    settings = resolved_settings(package, options, instance_id=instance_id)
+    voice = resolve_voice(package, config, settings=settings)
     text = str((config or {}).get("text") or "")
     speed = float((config or {}).get("speed") or settings.get("speed") or 1.0)
 
@@ -285,12 +300,12 @@ def synthesize(
         output_sidecar=sidecar_name,
     )
 
-    key = cache_key(text, voice, speed, instance.id)
+    key = cache_key(text, voice, speed, instance_id)
     cached = _cache_hit(key, directory, basename) if use_cache else None
     if cached is not None:
         return _metadata(
             wav_path=cached,
-            instance=instance,
+            instance=package,
             request=request,
             settings=settings,
             options=options,
@@ -308,14 +323,15 @@ def synthesize(
     invocation = build_invocation(
         context,
         domain=DOMAIN,
-        provider_id=instance.id,
+        provider_id=package.id,
         project_id=project_id,
         output_dir=directory,
         settings=settings,
         options=options,
         selection_reason=selection_reason,
+        provider_instance_id=instance_id,
     )
-    provider = instance.create()
+    provider = package.create(instance_id=instance_id)
     result = boundary.invoke(
         lambda inv: provider.invoke(request, inv),
         invocation,

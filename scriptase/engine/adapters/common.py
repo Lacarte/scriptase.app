@@ -76,13 +76,14 @@ def inherited_config(config: Mapping[str, Any] | None, settings: Any, aliases=No
 
 
 def provider_id(domain: str, config: Mapping[str, Any] | None) -> str:
-    """The provider this node runs on: its saved `provider_id`, else the default.
+    """The provider instance this node runs on: its saved `provider_id`, else default.
 
-    The fallback is deliberately a *read*, never a write (contracts.md §41.3
-    M4): `setdefault` would change the fingerprinted configuration and
-    invalidate the cache the fallback exists to preserve. It is what keeps a
-    `story.generate` or `scenes.blueprint` saved before step 12.3 running the
-    same service it always did.
+    After step 3.2 the saved value is an **instance** id (equal to the type id
+    for the default binding). The fallback is deliberately a *read*, never a
+    write (contracts.md §41.3 M4): `setdefault` would change the fingerprinted
+    configuration and invalidate the cache the fallback exists to preserve. It
+    is what keeps a `story.generate` or `scenes.blueprint` saved before step
+    12.3 running the same service it always did.
     """
     from scriptase.providers.domains import DOMAINS
 
@@ -92,20 +93,48 @@ def provider_id(domain: str, config: Mapping[str, Any] | None) -> str:
     return DOMAINS[domain].default_provider
 
 
+def resolve_provider_binding(domain: str, selected: str) -> tuple[str, str]:
+    """Resolve a node selection to `(instance_id, provider_type)`.
+
+    Accepts an instance id, a type id, or a type alias. Unknown ids are treated
+    as the default instance of that type (`instance_id == selected`) so a
+    workflow saved before any settings write still resolves.
+    """
+    from scriptase.providers import settings_manager
+    from scriptase.providers.hub import hub
+
+    stored = settings_manager.get_instance_record(domain, selected)
+    if stored is not None:
+        type_id = stored.get("type") if isinstance(stored.get("type"), str) else selected
+        package = hub.get(domain, type_id)
+        if package is not None:
+            return selected, package.id
+        return selected, type_id
+
+    package = hub.get(domain, selected)
+    if package is not None:
+        return package.id, package.id
+    return selected, selected
+
+
 def resolve_provider(domain: str, provider: str):
-    """Construct the selected provider, or fail with a stable adapter error.
+    """Construct the selected provider instance, or fail with a stable adapter error.
 
     Execution does *not* fail open. Save-time validation tolerates a provider
     that is not installed so a workflow stays inspectable (§23.3), but running
     a node against a provider that cannot be built has no safe interpretation:
     silently substituting another one would produce an artifact nobody asked
     for.
+
+    Step 3.2: `provider` may be an instance id; construction is memoized per
+    `(type, instance_id)`.
     """
     from scriptase.providers.hub import hub
     from scriptase.providers.registry import ProviderConstructionError
 
+    instance_id, type_id = resolve_provider_binding(domain, provider)
     try:
-        instance = hub.create(domain, provider)
+        instance = hub.create(domain, type_id, instance_id=instance_id)
     except ProviderConstructionError as exc:
         raise AdapterError(
             exc.code, f"The {domain} provider '{provider}' could not be started"
@@ -119,16 +148,18 @@ def resolve_provider(domain: str, provider: str):
 
 
 def _provider_properties(domain: str, provider: str) -> dict:
-    """The selected provider's settings-schema properties, or `{}`."""
+    """The selected provider type's settings-schema properties, or `{}`."""
     from scriptase.providers.hub import hub
+
     from scriptase.providers.settings_schema import properties
 
-    instance = hub.get(domain, provider)
-    return properties(instance.settings_schema() if instance is not None else None)
+    _iid, type_id = resolve_provider_binding(domain, provider)
+    package = hub.get(domain, type_id)
+    return properties(package.settings_schema() if package is not None else None)
 
 
 def provider_run_options(domain: str, provider: str, config: Mapping[str, Any] | None) -> dict:
-    """Merge a node's `provider_options` over the provider's saved settings.
+    """Merge a node's `provider_options` over the instance's saved settings.
 
     `{**saved, **per_run}` — "request wins", the order §40.2 freezes for every
     provider, and exactly the order the legacy services already apply.
