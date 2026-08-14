@@ -240,6 +240,24 @@
       "step": "1.7",
       "event": "done",
       "detail": "6c61308"
+    },
+    {
+      "ts": "2026-08-14T10:35:58",
+      "step": "phase-1",
+      "event": "done",
+      "detail": "a29892a"
+    },
+    {
+      "ts": "2026-08-14T10:35:58",
+      "step": "phase-2",
+      "event": "start",
+      "detail": "a29892a"
+    },
+    {
+      "ts": "2026-08-14T10:35:58",
+      "step": "2.1",
+      "event": "start",
+      "detail": ""
     }
   ]
 }
