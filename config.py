@@ -66,6 +66,9 @@ CHANNELS_DIR = os.path.join(OUTPUT_DIR, "channels")
 # Artifact index (step 1.2). Metadata only — blob files stay under the
 # per-module trees (tts/, scenes/, …) for V2 import compatibility.
 ARTIFACTS_DIR = os.path.join(OUTPUT_DIR, "artifacts")
+# Job documents (step 1.4). One JSON document per job id; channel snapshots
+# live inside each document (provider instance references only — never secrets).
+JOBS_DIR = os.path.join(OUTPUT_DIR, "jobs")
 
 # Read-only built-in asset library.
 APP_ASSETS_DIR = RESOURCES_DIR
@@ -130,7 +133,7 @@ RUNTIME_DIRS = (
     WORKFLOW_EXECUTIONS_DIR, BRANDING_DIR, ALIGN_DIR, SCENES_DIR, STORIES_DIR,
     ANIMATOR_DIR, STORYBOARD_DIR, SEGMENTER_DIR, CAPTIONS_DIR, TTS_DIR,
     EXPORT_DIR, PROJECTS_DIR, MUSIC_DIR, THUMBNAILS_DIR, CHANNELS_DIR,
-    ARTIFACTS_DIR, MODELS_DIR, TTS_CACHE_DIR,
+    ARTIFACTS_DIR, JOBS_DIR, MODELS_DIR, TTS_CACHE_DIR,
 )
 
 
