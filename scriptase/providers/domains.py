@@ -119,11 +119,19 @@ DOMAINS: dict[str, DomainSpec] = {
             package="scriptase.modules.image.providers",
             providers_base=_base("scriptase", "modules", "image", "providers"),
             default_provider="gemini_ws",
-            # `auto_animate` is the image→video hand-off the Gemini
-            # extension performs on job completion (step 14.2): declared by the
-            # provider that does it rather than hardcoded in its transport.
+            # Step 6.1 routing vocabulary (text_to_image / image_edit /
+            # reference_image / inpainting) plus operational flags already
+            # declared by shipped providers. `auto_animate` is the image→video
+            # hand-off the Gemini extension performs on job completion:
+            # declared by the provider that does it, never hardcoded.
             capability_vocabulary=_caps(
-                "image_edit", "watermark_removal", "prompt_prefix", "auto_animate"
+                "text_to_image",
+                "image_edit",
+                "reference_image",
+                "inpainting",
+                "watermark_removal",
+                "prompt_prefix",
+                "auto_animate",
             ),
             legacy_selection_key="sts-storyboard-provider",
             request_model="scriptase.modules.image.providers.contract:StoryboardRequest",
@@ -135,8 +143,15 @@ DOMAINS: dict[str, DomainSpec] = {
             package="scriptase.modules.video.providers",
             providers_base=_base("scriptase", "modules", "video", "providers"),
             default_provider="grok_automa",
+            # Step 6.1 routing vocabulary (image_to_video / text_to_video /
+            # reference_image / duration_control). `resolution_select` stays so
+            # providers that expose it keep declaring it without a platform edit.
             capability_vocabulary=_caps(
-                "image_to_video", "duration_control", "resolution_select"
+                "image_to_video",
+                "text_to_video",
+                "reference_image",
+                "duration_control",
+                "resolution_select",
             ),
             legacy_selection_key="sts-asset-provider",
             request_model="scriptase.modules.video.providers.contract:AnimatorRequest",

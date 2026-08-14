@@ -700,6 +700,23 @@ markers (`SCENE_DIRECTOR_PROMPT_MARKERS`). Offline only —
 `python -m scriptase.providers.prompt_eval --check`
 (`tests/test_prompt_eval.py`).
 
+### 8.3 Image and video capability vocabularies
+
+Step 6.1. Image and video are separate domains with closed routing vocabularies
+declared on `DomainSpec.capability_vocabulary` (plus `SHARED_CAPABILITIES`):
+
+| Domain | Routing capabilities |
+|---|---|
+| `image` | `text_to_image`, `image_edit`, `reference_image`, `inpainting` |
+| `video` | `image_to_video`, `text_to_video`, `reference_image`, `duration_control` |
+
+Providers declare a subset of their domain vocabulary in the manifest. Unknown
+keys are dropped with a discovery warning and never appear in the catalog,
+capability API, selector, node inspector, or step detail UI
+(`tests/test_image_video_domains.py`). The catalog domain payload includes
+`capability_vocabulary` so the browser can refuse undeclared keys even if a
+stale row carries one.
+
 ---
 
 ## 9. ReviewIssue
@@ -922,6 +939,7 @@ decision freeze.
 | Channel visual direction → Director | Typed `VisualDirectionInput` on request; pattern diverges SceneSpecs; prompt text under `providers/` | 5.2 |
 | Timing strategy AUTO | Native word timings when advertised; else force-align; identical alignment schema | 5.3 |
 | Prompt evaluation harness | Structural drift over golden fixtures + offline planner; prompt-builder markers; no credits | 5.4 |
+| Image / video domain split | Separate capability vocabularies; undeclared caps never offered | 6.1 |
 | Review provider domain | Uses standard result envelope + ReviewIssue | 7.3 |
 | V2 project import | Map niche presets → Channels; keep output/ layout | 10.1 / 1.3 |
 | Indexed storage for runs/queue/jobs | Performance only; no schema meaning change | 10.2 |

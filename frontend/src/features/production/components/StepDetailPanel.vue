@@ -11,6 +11,7 @@
 import { computed, ref, watch } from 'vue'
 
 import AttemptHistory from '@/features/artifacts/components/AttemptHistory.vue'
+import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
 import {
   ACTION_HINTS,
   ACTION_LABELS,
@@ -38,6 +39,21 @@ const STAGE_KIND = {
   composer: 'timeline',
   export: 'export',
 }
+
+/**
+ * Stage key → provider domain for capability display (step 6.1).
+ * Only provider-capable stages map; local services (captions/music) do not.
+ */
+const STAGE_PROVIDER_DOMAIN = {
+  script: 'script',
+  voice: 'tts',
+  scenes: 'scene_director',
+  images: 'image',
+  videos: 'video',
+  review: 'review',
+}
+
+const providerCatalog = useProviderCatalogStore()
 
 const props = defineProps({
   stage: { type: Object, default: null },
@@ -160,11 +176,37 @@ const providerLabel = computed(() => {
   return props.stage?.active_provider_instance_id || 'Not selected'
 })
 
+/** Provider domain for this stage (image / video / …), or null. */
+const stageProviderDomain = computed(() => {
+  const key = props.stage?.key
+  return (key && STAGE_PROVIDER_DOMAIN[key]) || null
+})
+
+/**
+ * Granted capabilities of the active instance, filtered by domain vocabulary
+ * so an undeclared key is never offered in the step UI (step 6.1).
+ */
+const stageProviderCapabilities = computed(() => {
+  const domain = stageProviderDomain.value
+  const instanceId = props.stage?.active_provider_instance_id
+  if (!domain || !instanceId) return []
+  return providerCatalog.grantedCapabilitiesOf(domain, instanceId)
+})
+
 /** Artifact kind for the History pane (step 4.3 version chain). */
 const historyKind = computed(() => {
   const key = props.stage?.key
   return (key && STAGE_KIND[key]) || 'image'
 })
+
+// Load the catalog once so step provider badges resolve without a second path.
+watch(
+  () => showProviderUi.value,
+  (visible) => {
+    if (visible) providerCatalog.loadCatalog()
+  },
+  { immediate: true },
+)
 
 const showAttemptHistory = computed(
   () =>
@@ -465,7 +507,8 @@ function pretty(value) {
         <h3>Provider</h3>
         <p class="muted small">
           Provider selection is metadata on the stage — never a “-P” suffix on
-          the name. Instance-aware override UI lands with Phase 3.
+          the name. Capabilities are declared per provider and filtered by the
+          domain vocabulary (step 6.1).
         </p>
         <dl class="history-meta">
           <div>
@@ -474,9 +517,28 @@ function pretty(value) {
               <code>{{ stage.active_provider_instance_id || 'Not selected' }}</code>
             </dd>
           </div>
+          <div v-if="stageProviderDomain">
+            <dt>Domain</dt>
+            <dd><code>{{ stageProviderDomain }}</code></dd>
+          </div>
           <div>
             <dt>Required for this mode</dt>
             <dd>{{ showProviderUi ? 'Yes' : 'No' }}</dd>
+          </div>
+          <div v-if="stageProviderCapabilities.length">
+            <dt>Capabilities</dt>
+            <dd>
+              <p
+                class="provider-capabilities"
+                data-testid="stage-provider-capabilities"
+              >
+                <span
+                  v-for="name in stageProviderCapabilities"
+                  :key="name"
+                  class="cap-badge"
+                >{{ name }}</span>
+              </p>
+            </dd>
           </div>
         </dl>
       </section>
@@ -592,6 +654,24 @@ function pretty(value) {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.provider-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+}
+
+.cap-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bg-elevated, #222d3d);
+  color: var(--text-secondary, #8899aa);
+  border: 1px solid var(--border, #1e2a3a);
 }
 
 .provider-id {

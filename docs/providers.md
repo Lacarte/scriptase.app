@@ -161,7 +161,7 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 
 #### Capability vocabulary
 
-`async_job`, `auto_animate`, `batch`, `cancel`, `exclusive_execution`, `image_edit`, `progress`, `prompt_prefix`, `push_callbacks`, `single_scene`, `test_connection`, `watermark_removal`
+`async_job`, `auto_animate`, `batch`, `cancel`, `exclusive_execution`, `image_edit`, `inpainting`, `progress`, `prompt_prefix`, `push_callbacks`, `reference_image`, `single_scene`, `test_connection`, `text_to_image`, `watermark_removal`
 
 #### Request model (`scriptase.modules.image.providers.contract:StoryboardRequest`)
 
@@ -190,7 +190,7 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 
 #### Capability vocabulary
 
-`async_job`, `batch`, `cancel`, `duration_control`, `exclusive_execution`, `image_to_video`, `progress`, `push_callbacks`, `resolution_select`, `single_scene`, `test_connection`
+`async_job`, `batch`, `cancel`, `duration_control`, `exclusive_execution`, `image_to_video`, `progress`, `push_callbacks`, `reference_image`, `resolution_select`, `single_scene`, `test_connection`, `text_to_video`
 
 #### Request model (`scriptase.modules.video.providers.contract:AnimatorRequest`)
 
@@ -289,9 +289,9 @@ Offline text-to-speech running in-process from a local model.
 
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
-| `gemini_ws` | Gemini (extension) | `extension` | `2.0.0` | v2 | `async_job`, `auto_animate`, `batch`, `progress`, `prompt_prefix`, `push_callbacks`, `single_scene`, `test_connection`, `watermark_removal` |
-| `wavespeed_direct` | WaveSpeed Direct | `cloud` | `2.0.0` | v2 | `async_job`, `batch`, `cancel`, `image_edit`, `progress`, `single_scene`, `test_connection` |
-| `wavespeed_webhook` | Webhook / WaveSpeed | `cloud` | `2.0.0` | v2 | `async_job`, `batch`, `cancel`, `progress`, `single_scene`, `test_connection` |
+| `gemini_ws` | Gemini (extension) | `extension` | `2.0.0` | v2 | `async_job`, `auto_animate`, `batch`, `progress`, `prompt_prefix`, `push_callbacks`, `single_scene`, `test_connection`, `text_to_image`, `watermark_removal` |
+| `wavespeed_direct` | WaveSpeed Direct | `cloud` | `2.0.0` | v2 | `async_job`, `batch`, `cancel`, `image_edit`, `progress`, `single_scene`, `test_connection`, `text_to_image` |
+| `wavespeed_webhook` | Webhook / WaveSpeed | `cloud` | `2.0.0` | v2 | `async_job`, `batch`, `cancel`, `progress`, `single_scene`, `test_connection`, `text_to_image` |
 
 #### `gemini_ws` — Gemini (extension)
 
@@ -301,7 +301,7 @@ Storyboard frames driven by the browser extension over a WebSocket.
 - **Version:** `2.0.0` (contract v2)
 - **Aliases:** `gemini`
 - **Open URL:** human-driven UI available
-- **Capabilities:** `async_job`, `auto_animate`, `batch`, `progress`, `prompt_prefix`, `push_callbacks`, `single_scene`, `test_connection`, `watermark_removal`
+- **Capabilities:** `async_job`, `auto_animate`, `batch`, `progress`, `prompt_prefix`, `push_callbacks`, `single_scene`, `test_connection`, `text_to_image`, `watermark_removal`
 
 #### `wavespeed_direct` — WaveSpeed Direct
 
@@ -311,7 +311,7 @@ Storyboard frames from the WaveSpeed API, called directly.
 - **Version:** `2.0.0` (contract v2)
 - **Aliases:** `direct`
 - **Requires settings:** `api_key`
-- **Capabilities:** `async_job`, `batch`, `cancel`, `image_edit`, `progress`, `single_scene`, `test_connection`
+- **Capabilities:** `async_job`, `batch`, `cancel`, `image_edit`, `progress`, `single_scene`, `test_connection`, `text_to_image`
 
 #### `wavespeed_webhook` — Webhook / WaveSpeed
 
@@ -321,14 +321,14 @@ Storyboard frames via a user-supplied n8n webhook.
 - **Version:** `2.0.0` (contract v2)
 - **Aliases:** `webhook`
 - **Requires settings:** `webhook_url`
-- **Capabilities:** `async_job`, `batch`, `cancel`, `progress`, `single_scene`, `test_connection`
+- **Capabilities:** `async_job`, `batch`, `cancel`, `progress`, `single_scene`, `test_connection`, `text_to_image`
 
 ### `video` providers
 
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
 | `grok_automa` | Grok (extension) | `extension` | `2.0.0` | v2 | `async_job`, `batch`, `duration_control`, `image_to_video`, `progress`, `push_callbacks`, `resolution_select`, `single_scene`, `test_connection` |
-| `kie_ai` | Kie AI | `cloud` | `2.0.0` | v2 | `async_job`, `batch`, `progress`, `resolution_select`, `single_scene`, `test_connection` |
+| `kie_ai` | Kie AI | `cloud` | `2.0.0` | v2 | `async_job`, `batch`, `progress`, `resolution_select`, `single_scene`, `test_connection`, `text_to_video` |
 
 #### `grok_automa` — Grok (extension)
 
@@ -342,13 +342,13 @@ Animator takes driven by the browser extension over a WebSocket.
 
 #### `kie_ai` — Kie AI
 
-Image generation through the Kie AI API.
+Prompt-driven scene assets through the Kie AI API (text-to-video).
 
 - **Kind:** `cloud`
 - **Version:** `2.0.0` (contract v2)
 - **Aliases:** `kie-ai`
 - **Requires settings:** `api_key`
-- **Capabilities:** `async_job`, `batch`, `progress`, `resolution_select`, `single_scene`, `test_connection`
+- **Capabilities:** `async_job`, `batch`, `progress`, `resolution_select`, `single_scene`, `test_connection`, `text_to_video`
 
 ## Stable provider error codes
 

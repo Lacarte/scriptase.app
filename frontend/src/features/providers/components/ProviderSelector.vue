@@ -39,12 +39,12 @@ const status = computed(() =>
 )
 const needsAttention = computed(() => status.value.tone !== 'ok')
 
-/** Capabilities the selected provider declares, straight from the manifest. */
+/**
+ * Capabilities the selected provider grants and the domain vocabulary allows
+ * (step 6.1). An undeclared key is never offered as a badge.
+ */
 const capabilities = computed(() =>
-  Object.entries(selected.value?.capabilities || {})
-    .filter(([, enabled]) => enabled === true)
-    .map(([name]) => name)
-    .sort(),
+  catalog.grantedCapabilitiesOf(props.domain, selectedId.value),
 )
 
 // Feedback names the provider it is about: three selectors share this page and

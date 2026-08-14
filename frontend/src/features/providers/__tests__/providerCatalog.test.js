@@ -195,6 +195,46 @@ describe('provider catalog store', () => {
     expect(store.supports('tts', 'kokoro', 'never_declared')).toBe(false)
   })
 
+  it('never offers an undeclared capability (step 6.1)', async () => {
+    // Provider row still carries a fantasy key that slipped past a stale cache;
+    // the domain vocabulary is the closed set the UI may offer.
+    serve({
+      catalog_version: 'v1',
+      domains: {
+        image: {
+          domain: 'image',
+          label: 'Image',
+          default_provider: 'wavespeed_direct',
+          selected: 'wavespeed_direct',
+          capability_vocabulary: ['text_to_image', 'image_edit', 'batch', 'test_connection'],
+          providers: [
+            provider('wavespeed_direct', {
+              domain: 'image',
+              capabilities: {
+                text_to_image: true,
+                image_edit: true,
+                batch: true,
+                teleport: true, // undeclared — must never be offered
+              },
+            }),
+          ],
+        },
+      },
+    })
+    const store = useProviderCatalogStore()
+    await store.loadCatalog()
+
+    expect(store.vocabularyOf('image')).toEqual([
+      'text_to_image', 'image_edit', 'batch', 'test_connection',
+    ])
+    expect(store.grantedCapabilitiesOf('image', 'wavespeed_direct')).toEqual([
+      'batch', 'image_edit', 'text_to_image',
+    ])
+    expect(store.supports('image', 'wavespeed_direct', 'text_to_image')).toBe(true)
+    expect(store.supports('image', 'wavespeed_direct', 'teleport')).toBe(false)
+    expect(store.supports('image', 'wavespeed_direct', 'text_to_video')).toBe(false)
+  })
+
   // ── Selection resolution and fallback ──────────────────────────────────
 
   it('resolves a deprecated identity through its alias', async () => {

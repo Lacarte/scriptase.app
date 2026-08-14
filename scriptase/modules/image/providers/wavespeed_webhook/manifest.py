@@ -19,6 +19,8 @@ def manifest() -> ProviderManifest:
             "async_job": True,
             "cancel": True,
             "progress": True,
+            # Step 6.1 routing: prompt → storyboard frames via webhook.
+            "text_to_image": True,
         },
         aliases=["webhook"],
         description="Storyboard frames via a user-supplied n8n webhook.",

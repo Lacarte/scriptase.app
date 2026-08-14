@@ -1,12 +1,14 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useWorkflowStore } from '../stores/workflow.js'
+import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
 import { shouldDisplayField } from '../schema.js'
 import ConfigField from './ConfigField.vue'
 import NodeIcon from './NodeIcon.vue'
 import { expressionOptions } from '../expressions.js'
 
 const store = useWorkflowStore()
+const providerCatalog = useProviderCatalogStore()
 
 const node = computed(() => store.selectedNode)
 const def = computed(() => (node.value ? store.nodeTypes[node.value.type] : null))
@@ -52,6 +54,17 @@ const selectedProviderId = computed(() => {
 
 /** The domain that provider belongs to, so sibling dropdowns can scope to it. */
 const providerDomain = computed(() => providerField.value?.provider_domain || '')
+
+/**
+ * Provider capabilities granted for the node-selected instance (step 6.1).
+ * Only keys true on the manifest and inside the domain vocabulary are offered.
+ */
+const providerCapabilities = computed(() => {
+  const domain = providerDomain.value
+  const id = selectedProviderId.value
+  if (!domain || !id) return []
+  return providerCatalog.grantedCapabilitiesOf(domain, id)
+})
 
 const issues = computed(() => store.issuesByNode[node.value?.id] || [])
 const mappingOptions = computed(() => expressionOptions(
@@ -147,6 +160,19 @@ function updateErrorPolicy(patch) {
     </div>
 
     <p v-if="def.description" class="inspector-desc">{{ def.description }}</p>
+
+    <p
+      v-if="providerCapabilities.length"
+      class="provider-capabilities"
+      data-testid="provider-capabilities"
+      :title="`Capabilities of the selected ${providerDomain} provider`"
+    >
+      <span
+        v-for="name in providerCapabilities"
+        :key="name"
+        class="cap-badge"
+      >{{ name }}</span>
+    </p>
 
     <details class="workflow-variables">
       <summary>Workflow variables</summary>
@@ -268,6 +294,25 @@ function updateErrorPolicy(patch) {
   gap: 8px;
   padding: 4px 14px 0;
   flex-wrap: wrap;
+}
+
+.provider-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 14px 0;
+  margin: 0;
+}
+
+.cap-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bg-elevated, #222d3d);
+  color: var(--text-secondary, #8899aa);
+  border: 1px solid var(--border, #1e2a3a);
 }
 
 .inspector-type {

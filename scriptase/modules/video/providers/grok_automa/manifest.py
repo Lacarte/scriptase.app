@@ -19,9 +19,9 @@ def manifest() -> ProviderManifest:
             "async_job": True,
             "push_callbacks": True,
             "progress": True,
-            # Declared by step 12.4 so the Assets page can offer the
-            # storyboard-to-video hand-off without asking *which* provider it is
-            # talking to (contracts.md §20.4).
+            # Step 6.1 routing: storyboard frame → motion (not text-to-video).
+            # Declared so the Assets page can offer the hand-off without asking
+            # *which* provider it is talking to (contracts.md §20.4).
             "image_to_video": True,
             "duration_control": True,
             "resolution_select": True,

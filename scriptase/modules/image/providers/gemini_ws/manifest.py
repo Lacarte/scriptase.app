@@ -19,6 +19,8 @@ def manifest() -> ProviderManifest:
             "async_job": True,
             "push_callbacks": True,
             "progress": True,
+            # Step 6.1 routing: scene image prompts → frames.
+            "text_to_image": True,
             # Declared, not inferred: `jobs.record_ready` runs the watermark
             # pass only for the provider that asks for it, so the branch that
             # lived in the WebSocket handler is manifest data now.

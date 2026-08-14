@@ -18,9 +18,11 @@ def manifest() -> ProviderManifest:
             "batch": True,
             "async_job": True,
             "progress": True,
+            # Step 6.1: prompt-only path (no storyboard image required).
+            "text_to_video": True,
             "resolution_select": True,
         },
         aliases=["kie-ai"],
-        description="Image generation through the Kie AI API.",
+        description="Prompt-driven scene assets through the Kie AI API (text-to-video).",
         environment={"api_key": "KIE_AI_API_KEY", "model": "KIE_AI_MODEL"},
     )

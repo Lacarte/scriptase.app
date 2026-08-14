@@ -72,6 +72,8 @@ DEFAULT_CAPABILITIES = {
         "async_job": True,
         "progress": True,
         "cancel": True,
+        # Step 6.1 default routing capability for a new image provider.
+        "text_to_image": True,
     },
     "video": {
         "test_connection": True,
@@ -80,6 +82,7 @@ DEFAULT_CAPABILITIES = {
         "async_job": True,
         "progress": True,
         "cancel": True,
+        # Step 6.1 default routing capability for a new video provider.
         "image_to_video": True,
     },
 }

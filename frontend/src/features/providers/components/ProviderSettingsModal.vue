@@ -35,13 +35,26 @@ const isDirty = computed(
   () => JSON.stringify(formData.value) !== JSON.stringify(originalData.value),
 )
 
-/** Declared capabilities, as badges. Purely manifest metadata (§20.4). */
-const capabilities = computed(() =>
-  Object.entries(manifest.value?.capabilities || {})
+/**
+ * Declared capabilities as badges (§20.4 / step 6.1).
+ * Prefer the catalog (vocabulary-filtered). Fall back to the settings
+ * payload's manifest when the catalog has not loaded this domain yet —
+ * still drop keys the domain vocabulary rejects when one is present.
+ */
+const capabilities = computed(() => {
+  if (props.domain && props.providerId) {
+    const fromCatalog = catalog.grantedCapabilitiesOf(props.domain, props.providerId)
+    if (fromCatalog.length) return fromCatalog
+  }
+  const raw = Object.entries(manifest.value?.capabilities || {})
     .filter(([, enabled]) => enabled === true)
     .map(([name]) => name)
-    .sort(),
-)
+  const vocab = props.domain ? catalog.vocabularyOf(props.domain) : []
+  const vocabSet = vocab.length ? new Set(vocab) : null
+  return raw
+    .filter((name) => !vocabSet || vocabSet.has(name))
+    .sort()
+})
 
 const availability = computed(() => availabilityInfo(manifest.value?.availability))
 const links = computed(() =>

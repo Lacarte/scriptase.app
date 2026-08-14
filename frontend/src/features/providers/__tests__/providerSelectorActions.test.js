@@ -21,13 +21,20 @@ const CATALOG = {
       selected: 'alpha',
       count: 1,
       excluded: [],
+      // Step 6.1: closed vocabulary — undeclared keys are never offered as badges.
+      capability_vocabulary: ['batch', 'streaming', 'progress', 'test_connection'],
       providers: [
         {
           id: 'alpha',
           label: 'Alpha',
           domain: 'demo',
           aliases: [],
-          capabilities: { batch: true, streaming: false, progress: true },
+          capabilities: {
+            batch: true,
+            streaming: false,
+            progress: true,
+            teleport: true, // outside vocabulary — never a badge
+          },
           has_settings: true,
           availability: 'available',
           warnings: [],
@@ -51,6 +58,7 @@ describe('provider selector actions', () => {
     vi.spyOn(api, 'get').mockResolvedValue(structuredClone(CATALOG))
     const wrapper = await mountSelector()
 
+    // Granted + in vocabulary; never streaming:false and never undeclared teleport.
     expect(wrapper.findAll('.badge').map((el) => el.text())).toEqual(['batch', 'progress'])
   })
 

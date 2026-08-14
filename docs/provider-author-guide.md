@@ -285,7 +285,7 @@ Field tables are loaded from each domain's request/result models at generation t
 
 #### Capability vocabulary
 
-`async_job`, `auto_animate`, `batch`, `cancel`, `exclusive_execution`, `image_edit`, `progress`, `prompt_prefix`, `push_callbacks`, `single_scene`, `test_connection`, `watermark_removal`
+`async_job`, `auto_animate`, `batch`, `cancel`, `exclusive_execution`, `image_edit`, `inpainting`, `progress`, `prompt_prefix`, `push_callbacks`, `reference_image`, `single_scene`, `test_connection`, `text_to_image`, `watermark_removal`
 
 #### Request model (`scriptase.modules.image.providers.contract:StoryboardRequest`)
 
@@ -314,7 +314,7 @@ Field tables are loaded from each domain's request/result models at generation t
 
 #### Capability vocabulary
 
-`async_job`, `batch`, `cancel`, `duration_control`, `exclusive_execution`, `image_to_video`, `progress`, `push_callbacks`, `resolution_select`, `single_scene`, `test_connection`
+`async_job`, `batch`, `cancel`, `duration_control`, `exclusive_execution`, `image_to_video`, `progress`, `push_callbacks`, `reference_image`, `resolution_select`, `single_scene`, `test_connection`, `text_to_video`
 
 #### Request model (`scriptase.modules.video.providers.contract:AnimatorRequest`)
 

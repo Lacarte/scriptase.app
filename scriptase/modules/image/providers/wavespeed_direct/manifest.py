@@ -19,6 +19,8 @@ def manifest() -> ProviderManifest:
             "async_job": True,
             "cancel": True,
             "progress": True,
+            # Step 6.1 routing vocabulary.
+            "text_to_image": True,
             "image_edit": True,
         },
         aliases=["direct"],

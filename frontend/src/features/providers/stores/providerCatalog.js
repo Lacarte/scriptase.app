@@ -270,7 +270,34 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     return resolveProvider(domain, instanceOrTypeId)?.capabilities || {}
   }
 
+  /**
+   * Closed capability vocabulary for a domain (step 6.1).
+   * Empty array when the catalog has not shipped one yet.
+   */
+  function vocabularyOf(domain) {
+    const raw = domainEntry(domain)?.capability_vocabulary
+    return Array.isArray(raw) ? raw : []
+  }
+
+  /**
+   * Granted capabilities that are both true on the provider and inside the
+   * domain vocabulary. An undeclared key is never offered to the UI.
+   */
+  function grantedCapabilitiesOf(domain, instanceOrTypeId) {
+    const caps = capabilitiesOf(domain, instanceOrTypeId)
+    const vocab = vocabularyOf(domain)
+    const vocabSet = vocab.length ? new Set(vocab) : null
+    return Object.entries(caps || {})
+      .filter(([, enabled]) => enabled === true)
+      .map(([name]) => name)
+      .filter((name) => !vocabSet || vocabSet.has(name))
+      .sort()
+  }
+
   function supports(domain, instanceOrTypeId, capability) {
+    // Never claim support for a key outside the domain vocabulary.
+    const vocab = vocabularyOf(domain)
+    if (vocab.length && !vocab.includes(capability)) return false
     return capabilitiesOf(domain, instanceOrTypeId)[capability] === true
   }
 
@@ -488,6 +515,8 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     selectedInstance,
     availabilityOf,
     capabilitiesOf,
+    vocabularyOf,
+    grantedCapabilitiesOf,
     supports,
     healthFor,
     checkHealth,

@@ -69,6 +69,9 @@ def build_catalog() -> dict:
         if spec is not None:
             payload["label"] = spec.label
             payload["default_provider"] = spec.default_provider
+            # Step 6.1: closed capability vocabulary travels with the catalog so
+            # the node/step UI can only offer keys the domain understands.
+            payload["capability_vocabulary"] = sorted(spec.capability_vocabulary)
             # Step 16.1: `legacy_selection_key` is no longer shipped. The retired
             # app-config keys were adopted by the v2 settings migration; the field
             # remains on DomainSpec only so that one-time upgrade can still find
