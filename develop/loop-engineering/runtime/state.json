@@ -259,6 +259,18 @@
       "step": "2.1",
       "event": "start",
       "detail": ""
+    },
+    {
+      "ts": "2026-08-14T10:43:00",
+      "step": "2.1",
+      "event": "done",
+      "detail": "966eaf1"
+    },
+    {
+      "ts": "2026-08-14T10:43:00",
+      "step": "2.2",
+      "event": "start",
+      "detail": ""
     }
   ]
 }
