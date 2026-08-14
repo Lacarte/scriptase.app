@@ -4,7 +4,8 @@ import os
 from datetime import datetime, timezone
 
 from config import CAPTIONS_DIR
-from scriptase.modules.captions.routes import CAPTION_PRESETS, _get_default_caption_preset_id, _group_words_into_captions
+from scriptase.modules.captions.presets import CAPTION_PRESETS, _get_default_caption_preset_id
+from scriptase.modules.captions.service import _group_words_into_captions
 from scriptase.shared.io_utils import safe_json_write
 from .common import AdapterError, outputs, project_id, with_artifacts
 

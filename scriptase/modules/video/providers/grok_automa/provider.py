@@ -1,7 +1,7 @@
 """Grok Automa Animator Provider — Provider Contract v2 (step 14.3).
 
-Owns everything the routes and the workflow adapter used to branch on for this
-provider:
+Owns everything the REST layer and the workflow adapter used to branch on for
+this provider:
 
   * seeding `grabber_job.json` and dispatching `GRABBER_START` over the WebSocket;
   * mode / quality / duration / auto_type, which are this provider's own
@@ -9,7 +9,7 @@ provider:
   * attaching storyboard reference images as base64 for the extension.
 
 `poll` reads the manifest the upload/results handlers write. The v1 body read
-`animator_routes._jobs` (a different store) with the wrong status vocabulary.
+`ws_runtime._jobs` (a different store) with the wrong status vocabulary.
 """
 
 from __future__ import annotations
@@ -32,9 +32,9 @@ class GrokAutomaProvider(AnimatorProvider):
     """Animator takes driven by the Grok Chrome extension via WebSocket."""
 
     def _runtime(self):
-        from scriptase.modules.video import routes as animator_routes
+        from scriptase.modules.video import ws_runtime as animator_runtime
 
-        return animator_routes
+        return animator_runtime
 
     def submit(self, request: AnimatorRequest, invocation) -> JobHandle:
         options = {**dict(invocation.settings), **dict(invocation.options)}
@@ -148,9 +148,9 @@ def create() -> GrokAutomaProvider:
 
 def register_runtime(app, sock=None):
     """Register the extension's WebSocket route (`manifest.kind == "extension"`)."""
-    from scriptase.modules.video import routes as animator_routes
+    from scriptase.modules.video import ws_runtime as animator_runtime
 
-    animator_routes.init_animator_ws(sock)
+    animator_runtime.init_animator_ws(sock)
 
 
 def validate_settings(settings: dict) -> list[dict]:
@@ -159,9 +159,9 @@ def validate_settings(settings: dict) -> list[dict]:
 
 def health_check(settings: dict) -> dict:
     """Extension connectivity, isolated from generation errors (§21.5)."""
-    from scriptase.modules.video import routes as animator_routes
+    from scriptase.modules.video import ws_runtime as animator_runtime
 
-    clients = len(animator_routes._ws_clients)
+    clients = len(animator_runtime._ws_clients)
     return {
         "status": "ok" if clients else "warn",
         "latency_ms": 0,

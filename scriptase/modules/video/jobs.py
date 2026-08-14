@@ -119,6 +119,21 @@ def save(project_id: str, job: Mapping[str, Any] | None = None) -> None:
         _store.set(project_id, current)
 
 
+# Compatibility wrappers — these lived in `animation_routes` until step 0.3,
+# where the extension WebSocket runtime imported them out of a blueprint
+# module. The names are kept exactly so existing callers keep resolving.
+
+
+def _get_job(project_id):
+    return get(project_id)
+
+
+def _save_job(job):
+    if not isinstance(job, dict):
+        return
+    save(job.get("project_id", ""), job)
+
+
 # -- lifecycle ---------------------------------------------------------------
 
 

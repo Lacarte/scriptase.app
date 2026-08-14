@@ -1,3 +1,13 @@
+"""Workflow adapter for the Export node (`export.video`).
+
+Step 0.3 retires the absolute `path` key this adapter used to emit on the video
+port (§36 L7), matching what step 15.3 already did for `tts.generate`. The
+rendered file is addressed the way every other managed artifact is: `filename`
+plus the relative `artifact_refs` entry `with_artifacts` derives. `VideoProcessor`
+still receives an absolute path — it writes the file — but that path does not
+leave the adapter.
+"""
+
 from __future__ import annotations
 
 import os
@@ -5,7 +15,7 @@ import uuid
 
 from config import EXPORT_DIR
 from scriptase.modules.compose.video_processor import VideoProcessor
-from scriptase.modules.pipeline.services import _normalize_export_audio, _normalize_export_captions, _extract_music_track, _extract_sfx_track
+from scriptase.modules.compose.export_service import _normalize_export_audio, _normalize_export_captions, _extract_music_track, _extract_sfx_track
 from .common import AdapterError, inherited_config, outputs, project_id, with_artifacts
 
 PROFILES = {
@@ -74,5 +84,5 @@ def video(inputs, config, context):
     path = os.path.join(EXPORT_DIR, filename)
     progress = context.get("progress") if isinstance(context, dict) else getattr(context, "progress", None)
     VideoProcessor(payload, progress_callback=(lambda percent, message: progress(message) if progress else None)).process(path)
-    result = with_artifacts({"project_id": pid, "filename": filename, "path": path, "profile": payload["profile"], "resolution": f"{payload['output']['resolution']['width']}x{payload['output']['resolution']['height']}"}, path)
+    result = with_artifacts({"project_id": pid, "filename": filename, "profile": payload["profile"], "resolution": f"{payload['output']['resolution']['width']}x{payload['output']['resolution']['height']}"}, path)
     return outputs(video=result)

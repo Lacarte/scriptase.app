@@ -282,7 +282,7 @@ def _push_to_grok(project_id):
         return
 
     try:
-        from scriptase.modules.video.routes import activate_tab as animator_activate, queue_grabber_start
+        from scriptase.modules.video.ws_runtime import activate_tab as animator_activate, queue_grabber_start
 
         animator_activate()
         queue_grabber_start({

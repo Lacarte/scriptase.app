@@ -19,5 +19,16 @@ flask-sock>=0.7      # extension-provider WebSocket runtimes
 pillow>=10.0         # managed-upload image type/size validation
 
 # --- Added in step 0.3: media modules ----------------------------------------
-# stable-ts / openai-whisper (timing), moviepy or direct ffmpeg (compose),
-# pillow (image), pydub (audio)
+numpy>=1.26          # timing: waveform resampling for force alignment
+soundfile>=0.12      # timing: wav reads for alignment and gap detection
+py-gemini-watermark-remover  # image: watermark detection (pulls opencv-python)
+
+# stable-ts / openai-whisper are imported lazily by `timing/service.py` and stay
+# optional: `_check_alignment_available()` degrades instead of failing at import.
+#
+# `simple-lama-inpainting` must NOT be added here. It pins numpy<2 / torch 2.11,
+# which conflicts with the rest of this environment, so it lives in an isolated
+# venv at `_dev/venvs/lama/` driven as a subprocess by
+# `scriptase/modules/image/lama_worker.py`. When that venv is absent,
+# `lama_client.is_available()` is False and `watermark.py` falls back to the
+# OpenCV inpaint path.

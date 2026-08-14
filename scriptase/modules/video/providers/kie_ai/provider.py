@@ -6,7 +6,7 @@ Uses the direct Kie AI API for image generation:
   2. GET  /jobs/recordInfo?taskId=...  -> poll until resultJson populated
   3. Download image from resultJson.resultUrls[0]
 
-The v1 body wrote into `animator_routes._jobs` (the WebSocket store, not the
+The v1 body wrote into `ws_runtime._jobs` (the WebSocket store, not the
 grabber store) and was never called from a route. Step 14.3 is the first real
 execution path: `submit` seeds `grabber_job.json`, starts the batch worker, and
 `poll` reports from the same manifest the status route reads.

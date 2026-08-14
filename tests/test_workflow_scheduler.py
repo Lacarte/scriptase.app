@@ -574,15 +574,15 @@ def test_a_cancelled_storyboard_node_is_recorded_as_cancelled(tmp_path, monkeypa
 
 def test_a_cancelled_animator_node_is_recorded_as_cancelled(tmp_path, monkeypatch):
     from scriptase.modules.video import jobs as anim_jobs
-    from scriptase.modules.video import routes as animator_routes
+    from scriptase.modules.video import ws_runtime as animator_runtime
     from scriptase.engine.adapters import video as animator
 
     monkeypatch.setattr(animator, "ANIMATOR_DIR", str(tmp_path / "video"))
     monkeypatch.setattr(anim_jobs, "ANIMATOR_DIR", str(tmp_path / "video"))
     monkeypatch.setattr(anim_jobs, "seed", lambda *a, **k: {})
     monkeypatch.setattr(anim_jobs, "read", lambda *a, **k: None)
-    monkeypatch.setattr(animator_routes, "queue_grabber_start", lambda *a, **k: None)
-    monkeypatch.setattr(animator_routes, "is_extension_connected", lambda: True)
+    monkeypatch.setattr(animator_runtime, "queue_grabber_start", lambda *a, **k: None)
+    monkeypatch.setattr(animator_runtime, "is_extension_connected", lambda: True)
 
     with pytest.raises(Exception) as caught:
         animator._step_assets(

@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 
 from config import ALIGN_DIR
-from scriptase.modules.pipeline.services import _step_timing
+from scriptase.modules.timing.service import _step_timing
 from scriptase.providers.errors import ProviderError
 from scriptase.providers.results import resolve_ref
 

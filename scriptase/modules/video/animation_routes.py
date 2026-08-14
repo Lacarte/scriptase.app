@@ -55,18 +55,8 @@ VIDEO_EXTS = jobs.VIDEO_EXTS
 grabber_jobs = jobs.grabber_jobs
 
 
-def _get_job(project_id):
-    return jobs.get(project_id)
-
-
 def _set_job(project_id, job):
     jobs.set_job(project_id, job)
-
-
-def _save_job(job):
-    if not isinstance(job, dict):
-        return
-    jobs.save(job.get("project_id", ""), job)
 
 
 def _job_elapsed_seconds(job, *, include_running=False):
@@ -308,7 +298,7 @@ def _extension_callback_scope():
     Resolved from the extension runtime module and its manifest so this route
     never embeds a concrete provider id (the 14.3 source-level scan).
     """
-    from scriptase.modules.video import routes as ext_runtime
+    from scriptase.modules.video import ws_runtime as ext_runtime
     from scriptase.providers.hub import hub as provider_hub
 
     provider_id = ext_runtime.PROVIDER_ID

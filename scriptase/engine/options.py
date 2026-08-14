@@ -329,7 +329,7 @@ def _export_profiles(_ctx: OptionContext):
 
 
 def _caption_presets(_ctx: OptionContext):
-    from scriptase.modules.captions.routes import CAPTION_PRESETS
+    from scriptase.modules.captions.presets import CAPTION_PRESETS
 
     options = []
     for preset_id, preset in CAPTION_PRESETS.items():

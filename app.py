@@ -45,12 +45,57 @@ def create_app(*, discover_providers: bool = True) -> Flask:
 
 
 def register_blueprints(app: Flask) -> None:
-    """Attach feature blueprints. Populated as packages land in Phase 0."""
+    """Attach feature blueprints. Populated as packages land in Phase 0.
+
+    Transport only. Every blueprint here is a thin shell over a service module,
+    which is why step 0.3 could split V2's 2,821-line editor blueprint into the
+    seven `compose_*` ones below without moving a single behaviour: the logic
+    they used to hold now lives in `scriptase/modules/compose/*_service.py`.
+    """
     from scriptase.engine.routes import workflows_bp
+    from scriptase.modules.captions import captions_bp
+    from scriptase.modules.compose import (
+        compose_archive_bp,
+        compose_assemble_bp,
+        compose_assets_bp,
+        compose_export_bp,
+        compose_projects_bp,
+        compose_settings_bp,
+        compose_sfx_bp,
+    )
+    from scriptase.modules.image import storyboard_bp
+    from scriptase.modules.music import music_bp
+    from scriptase.modules.scene_director import scenes_bp
+    from scriptase.modules.script import story_bp
+    from scriptase.modules.segmenter import segmenter_bp
+    from scriptase.modules.timing import timing_bp
+    from scriptase.modules.tts import tts_bp
+    from scriptase.modules.video import animation_bp, animator_bp
     from scriptase.providers.routes import providers_bp
 
     app.register_blueprint(workflows_bp)
     app.register_blueprint(providers_bp)
+
+    for blueprint in (
+        story_bp,
+        tts_bp,
+        timing_bp,
+        segmenter_bp,
+        scenes_bp,
+        storyboard_bp,
+        animator_bp,
+        animation_bp,
+        captions_bp,
+        music_bp,
+        compose_settings_bp,
+        compose_sfx_bp,
+        compose_projects_bp,
+        compose_assemble_bp,
+        compose_archive_bp,
+        compose_assets_bp,
+        compose_export_bp,
+    ):
+        app.register_blueprint(blueprint)
 
 
 def init_provider_platform(app: Flask, sock) -> None:

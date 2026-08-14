@@ -6,4 +6,12 @@ Step 0.3 extracts the Whisper/stable-ts aligner out of the Flask blueprint into
 
 Downstream consumes one canonical alignment artifact regardless of which timing
 strategy ran.
+
+``_step_timing`` (V2 ``studio/pipeline/services.py``) lives in ``service.py`` too,
+so nothing has to reach through a ``routes.py`` to align. ``timing_bp`` is this
+package's own transport and is exported, never imported from.
 """
+
+from .routes import timing_bp
+
+__all__ = ["timing_bp"]

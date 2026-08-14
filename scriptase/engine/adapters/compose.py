@@ -5,7 +5,7 @@ import os
 from config import PROJECTS_DIR
 from scriptase.shared.io_utils import safe_json_write
 from scriptase.modules.music.selector import persist_project_audio_history
-from scriptase.modules.pipeline.services import _step_assemble
+from scriptase.modules.compose.service import _step_assemble
 from .common import AdapterError, context_value, outputs, project_id, with_artifacts
 
 

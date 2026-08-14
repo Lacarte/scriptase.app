@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import os
 
-from scriptase.modules.pipeline.services import _step_tts
+from scriptase.modules.tts.service import _step_tts
 from scriptase.providers.errors import ProviderError
 
 from .common import (
