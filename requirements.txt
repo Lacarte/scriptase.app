@@ -1,0 +1,19 @@
+# Scriptase backend dependencies.
+#
+# Step 0.1 installs the core only. The engine and provider platform (0.2), the
+# media modules (0.3), and their heavier native dependencies are added by the
+# steps that need them, so a scaffold checkout stays installable.
+
+# --- Core (step 0.1) ---------------------------------------------------------
+flask>=3.0
+pydantic>=2.6
+
+# --- Test tooling ------------------------------------------------------------
+pytest>=8.0
+
+# --- Added in step 0.2: engine + provider platform ---------------------------
+# requests, python-dotenv, jsonschema
+
+# --- Added in step 0.3: media modules ----------------------------------------
+# stable-ts / openai-whisper (timing), moviepy or direct ffmpeg (compose),
+# pillow (image), pydub (audio)

@@ -1,0 +1,67 @@
+# --- Python -----------------------------------------------------------------
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- Node / frontend ---------------------------------------------------------
+node_modules/
+static/dist/
+frontend/node_modules/
+frontend/.vite/
+npm-debug.log*
+yarn-error.log*
+.vite/
+
+# --- Runtime artefacts -------------------------------------------------------
+# Generated media, projects, and per-run state. Never committed; the directory
+# itself is kept so a fresh clone has somewhere to write.
+output/*
+!output/.gitkeep
+logs/
+*.log
+tmp/
+.tmp/
+
+# --- Secrets -----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+settings/settings.json
+**/secrets.json
+
+# --- Large local assets ------------------------------------------------------
+# ffmpeg/ffprobe binaries and Whisper weights are fetched locally, not committed.
+models/*
+!models/.gitkeep
+bin/*
+!bin/.gitkeep
+
+# --- Loop engineering --------------------------------------------------------
+# Several thousand copied n8n build assets; never part of the repo.
+develop/loop-engineering/live-verification/n8n-data/
+develop/loop-engineering/runtime/logs/
+
+# --- Editor / OS -------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Claude Code -------------------------------------------------------------
+# settings.local.json is machine-local permission state, but this project relies
+# on it for headless runs, so it IS tracked. Only transient session data is not.
+.claude/shell-snapshots/
+.claude/todos/
+.claude/statsig/
