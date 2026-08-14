@@ -26,6 +26,10 @@ from scriptase.jobs.channel_settings import (
     script_text_from_source,
 )
 from scriptase.jobs.models import TERMINAL_STATUSES, Job
+from scriptase.jobs.source_modes import (
+    DIRECT_TEXT_SOURCE_MODES,
+    source_mode_requires_provider,
+)
 from scriptase.jobs.store import (
     JobNotFound,
     JobTerminal,
@@ -113,7 +117,11 @@ def prepare_workflow_for_job(
 
     * Channel defaults merge into seeded node configurations via
       ``inherited_config`` (explicit wins; empty is not explicit).
-    * Job source text fills ``script.input`` when that node's text is empty.
+    * Job source text fills ``script.input`` for Paste / Manual (and any
+      graph that already carries that node).
+    * Paste / Manual rewrite ``story.generate`` → ``script.input`` so the run
+      never calls a script provider (product §6 / step 2.5 done-when).
+    * Topic / Idea / Automatic seed ``story.generate.idea`` from the source.
     * ``template_id`` and other non-document keys are stripped.
     * The Job's ``workflow_id`` is stamped when present so the execution
       record links back to the saved workflow.
@@ -133,7 +141,9 @@ def prepare_workflow_for_job(
         if hasattr(job.source, "model_dump")
         else dict(job.source or {})
     )
+    source_mode = str(source_payload.get("mode") or "topic").strip() or "topic"
     script_text = script_text_from_source(source_payload)
+    direct_text = source_mode in DIRECT_TEXT_SOURCE_MODES
 
     nodes = document.get("nodes")
     if not isinstance(nodes, list):
@@ -155,12 +165,20 @@ def prepare_workflow_for_job(
             merged = merge_setup_config_with_channel(config, channel_settings)
             config = {key: value for key, value in merged.items() if key in allowed}
 
+        # Paste / Manual never call a script provider. When the graph only has
+        # story.generate, rewrite it to script.input with the pasted text so
+        # the shared ``script`` port still feeds TTS / scenes.
+        if direct_text and node_type == _STORY_GENERATE_TYPE and script_text:
+            node_type = _SCRIPT_INPUT_TYPE
+            node["type"] = _SCRIPT_INPUT_TYPE
+            node["type_version"] = 1
+            config = {"text": script_text}
+
         if node_type == _SCRIPT_INPUT_TYPE and script_text:
             config = merge_node_config_with_channel(config, {"text": script_text})
 
         if node_type == _STORY_GENERATE_TYPE:
-            # Only schema-known story keys; idea/topic may be free-form strings
-            # on some providers via provider_options later — keep prepare strict.
+            # Only schema-known story keys; idea/topic seed the provider prompt.
             story_seed = _story_seed_from_source(source_payload, channel_settings)
             if story_seed:
                 config = merge_node_config_with_channel(
@@ -181,6 +199,8 @@ def prepare_workflow_for_job(
     extensions["job_id"] = job.id
     extensions["channel_id"] = job.channel_id
     extensions["execution_mode"] = job.execution_mode
+    extensions["source_mode"] = source_mode
+    extensions["script_provider_required"] = source_mode_requires_provider(source_mode)
     if channel_settings:
         extensions["channel_settings"] = channel_settings
     document["extensions"] = extensions
@@ -203,6 +223,21 @@ def _story_seed_from_source(
             seed.setdefault("story_tone", channel_settings["tone"])
         if key == "preset_style" and "preset_style" in allowed and "style" in channel_settings:
             seed.setdefault("preset_style", channel_settings["style"])
+
+    # Seed the provider prompt from Job source (product §6).
+    mode = str(source.get("mode") or "").strip() or "topic"
+    idea = str(source.get("idea") or "").strip()
+    topic = str(source.get("topic") or "").strip()
+    pasted = str(source.get("pasted_script") or "").strip()
+    prompt = ""
+    if mode == "idea":
+        prompt = idea or topic or pasted
+    elif mode == "topic":
+        prompt = topic or idea or pasted
+    elif mode == "automatic":
+        prompt = idea or topic or pasted
+    if prompt and "idea" in allowed:
+        seed["idea"] = prompt
     return seed
 
 

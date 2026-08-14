@@ -1,12 +1,13 @@
 /**
- * Production stage-projection + step-action API client.
+ * Production stage-projection, Job creation, and step-action API client.
  *
  * Stages are computed on the backend from the workflow graph (step 2.2).
  * Step actions (step 2.4) post to the same /workflow/run endpoint the canvas
- * uses — never a second execution path. This module never hardcodes a step array.
+ * uses — never a second execution path. Job create / start (step 2.5) go
+ * through /api/jobs. This module never hardcodes a step array.
  */
 
-import { apiGet, apiPost } from '@/shared/api.js'
+import { apiDelete, apiGet, apiPost } from '@/shared/api.js'
 
 /** Project a saved workflow into the ordered Production stage list. */
 export function getWorkflowStages(workflowId, { summary = false } = {}) {
@@ -62,4 +63,52 @@ export function getExecution(executionId) {
  */
 export function runWorkflow(body) {
   return apiPost('/workflow/run', body)
+}
+
+// ---------------------------------------------------------------------------
+// Jobs (step 2.5 — Step 0 creation + start)
+// ---------------------------------------------------------------------------
+
+/** Source / execution mode catalog for the Job creation form. */
+export function getJobDefaults() {
+  return apiGet('/jobs/defaults')
+}
+
+/** List jobs newest-first. */
+export function listJobs({ channelId, status, limit = 50 } = {}) {
+  return apiGet('/jobs', {
+    channel_id: channelId || undefined,
+    status: status || undefined,
+    limit,
+  })
+}
+
+/** Load a single Job document (snapshot is secret-free). */
+export function getJob(jobId) {
+  return apiGet(`/jobs/${encodeURIComponent(jobId)}`)
+}
+
+/**
+ * Create a Job from Channel + source + workflow + execution mode.
+ * @param {object} draft
+ */
+export function createJob(draft) {
+  return apiPost('/jobs', { job: draft })
+}
+
+/**
+ * Start a Job through the ported engine (returns job + execution_id).
+ * @param {string} jobId
+ * @param {{ force?: boolean, wait?: boolean, timeout?: number }} [opts]
+ */
+export function startJob(jobId, opts = {}) {
+  return apiPost(`/jobs/${encodeURIComponent(jobId)}/start`, {
+    force: Boolean(opts.force),
+    wait: Boolean(opts.wait),
+    timeout: opts.timeout,
+  })
+}
+
+export function deleteJob(jobId) {
+  return apiDelete(`/jobs/${encodeURIComponent(jobId)}`)
 }

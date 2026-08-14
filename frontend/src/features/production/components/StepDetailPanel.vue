@@ -18,6 +18,7 @@ import {
   isExecutableAction,
   stagePrimaryTarget,
 } from '../stageActions.js'
+import { sourceModeLabel, sourceModeRequiresProvider } from '../sourceModes.js'
 import { statusLabel } from '../stageStatus.js'
 
 const props = defineProps({
@@ -31,6 +32,13 @@ const props = defineProps({
   running: { type: Boolean, default: false },
   actionError: { type: String, default: '' },
   actionMessage: { type: String, default: '' },
+  /** Job source.mode when bound (step 2.5); drives Script provider UI. */
+  scriptSourceMode: { type: String, default: null },
+  /**
+   * Explicit override: when non-null, controls whether the Script stage shows
+   * provider UI. Paste / Manual pass false even if the graph has story.generate.
+   */
+  scriptProviderRequired: { type: Boolean, default: null },
 })
 
 const emit = defineEmits(['run', 'inspect'])
@@ -69,13 +77,38 @@ const canRunActions = computed(
 
 const approveEnabled = computed(() => canApproveStage(props.stage) && !props.running)
 
+const isScriptStage = computed(() => props.stage?.key === 'script')
+
+/**
+ * Provider UI for the Script stage follows the Job source mode (§6):
+ * Paste / Manual never show a provider even when the graph is provider-capable.
+ * Other stages still use graph-derived provider_capable.
+ */
+const showProviderUi = computed(() => {
+  if (!props.stage) return false
+  if (isScriptStage.value) {
+    if (props.scriptProviderRequired !== null && props.scriptProviderRequired !== undefined) {
+      return Boolean(props.scriptProviderRequired)
+    }
+    if (props.scriptSourceMode) {
+      return sourceModeRequiresProvider(props.scriptSourceMode)
+    }
+  }
+  return Boolean(props.stage.provider_capable)
+})
+
+const scriptModeDisplay = computed(() => {
+  if (!isScriptStage.value || !props.scriptSourceMode) return null
+  return sourceModeLabel(props.scriptSourceMode)
+})
+
 const executableActions = ['run', 'test', 'regenerate', 'run_from_here']
 const inspectActions = ['view_input', 'view_output', 'provider', 'history', 'approve']
 
 function showProviderAction(action) {
   if (action !== 'provider') return true
-  // Provider selection appears only on provider-capable stages (§6, §19).
-  return Boolean(props.stage?.provider_capable)
+  // Provider selection appears only where the stage needs one (§6, §19).
+  return showProviderUi.value
 }
 
 function actionDisabled(action) {
@@ -83,7 +116,7 @@ function actionDisabled(action) {
   if (isExecutableAction(action)) return !canRunActions.value
   // Inspect actions need a stage; history/input/output prefer a record.
   if (!props.stage) return true
-  if (action === 'provider') return !props.stage.provider_capable
+  if (action === 'provider') return !showProviderUi.value
   return false
 }
 
@@ -125,7 +158,7 @@ function onAction(action) {
     body,
     runMode: body.run_mode,
     targetNodeIds: body.target_node_ids,
-    requiresProvider: actionRequiresProvider(action, props.stage),
+    requiresProvider: showProviderUi.value && actionRequiresProvider(action, props.stage),
   })
 }
 
@@ -174,7 +207,11 @@ function pretty(value) {
             <span v-else class="muted">None in this workflow</span>
           </dd>
         </div>
-        <div v-if="stage.provider_capable">
+        <div v-if="scriptModeDisplay">
+          <dt>Script mode</dt>
+          <dd>{{ scriptModeDisplay }}</dd>
+        </div>
+        <div v-if="showProviderUi">
           <dt>Provider</dt>
           <dd>
             <span class="provider-id">
@@ -184,7 +221,13 @@ function pretty(value) {
         </div>
         <div v-else>
           <dt>Provider</dt>
-          <dd class="muted">Local (not provider-capable)</dd>
+          <dd class="muted">
+            {{
+              isScriptStage && scriptModeDisplay
+                ? 'Not required for this Script mode'
+                : 'Local (not provider-capable)'
+            }}
+          </dd>
         </div>
         <div v-if="(stage.artifacts || []).length">
           <dt>Artifacts</dt>
@@ -312,8 +355,8 @@ function pretty(value) {
             </dd>
           </div>
           <div>
-            <dt>Capable</dt>
-            <dd>{{ stage.provider_capable ? 'Yes' : 'No' }}</dd>
+            <dt>Required for this mode</dt>
+            <dd>{{ showProviderUi ? 'Yes' : 'No' }}</dd>
           </div>
         </dl>
       </section>

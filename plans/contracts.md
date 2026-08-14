@@ -772,6 +772,7 @@ Platform-owned retryability. Core set includes:
 | `CHANNEL_NOT_FOUND` | Referenced channel id does not resolve | no |
 | `CHANNEL_INVALID` | Channel document failed schema validation | no |
 | `JOB_NOT_FOUND` | Referenced job id does not resolve | no |
+| `JOB_INVALID` | Job document or create draft failed schema / source validation | no |
 | `JOB_TERMINAL` | Operation invalid for a completed/failed/cancelled job | no |
 | `ARTIFACT_NOT_FOUND` | Artifact id does not resolve | no |
 | `ARTIFACT_SUPERSEDED` | Operation targeted a superseded artifact version | no |

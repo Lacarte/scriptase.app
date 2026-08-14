@@ -1,18 +1,25 @@
-"""HTTP transport for stage projection (step 2.2).
+"""HTTP transport for Jobs and stage projection (steps 1.4–1.5, 2.2, 2.5).
 
-Thin shell over ``scriptase.jobs.stage_projection``. Business logic stays out
-of this module (CLAUDE.md: no imports *from* a routes.py for behaviour).
+Thin shell over store / orchestration / stage_projection. Business logic stays
+out of this module (CLAUDE.md: no imports *from* a routes.py for behaviour).
 
 Endpoints:
 
-* ``GET  /api/workflows/<workflow_id>/stages`` — project a saved workflow
-* ``POST /api/workflow/stages`` — project a workflow document body (draft /
-  template) without requiring persistence
-* ``GET  /api/workflow/executions/<execution_id>/stages`` — project the
-  snapshot used for a run, with live per-stage status from node records
+Job creation (Step 0 / step 2.5)
+* ``GET    /api/jobs/defaults`` — source + execution mode catalog
+* ``GET    /api/jobs`` — list (newest first)
+* ``POST   /api/jobs`` — create from Channel + source + workflow + mode
+* ``GET    /api/jobs/<job_id>`` — full document (snapshot is secret-free)
+* ``POST   /api/jobs/<job_id>/start`` — run through the ported engine
+* ``DELETE /api/jobs/<job_id>`` — soft-delete into TRASH
 
-Workflow routes that describe credentials stay loopback-only; stage projection
-returns no secrets and is safe on any interface.
+Stage projection (step 2.2)
+* ``GET  /api/workflows/<workflow_id>/stages``
+* ``POST /api/workflow/stages``
+* ``GET  /api/workflow/executions/<execution_id>/stages``
+
+Workflow routes that describe credentials stay loopback-only; Job and stage
+payloads never include secrets or absolute filesystem paths.
 """
 
 from __future__ import annotations
@@ -28,11 +35,29 @@ from scriptase.engine.persistence import (
     load_workflow,
 )
 from scriptase.engine.validation import WORKFLOW_ID_RE
+from scriptase.jobs.models import JOB_ID_RE, JOB_STATUSES
+from scriptase.jobs.orchestration import (
+    JobOrchestrationError,
+    start_job,
+    sync_job_from_execution,
+)
+from scriptase.jobs.source_modes import job_creation_catalog
 from scriptase.jobs.stage_projection import (
     StageProjectionError,
     project_stages,
     stage_projection_summary,
 )
+from scriptase.jobs.store import (
+    JobNotFound,
+    JobTerminal,
+    JobValidationError,
+    create_job,
+    delete_job,
+    get_job,
+    job_summary,
+    list_jobs,
+)
+from scriptase.jobs.snapshot import assert_snapshot_has_no_credentials
 
 # Draft bodies are workflow-sized; match the workflow document limit.
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -47,7 +72,7 @@ def _error(code: str, message: str, status: int, details=None):
     return jsonify(body), status
 
 
-def _json_body():
+def _json_body(*, allow_empty: bool = False):
     declared = request.content_length
     if declared is not None and declared > MAX_BODY_BYTES:
         return None, _error(
@@ -59,6 +84,8 @@ def _json_body():
             "REQUEST_TOO_LARGE", "Request exceeds the 2 MiB limit", 413
         )
     if not raw:
+        if allow_empty:
+            return {}, None
         return None, _error("BAD_REQUEST", "Request body must be a JSON object", 400)
     if not request.is_json:
         return None, _error("BAD_REQUEST", "Request body must be a JSON object", 400)
@@ -69,6 +96,58 @@ def _json_body():
     if not isinstance(body, dict):
         return None, _error("BAD_REQUEST", "Request body must be a JSON object", 400)
     return body, None
+
+
+def _store_error(exc: Exception):
+    if isinstance(exc, JobNotFound):
+        return _error("JOB_NOT_FOUND", "Job not found", 404)
+    if isinstance(exc, JobTerminal):
+        return _error(
+            "JOB_TERMINAL",
+            f"Job is terminal ({exc.status})",
+            409,
+            {"job_id": exc.job_id, "status": exc.status},
+        )
+    if isinstance(exc, JobValidationError):
+        return _error(
+            "JOB_INVALID",
+            "Job document failed schema validation",
+            422,
+            {"problems": exc.problems},
+        )
+    if isinstance(exc, JobOrchestrationError):
+        status = 409 if exc.code in {"JOB_ALREADY_RUNNING"} else 422
+        if exc.code in {"WORKFLOW_NOT_FOUND", "WORKFLOW_REQUIRED"}:
+            status = 422
+        return _error(exc.code, str(exc), status, exc.details)
+    if isinstance(exc, ValueError):
+        return _error("BAD_REQUEST", str(exc), 400)
+    raise exc
+
+
+def _job_public(document) -> dict:
+    """Serialize a Job for the API. Snapshot is already secret-free; re-check."""
+    payload = document.to_document()
+    assert_snapshot_has_no_credentials(payload.get("channel_snapshot") or {})
+    return payload
+
+
+def _draft_from_body(body: dict) -> dict:
+    """Accept either a bare draft or ``{job: draft}``."""
+    if isinstance(body.get("job"), dict):
+        return body["job"]
+    return {
+        key: value
+        for key, value in body.items()
+        if key
+        in {
+            "channel_id",
+            "workflow_id",
+            "workflow_version",
+            "execution_mode",
+            "source",
+        }
+    }
 
 
 def _project_or_error(workflow, *, execution=None):
@@ -82,6 +161,153 @@ def _project_or_error(workflow, *, execution=None):
             exc.details,
         )
     return projection, None
+
+
+# ---------------------------------------------------------------------------
+# Job creation + lifecycle (step 2.5)
+# ---------------------------------------------------------------------------
+
+
+@jobs_bp.route("/api/jobs/defaults", methods=["GET"])
+def jobs_defaults():
+    """Step 0 form catalog: source modes, execution modes, blank draft."""
+    return jsonify(job_creation_catalog())
+
+
+@jobs_bp.route("/api/jobs", methods=["GET"])
+def jobs_list():
+    """List jobs newest-first.
+
+    Query:
+      channel_id  optional filter
+      status      optional Job status filter
+      limit       1–500 (default 200)
+    """
+    try:
+        limit = int(request.args.get("limit", 200))
+    except (TypeError, ValueError):
+        return _error("BAD_REQUEST", "limit must be an integer", 400)
+    if not 1 <= limit <= 500:
+        return _error("BAD_REQUEST", "limit must be between 1 and 500", 400)
+
+    channel_id = (request.args.get("channel_id") or "").strip() or None
+    status = (request.args.get("status") or "").strip() or None
+    if status is not None and status not in JOB_STATUSES:
+        return _error(
+            "BAD_REQUEST",
+            f"status must be one of: {', '.join(JOB_STATUSES)}",
+            400,
+        )
+
+    items = list_jobs(channel_id=channel_id, status=status, limit=limit)
+    return jsonify({
+        "jobs": [job_summary(item) for item in items],
+        "total": len(items),
+    })
+
+
+@jobs_bp.route("/api/jobs", methods=["POST"])
+def jobs_create():
+    """Create a Job: Channel picker, source mode, workflow, execution mode.
+
+    Body: bare draft or ``{job: draft}``. Snapshot is frozen from the Channel
+    at create time and never holds credentials.
+    """
+    body, error = _json_body()
+    if error:
+        return error
+    draft = _draft_from_body(body)
+    if not draft.get("channel_id"):
+        return _error("BAD_REQUEST", "channel_id is required", 400)
+    try:
+        document = create_job(draft)
+    except (JobValidationError, ValueError) as exc:
+        return _store_error(exc)
+    response = jsonify({"job": _job_public(document)})
+    response.status_code = 201
+    response.headers["Location"] = f"/api/jobs/{document.id}"
+    return response
+
+
+@jobs_bp.route("/api/jobs/<job_id>", methods=["GET"])
+def jobs_get(job_id: str):
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    try:
+        document = get_job(job_id)
+        # Refresh status from the linked execution when present so the
+        # Production view does not need a second polling loop for Job state.
+        if document.execution_id and document.status not in {
+            "completed", "failed", "cancelled",
+        }:
+            try:
+                document = sync_job_from_execution(document.id)
+            except Exception:
+                pass
+    except (JobNotFound, JobValidationError, ValueError) as exc:
+        return _store_error(exc)
+    return jsonify({"job": _job_public(document)})
+
+
+@jobs_bp.route("/api/jobs/<job_id>/start", methods=["POST"])
+def jobs_start(job_id: str):
+    """Start the Job's workflow through the ported execution manager.
+
+    Body (optional):
+      force   bool — re-run even when cache hits
+      wait    bool — block until terminal (tests / short runs only)
+      timeout float seconds when wait is true (default 120)
+    """
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    body, error = _json_body(allow_empty=True)
+    if error:
+        return error
+    force = bool(body.get("force", False)) if body else False
+    wait = bool(body.get("wait", False)) if body else False
+    try:
+        timeout = float(body.get("timeout", 120.0)) if body else 120.0
+    except (TypeError, ValueError):
+        return _error("BAD_REQUEST", "timeout must be a number", 400)
+    if timeout <= 0 or timeout > 3600:
+        return _error("BAD_REQUEST", "timeout must be between 0 and 3600 seconds", 400)
+
+    try:
+        document = start_job(
+            job_id,
+            force=force,
+            wait=wait,
+            timeout=timeout,
+        )
+    except (
+        JobNotFound,
+        JobTerminal,
+        JobValidationError,
+        JobOrchestrationError,
+        ValueError,
+    ) as exc:
+        return _store_error(exc)
+    return jsonify({
+        "job": _job_public(document),
+        "execution_id": document.execution_id,
+        "status": document.status,
+    })
+
+
+@jobs_bp.route("/api/jobs/<job_id>", methods=["DELETE"])
+def jobs_delete(job_id: str):
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    try:
+        delete_job(job_id)
+    except (JobNotFound, ValueError) as exc:
+        return _store_error(exc)
+    return jsonify({"deleted": True, "job_id": job_id})
+
+
+# ---------------------------------------------------------------------------
+# Stage projection (step 2.2)
+# ---------------------------------------------------------------------------
 
 
 @jobs_bp.route("/api/workflows/<workflow_id>/stages", methods=["GET"])
@@ -172,3 +398,6 @@ def execution_stages(execution_id: str):
         "execution_status": execution.get("status"),
     }
     return jsonify({"projection": projection})
+
+
+__all__ = ["jobs_bp"]

@@ -1,6 +1,7 @@
 /**
  * Step 2.3 — Production page (live stages + shared SSE).
  * Step 2.4 — Step detail panel (actions → existing run modes).
+ * Step 2.5 — Job creation and Script stage modes.
  *
  * 2.3 done when: running one Job updates Production and the Workflow canvas
  * simultaneously from a single execution, and both survive a mid-run reload.
@@ -9,6 +10,10 @@
  * canvas-initiated run would, proven by comparing request bodies field by
  * field (and the backend suite compares full records).
  *
+ * 2.5 done when: a Job created with Paste Script runs to export with no
+ * script provider (backend). Frontend: Step 0 form + provider UI only for
+ * modes that need one.
+ *
  * Guards:
  * - Stages come from the projection API (no hardcoded step array)
  * - Live updates use the same SSE endpoint as the canvas
@@ -16,7 +21,7 @@
  * - Ring-buffer reset snapshot rebuilds stage status
  * - Mid-run reload hydrates from GET stages + execution, then reopens SSE
  * - Step actions POST /api/workflow/run with the same body as the canvas
- * - No new run modes; Provider UI only on provider-capable stages
+ * - No new run modes; Provider UI only on provider-capable stages / modes
  * - -P never appears in stage names
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,10 +45,17 @@ import {
   runModeForAction,
   stagePrimaryTarget,
 } from './stageActions.js'
+import {
+  sourceModeRequiresProvider,
+  validateJobSource,
+  SOURCE_MODE_CATALOG,
+} from './sourceModes.js'
 import { useProductionStages } from './composables/useProductionStages.js'
 import ProductionPage from './ProductionPage.vue'
 import StepDetailPanel from './components/StepDetailPanel.vue'
+import JobCreatePanel from './components/JobCreatePanel.vue'
 import * as api from './api.js'
+import * as channelsApi from '@/features/channels/api.js'
 import { useWorkflowStore } from '@/features/workflow/stores/workflow.js'
 import { api as workflowApi } from '@/shared/api/client.js'
 
@@ -56,6 +68,16 @@ vi.mock('./api.js', () => ({
   listWorkflows: vi.fn(),
   listExecutions: vi.fn(),
   runWorkflow: vi.fn(),
+  getJobDefaults: vi.fn(),
+  listJobs: vi.fn(),
+  getJob: vi.fn(),
+  createJob: vi.fn(),
+  startJob: vi.fn(),
+  deleteJob: vi.fn(),
+}))
+
+vi.mock('@/features/channels/api.js', () => ({
+  listChannels: vi.fn(),
 }))
 
 class FakeEventSource {
@@ -515,6 +537,30 @@ describe('useProductionStages.runStageAction', () => {
   })
 })
 
+describe('sourceModes (step 2.5)', () => {
+  it('marks paste/manual as no-provider and topic/idea/automatic as provider', () => {
+    expect(sourceModeRequiresProvider('paste')).toBe(false)
+    expect(sourceModeRequiresProvider('manual')).toBe(false)
+    expect(sourceModeRequiresProvider('topic')).toBe(true)
+    expect(sourceModeRequiresProvider('idea')).toBe(true)
+    expect(sourceModeRequiresProvider('automatic')).toBe(true)
+    expect(SOURCE_MODE_CATALOG.map((m) => m.mode)).toEqual([
+      'automatic',
+      'topic',
+      'idea',
+      'paste',
+      'manual',
+    ])
+  })
+
+  it('validates paste requires text and topic requires topic', () => {
+    expect(validateJobSource({ mode: 'paste', pasted_script: '' }).length).toBeGreaterThan(0)
+    expect(validateJobSource({ mode: 'paste', pasted_script: 'Hello.' })).toEqual([])
+    expect(validateJobSource({ mode: 'topic', topic: '' }).length).toBeGreaterThan(0)
+    expect(validateJobSource({ mode: 'topic', topic: 'stoicism' })).toEqual([])
+  })
+})
+
 describe('StepDetailPanel', () => {
   it('renders §18 actions and hides Provider on non-capable stages', async () => {
     const stage = {
@@ -553,6 +599,55 @@ describe('StepDetailPanel', () => {
     expect(text).not.toMatch(/Composer\s*-P/)
   })
 
+  it('hides Provider on Script stage for Paste mode even if graph is provider-capable', () => {
+    const stage = {
+      key: 'script',
+      label: 'Script',
+      status: 'idle',
+      node_ids: ['n_story'],
+      provider_capable: true,
+      active_provider_instance_id: 'gemini',
+      artifacts: [],
+    }
+    const wrapper = mount(StepDetailPanel, {
+      props: {
+        stage,
+        workflowId: 'wf_ABCDEF',
+        workflow: { nodes: [{ id: 'n_story', type: 'story.generate' }] },
+        scriptSourceMode: 'paste',
+        scriptProviderRequired: false,
+      },
+    })
+    expect(wrapper.find('.action-provider').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Paste Script')
+    expect(wrapper.text()).toContain('Not required for this Script mode')
+    expect(wrapper.text()).not.toMatch(/Script\s*-P/)
+  })
+
+  it('shows Provider on Script stage for Idea mode', () => {
+    const stage = {
+      key: 'script',
+      label: 'Script',
+      status: 'idle',
+      node_ids: ['n_story'],
+      provider_capable: true,
+      active_provider_instance_id: 'gemini',
+      artifacts: [],
+    }
+    const wrapper = mount(StepDetailPanel, {
+      props: {
+        stage,
+        workflowId: 'wf_ABCDEF',
+        workflow: { nodes: [{ id: 'n_story', type: 'story.generate' }] },
+        scriptSourceMode: 'idea',
+        scriptProviderRequired: true,
+      },
+    })
+    expect(wrapper.find('.action-provider').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Idea → Script')
+    expect(wrapper.text()).toContain('gemini')
+  })
+
   it('emits a canvas-shaped run payload when Run is clicked', async () => {
     const stage = {
       key: 'voice',
@@ -584,6 +679,103 @@ describe('StepDetailPanel', () => {
   })
 })
 
+describe('JobCreatePanel (step 2.5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    api.getJobDefaults.mockResolvedValue({
+      source_modes: SOURCE_MODE_CATALOG,
+      execution_modes: [
+        { mode: 'manual', label: 'Manual', description: 'Manual' },
+        { mode: 'assisted', label: 'Assisted', description: 'Assisted' },
+        { mode: 'automatic', label: 'Automatic', description: 'Automatic' },
+      ],
+      defaults: {
+        execution_mode: 'manual',
+        source: { mode: 'paste', topic: '', idea: '', pasted_script: '', references: [] },
+      },
+    })
+    channelsApi.listChannels.mockResolvedValue({
+      channels: [{ id: 'ch_AAAAAA', name: 'Philosophy Daily' }],
+      total: 1,
+    })
+    api.listWorkflows.mockResolvedValue({
+      workflows: [{ workflow_id: 'wf_ABCDEF', name: 'Full video' }],
+      total: 1,
+    })
+    api.createJob.mockResolvedValue({
+      job: {
+        id: 'job_PASTE1',
+        channel_id: 'ch_AAAAAA',
+        workflow_id: 'wf_ABCDEF',
+        execution_mode: 'manual',
+        source: { mode: 'paste', pasted_script: 'Hello narration.' },
+        status: 'queued',
+      },
+    })
+    api.startJob.mockResolvedValue({
+      job: {
+        id: 'job_PASTE1',
+        channel_id: 'ch_AAAAAA',
+        workflow_id: 'wf_ABCDEF',
+        execution_mode: 'manual',
+        source: { mode: 'paste', pasted_script: 'Hello narration.' },
+        status: 'running',
+        execution_id: 'ex_PASTE1',
+      },
+      execution_id: 'ex_PASTE1',
+      status: 'running',
+    })
+  })
+
+  it('creates a paste Job without requiring a script provider', async () => {
+    const wrapper = mount(JobCreatePanel, {
+      props: { autoStart: true },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Create Job')
+    expect(wrapper.text()).toContain('Paste Script')
+    expect(wrapper.text()).toContain('No provider')
+
+    await wrapper.get('select').setValue('ch_AAAAAA')
+    // Paste mode is default — fill script textarea.
+    const textarea = wrapper.find('textarea')
+    expect(textarea.exists()).toBe(true)
+    await textarea.setValue('What Marcus Aurelius teaches about control.')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(api.createJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel_id: 'ch_AAAAAA',
+        source: expect.objectContaining({
+          mode: 'paste',
+          pasted_script: 'What Marcus Aurelius teaches about control.',
+        }),
+      }),
+    )
+    expect(api.startJob).toHaveBeenCalledWith('job_PASTE1', expect.any(Object))
+    expect(wrapper.emitted('started')).toBeTruthy()
+  })
+
+  it('shows provider note for idea mode and hides for paste', async () => {
+    const wrapper = mount(JobCreatePanel, { props: { autoStart: false } })
+    await flushPromises()
+
+    // Default paste — local note.
+    expect(wrapper.text()).toMatch(/no script provider/i)
+
+    // Switch to Idea → Script.
+    const ideaRadio = wrapper.findAll('input[type="radio"]').find(
+      (r) => r.element.value === 'idea',
+    )
+    expect(ideaRadio).toBeTruthy()
+    await ideaRadio.setValue('idea')
+    await flushPromises()
+    expect(wrapper.text()).toMatch(/uses a script provider/i)
+  })
+})
+
 describe('ProductionPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -595,6 +787,12 @@ describe('ProductionPage', () => {
       total: 1,
     })
     api.listExecutions.mockResolvedValue({ executions: [], total: 0 })
+    api.getJobDefaults.mockResolvedValue({
+      source_modes: SOURCE_MODE_CATALOG,
+      execution_modes: [{ mode: 'manual', label: 'Manual', description: '' }],
+      defaults: { execution_mode: 'manual', source: { mode: 'paste' } },
+    })
+    channelsApi.listChannels.mockResolvedValue({ channels: [], total: 0 })
     api.getWorkflowStages.mockResolvedValue({ projection: projection() })
     api.getWorkflow.mockResolvedValue({
       workflow: {

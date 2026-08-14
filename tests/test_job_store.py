@@ -300,12 +300,23 @@ class JobCrudTests(JobStoreTestBase):
 
     def test_create_rejects_missing_channel(self):
         with self.assertRaises(JobValidationError) as ctx:
-            create_job(default_draft(channel_id="ch_ZZZZZZ"))
+            create_job(default_draft(
+                channel_id="ch_ZZZZZZ",
+                source={"mode": "idea", "idea": "seed idea for missing channel"},
+            ))
         self.assertEqual(ctx.exception.code, "JOB_INVALID")
         joined = " ".join(
             item.get("msg", "") for item in ctx.exception.problems
         ).lower()
         self.assertIn("channel", joined)
+
+    def test_create_rejects_paste_without_script(self):
+        with self.assertRaises(JobValidationError) as ctx:
+            create_job(self._job_draft(source={"mode": "paste", "pasted_script": ""}))
+        joined = " ".join(
+            item.get("msg", "") for item in ctx.exception.problems
+        ).lower()
+        self.assertIn("pasted_script", joined)
 
     def test_create_rejects_invalid_execution_mode(self):
         with self.assertRaises(JobValidationError):

@@ -43,15 +43,28 @@ collapse into Composer — adding a parallel caption branch must not add a step.
 ## Layout
 
 ```
-api.js                         stage + workflow/execution listing + run client
+api.js                         stage + job + workflow/execution listing + run client
+sourceModes.js                 Script-stage modes (§6); provider only when needed
 stageStatus.js                 pure aggregation (mirrors backend priorities)
 stageActions.js                §18 action → run_mode + request body (mirrors backend)
 composables/useProductionStages.js
                                load projection, open SSE, run stage actions
-components/StepDetailPanel.vue §18 action toolbar + inspect panes
-ProductionPage.vue             §3.1 step list + detail panel host
+components/JobCreatePanel.vue  Step 0: Channel, source, workflow, execution mode
+components/StepDetailPanel.vue §18 action toolbar + inspect panes + script mode
+ProductionPage.vue             §3.1 step list + Job create + detail panel host
 ```
+
+Job API (step 2.5):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/jobs/defaults` | Source + execution mode catalog |
+| `POST /api/jobs` | Create Job (Channel snapshot, no secrets) |
+| `POST /api/jobs/<id>/start` | Run through the ported engine |
+| `GET /api/jobs` / `GET /api/jobs/<id>` | List / load |
+
+Script source modes: Automatic, Topic→Script, Idea→Script, Paste Script,
+Manual/Edit. Paste and Manual never require a script provider.
 
 Do not hardcode a step array here, and do not add a second polling mechanism
 or a second execution path. Either one silently diverges the two views.
-Job creation and Script stage modes land in 2.5.

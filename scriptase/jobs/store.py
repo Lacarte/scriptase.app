@@ -35,6 +35,7 @@ from scriptase.jobs.snapshot import (
     assert_snapshot_has_no_credentials,
     build_channel_snapshot,
 )
+from scriptase.jobs.source_modes import validate_job_source
 from scriptase.shared.io_utils import now_iso, safe_json_read, safe_json_write
 from scriptase.shared.security import safe_join
 
@@ -135,8 +136,21 @@ def create_job(draft: dict[str, Any]) -> Job:
 
     The snapshot captures non-secret Channel configuration and provider
     instance references only. Credentials never enter the document.
+
+    Script-stage source modes are validated here (step 2.5): Paste / Manual
+    require final text; Topic / Idea require their seed field. Provider
+    credentials are never required at create time.
     """
     parsed = _validate_draft(draft)
+
+    source_payload = (
+        parsed.source.model_dump(mode="json")
+        if hasattr(parsed.source, "model_dump")
+        else dict(parsed.source or {})
+    )
+    source_problems = validate_job_source(source_payload)
+    if source_problems:
+        raise JobValidationError(source_problems)
 
     try:
         channel = get_channel(parsed.channel_id)
@@ -373,11 +387,16 @@ def delete_job(job_id: str) -> None:
 
 def job_summary(document: Job) -> dict[str, Any]:
     """Compact listing payload (no full snapshot)."""
+    source = document.source
+    source_mode = (
+        source.mode if hasattr(source, "mode") else (source or {}).get("mode")
+    )
     return {
         "id": document.id,
         "channel_id": document.channel_id,
         "workflow_id": document.workflow_id,
         "execution_mode": document.execution_mode,
+        "source_mode": source_mode,
         "status": document.status,
         "status_reason": document.status_reason,
         "current_stage": document.current_stage,

@@ -7,15 +7,17 @@
  * hardcoded here, and there is no second polling mechanism.
  *
  * Step detail actions (step 2.4) map onto existing engine run modes only.
- * Job creation and Script stage modes land in step 2.5.
+ * Job creation and Script stage modes (step 2.5) are Step 0 on this page.
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { listExecutions, listWorkflows } from './api.js'
+import { getJob, listExecutions, listWorkflows } from './api.js'
+import JobCreatePanel from './components/JobCreatePanel.vue'
 import StepDetailPanel from './components/StepDetailPanel.vue'
 import { useProductionStages } from './composables/useProductionStages.js'
 import { ACTION_LABELS } from './stageActions.js'
+import { sourceModeLabel, sourceModeRequiresProvider } from './sourceModes.js'
 import { statusLabel } from './stageStatus.js'
 
 const route = useRoute()
@@ -49,6 +51,10 @@ const executionsLoading = ref(false)
 const selectedWorkflowId = ref('')
 const selectedExecutionId = ref('')
 const selectedStageKey = ref(null)
+const showJobCreate = ref(false)
+const activeJobId = ref('')
+const activeJobSourceMode = ref(null)
+const activeJobExecutionMode = ref(null)
 
 const selectedStage = computed(() =>
   stages.value.find((s) => s.key === selectedStageKey.value) || null,
@@ -56,10 +62,20 @@ const selectedStage = computed(() =>
 
 const headerMeta = computed(() => {
   const bits = []
+  if (activeJobId.value) bits.push(`Job ${activeJobId.value}`)
+  if (activeJobSourceMode.value) {
+    bits.push(sourceModeLabel(activeJobSourceMode.value))
+  }
   if (workflowId.value) bits.push(`Workflow ${workflowId.value}`)
   if (executionId.value) bits.push(`Run ${executionId.value}`)
   if (executionStatus.value) bits.push(statusLabel(executionStatus.value))
   return bits.join(' · ')
+})
+
+/** Script stage: provider UI only when the Job source mode needs one. */
+const scriptProviderVisible = computed(() => {
+  if (!activeJobSourceMode.value) return null
+  return sourceModeRequiresProvider(activeJobSourceMode.value)
 })
 
 async function refreshWorkflows() {
@@ -90,12 +106,58 @@ async function refreshExecutions(wfId) {
   }
 }
 
+async function bindJobFromRoute(jobId) {
+  if (!jobId) {
+    activeJobId.value = ''
+    activeJobSourceMode.value = null
+    activeJobExecutionMode.value = null
+    return
+  }
+  try {
+    const data = await getJob(jobId)
+    const job = data.job || data
+    activeJobId.value = job.id || jobId
+    activeJobSourceMode.value = job.source?.mode || null
+    activeJobExecutionMode.value = job.execution_mode || null
+    if (job.workflow_id) {
+      selectedWorkflowId.value = job.workflow_id
+    }
+    if (job.execution_id) {
+      selectedExecutionId.value = job.execution_id
+      await hydrateFromExecution(job.execution_id)
+      if (workflowId.value) {
+        selectedWorkflowId.value = workflowId.value
+        await refreshExecutions(workflowId.value)
+      }
+      return
+    }
+    if (job.workflow_id) {
+      await loadWorkflow(job.workflow_id)
+      await refreshExecutions(job.workflow_id)
+    }
+  } catch (err) {
+    error.value = err.message || String(err)
+    activeJobId.value = jobId
+  }
+}
+
 async function bindFromRoute() {
   const qExec = String(route.query.execution_id || route.query.executionId || '').trim()
   const qWf = String(route.query.workflow_id || route.query.workflowId || '').trim()
+  const qJob = String(route.query.job_id || route.query.jobId || '').trim()
+  const qCreate = String(route.query.create || '').trim()
 
   selectedExecutionId.value = qExec
   selectedWorkflowId.value = qWf
+  showJobCreate.value = qCreate === '1' || qCreate === 'true' || qCreate === 'new'
+
+  if (qJob) {
+    await bindJobFromRoute(qJob)
+    return
+  }
+  activeJobId.value = ''
+  activeJobSourceMode.value = null
+  activeJobExecutionMode.value = null
 
   if (qExec) {
     await hydrateFromExecution(qExec)
@@ -113,6 +175,50 @@ async function bindFromRoute() {
   // Nothing selected — clear stages, keep the pickers.
   dispose()
   stages.value = []
+}
+
+function openJobCreate() {
+  showJobCreate.value = true
+  const query = { ...route.query, create: '1' }
+  router.replace({ name: 'production', query })
+}
+
+function closeJobCreate() {
+  showJobCreate.value = false
+  const query = { ...route.query }
+  delete query.create
+  router.replace({ name: 'production', query })
+}
+
+async function onJobStarted({ job, executionId: exId }) {
+  showJobCreate.value = false
+  activeJobId.value = job?.id || ''
+  activeJobSourceMode.value = job?.source?.mode || null
+  activeJobExecutionMode.value = job?.execution_mode || null
+  const query = {}
+  if (job?.id) query.job_id = job.id
+  if (job?.workflow_id) {
+    query.workflow_id = job.workflow_id
+    selectedWorkflowId.value = job.workflow_id
+  }
+  if (exId) {
+    query.execution_id = exId
+    selectedExecutionId.value = exId
+  }
+  await router.replace({ name: 'production', query })
+  if (exId) {
+    await hydrateFromExecution(exId)
+    await refreshExecutions(job?.workflow_id || selectedWorkflowId.value)
+  } else if (job?.workflow_id) {
+    await loadWorkflow(job.workflow_id)
+    await refreshExecutions(job.workflow_id)
+  }
+}
+
+function onJobCreated({ job }) {
+  activeJobId.value = job?.id || ''
+  activeJobSourceMode.value = job?.source?.mode || null
+  activeJobExecutionMode.value = job?.execution_mode || null
 }
 
 function onWorkflowChange() {
@@ -191,7 +297,15 @@ function canShowApproveMessage(stage) {
 void ACTION_LABELS
 
 watch(
-  () => [route.query.execution_id, route.query.executionId, route.query.workflow_id, route.query.workflowId],
+  () => [
+    route.query.execution_id,
+    route.query.executionId,
+    route.query.workflow_id,
+    route.query.workflowId,
+    route.query.job_id,
+    route.query.jobId,
+    route.query.create,
+  ],
   () => {
     void bindFromRoute()
   },
@@ -213,8 +327,14 @@ onMounted(async () => {
           same execution stream as the Workflow canvas — one run, two views.
         </p>
         <p v-if="headerMeta" class="meta-line">{{ headerMeta }}</p>
+        <p v-if="activeJobExecutionMode" class="meta-line">
+          Execution mode: {{ activeJobExecutionMode }}
+        </p>
       </div>
       <div class="actions">
+        <button type="button" class="primary" @click="openJobCreate">
+          New Job
+        </button>
         <button
           type="button"
           class="ghost"
@@ -225,6 +345,14 @@ onMounted(async () => {
         </button>
       </div>
     </header>
+
+    <JobCreatePanel
+      v-if="showJobCreate"
+      :initial-workflow-id="selectedWorkflowId || workflowId || ''"
+      @cancel="closeJobCreate"
+      @created="onJobCreated"
+      @started="onJobStarted"
+    />
 
     <div class="pickers">
       <label class="picker">
@@ -322,17 +450,20 @@ onMounted(async () => {
         :running="actionRunning"
         :action-error="actionError"
         :action-message="actionMessage"
+        :script-source-mode="activeJobSourceMode"
+        :script-provider-required="scriptProviderVisible"
         @run="onStageRun"
         @inspect="onStageInspect"
       />
     </div>
 
     <div v-else-if="!loading" class="empty muted">
-      <p v-if="!selectedWorkflowId">
-        Choose a workflow to project its Production stages. The list is computed
-        on the backend from the graph — never hardcoded here.
+      <p v-if="!selectedWorkflowId && !showJobCreate">
+        Create a Job (Step 0) or choose a workflow to project its Production
+        stages. The list is computed on the backend from the graph — never
+        hardcoded here.
       </p>
-      <p v-else>
+      <p v-else-if="selectedWorkflowId">
         This workflow has no production stages to project.
       </p>
     </div>
@@ -393,6 +524,13 @@ button {
   padding: 0.45rem 0.85rem;
   font-size: 0.9rem;
   cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent, #3b6fd9);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
 }
 
 button:disabled {
