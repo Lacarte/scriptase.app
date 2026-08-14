@@ -44,6 +44,23 @@ def blueprint(inputs, config, context):
     pid = project_id(context, inputs)
     merged = inherited_config(config, inputs.get("settings"), {"tone": "story_tone"})
     merged["text"] = inputs["script"]
+    # Step 5.2: ensure structured Channel visual direction reaches the provider
+    # even when the settings port was empty (e.g. V2-era project.setup with no
+    # passthrough). Never compose prompt text here — typed block only.
+    if not isinstance(merged.get("visual_direction"), dict):
+        try:
+            from scriptase.jobs.channel_settings import resolve_channel_settings
+
+            channel_settings = resolve_channel_settings(context)
+            visual_direction = (
+                channel_settings.get("visual_direction")
+                if isinstance(channel_settings, dict)
+                else None
+            )
+            if isinstance(visual_direction, dict) and visual_direction:
+                merged["visual_direction"] = visual_direction
+        except Exception:
+            pass
     # `provider_id` is absent on every workflow saved before step 12.3, so it
     # resolves to the domain default (`n8n` after 13.4). The transitional
     # `builtin` value remains an input alias of that provider (§40.3). M4 needs

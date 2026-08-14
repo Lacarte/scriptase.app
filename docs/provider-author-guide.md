@@ -227,6 +227,7 @@ Field tables are loaded from each domain's request/result models at generation t
 | `style_notes` | `str` | no | `""` |
 | `tone` | `str` | no | `""` |
 | `aspect_ratio` | `str` | no | `"9:16"` |
+| `visual_direction` | `VisualDirectionInput` | no | factory |
 
 #### Result payload (`scriptase.modules.scene_director.providers.contract:SceneBlueprintResultPayload`)
 

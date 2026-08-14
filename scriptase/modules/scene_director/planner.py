@@ -125,8 +125,17 @@ def _choose_transition_indexes(segments: list[dict], total: int, blocked: set[in
     return set(ordered)
 
 
-def build_visual_bible(script: str, segments: list[dict], style_spec: dict) -> dict:
-    """Create a story-specific continuity contract for one generation request."""
+def build_visual_bible(
+    script: str,
+    segments: list[dict],
+    style_spec: dict,
+    visual_direction=None,
+) -> dict:
+    """Create a story-specific continuity contract for one generation request.
+
+    When ``visual_direction`` is provided (Channel snapshot / step 5.2), its
+    structured fields overlay the template-derived bible after the base build.
+    """
     identity = style_spec.get("identity", {})
     hard = style_spec.get("hard_constraints", {})
     soft = style_spec.get("soft_preferences", {})
@@ -151,7 +160,14 @@ def build_visual_bible(script: str, segments: list[dict], style_spec: dict) -> d
     anchor_keywords = keywords[:3]
     anchor_motifs = motifs[:3] or keywords[:2]
 
-    return {
+    from scriptase.modules.scene_director.visual_direction import (
+        apply_visual_direction_to_bible,
+        pattern_camera_grammar,
+    )
+
+    camera_grammar = pattern_camera_grammar(visual_direction, base=CAMERA_GRAMMAR)
+
+    bible = {
         "core_theme_hint": (
             f"Use {primary_keyword}"
             + (f" and {secondary_keyword}" if secondary_keyword else "")
@@ -164,7 +180,7 @@ def build_visual_bible(script: str, segments: list[dict], style_spec: dict) -> d
         "anchor_motifs": anchor_motifs,
         "palette_guardrails": palette[:5],
         "lighting_baseline": lighting[0] if lighting else identity.get("render_mode", ""),
-        "camera_grammar": CAMERA_GRAMMAR,
+        "camera_grammar": camera_grammar,
         "environment_rules": [
             f"Keep scenes inside the same visual world anchored by {world_anchor or 'the chosen style'}.",
             "Allow location shifts only when the narration clearly changes place or context.",
@@ -173,13 +189,31 @@ def build_visual_bible(script: str, segments: list[dict], style_spec: dict) -> d
         "style_keywords": identity.get("style_keywords") or [],
         "render_mode": identity.get("render_mode", ""),
     }
+    return apply_visual_direction_to_bible(bible, visual_direction)
 
 
-def build_scene_blueprints(segments: list[dict], visual_bible: dict, style_spec: dict) -> list[dict]:
-    """Pre-plan narrative roles, scene types, and shot targets."""
+def build_scene_blueprints(
+    segments: list[dict],
+    visual_bible: dict,
+    style_spec: dict,
+    visual_direction=None,
+) -> list[dict]:
+    """Pre-plan narrative roles, scene types, and shot targets.
+
+    Channel ``visual_direction.pattern`` (step 5.2) overrides the default
+    camera grammar so two Channels with different patterns yield different
+    target shots for the same script.
+    """
     total = len(segments)
     if total <= 0:
         return []
+
+    from scriptase.modules.scene_director.visual_direction import pattern_camera_grammar
+
+    # Prefer grammar already stamped on the bible; re-merge with the live
+    # direction so a caller that only passes visual_direction still works.
+    base_grammar = visual_bible.get("camera_grammar") or CAMERA_GRAMMAR
+    camera_grammar = pattern_camera_grammar(visual_direction, base=base_grammar)
 
     text_indexes = _choose_text_indexes(total)
     peak_index = _choose_peak_index(total)
@@ -215,7 +249,7 @@ def build_scene_blueprints(segments: list[dict], visual_bible: dict, style_spec:
         else:
             scene_type = "video"
 
-        shots = CAMERA_GRAMMAR.get(role, CAMERA_GRAMMAR["buildup"])
+        shots = camera_grammar.get(role) or CAMERA_GRAMMAR.get(role, CAMERA_GRAMMAR["buildup"])
         target_shot = next((shot for shot in shots if shot != prev_shot), shots[0])
         prev_shot = target_shot
 

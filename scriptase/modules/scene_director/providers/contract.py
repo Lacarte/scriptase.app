@@ -6,7 +6,11 @@ accepts and returns these shapes.
 
 Step 5.1 freezes ``SceneSpec`` as the structured visual-scene contract carried
 on the stable scene id from §4. Image and Video adapters consume ``SceneSpec``,
-not loose dicts. No prompt text lives outside a provider package.
+not loose dicts.
+
+Step 5.2 freezes structured Channel ``visual_direction`` as typed request
+inputs. The provider package owns prompt wording; no prompt text lives outside
+a provider package.
 """
 
 from __future__ import annotations
@@ -89,8 +93,122 @@ class SegmentInput(BaseModel):
         return _strip_str(value)
 
 
+class PatternShotInput(BaseModel):
+    """One narrative-role → shot mapping from Channel visual direction."""
+
+    model_config = {"extra": "forbid"}
+
+    narrative_role: str = Field(min_length=1)
+    shot: str = Field(min_length=1)
+
+    @field_validator("narrative_role", "shot", mode="before")
+    @classmethod
+    def _required(cls, value: Any) -> str:
+        text = _strip_str(value)
+        if not text:
+            raise ValueError("must be a non-empty string")
+        return text
+
+
+class VisualDirectionInput(BaseModel):
+    """Typed Channel visual direction on the Scene Director request (step 5.2).
+
+    Mirrors ``channels.models.VisualDirection`` so a Job channel snapshot feeds
+    the Director without free-text prompt composition at the Channel/Job layer.
+    The provider package owns how these fields become prompt wording.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    style: str = ""
+    pattern: list[PatternShotInput] = Field(default_factory=list)
+    palette: str = ""
+    lighting: str = ""
+    camera: str = ""
+    character_style: str = ""
+    continuity: str = ""
+    negative_prompt: str = ""
+    references: list[str] = Field(default_factory=list)
+
+    @field_validator(
+        "style",
+        "palette",
+        "lighting",
+        "camera",
+        "character_style",
+        "continuity",
+        "negative_prompt",
+        mode="before",
+    )
+    @classmethod
+    def _strip_fields(cls, value: Any) -> str:
+        return _strip_str(value)
+
+    @field_validator("pattern", mode="before")
+    @classmethod
+    def _pattern(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            raise ValueError(
+                "pattern must be a list of {narrative_role, shot} objects, "
+                "not free text"
+            )
+        if isinstance(value, dict):
+            return [
+                {"narrative_role": role, "shot": shot}
+                for role, shot in value.items()
+            ]
+        if not isinstance(value, list):
+            raise ValueError(
+                "pattern must be a list of {narrative_role, shot} objects"
+            )
+        return value
+
+    @field_validator("references", mode="before")
+    @classmethod
+    def _refs(cls, value: Any) -> list[str]:
+        return _as_str_list(value)
+
+    def is_empty(self) -> bool:
+        """True when every structured field is unset."""
+        return not (
+            self.style
+            or self.pattern
+            or self.palette
+            or self.lighting
+            or self.camera
+            or self.character_style
+            or self.continuity
+            or self.negative_prompt
+            or self.references
+        )
+
+    def pattern_shot_map(self) -> dict[str, str]:
+        """Ordered role → shot map; later entries overwrite earlier ones."""
+        mapping: dict[str, str] = {}
+        for entry in self.pattern:
+            mapping[entry.narrative_role.strip().lower()] = entry.shot
+        return mapping
+
+    @classmethod
+    def coerce(cls, value: Any) -> "VisualDirectionInput":
+        """Build from a Channel snapshot block, request field, or empty."""
+        if value is None or value is False:
+            return cls()
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, Mapping):
+            return cls.model_validate(dict(value))
+        raise ValueError("visual_direction must be an object")
+
+
 class SceneBlueprintRequest(BaseModel):
-    """Frozen §32.2 request. Unknown keys are rejected (not silently ignored)."""
+    """Frozen §32.2 request extended with Channel visual direction (step 5.2).
+
+    Unknown keys are rejected (not silently ignored). ``visual_direction`` is
+    structured Channel input; the provider owns prompt wording.
+    """
 
     script: str = ""
     segments: list[SegmentInput] = Field(default_factory=list)
@@ -98,6 +216,7 @@ class SceneBlueprintRequest(BaseModel):
     style_notes: str = ""
     tone: str = ""
     aspect_ratio: str = "9:16"
+    visual_direction: VisualDirectionInput = Field(default_factory=VisualDirectionInput)
 
     model_config = {"extra": "forbid"}
 
@@ -107,6 +226,15 @@ class SceneBlueprintRequest(BaseModel):
         if value is None:
             return ""
         return str(value).strip()
+
+    @field_validator("visual_direction", mode="before")
+    @classmethod
+    def _visual_direction(cls, value: Any) -> Any:
+        if value is None:
+            return {}
+        if isinstance(value, VisualDirectionInput):
+            return value
+        return value
 
     @classmethod
     def from_configuration(
@@ -121,6 +249,9 @@ class SceneBlueprintRequest(BaseModel):
         Accepts both node/legacy names (`style_prompt`, `custom_style_notes`,
         `story_tone`, `text`) and the §32.2 names so the same provider can be
         driven by `scenes.blueprint` and by a direct v2 invocation.
+
+        Channel ``visual_direction`` is accepted as a nested object (preferred)
+        or as flat keys when an adapter has already unpacked them.
         """
         data = dict(configuration or {})
         style_notes = (
@@ -142,14 +273,62 @@ class SceneBlueprintRequest(BaseModel):
                 normalized.append(SegmentInput.model_validate(payload))
             else:
                 normalized.append(SegmentInput(index=i, words=str(seg)))
+
+        visual_direction = visual_direction_from_config(data)
+        style = data.get("style") or visual_direction.style or "cinematic"
+
         return cls(
             script=str(script_text or ""),
             segments=normalized,
-            style=data.get("style") or "cinematic",
+            style=str(style or "cinematic"),
             style_notes=str(style_notes or ""),
             tone=data.get("tone") or data.get("story_tone") or "",
             aspect_ratio=data.get("aspect_ratio") or "9:16",
+            visual_direction=visual_direction,
         )
+
+
+def visual_direction_from_config(data: Mapping[str, Any] | None) -> VisualDirectionInput:
+    """Pull structured visual direction out of a configuration mapping."""
+    data = dict(data or {})
+    nested = data.get("visual_direction")
+    if nested is not None and nested is not False:
+        try:
+            return VisualDirectionInput.coerce(nested)
+        except (TypeError, ValueError):
+            pass
+
+    # Flat fallbacks used when channel_settings was partially flattened.
+    payload: dict[str, Any] = {}
+    for key in (
+        "style",
+        "palette",
+        "lighting",
+        "camera",
+        "character_style",
+        "continuity",
+        "negative_prompt",
+        "references",
+        "pattern",
+    ):
+        # Prefer explicit visual_* aliases if present.
+        alias = data.get(f"visual_{key}")
+        if alias not in (None, "", []):
+            payload[key] = alias
+            continue
+        # style is already mapped onto request.style; do not re-lift it here.
+        if key == "style":
+            continue
+        value = data.get(key)
+        if key == "pattern" and value not in (None, "", []):
+            payload[key] = value
+        elif key != "pattern" and value not in (None, ""):
+            payload[key] = value
+    return VisualDirectionInput.coerce(payload)
+
+
+# Backward-compatible private alias.
+_visual_direction_from_config = visual_direction_from_config
 
 
 class SceneSpec(BaseModel):
@@ -497,6 +676,9 @@ __all__ = [
     "NARRATIVE_ROLES",
     "SCENESPEC_FIELDS",
     "SegmentInput",
+    "PatternShotInput",
+    "VisualDirectionInput",
+    "visual_direction_from_config",
     "SceneBlueprintRequest",
     "SceneSpec",
     "SceneItem",

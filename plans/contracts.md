@@ -627,6 +627,22 @@ consume `SceneSpec` via `from_scene_specs` / `coerce_scene_specs`, not loose dic
 Channel visual direction and the provider owns wording. Round-trips through the provider
 result envelope (enforced by `tests/test_scene_spec.py`).
 
+Step 5.2 freezes structured Channel visual direction as typed request inputs on
+`SceneBlueprintRequest` (`scriptase.modules.scene_director.providers.contract`):
+
+```
+SceneBlueprintRequest
+- script / segments / style / style_notes / tone / aspect_ratio
+- visual_direction   { style, pattern[{narrative_role, shot}], palette, lighting,
+                       camera, character_style, continuity, negative_prompt,
+                       references[] }   # structured; never free-text pattern
+```
+
+A Job's `channel_snapshot.visual_direction` is forwarded via channel settings and the
+`project.setup` settings port. Pattern entries override the planner's default camera
+grammar so two Channels with different patterns produce measurably different SceneSpecs
+from the same script (`tests/test_channel_visual_direction.py`).
+
 ---
 
 ## 9. ReviewIssue
@@ -846,6 +862,7 @@ decision freeze.
 | Durable approval engine state | Status token frozen; worker-release behaviour | 2.6 |
 | Stage projection endpoint | Shape frozen in §10 | 2.2 |
 | SceneSpec round-trip | Shape frozen in §8; `tests/test_scene_spec.py` | 5.1 |
+| Channel visual direction → Director | Typed `VisualDirectionInput` on request; pattern diverges SceneSpecs; prompt text under `providers/` | 5.2 |
 | Review provider domain | Uses standard result envelope + ReviewIssue | 7.3 |
 | V2 project import | Map niche presets → Channels; keep output/ layout | 10.1 / 1.3 |
 | Indexed storage for runs/queue/jobs | Performance only; no schema meaning change | 10.2 |

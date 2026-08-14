@@ -78,6 +78,8 @@ class SceneBlueprintProvider(ABC):
             "style_prompt": request.style_notes,
             "story_tone": request.tone,
             "aspect_ratio": request.aspect_ratio,
+            # Step 5.2: structured Channel visual direction (typed request input).
+            "visual_direction": request.visual_direction.model_dump(mode="json"),
         }
         document = self.generate(
             segment_result, configuration, project_id=invocation.project_id

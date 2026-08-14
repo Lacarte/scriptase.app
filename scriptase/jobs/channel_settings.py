@@ -105,6 +105,13 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
         },
     }
 
+    # Step 5.2: structured Channel visual direction for Scene Director.
+    # Nested object (pattern is structured, never free text). Provider packages
+    # own prompt wording; adapters only forward the typed block.
+    visual_direction = _visual_direction_block(visual)
+    if visual_direction:
+        settings["visual_direction"] = visual_direction
+
     # Branding → setup logo block (managed ref only; never a filesystem path).
     settings.update(_logo_settings_from_branding(branding))
 
@@ -281,6 +288,55 @@ def _text(value: Any) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+def _visual_direction_block(visual: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Copy structured visual_direction fields; drop empties; never invent prompts."""
+    if not isinstance(visual, Mapping) or not visual:
+        return None
+
+    block: dict[str, Any] = {}
+    for key in (
+        "style",
+        "palette",
+        "lighting",
+        "camera",
+        "character_style",
+        "continuity",
+        "negative_prompt",
+    ):
+        text = _text(visual.get(key))
+        if text:
+            block[key] = text
+
+    pattern = visual.get("pattern")
+    if isinstance(pattern, list) and pattern:
+        entries: list[dict[str, str]] = []
+        for item in pattern:
+            if not isinstance(item, Mapping):
+                continue
+            role = _text(item.get("narrative_role"))
+            shot = _text(item.get("shot"))
+            if role and shot:
+                entries.append({"narrative_role": role, "shot": shot})
+        if entries:
+            block["pattern"] = entries
+    elif isinstance(pattern, dict) and pattern:
+        entries = []
+        for role, shot in pattern.items():
+            r, s = _text(role), _text(shot)
+            if r and s:
+                entries.append({"narrative_role": r, "shot": s})
+        if entries:
+            block["pattern"] = entries
+
+    refs = visual.get("references")
+    if isinstance(refs, list):
+        cleaned = [_text(item) for item in refs if _text(item)]
+        if cleaned:
+            block["references"] = cleaned
+
+    return block or None
 
 
 __all__ = [

@@ -5,13 +5,7 @@ this module groups them into chapters and provides utilities to build
 per-chapter webhook payloads and merge the results.
 """
 
-import json
 from loguru import logger
-
-from scriptase.modules.scene_director.prompts import (
-    build_scene_continuation_prompt,
-    build_scene_system_prompt,
-)
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -140,7 +134,17 @@ def build_chapter_system_prompt(style_spec, visual_bible, scene_blueprints,
 
     For chapter 1: build the analysis + scene-writing prompt.
     For later chunks: continue with pre-computed analysis and continuity state.
+
+    Prompt builders live under ``providers/prompts`` (step 5.2). Imported lazily
+    so loading ``service`` (which imports this module at top level) cannot
+    re-enter provider discovery via ``providers/__init__.py`` while the n8n
+    package is still constructing.
     """
+    from scriptase.modules.scene_director.providers.prompts import (
+        build_scene_continuation_prompt,
+        build_scene_system_prompt,
+    )
+
     ch = chapters[chapter_idx]
     prev_words = chapters[chapter_idx - 1]["last_words"] if chapter_idx > 0 else ""
     next_words = chapters[chapter_idx + 1]["first_words"] if chapter_idx < total_chapters - 1 else ""
@@ -299,66 +303,3 @@ def _build_chapter(number, speech_segments):
     }
 
 
-def _build_continuation_prompt(analysis_json, chapter_context):
-    """Build system prompt for chapters 2+ with pre-computed analysis."""
-    if not analysis_json:
-        analysis_json = {}
-    analysis_str = json.dumps(analysis_json, indent=2) if isinstance(analysis_json, dict) else str(analysis_json)
-
-    return f"""\
-You are a visual scene prompt writer for short-form viral video.
-
-## PRE-COMPUTED ANALYSIS
-The analysis below was already computed for the full script. Return it UNCHANGED in your response under the "analysis" key.
-
-```json
-{analysis_str}
-```
-
-{chapter_context}
-
-## SCENE RULES
-
-### SEGMENT CONTRACT
-- Return exactly ONE scene for every input segment.
-- Match each input index exactly.
-- Do NOT merge, split, reorder, omit, or add segments.
-
-### THEMATIC INTERPRETATION - CRITICAL
-Every scene must visually serve the core_theme from the analysis, NOT literally translate the script's words into props.
-
-**NEVER illustrate a metaphor literally.** The viewer hears the words while seeing the image. The visual should DEEPEN the meaning, not repeat it.
-
-### Scene object keys (output ONLY these — no extra fields)
-- index: integer (match input index exactly)
-- title: string (2-6 words)
-- narrative_role: "hook" | "buildup" | "peak" | "transition" | "text_accent" | "cta"
-- type_of_scene: "image" | "video" | "text"
-- image_prompt: scene description (video: include 2-3 motion cues; text: blurred background only)
-- text_content: string or null (text scenes only, 3-8 words, uppercase, hardest-hitting line)
-
-## TYPE MIX
-- 60-75% video, 20-30% image, 5-10% text
-- 1-2 text scenes max; most impactful line should be text
-- Default to VIDEO
-
-## IMAGE_PROMPT RULES
-
-**VIDEO**: living moment with motion. FORMAT: [shot type], [subject + action], [setting], [lighting], [mood], [2-3 motion cues], [style keywords]
-Include motion from different categories: body, environment, camera, atmosphere.
-
-**IMAGE**: one frozen photograph. No motion verbs. FORMAT: [shot type], [subject + details], [setting], [lighting], [mood], [style keywords]
-
-**TEXT**: blurred/abstract background from the scene's environment. Do NOT include text in the prompt.
-
-**ALL TYPES**:
-- Shot types: extreme-close-up | close-up | medium | wide | POV | bird's-eye | low-angle | high-angle | over-shoulder | centered-symmetrical
-- No two consecutive scenes may use the same shot type
-- Pick 2-4 style keywords consistent across all prompts
-- NEVER mention aspect ratio or resolution
-- Same environment, lighting temperature, and color palette throughout
-
-## OUTPUT
-Return ONLY valid JSON. No markdown. No code fences. No commentary. ENGLISH ONLY.
-
-{{"analysis": {{copy the pre-computed analysis exactly}}, "scenes": [...]}}"""

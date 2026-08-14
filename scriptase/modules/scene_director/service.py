@@ -61,7 +61,7 @@ def generate_scenes(
         build_visual_bible,
         summarize_blueprints,
     )
-    from scriptase.modules.scene_director.prompts import build_scene_system_prompt
+    from scriptase.modules.scene_director.providers.prompts import build_scene_system_prompt
     from scriptase.modules.scene_director.style_compiler import resolve_template_bundle
     from scriptase.modules.scene_director.templates import TEMPLATES_BY_ID
     from scriptase.modules.scene_director.validators import (
@@ -92,6 +92,23 @@ def generate_scenes(
     custom_style_notes = (
         config.get("style_prompt") or config.get("custom_style_notes") or ""
     )
+    # Step 5.2: structured Channel visual direction is a typed request input.
+    # Provider packages own prompt wording; we only feed the structured fields.
+    from scriptase.modules.scene_director.providers.contract import (
+        visual_direction_from_config,
+    )
+    from scriptase.modules.scene_director.visual_direction import (
+        apply_visual_direction_to_scenes,
+    )
+
+    visual_direction = visual_direction_from_config(config)
+    if visual_direction.style and not (
+        config.get("style") or config.get("visual_style") or config.get("niche")
+    ):
+        # When the only style signal is Channel visual_direction.style, surface
+        # it for niche/template resolution without free-text prompt composition.
+        config = {**config, "style": visual_direction.style}
+
     resolved = _resolve_niche(config)
     style_id = resolved["visual_style"]
     bundle = resolve_template_bundle(style_id, TEMPLATES_BY_ID, custom_style_notes)
@@ -99,11 +116,17 @@ def generate_scenes(
         {**s, "index": i}
         for i, s in enumerate(s for s in all_segments if not s.get("is_filler"))
     ]
-    visual_bible = build_visual_bible(script, planning_segments, bundle["style_spec"])
+    visual_bible = build_visual_bible(
+        script,
+        planning_segments,
+        bundle["style_spec"],
+        visual_direction=visual_direction,
+    )
     scene_blueprints = build_scene_blueprints(
         planning_segments,
         visual_bible,
         bundle["style_spec"],
+        visual_direction=visual_direction,
     )
     plan_summary = summarize_blueprints(scene_blueprints)
 
@@ -202,6 +225,14 @@ def generate_scenes(
         result.get("scenes") or [],
         speech_segments,
     )
+    # Step 5.2: fill empty camera/lighting/continuity/mood from Channel direction.
+    if not visual_direction.is_empty():
+        stamped = apply_visual_direction_to_scenes(
+            stamped,
+            visual_direction,
+            blueprints=scene_blueprints,
+        )
+        result["visual_direction"] = visual_direction.model_dump(mode="json")
     result["scenes"] = [spec.to_port_dict() for spec in stamped]
 
     story_tone = config.get("story_tone") or config.get("tone") or ""

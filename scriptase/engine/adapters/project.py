@@ -42,6 +42,15 @@ def setup(inputs, config, context):
         settings["artifact_refs"] = [ref]
     else:
         settings["artifact_refs"] = []
+    # Step 5.2: forward structured Channel visual direction on the settings
+    # port so Scene Director receives typed inputs (not free-text prompts).
+    visual_direction = (
+        channel_settings.get("visual_direction")
+        if isinstance(channel_settings, dict)
+        else None
+    )
+    if isinstance(visual_direction, dict) and visual_direction:
+        settings["visual_direction"] = visual_direction
     return outputs(settings=settings)
 
 
