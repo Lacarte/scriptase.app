@@ -1,0 +1,20 @@
+
+===== 2026-08-05T08:06:09.821459 :: claude -p --permission-mode acceptEdits "You are executing step 6.6 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 6.6: Docs and onboarding.
+
+Step description:
+A user guide for building, validating, and running workflows (including sample-data stubs, run
+modes, and draft recovery), plus a node reference generated from the backend registry so it
+cannot drift from the code.
+**Done when:** a newcomer can build and run the pipeline template using only the docs, and the node reference is generated, not hand-written.
+
+---
+
+## Phase 7 — Triggers & automation
+
+Until now every run is a human clicking Run. This phase makes workflows fire themselves:
+scheduled, file-driven, and webhook-driven runs, serialized through a queue, with notifications.
+
+Done when: a newcomer can build and run the pipeline template using only the docs, and the node reference is generated, not hand-written.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; run pytest, 'npm run test' and 'npm run build' (frontend/) and get them green BEFORE committing; finish with exactly one commit whose subject contains 'step 6.6'. Do not push."
+You've hit your limit · resets 10:50am (Etc/GMT+5)

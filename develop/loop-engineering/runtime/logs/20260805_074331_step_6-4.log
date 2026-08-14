@@ -1,0 +1,124 @@
+
+===== 2026-08-05T07:43:31.753145 :: claude -p --permission-mode acceptEdits "You are executing step 6.4 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 6.4: Client error-truth.
+
+Step description:
+Parse the `{error:{code,message}}` envelope on every remaining API call in the workflow store
+(save/load/list/import paths), block Save with a visible reason while any JSON widget holds
+invalid text, and fix the number-widget DOM desync so the displayed value always matches state.
+**Done when:** Vitest covers envelope surfacing for each store API path, and Save is disabled with a visible reason while any field is invalid.
+
+Done when: Vitest covers envelope surfacing for each store API path, and Save is disabled with a visible reason while any field is invalid.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; run pytest, 'npm run test' and 'npm run build' (frontend/) and get them green BEFORE committing; finish with exactly one commit whose subject contains 'step 6.4'. Do not push."
+Step 6.4 is complete and committed as `83e9832`.
+
+## What was done
+
+**Envelope surfacing** (`shared/api/client.js` + `stores/workflow.js`)
+- The API client now parses `{error:{code,message,details}}` on every non-OK response and throws an error carrying the backend's message, stable `code`, `status`, and `details` — falling back to the old raw-body format only for non-envelope failures (client.js:28-51).
+- A store helper `apiErrorText(err, fallback)` formats surfaced errors as `message [CODE]`, applied to all 12 store API paths: node-types, open, save create/update, save-as, import, run, stop, execution refresh, run history — plus `refreshWorkflowList` and `loadTemplates`, which previously threw with no handling at all (workflow.js:1091-1111).
+
+**Save gating on invalid JSON**
+- New store registry: `reportInvalidField` / `clearInvalidFields` / `saveBlockedReason` (workflow.js:580-616). `saveWorkflow`/`saveAs` refuse without an API call while blocked, so the block isn't just button state.
+- `ConfigField` emits `invalid` when its JSON textarea doesn't parse (and `null` on fix/unmount); `NodeInspector` registers it as `Fix invalid JSON in "<node>" → "<field>" before saving`, plus the workflow-variables editor. Blocks release exactly where the invalid text can disappear: fixed, field hidden, node deselected, inspector unmounted, or a new document loaded.
+- Toolbar: Save/Save As/Duplicate disable with the reason shown as a red `role="alert"` hint in the toolbar (WorkflowPage.vue:717-721, 744-751).
+
+**Number-widget desync fix** (ConfigField.vue:74-91)
+- Clamped input that lands on the unchanged stored value, cleared input, and unparseable input all force the input element back to the value actually kept; `update` is emitted only when the value really changes.
+
+**Verification**
+- 26 new Vitest cases in `errorTruth.test.js`: client envelope parsing, all store surfacing paths, save gating at store/widget/inspector/page level, and number-widget sync. Full suite: 131 passed across 16 files; production build green. No backend code changed.
+
+----- validate:pytest
+ssssssssss................................................................................................... [ 64%]
+.............................................................         [100%]
+160 passed, 10 skipped, 38 subtests passed in 18.04s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 122[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m16 tests[22m[2m)[22m[32m 164[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m1 test[22m[2m)[22m[33m 668[2mms[22m[39m
+     [33m[2m✓[22m[39m shows persisted diagnostics and starts a failed-only retry [33m 663[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[33m 545[2mms[22m[39m
+     [33m[2m✓[22m[39m reveals conditional fields when their condition flips [33m 437[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m1 test[22m[2m)[22m[33m 639[2mms[22m[39m
+     [33m[2m✓[22m[39m renders node, edge, and pane actions and dispatches duplicate undoably [33m 629[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 1319[2mms[22m[39m
+     [33m[2m✓[22m[39m renders string input and emits updates [33m 312[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 1504[2mms[22m[39m
+     [33m[2m✓[22m[39m the workflow variables editor blocks Save while invalid [33m 304[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 244[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 484[2mms[22m[39m
+     [33m[2m✓[22m[39m renders a Recently used section in the library [33m 408[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 234[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 232[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 157[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 176[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 95[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+[2m      Tests [22m [1m[32m131 passed[39m[22m[90m (131)[39m
+[2m   Start at [22m 07:56:25
+[2m   Duration [22m 19.85s[2m (transform 7.39s, setup 0ms, import 19.07s, tests 6.64s, environment 80.88s)[22m
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 200 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                 1.65 kB │ gzip:   0.77 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css          8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/TimingPage-358TMXoQ.css            11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/SettingsPage-BLAeVZuE.css          17.12 kB │ gzip:   3.31 kB
+../static/dist/assets/TtsPage-BH7NOR03.css               17.40 kB │ gzip:   3.27 kB
+../static/dist/assets/StoryboardPage-oauSXe56.css        17.74 kB │ gzip:   3.71 kB
+../static/dist/assets/ScenesPage-CSjIarG6.css            18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/AssetsPage-DVrglYp-.css            23.24 kB │ gzip:   4.31 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css     29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-Bjt-XypO.css          37.89 kB │ gzip:   7.28 kB
+../static/dist/assets/PipelinePage-BIFSTkdj.css          80.16 kB │ gzip:  12.85 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css            93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-CC-3zQRL.css                155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-CAbisymh.js              0.20 kB │ gzip:   0.18 kB
+../static/dist/js/format-D6QnDI5p.js                      1.07 kB │ gzip:   0.55 kB
+../static/dist/js/stagingStore-B95bPi4f.js                1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-CHvqx1-n.js            1.47 kB │ gzip:   0.68 kB
+../static/dist/js/useTiming-CnIvvJfN.js                   2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-HXbcECoj.js                   4.81 kB │ gzip:   1.97 kB
+../static/dist/js/useAssets-B-Lhi274.js                   5.48 kB │ gzip:   2.18 kB
+../static/dist/js/pinia-BT7N-eTL.js                       5.99 kB │ gzip:   2.83 kB
+../static/dist/js/useToast-DjL2syDo.js                   16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-iBq9rMDS.js                 17.51 kB │ gzip:   6.19 kB
+../static/dist/js/SegmenterPage-DvtX7xEn.js              20.06 kB │ gzip:   6.97 kB
+../static/dist/js/ScenesPage-Da-dIDv7.js                 23.25 kB │ gzip:   7.48 kB
+../static/dist/js/StoryboardPage-D7sfI6d1.js             23.65 kB │ gzip:   7.35 kB
+../static/dist/js/SettingsPage-kkkEtq2q.js               28.37 kB │ gzip:   9.18 kB
+../static/dist/js/AssetsPage-B7LJSaje.js                 37.09 kB │ gzip:  11.46 kB
+../static/dist/js/TtsPage-BD-PT_s1.js                    43.43 kB │ gzip:  14.24 kB
+../static/dist/js/ExportLibraryPage-BsWTOsF7.js          47.26 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-Ch2j_Tzz.js   65.95 kB │ gzip:  25.81 kB
+../static/dist/js/index-CNaXpNm4.js                      84.70 kB │ gzip:  27.41 kB
+../static/dist/js/PipelinePage-D1j4DYs1.js              107.77 kB │ gzip:  26.63 kB
+../static/dist/js/EditorPage-B33QFln_.js                143.15 kB │ gzip:  21.93 kB
+../static/dist/js/useRandomStory-JxYVc6uU.js            194.13 kB │ gzip:  73.38 kB
+../static/dist/js/WorkflowPage-BdyWq48w.js              345.87 kB │ gzip: 111.80 kB
+
+[32m✓ built in 2.67s[39m
+

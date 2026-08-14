@@ -1,0 +1,17 @@
+{
+  "done": [],
+  "history": [
+    {
+      "ts": "2026-08-13T23:30:34",
+      "step": "phase-0",
+      "event": "start",
+      "detail": "fatal: Needed a single revision"
+    },
+    {
+      "ts": "2026-08-13T23:30:34",
+      "step": "0.1",
+      "event": "start",
+      "detail": ""
+    }
+  ]
+}

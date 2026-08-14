@@ -1,0 +1,270 @@
+
+===== 2026-08-09T09:08:00.328779 :: "C:\Users\Admin\.grok\bin\grok.EXE" --model grok-4.5 --permission-mode bypassPermissions --output-format plain -p "You are executing step 12.5 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 12.5: No-node-edit extensibility proof and phase gate.
+
+Step description:
+Create a test-only provider package for each execution shape needed by the platform (sync artifact,
+sync document, async multi-asset). Discover it normally, expose it through the API/UI, configure it on
+an existing generic node, execute it, and inspect its standardized result—without editing
+`studio/workflows/registry.py`, any workflow adapter, or any Vue component for that provider.
+
+**Done when:** an automated diff guard/test proves provider addition touches only its provider package
+and tests; backend and frontend integration tests complete catalog→settings→node validation→execution;
+all legacy and built-in workflow templates still validate; and the full Phase 12 test/build/manual UI
+gate passes.
+
+#### Step 12.5 review status — 2026-08-09
+
+- **Complete.** Three test-only packages, one per execution shape, live under
+  `tests/fixture_providers/<domain>/<id>/` — `script/fixture_document` (sync document),
+  `tts/fixture_artifact` (sync artifact), `storyboard/fixture_async` (async multi-asset).
+  They are registered by pointing a `DomainSpec.providers_base` at their folder, the
+  mechanism §46.3 already established for `fixture_provider`, so they are found by the
+  ordinary discovery scan and validated against their real domain's capability vocabulary
+  while never entering the shipped catalog. `tests/test_provider_extensibility.py` drives
+  all three through catalog → settings → selection → node validation → execution → §31
+  result.
+- **Defect found and fixed — 12.3 left the five converted nodes unconfigurable.** That step
+  gave them `type: 'provider'` and `type: 'provider_options'` widgets and nothing rendered
+  either: `ConfigField.vue` had no branch, so the inspector drew *'Unsupported field type:
+  provider'* for `story.generate`, `tts.generate`, `scenes.blueprint`,
+  `storyboard.generate`, and `animator.generate`. 12.5 cannot 'configure it on an existing
+  generic node' without closing that, so it is closed here. `provider` reuses the existing
+  async-select path — a provider list *is* an allowlisted option source, so the change is
+  one predicate — and `provider_options` renders the same `ProviderSettingsForm` the
+  Settings page and the five legacy pages already use, over the schema of whichever
+  provider the *node* selected. `NodeInspector` resolves that from the field declaring the
+  `provider` widget, including its schema default, mirroring
+  `options.configured_provider()`; a workflow saved before 12.3 therefore shows the options
+  of the provider it will really run (§41.3 M4). Secret properties are stripped from the
+  node sub-form: a credential there would be persisted into the workflow document, and
+  `_validate_provider_options` already refuses it at save time.
+- **Defect found and fixed — 12.4's Storyboard model dropdown was dead on arrival.**
+  `ProviderSettingsForm` sends `{domain, provider}` to *every* `ui.options_source` it
+  renders, because the browser cannot know which sources accept context, but
+  `storyboard_image_models` shipped with an empty context tuple — so the request answered
+  `OPTION_CONTEXT_INVALID` and the dropdown rendered empty in the shipped app. The tuple is
+  widened to `('domain', 'provider')` with a `settings` cache policy, and the invariant is
+  now mechanical: `test_every_source_a_provider_schema_names_accepts_its_own_context` walks
+  every shipped provider's schema and fails on any named source that would be rejected.
+  12.4's `test_an_unknown_parameter_is_rejected_rather_than_ignored` was asserting the
+  broken behavior and now uses a genuinely unsupported parameter.
+- **Adjustment recorded — the diff guard is an invariant, not a `git diff`.** A diff test
+  proves one commit; an invariant keeps proving it. Direction 1 walks `studio/`,
+  `frontend/src/`, `docs/`, `app.py`, and `config.py` and fails if a fixture provider id
+  appears anywhere outside `tests/`. Direction 2 is the backend counterpart of the
+  12.2/12.4 frontend guards, which had no backend half: it compares the provider ids found
+  in the eighteen §26 surfaces against a **frozen set**, so a new literal fails *and* so
+  does a stale entry. Each remaining pair records what it is and who removes it —
+  `domains.py` (§19.1) and `config_migrations.py` (§41.3) are the two legitimate homes, the
+  rest is 14.2/14.3/16.1 debt. A third test is the substantive one: no provider-id
+  *comparison* may appear in any surface except the two visual adapters and `app.py`, which
+  are deliberately absent for the same reason `useTts.js` is absent from the 12.4 frontend
+  guard.
+- **Adjustment recorded — a node names a provider only through its domain default.** The
+  literal claim 'no provider id in a node definition' is false: `_provider_field`'s
+  `default` *is* `DOMAINS[domain].default_provider`. The guard asserts the stronger true
+  thing — every provider id in a materialized `config_schema` is that default, read from
+  the catalog, and appears nowhere else in any field.
+- **Deferred as already assigned — two of the three shapes execute through the runtime, not
+  through their node.** `story.generate` dispatches generically (`adapters/story.py:34`),
+  so the sync-document fixture runs end to end on a real, unmodified node: merged options,
+  request-wins precedence, hidden-field exclusion, a managed relative artifact ref, no
+  credential in the written artifact, and `PROVIDER_UNAVAILABLE` rather than a silent
+  substitution. `tts.generate` and `storyboard.generate` still call `_step_tts` /
+  `_step_storyboard`, which branch on provider id — the branches 15.2 and 14.2 own. Both
+  shapes are proved through `boundary.invoke` and the §33 job contract instead, including
+  the partial and cancelled paths, with `validate_egress` clean over every envelope.
+  Pulling that dispatch forward would have emptied two later steps.
+- The uninstalled-provider case is recorded rather than assumed: the `provider` field is a
+  hard error (a saved value resolving to nothing has no safe execution), while
+  `provider_options` fails open with no schema and the stored value is never rewritten, so
+  reinstalling the provider restores the workflow untouched.
+- Verification passes with 645 backend tests (10 live-provider tests skipped, 256
+  subtests), 280 frontend tests across 37 files, the Vite production build, and the
+  generated-document drift check. Four guards were mutation-checked: reverting the option
+  context, disabling the `provider_options` widget, leaking a fixture id into
+  `studio/providers/catalog.py`, and reintroducing `if selected == 'kokoro'` in
+  `adapters/tts.py` each fail their tests.
+
+---
+
+## Phase 13 — Script, story, and scene-AI providers
+
+Done when: an automated diff guard/test proves provider addition touches only its provider package
+and tests; backend and frontend integration tests complete catalog→settings→node validation→execution;
+all legacy and built-in workflow templates still validate; and the full Phase 12 test/build/manual UI
+gate passes.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 12.5'. Do not push."
+Step 12.5 work appears largely present (fixture providers + review notes) but isn't marked complete by the loop. I'll verify the implementation against the "Done when" criteria and close any gaps.12.5 implementation is already in the absorb commit; I'll verify the phase gate and ensure the loop can mark the step complete.Work is already in HEAD under the absorb commit. Running the full Phase 12 verification gate next.Extensibility tests passed. Running the full Phase 12 verification suite.Step 12.5 is implemented and green. Recording completion with a clear step commit so progress tracking is unambiguous.## Step 12.5 complete — Phase 12 closed
+
+Step 12.5 was already implemented (absorbed under `28b2d99f`). This pass re-verified the phase gate, recorded completion, and left a clear step commit.
+
+### What 12.5 proves
+
+Adding a provider is **one package folder + tests** — no edits to `registry.py`, adapters, or Vue for that provider.
+
+| Shape | Fixture package | Path |
+|---|---|---|
+| Sync document | `fixture_document` | `tests/fixture_providers/script/` |
+| Sync artifact | `fixture_artifact` | `tests/fixture_providers/tts/` |
+| Async multi-asset | `fixture_async` | `tests/fixture_providers/storyboard/` |
+
+Chain covered by `tests/test_provider_extensibility.py`:
+
+**catalog → settings → selection → node validation → execution → §31 result**
+
+Plus:
+
+- Zero-touch guards (fixture ids never leak outside `tests/`; §26 surfaces use a frozen literal set)
+- Frontend inspector widgets for `provider` / `provider_options` (`ProviderOptionsField.vue`)
+- Built-in template + legacy migration validation still green
+
+### Deferred (already assigned)
+
+- `tts.generate` / `storyboard.generate` still go through id-branching `_step_*` paths → 15.2 / 14.2  
+- Sync-artifact and async shapes are proved via `boundary.invoke` + job contract, not those adapters yet
+
+### Gate results (re-verified)
+
+| Check | Result |
+|---|---|
+| Backend pytest | **645 passed**, 10 skipped, 256 subtests |
+| Frontend vitest | **280 passed** (37 files) |
+| `npm run build` | green |
+| docs `--check` | OK |
+
+### Status
+
+- **Phase 12: 5/5 complete**
+- Next step: **13.1** — Script provider interface and local random-template provider
+- Commit: `dce4008f` — `feat(workflow): step 12.5 - No-node-edit extensibility proof and phase gate`
+
+----- validate:pytest
+.................ssssssssss..................................................................................................................................................................................... [ 31%]
+................................................. [ 39%]
+............................................................... [ 48%]
+...................... [ 52%]
+............................................................. [ 61%]
+................................................ [ 68%]
+....................................... [ 74%]
+................................................. [ 82%]
+........................................................................ [ 93%]
+............................................                          [100%]
+645 passed, 10 skipped, 256 subtests passed in 15.83s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/providers/__tests__/providerSettingsForm.test.js [2m([22m[2m18 tests[22m[2m)[22m[33m 536[2mms[22m[39m
+ [32m✓[39m src/features/assets/__tests__/assetsProviderAdoption.test.js [2m([22m[2m13 tests[22m[2m)[22m[33m 471[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSettingsModal.test.js [2m([22m[2m7 tests[22m[2m)[22m[33m 574[2mms[22m[39m
+ [32m✓[39m src/features/storyboard/__tests__/storyboardProviderAdoption.test.js [2m([22m[2m6 tests[22m[2m)[22m[33m 652[2mms[22m[39m
+     [33m[2m✓[22m[39m lists a provider it has never heard of, with the catalog label [33m 350[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 655[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/providerNodeConfig.test.js [2m([22m[2m14 tests[22m[2m)[22m[33m 814[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 701[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/domainProvider.test.js [2m([22m[2m7 tests[22m[2m)[22m[33m 515[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[33m 304[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 671[2mms[22m[39m
+     [33m[2m✓[22m[39m shows persisted diagnostics and starts a failed-only retry [33m 408[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m2 tests[22m[2m)[22m[33m 664[2mms[22m[39m
+     [33m[2m✓[22m[39m renders node, edge, and pane actions and dispatches duplicate undoably [33m 485[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerCatalog.test.js [2m([22m[2m27 tests[22m[2m)[22m[33m 836[2mms[22m[39m
+     [33m[2m✓[22m[39m renders a catalog change — added, removed, and relabeled — with no code change [33m 388[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/largeCanvasPerformance.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 799[2mms[22m[39m
+     [33m[2m✓[22m[39m loads, culls, pans, drags, and defers draft persistence on the fixture [33m 770[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelectorActions.test.js [2m([22m[2m5 tests[22m[2m)[22m[33m 335[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/projectArchiveManager.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 265[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notificationCenter.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 295[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/webhookSettings.test.js [2m([22m[2m2 tests[22m[2m)[22m[33m 310[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 353[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/legacyBridge.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 233[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/scheduleSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 276[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 239[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m18 tests[22m[2m)[22m[32m 187[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 197[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 127[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/assetGarbageCollection.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 268[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 231[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/watchFolderSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[33m 330[2mms[22m[39m
+     [33m[2m✓[22m[39m persists the folder trigger and marks the workflow dirty [33m 325[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 126[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m src/shared/composables/__tests__/optionSources.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 109[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 108[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelection.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 60[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/legacySelection.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m src/__tests__/routerBridge.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/shared/schema/__tests__/visibility.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m37 passed[39m[22m[90m (37)[39m
+[2m      Tests [22m [1m[32m280 passed[39m[22m[90m (280)[39m
+[2m   Start at [22m 09:11:39
+[2m   Duration [22m 26.01s[2m (transform 6.09s, setup 0ms, import 23.99s, tests 12.49s, environment 106.73s)[22m
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 221 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                   1.74 kB │ gzip:   0.79 kB
+../static/dist/assets/ProviderSettingsForm-D7RXY_Io.css     3.25 kB │ gzip:   1.02 kB
+../static/dist/assets/ProviderSettingsModal-CCwEq3BP.css    5.98 kB │ gzip:   1.50 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css            8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/SettingsPage-C2tOm1g3.css            10.69 kB │ gzip:   2.16 kB
+../static/dist/assets/TimingPage-358TMXoQ.css              11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/StoryboardPage-Dm2OtLkg.css          16.71 kB │ gzip:   3.54 kB
+../static/dist/assets/TtsPage-CcVE0SWn.css                 17.45 kB │ gzip:   3.28 kB
+../static/dist/assets/ScenesPage-DcI5gXk4.css              18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/AssetsPage-p9KlQHpU.css              23.13 kB │ gzip:   4.29 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css       29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-DeWRiOsg.css            55.79 kB │ gzip:   9.86 kB
+../static/dist/assets/PipelinePage-DlX31qGC.css            80.82 kB │ gzip:  12.99 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css              93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-BcZNBqdU.css                  155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-B3qRQj_1.js                0.20 kB │ gzip:   0.18 kB
+../static/dist/js/format-D6QnDI5p.js                        1.07 kB │ gzip:   0.55 kB
+../static/dist/js/ProviderConfigurator-96mPnDjx.js          1.31 kB │ gzip:   0.65 kB
+../static/dist/js/stagingStore-DBc7wou5.js                  1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-UaVaZs3o.js              1.47 kB │ gzip:   0.69 kB
+../static/dist/js/useTiming-UJbRylU4.js                     2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-cl4gTKrm.js                     4.81 kB │ gzip:   1.96 kB
+../static/dist/js/useAssets-CXQLLUkN.js                     5.35 kB │ gzip:   2.14 kB
+../static/dist/js/ProviderSettingsForm-kGiHM36O.js          5.68 kB │ gzip:   2.21 kB
+../static/dist/js/pinia-NOtNFqTC.js                         5.99 kB │ gzip:   2.83 kB
+../static/dist/js/ProviderSettingsModal-DWE9yNu4.js         7.88 kB │ gzip:   3.01 kB
+../static/dist/js/providerSettings-DxBKv_Pm.js              8.54 kB │ gzip:   3.36 kB
+../static/dist/js/useToast-DfPeOUa8.js                     16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-B8NCQGF-.js                   17.52 kB │ gzip:   6.21 kB
+../static/dist/js/SettingsPage-1_u6AcyZ.js                 18.46 kB │ gzip:   6.38 kB
+../static/dist/js/SegmenterPage-ICU95h-1.js                20.06 kB │ gzip:   6.98 kB
+../static/dist/js/StoryboardPage-Dk4ZqRBJ.js               20.83 kB │ gzip:   6.69 kB
+../static/dist/js/ScenesPage-B3j-7BXv.js                   23.50 kB │ gzip:   7.59 kB
+../static/dist/js/AssetsPage-CZRJ7_6_.js                   34.15 kB │ gzip:  10.92 kB
+../static/dist/js/TtsPage-CDgFYZyx.js                      43.70 kB │ gzip:  14.40 kB
+../static/dist/js/ExportLibraryPage-D2ncK3tT.js            47.25 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-BKYln_wf.js     66.07 kB │ gzip:  25.85 kB
+../static/dist/js/index-DecsaIs3.js                        84.49 kB │ gzip:  27.45 kB
+../static/dist/js/PipelinePage-DfO9X5dx.js                108.38 kB │ gzip:  26.83 kB
+../static/dist/js/EditorPage-CcoFkaS3.js                  143.15 kB │ gzip:  21.93 kB
+../static/dist/js/useRandomStory-D2UiuIUG.js              194.13 kB │ gzip:  73.38 kB
+../static/dist/js/WorkflowPage-BrxLrwwc.js                377.52 kB │ gzip: 120.37 kB
+
+[32m✓ built in 1.69s[39m
+

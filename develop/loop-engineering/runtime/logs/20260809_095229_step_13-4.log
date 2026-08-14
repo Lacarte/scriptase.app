@@ -1,0 +1,193 @@
+
+===== 2026-08-09T09:52:29.554387 :: "C:\Users\Admin\.grok\bin\grok.EXE" --model grok-4.5 --permission-mode bypassPermissions --output-format plain -p "You are executing step 13.4 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 13.4: Scene Blueprint provider migration.
+
+Step description:
+Create the `scene_blueprint` provider interface and wrap the current
+`studio.build_scene_blueprints`/n8n/OpenRouter path as its first provider. Standardize scene,
+image-prompt, narrative-role, chapter, continuity, style, and sound-effect-validation outputs while
+preserving `scenes.json`, existing routes, workflow ports, and the current style/tone inheritance.
+Move webhook/model settings and health checks into provider metadata. Claim the 12.3 `builtin` bridge
+ID as a permanent input alias and upgrade only the matching stored selection to `n8n` when the real
+provider lands.
+
+**Done when:** `scenes.blueprint` and the legacy scene-generation page dispatch only through the
+registry; current fixture outputs remain schema-compatible; malformed AI responses become safe
+provider errors; an alternate fixture provider runs without node edits; and the Phase 13 full
+test/build plus mocked end-to-end Script→Scene Blueprint gate passes.
+
+---
+
+## Phase 14 — Storyboard and Animator provider migration
+
+Done when: `scenes.blueprint` and the legacy scene-generation page dispatch only through the
+registry; current fixture outputs remain schema-compatible; malformed AI responses become safe
+provider errors; an alternate fixture provider runs without node edits; and the Phase 13 full
+test/build plus mocked end-to-end Script→Scene Blueprint gate passes.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 13.4'. Do not push."
+I'll start by reading step 13.4 in the implementation plan and the related contracts/context so we know exactly what the Scene Blueprint provider migration requires.I'll inspect how script providers were migrated in 13.1–13.3 and map that pattern onto the current scene-blueprint code.I have a clear picture of the 13.2/13.3 script pattern. Implementing the scene_blueprint migration the same way: contract, service, `n8n` provider (with `builtin` alias), hub dispatch, and S7 settings migration.Creating the contract, base class, and service layer first.Next: n8n provider package, chapter webhook_caller support, and domain catalog updates.Wiring the adapter, routes, and pipeline step through the hub.Related tests passed. Running the full verification suite next.Fixing the unknown `offline` capability on the n8n manifest and regenerating workflow docs.Cleaning up an unused import, then running the full backend suite once more.All green. Committing step 13.4.**Step 13.4 complete** — Scene Blueprint provider migration (`acd6677e`).
+
+### What changed
+
+**Provider platform**
+- Added `SceneBlueprintRequest` / `SceneBlueprintResultPayload` (§32.2) and `SceneBlueprintProvider` ABC
+- Extracted shared `studio/build_scene_blueprints/service.py` (generation, chaptering, coherence, sfx, `scenes.json`)
+- Replaced the transitional `builtin` package with the real **`n8n`** provider (`aliases=["builtin"]`)
+- Domain default is now `n8n`; request/result models are wired on `DomainSpec`
+- **S7** settings migration: `builtin` → `n8n` (settings version 4)
+
+**Dispatch**
+- `scenes.blueprint` adapter resolves only through the hub (no concrete service imports)
+- `POST /api/scenes/generate` dispatches through the hub; envelope gains additive `provider`
+- Pipeline `_step_scenes` is a thin facade over the shared service
+
+**Safety / extensibility**
+- Malformed/empty webhook responses → `PROVIDER_RESPONSE_MALFORMED` (no body leak)
+- Unsafe webhook → `PROVIDER_REQUEST_INVALID`
+- Offline `fixture_scenes` provider proves alternate providers run without node edits
+
+### Verification
+| Gate | Result |
+|------|--------|
+| `pytest tests/` | **719 passed**, 10 skipped |
+| Frontend vitest | **280 passed** |
+| `npm run build` | green |
+| Generated workflow docs | in sync |
+
+### Done-when checklist
+- `scenes.blueprint` and legacy scene page dispatch only through the registry
+- Fixture outputs remain schema-compatible (`scenes.json` keys preserved)
+- Malformed AI responses become safe `ProviderError`s
+- Alternate fixture provider runs without node edits
+- Mocked Script → Scene Blueprint end-to-end gate passes
+
+Phase 13 is fully complete. Next step is **14.1 — Shared asynchronous media-job service**.
+
+----- validate:pytest
+.................ssssssssss.............................................................. [ 12%]
+............................................................. [ 20%]
+.......................................................... [ 28%]
+............................................... [ 34%]
+.......................................................................................................................................... [ 53%]
+........................................................................ [ 63%]
+..................................................................................... [ 75%]
+................................................. [ 82%]
+........................................................................ [ 92%]
+..........................................................            [100%]
+719 passed, 10 skipped, 268 subtests passed in 17.83s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/providers/__tests__/providerSettingsForm.test.js [2m([22m[2m18 tests[22m[2m)[22m[33m 515[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSettingsModal.test.js [2m([22m[2m7 tests[22m[2m)[22m[33m 503[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 587[2mms[22m[39m
+ [32m✓[39m src/features/storyboard/__tests__/storyboardProviderAdoption.test.js [2m([22m[2m6 tests[22m[2m)[22m[33m 571[2mms[22m[39m
+     [33m[2m✓[22m[39m lists a provider it has never heard of, with the catalog label [33m 314[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/providerNodeConfig.test.js [2m([22m[2m14 tests[22m[2m)[22m[33m 764[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m2 tests[22m[2m)[22m[33m 540[2mms[22m[39m
+     [33m[2m✓[22m[39m renders node, edge, and pane actions and dispatches duplicate undoably [33m 429[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 680[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerCatalog.test.js [2m([22m[2m27 tests[22m[2m)[22m[33m 506[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/domainProvider.test.js [2m([22m[2m7 tests[22m[2m)[22m[33m 457[2mms[22m[39m
+ [32m✓[39m src/features/assets/__tests__/assetsProviderAdoption.test.js [2m([22m[2m13 tests[22m[2m)[22m[33m 546[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelectorActions.test.js [2m([22m[2m5 tests[22m[2m)[22m[33m 339[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 498[2mms[22m[39m
+     [33m[2m✓[22m[39m shows persisted diagnostics and starts a failed-only retry [33m 346[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[33m 331[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/largeCanvasPerformance.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 469[2mms[22m[39m
+     [33m[2m✓[22m[39m loads, culls, pans, drags, and defers draft persistence on the fixture [33m 440[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notificationCenter.test.js [2m([22m[2m1 test[22m[2m)[22m[33m 382[2mms[22m[39m
+     [33m[2m✓[22m[39m shows persisted records, clears unseen state, and edits settings [33m 377[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/legacyBridge.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 214[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 434[2mms[22m[39m
+     [33m[2m✓[22m[39m renders a Recently used section in the library [33m 329[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m18 tests[22m[2m)[22m[32m 229[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 202[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/projectArchiveManager.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 284[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/webhookSettings.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 286[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 195[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 180[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/scheduleSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 279[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/watchFolderSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 190[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 175[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 135[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/assetGarbageCollection.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 178[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 122[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/legacySelection.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 155[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelection.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m src/shared/composables/__tests__/optionSources.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 156[2mms[22m[39m
+ [32m✓[39m src/__tests__/routerBridge.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/shared/schema/__tests__/visibility.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m37 passed[39m[22m[90m (37)[39m
+[2m      Tests [22m [1m[32m280 passed[39m[22m[90m (280)[39m
+[2m   Start at [22m 10:03:37
+[2m   Duration [22m 24.41s[2m (transform 6.99s, setup 0ms, import 25.29s, tests 11.34s, environment 101.59s)[22m
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 220 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                   1.74 kB │ gzip:   0.79 kB
+../static/dist/assets/ProviderSettingsForm-D7RXY_Io.css     3.25 kB │ gzip:   1.02 kB
+../static/dist/assets/ProviderSettingsModal-CCwEq3BP.css    5.98 kB │ gzip:   1.50 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css            8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/SettingsPage-C2tOm1g3.css            10.69 kB │ gzip:   2.16 kB
+../static/dist/assets/TimingPage-358TMXoQ.css              11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/StoryboardPage-Dm2OtLkg.css          16.71 kB │ gzip:   3.54 kB
+../static/dist/assets/TtsPage-CfiQHDNs.css                 17.45 kB │ gzip:   3.28 kB
+../static/dist/assets/ScenesPage-DcI5gXk4.css              18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/AssetsPage-p9KlQHpU.css              23.13 kB │ gzip:   4.29 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css       29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-DeWRiOsg.css            55.79 kB │ gzip:   9.86 kB
+../static/dist/assets/PipelinePage-DlX31qGC.css            80.82 kB │ gzip:  12.99 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css              93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-BcZNBqdU.css                  155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-DfHwYAwm.js                0.20 kB │ gzip:   0.18 kB
+../static/dist/js/useRandomStory-CUtxo2HG.js                0.42 kB │ gzip:   0.30 kB
+../static/dist/js/format-D6QnDI5p.js                        1.07 kB │ gzip:   0.55 kB
+../static/dist/js/ProviderConfigurator-vDsirPsa.js          1.31 kB │ gzip:   0.65 kB
+../static/dist/js/stagingStore-DBc7wou5.js                  1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-UaVaZs3o.js              1.47 kB │ gzip:   0.69 kB
+../static/dist/js/useTiming-UJbRylU4.js                     2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-IWSJcyKT.js                     4.81 kB │ gzip:   1.97 kB
+../static/dist/js/useAssets-DdFWHoZA.js                     5.35 kB │ gzip:   2.14 kB
+../static/dist/js/ProviderSettingsForm-BYELl1PG.js          5.68 kB │ gzip:   2.21 kB
+../static/dist/js/pinia-NOtNFqTC.js                         5.99 kB │ gzip:   2.83 kB
+../static/dist/js/ProviderSettingsModal-D_QRVwcb.js         7.88 kB │ gzip:   3.01 kB
+../static/dist/js/providerSettings-DxBKv_Pm.js              8.54 kB │ gzip:   3.36 kB
+../static/dist/js/useToast-DfPeOUa8.js                     16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-C8AoEDyX.js                   17.52 kB │ gzip:   6.21 kB
+../static/dist/js/SettingsPage-ias4Undy.js                 18.46 kB │ gzip:   6.38 kB
+../static/dist/js/SegmenterPage-CV7QObv2.js                20.06 kB │ gzip:   6.98 kB
+../static/dist/js/StoryboardPage-CW7Ba4rf.js               20.83 kB │ gzip:   6.69 kB
+../static/dist/js/ScenesPage-DTMlwaZm.js                   23.50 kB │ gzip:   7.60 kB
+../static/dist/js/AssetsPage-BGmGLmQ8.js                   34.15 kB │ gzip:  10.92 kB
+../static/dist/js/TtsPage-Xq9L0zlP.js                      43.83 kB │ gzip:  14.45 kB
+../static/dist/js/ExportLibraryPage-CgDr2Jbk.js            47.25 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-BKYln_wf.js     66.07 kB │ gzip:  25.85 kB
+../static/dist/js/index-nqnSvEIW.js                        84.58 kB │ gzip:  27.47 kB
+../static/dist/js/PipelinePage-pa9v8mcc.js                108.38 kB │ gzip:  26.84 kB
+../static/dist/js/EditorPage-DPt2EMdA.js                  143.15 kB │ gzip:  21.93 kB
+../static/dist/js/WorkflowPage-CSMK-3Ef.js                377.52 kB │ gzip: 120.38 kB
+
+[32m✓ built in 1.61s[39m
+

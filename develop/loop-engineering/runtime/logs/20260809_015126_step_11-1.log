@@ -1,0 +1,139 @@
+
+===== 2026-08-09T01:51:26.652622 :: claude -p --permission-mode acceptEdits "You are executing step 11.1 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 11.1: Generalize the registry into a domain hub.
+
+Step description:
+Extend `studio/shared/providers_common/registry.py` so supported domains are declared through a
+domain catalog rather than the current `VALID_DOMAINS` set (`registry.py:177`) — and retire the
+duplicate hardcoded domain set in `settings_manager.validate_settings` (`settings_manager.py:270`) in
+the same step, so the two can never drift. Replace the three copies of the 57-line
+`studio/<domain>/providers/__init__.py` (tts, storyboard, animator — structurally identical, differing
+only in domain name and `init_<domain>_registry`; see contracts §14.6) with one generated/shared
+binding. Add a process-wide registry hub that can
+list and resolve `(domain, provider_id)` while preserving the existing per-module `registry`,
+`get_provider`, and `list_providers` imports as compatibility facades. Domain registration must bind
+the request/result contract and provider search path once; individual provider registration must not
+touch `app.py` or the workflow registry.
+
+**Done when:** all five domains can register with the hub; existing TTS/Storyboard/Animator imports
+still work; duplicate domains/providers fail deterministically; discovery order is stable; and tests
+prove one broken or duplicate provider cannot hide healthy providers or stop application startup.
+
+Done when: all five domains can register with the hub; existing TTS/Storyboard/Animator imports
+still work; duplicate domains/providers fail deterministically; discovery order is stable; and tests
+prove one broken or duplicate provider cannot hide healthy providers or stop application startup.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 11.1'. Do not push."
+The commit landed cleanly: `5f81306c feat(providers): step 11.1 - Generalize the registry into a domain hub` — 13 files changed, 816 insertions, 273 deletions, with `domains.py`, `hub.py`, and `test_provider_hub.py` added. Working tree is clean.
+
+Step 11.1's Done-when conditions are all met:
+
+| Requirement | Evidence |
+|---|---|
+| All five domains register with the hub | `hub.domains()` → `['script', 'scene_blueprint', 'tts', 'storyboard', 'animator']`; startup logs each with its count |
+| Existing TTS/Storyboard/Animator imports still work | `CompatibilityFacadeTests` asserts `studio.tts.providers.registry is hub.registry('tts')` and that all three `init_<domain>_registry` remain callable |
+| Duplicate domains/providers fail deterministically | `test_duplicate_id_keeps_the_incumbent`, `test_wrong_domain_registration_is_refused`, `test_unknown_domain_fails_deterministically` |
+| Discovery order is stable | `test_discovery_order_is_sorted_not_filesystem_order` |
+| Broken provider can't hide healthy ones or stop startup | `test_broken_providers_are_excluded_individually` (6 distinct failure modes alongside one healthy provider), `test_only_broken_providers_still_completes_discovery` |
+
+One caveat worth flagging for 11.2: the hub currently discovers lazily on `get`/`list`/`catalog`, and discovery still mutates the live registry dict rather than publishing an atomic snapshot. That's D21 and is already assigned to 11.2 — but until it lands, a lookup racing a first-time discovery in a request thread can observe a partially populated domain. In practice `init_providers()` at startup discovers everything before the server serves, so the window doesn't open in the running app.
+
+----- validate:pytest
+ssssssssss............................................................ [ 26%]
+................................................ [ 45%]
+....................................... [ 59%]
+........................................................................ [ 87%]
+.................................                                     [100%]
+252 passed, 10 skipped, 62 subtests passed in 10.96s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/workflow/__tests__/notificationCenter.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 130[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[32m 157[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 304[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 392[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/largeCanvasPerformance.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 341[2mms[22m[39m
+     [33m[2m✓[22m[39m loads, culls, pans, drags, and defers draft persistence on the fixture [33m 324[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m2 tests[22m[2m)[22m[33m 348[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 408[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 181[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/projectArchiveManager.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 240[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/scheduleSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 213[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 265[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m18 tests[22m[2m)[22m[32m 135[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/webhookSettings.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 207[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/legacyBridge.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 209[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 179[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/watchFolderSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 162[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/assetGarbageCollection.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 157[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 126[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 88[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 119[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 104[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/__tests__/routerBridge.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m25 passed[39m[22m[90m (25)[39m
+[2m      Tests [22m [1m[32m154 passed[39m[22m[90m (154)[39m
+[2m   Start at [22m 02:14:35
+[2m   Duration [22m 11.58s[2m (transform 4.44s, setup 0ms, import 12.40s, tests 4.55s, environment 47.53s)[22m
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 213 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                 1.65 kB │ gzip:   0.77 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css          8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/TimingPage-358TMXoQ.css            11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/SettingsPage-BLAeVZuE.css          17.12 kB │ gzip:   3.31 kB
+../static/dist/assets/TtsPage-BH7NOR03.css               17.40 kB │ gzip:   3.27 kB
+../static/dist/assets/StoryboardPage-oauSXe56.css        17.74 kB │ gzip:   3.71 kB
+../static/dist/assets/ScenesPage-CSjIarG6.css            18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/AssetsPage-DVrglYp-.css            23.24 kB │ gzip:   4.31 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css     29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-CiRRJDgT.css          54.98 kB │ gzip:   9.76 kB
+../static/dist/assets/PipelinePage-D2JJByEX.css          80.82 kB │ gzip:  12.99 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css            93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-BcZNBqdU.css                155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-DSSeOkLa.js              0.20 kB │ gzip:   0.18 kB
+../static/dist/js/format-D6QnDI5p.js                      1.07 kB │ gzip:   0.55 kB
+../static/dist/js/stagingStore-DBc7wou5.js                1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-Ujg5SKdi.js            1.47 kB │ gzip:   0.69 kB
+../static/dist/js/useTiming-Bt8_LqQg.js                   2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-Gtz0RQy9.js                   4.81 kB │ gzip:   1.97 kB
+../static/dist/js/useAssets-Btaz8yq6.js                   5.48 kB │ gzip:   2.18 kB
+../static/dist/js/pinia-NOtNFqTC.js                       5.99 kB │ gzip:   2.83 kB
+../static/dist/js/useToast-DfPeOUa8.js                   16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-BXRX2EZG.js                 17.52 kB │ gzip:   6.21 kB
+../static/dist/js/SegmenterPage-DGPwq5vv.js              20.06 kB │ gzip:   6.98 kB
+../static/dist/js/ScenesPage-jRcHh4f1.js                 23.25 kB │ gzip:   7.48 kB
+../static/dist/js/StoryboardPage-l4P7SMJf.js             23.65 kB │ gzip:   7.35 kB
+../static/dist/js/SettingsPage-5Sj2ZxJw.js               28.37 kB │ gzip:   9.19 kB
+../static/dist/js/AssetsPage-C5f27Psp.js                 37.09 kB │ gzip:  11.49 kB
+../static/dist/js/TtsPage-Dn2GTYOl.js                    43.43 kB │ gzip:  14.27 kB
+../static/dist/js/ExportLibraryPage-B23-Smge.js          47.25 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-BKYln_wf.js   66.07 kB │ gzip:  25.85 kB
+../static/dist/js/index-Bp6Ghjk9.js                      84.68 kB │ gzip:  27.43 kB
+../static/dist/js/PipelinePage-qHqex09A.js              108.22 kB │ gzip:  26.76 kB
+../static/dist/js/EditorPage-BUuDdvOU.js                143.15 kB │ gzip:  21.94 kB
+../static/dist/js/useRandomStory-D2UiuIUG.js            194.13 kB │ gzip:  73.38 kB
+../static/dist/js/WorkflowPage-LfHVIZLv.js              376.38 kB │ gzip: 120.04 kB
+
+[32m✓ built in 1.40s[39m
+

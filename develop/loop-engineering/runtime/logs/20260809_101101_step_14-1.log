@@ -1,0 +1,19 @@
+
+===== 2026-08-09T10:11:01.242993 :: "C:\Users\Admin\.grok\bin\grok.EXE" --model grok-4.5 --permission-mode bypassPermissions --output-format plain -p "You are executing step 14.1 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 14.1: Shared asynchronous media-job service.
+
+Step description:
+Build one orchestration layer over the Phase 11 job contract for multi-scene submit, poll/callback,
+progress, per-scene results, retry, cancellation, timeout, resume/reconciliation, and terminal
+aggregation. It owns managed staging/promotion and execution events; providers own only remote/local
+generation mechanics. Adapt the existing Storyboard and Animator job stores/manifests without
+changing public job IDs or observable progress behavior.
+
+**Done when:** deterministic tests cover all-success, partial-success, all-failed, delayed callback,
+duplicate callback, restart reconciliation, cancellation, timeout, and retry; all-failed can never be
+reported as success; and Storyboard/Animator can share the service without domain-specific branches.
+
+Done when: deterministic tests cover all-success, partial-success, all-failed, delayed callback,
+duplicate callback, restart reconciliation, cancellation, timeout, and retry; all-failed can never be
+reported as success; and Storyboard/Animator can share the service without domain-specific branches.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 14.1'. Do not push."

@@ -1,0 +1,165 @@
+
+===== 2026-08-09T07:06:23.911056 :: claude -p --permission-mode acceptEdits "You are executing step 12.4 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 12.4: Adopt the shared provider UI on legacy pages.
+
+Step description:
+Replace domain-specific provider dropdowns/settings forms in the TTS, Story/Script, Scene Blueprint,
+Storyboard, and Animator legacy surfaces with the shared selector/renderer while
+preserving each page's layout, request payload compatibility, defaults, and project hand-offs. Static
+lists may remain only for non-provider concepts such as workflow styles, export profiles, caption
+presets, and music tones. The Music and Captions pages keep their current forms untouched.
+
+**Done when:** every listed legacy page selects and configures providers from the same catalog as the
+workflow inspector; existing defaults and user settings load correctly; legacy requests still pass
+their endpoint contract; and adding a fixture provider makes it selectable on both surfaces without
+editing either surface.
+
+Done when: every listed legacy page selects and configures providers from the same catalog as the
+workflow inspector; existing defaults and user settings load correctly; legacy requests still pass
+their endpoint contract; and adding a fixture provider makes it selectable on both surfaces without
+editing either surface.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 12.4'. Do not push."
+Step 12.4 is complete and committed (`38121e07`).
+
+## What changed
+
+**Shared UI (new)**
+- `ProviderConfigurator.vue` — selector + settings modal + form as one drop-in. The Settings page assembled these three by hand; copying that onto five pages is how five surfaces get four behaviors.
+- `useDomainProvider(domain)` — answers the three questions a legacy page used to answer itself: which provider is selected, what it's called on the wire, what it's configured with.
+- `ProviderSelector.vue` gained a `variant` prop rather than a sibling component, so compact page rows and the Settings row can't drift.
+
+**Selection store (`providerCatalog.js`)**
+- `selectedProvider()` falls back through the retired `app-config.json` key before the domain default (§24.3 rule 3); `selectProvider()` mirrors writes back to it. The mirror matters more than the read — `usePipeline`, `useProviderTabs`, and `/api/pipeline/preflight` still read those keys and belong to 14.x/16.1.
+- `legacyIdFor()` = `aliases[0] ?? id`, which is §40.3's output column, so request payloads are unchanged.
+
+**Pages**
+- **Assets** — the four-entry dropdown is gone; two entries (`midjourney`, `meta-ai`) were not providers, and the `arguments` field they gated was dead code. The Grok/Kie option blocks became one schema-driven form minus secrets.
+- **Storyboard** — the two-option `<select>` couldn't see `wavespeed_direct`; the webhook URL, image model, and prompt prefix moved out of `localStorage` into provider settings, with one-time adoption of existing values.
+- **TTS / Story / Scene Blueprint** — gained a selector where they had none.
+
+**Provider packages** — `grok_automa` now declares `open_url` and `image_to_video`; `kie_ai` declares its model dropdown and `output_format`; `wavespeed_webhook`'s `image_model` reads a new `storyboard_image_models` option source.
+
+One defect found: the provider-URL table existed in three places, and `PipelinePage.handleRegenerateAssets` indexed it by what the catalog makes an object — it would have silently stopped opening any page after a regenerate.
+
+**Verification:** 601 backend tests (10 skipped, 239 subtests), 266 frontend tests across 36 files, Vite build, docs drift check. Three guards mutation-checked.
+
+----- validate:pytest
+................ssssssssss................................... [  9%]
+................................................................................................ [ 25%]
+....................................................................................... [ 39%]
+................................................... [ 48%]
+................................................................................................... [ 64%]
+..................................................... [ 73%]
+....................................................................................... [ 87%]
+.............................................................................                               [100%]
+601 passed, 10 skipped, 239 subtests passed in 14.94s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/providers/__tests__/providerCatalog.test.js [2m([22m[2m27 tests[22m[2m)[22m[32m 256[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSettingsForm.test.js [2m([22m[2m18 tests[22m[2m)[22m[33m 335[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/domainProvider.test.js [2m([22m[2m7 tests[22m[2m)[22m[33m 450[2mms[22m[39m
+ [32m✓[39m src/features/assets/__tests__/assetsProviderAdoption.test.js [2m([22m[2m13 tests[22m[2m)[22m[33m 334[2mms[22m[39m
+ [32m✓[39m src/features/storyboard/__tests__/storyboardProviderAdoption.test.js [2m([22m[2m6 tests[22m[2m)[22m[33m 387[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 404[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 416[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 430[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelectorActions.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 256[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m2 tests[22m[2m)[22m[33m 369[2mms[22m[39m
+     [33m[2m✓[22m[39m renders node, edge, and pane actions and dispatches duplicate undoably [33m 320[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[32m 195[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSettingsModal.test.js [2m([22m[2m7 tests[22m[2m)[22m[33m 459[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/largeCanvasPerformance.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 313[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m18 tests[22m[2m)[22m[32m 108[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 153[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 186[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/assetGarbageCollection.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 99[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/projectArchiveManager.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 165[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/scheduleSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 171[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/webhookSettings.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 181[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notificationCenter.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 165[2mms[22m[39m
+ [32m✓[39m src/shared/composables/__tests__/optionSources.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 201[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 98[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 123[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/legacyBridge.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 179[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/watchFolderSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 139[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 120[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 179[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelection.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/legacySelection.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/shared/schema/__tests__/visibility.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/__tests__/routerBridge.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m36 passed[39m[22m[90m (36)[39m
+[2m      Tests [22m [1m[32m266 passed[39m[22m[90m (266)[39m
+[2m   Start at [22m 07:59:41
+[2m   Duration [22m 16.03s[2m (transform 4.16s, setup 0ms, import 15.07s, tests 7.14s, environment 67.08s)[22m
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 219 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                  1.82 kB │ gzip:   0.81 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css           8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/ProviderSettingsForm-B5PrBi1X.css    9.23 kB │ gzip:   2.06 kB
+../static/dist/assets/SettingsPage-C2tOm1g3.css           10.69 kB │ gzip:   2.16 kB
+../static/dist/assets/TimingPage-358TMXoQ.css             11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/StoryboardPage-Dm2OtLkg.css         16.71 kB │ gzip:   3.54 kB
+../static/dist/assets/TtsPage-CcVE0SWn.css                17.45 kB │ gzip:   3.28 kB
+../static/dist/assets/ScenesPage-DcI5gXk4.css             18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/AssetsPage-p9KlQHpU.css             23.13 kB │ gzip:   4.29 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css      29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-Bho969zx.css           54.98 kB │ gzip:   9.76 kB
+../static/dist/assets/PipelinePage-DlX31qGC.css           80.82 kB │ gzip:  12.99 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css             93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-BcZNBqdU.css                 155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-27iRuVHe.js               0.20 kB │ gzip:   0.18 kB
+../static/dist/js/visibility-Ca-DdHgS.js                   0.40 kB │ gzip:   0.23 kB
+../static/dist/js/useOptionSources-B0vjCMEs.js             0.89 kB │ gzip:   0.55 kB
+../static/dist/js/format-D6QnDI5p.js                       1.07 kB │ gzip:   0.55 kB
+../static/dist/js/ProviderConfigurator-lnW1D_3m.js         1.26 kB │ gzip:   0.63 kB
+../static/dist/js/stagingStore-DBc7wou5.js                 1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-Ilhv1SpU.js             1.47 kB │ gzip:   0.69 kB
+../static/dist/js/useTiming-0zM94g3D.js                    2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-DmbKA6x-.js                    4.81 kB │ gzip:   1.96 kB
+../static/dist/js/useAssets-DWO_7MvU.js                    5.35 kB │ gzip:   2.14 kB
+../static/dist/js/pinia-NOtNFqTC.js                        5.99 kB │ gzip:   2.83 kB
+../static/dist/js/providerSettings-Cra-a2og.js             7.25 kB │ gzip:   2.86 kB
+../static/dist/js/ProviderSettingsForm-CkZiaZ1O.js        13.07 kB │ gzip:   4.63 kB
+../static/dist/js/useToast-DfPeOUa8.js                    16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-CAi_wj-J.js                  17.52 kB │ gzip:   6.21 kB
+../static/dist/js/SettingsPage-C2IYVjCz.js                18.42 kB │ gzip:   6.36 kB
+../static/dist/js/SegmenterPage-BMKdINgv.js               20.06 kB │ gzip:   6.98 kB
+../static/dist/js/StoryboardPage-C4etFNxf.js              20.79 kB │ gzip:   6.67 kB
+../static/dist/js/ScenesPage-YDx7LKmc.js                  23.46 kB │ gzip:   7.58 kB
+../static/dist/js/AssetsPage-Dh_rQT6-.js                  34.11 kB │ gzip:  10.90 kB
+../static/dist/js/TtsPage-CwLbjCHg.js                     43.66 kB │ gzip:  14.39 kB
+../static/dist/js/ExportLibraryPage-3ULf4jyM.js           47.25 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-BKYln_wf.js    66.07 kB │ gzip:  25.85 kB
+../static/dist/js/index-RIfUSbPp.js                       84.46 kB │ gzip:  27.45 kB
+../static/dist/js/PipelinePage-CKFWrGnr.js               108.34 kB │ gzip:  26.82 kB
+../static/dist/js/EditorPage-Dg23zZTh.js                 143.15 kB │ gzip:  21.93 kB
+../static/dist/js/useRandomStory-D2UiuIUG.js             194.13 kB │ gzip:  73.38 kB
+../static/dist/js/WorkflowPage-CtHwkQTH.js               375.91 kB │ gzip: 119.93 kB
+
+[32m✓ built in 1.41s[39m
+

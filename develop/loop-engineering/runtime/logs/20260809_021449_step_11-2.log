@@ -1,0 +1,147 @@
+
+===== 2026-08-09T02:14:49.699591 :: claude -p --permission-mode acceptEdits "You are executing step 11.2 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 11.2: Provider discovery, factories, and lifecycle isolation.
+
+Step description:
+Upgrade discovery to validate the whole provider package (`manifest.py`, `provider.py`, optional
+`settings_schema.py` and runtime hooks) before atomic registration. Instantiate providers through a
+factory instead of module-level ID branching, cache only where declared, and shut down initialized
+instances safely. Preserve extension/WebSocket startup through `call_provider_runtime`, but drive it
+from manifest capabilities rather than provider IDs. Dev hot-reload swaps only a fully valid provider
+catalog and retains the last good version after an invalid edit.
+
+**Done when:** adding/removing a fixture provider directory changes the catalog on restart (and in
+guarded dev reload) with no central provider list edit; failed import/init/runtime/shutdown is isolated
+and reported as provider health metadata; and no half-loaded catalog becomes visible to requests.
+
+Done when: adding/removing a fixture provider directory changes the catalog on restart (and in
+guarded dev reload) with no central provider list edit; failed import/init/runtime/shutdown is isolated
+and reported as provider health metadata; and no half-loaded catalog becomes visible to requests.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 11.2'. Do not push."
+Step 11.2 is complete and committed (`458f5762`).
+
+## What changed
+
+**New `studio/shared/providers_common/validation.py`** — the frozen §20.3 validation order as a pure function (no imports, no filesystem, never raises), the ten §21.4 exclusion reason codes, and `sanitize_message()` which strips paths to a basename, masks `api_key=…`-style pairs, and hides `_sts_provider_*` module names.
+
+**Registry rewrite** (`registry.py:1`)
+- `CatalogSnapshot` is immutable; `build_snapshot()` scans into a private builder and `publish()` swaps it in with one assignment. A rescan is invisible to readers until it completes.
+- `ProviderExclusion` / `excluded()` are serialized in `to_dict()`, so `/api/providers` now answers `{count, excluded[]}` instead of providers silently disappearing.
+- `create()` is memoized per provider behind a per-instance lock — never at import, never during discovery, never under the registry lock. `shutdown_instances()` tears down in reverse construction order.
+- `lease()` / `retire()`: providers dropped by a swap refuse new leases, wait for in-flight ones, then shut down.
+- Deleted the two undeclared caches (`_cached_validation`, `_cached_health`); only the schema memo the contract declares remains.
+
+**Hub** — alias-aware `get()`, `create()`, `shutdown()`, and a guarded `reload()`. `init_providers` arms `atexit`, so `shutdown()` is a live path rather than the never-called hook it had been.
+
+**Dev reload** — now watches `manifest.py`/`provider.py`/`settings_schema.py` under every `DomainSpec.providers_base` and calls `hub.reload(domains)`.
+
+## Three judgment calls, recorded in the plan
+
+1. **Runtime selection stays on `kind`, not capabilities.** The step text asks to drive it "from manifest capabilities rather than provider IDs", but 11.1 had already removed id branching, and §20.2 freezes `extension` as the only binding kind. Deriving it from `push_callbacks` would hand a WebSocket runtime to a future `cloud` provider. A provider declaring `push_callbacks` without being an extension is warned instead.
+2. **`get_provider` kept as a factory fallback.** §21.1 says `create()` replaces it, but rewriting the seven provider bodies belongs to 14.2/14.3/15.2. `create()` was added to `kokoro` and `inworld`, which had no factory at all — all seven now construct and shut down, verified end to end.
+3. **Reload rejects *regressions*, not all exclusions.** "Swaps only a fully valid catalog" read literally would let one permanently broken folder freeze the catalog forever. A candidate publishes unless a currently-registered provider would come back excluded.
+
+## Verification
+
+310 backend tests (10 live skipped, 88 subtests), 154 frontend tests, Vite build, doc-drift check — all green. The two guards were mutation-checked: disabling lease draining and disabling regression detection each fail their test, so neither passes vacuously.
+
+----- validate:pytest
+ssssssssss....................................................... [ 20%]
+................................................... [ 36%]
+................................................ [ 51%]
+....................................... [ 63%]
+........................................................................ [ 85%]
+.............................................                         [100%]
+310 passed, 10 skipped, 88 subtests passed in 11.50s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/workflow/__tests__/projectArchiveManager.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 149[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notificationCenter.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 145[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 338[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 377[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m2 tests[22m[2m)[22m[33m 314[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/largeCanvasPerformance.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 317[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 383[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/scheduleSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 226[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[32m 203[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/legacyBridge.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 158[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 182[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/assetGarbageCollection.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 90[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 135[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/webhookSettings.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 161[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 152[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m18 tests[22m[2m)[22m[32m 117[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 76[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/watchFolderSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 111[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 101[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 97[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/__tests__/routerBridge.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m25 passed[39m[22m[90m (25)[39m
+[2m      Tests [22m [1m[32m154 passed[39m[22m[90m (154)[39m
+[2m   Start at [22m 02:42:20
+[2m   Duration [22m 9.81s[2m (transform 3.85s, setup 0ms, import 11.06s, tests 3.96s, environment 39.38s)[22m
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 213 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                 1.65 kB │ gzip:   0.77 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css          8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/TimingPage-358TMXoQ.css            11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/SettingsPage-BLAeVZuE.css          17.12 kB │ gzip:   3.31 kB
+../static/dist/assets/TtsPage-BH7NOR03.css               17.40 kB │ gzip:   3.27 kB
+../static/dist/assets/StoryboardPage-oauSXe56.css        17.74 kB │ gzip:   3.71 kB
+../static/dist/assets/ScenesPage-CSjIarG6.css            18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/AssetsPage-DVrglYp-.css            23.24 kB │ gzip:   4.31 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css     29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-CiRRJDgT.css          54.98 kB │ gzip:   9.76 kB
+../static/dist/assets/PipelinePage-D2JJByEX.css          80.82 kB │ gzip:  12.99 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css            93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-BcZNBqdU.css                155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-DSSeOkLa.js              0.20 kB │ gzip:   0.18 kB
+../static/dist/js/format-D6QnDI5p.js                      1.07 kB │ gzip:   0.55 kB
+../static/dist/js/stagingStore-DBc7wou5.js                1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-Ujg5SKdi.js            1.47 kB │ gzip:   0.69 kB
+../static/dist/js/useTiming-Bt8_LqQg.js                   2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-Gtz0RQy9.js                   4.81 kB │ gzip:   1.97 kB
+../static/dist/js/useAssets-Btaz8yq6.js                   5.48 kB │ gzip:   2.18 kB
+../static/dist/js/pinia-NOtNFqTC.js                       5.99 kB │ gzip:   2.83 kB
+../static/dist/js/useToast-DfPeOUa8.js                   16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-BXRX2EZG.js                 17.52 kB │ gzip:   6.21 kB
+../static/dist/js/SegmenterPage-DGPwq5vv.js              20.06 kB │ gzip:   6.98 kB
+../static/dist/js/ScenesPage-jRcHh4f1.js                 23.25 kB │ gzip:   7.48 kB
+../static/dist/js/StoryboardPage-l4P7SMJf.js             23.65 kB │ gzip:   7.35 kB
+../static/dist/js/SettingsPage-5Sj2ZxJw.js               28.37 kB │ gzip:   9.19 kB
+../static/dist/js/AssetsPage-C5f27Psp.js                 37.09 kB │ gzip:  11.49 kB
+../static/dist/js/TtsPage-Dn2GTYOl.js                    43.43 kB │ gzip:  14.27 kB
+../static/dist/js/ExportLibraryPage-B23-Smge.js          47.25 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-BKYln_wf.js   66.07 kB │ gzip:  25.85 kB
+../static/dist/js/index-Bp6Ghjk9.js                      84.68 kB │ gzip:  27.43 kB
+../static/dist/js/PipelinePage-qHqex09A.js              108.22 kB │ gzip:  26.76 kB
+../static/dist/js/EditorPage-BUuDdvOU.js                143.15 kB │ gzip:  21.94 kB
+../static/dist/js/useRandomStory-D2UiuIUG.js            194.13 kB │ gzip:  73.38 kB
+../static/dist/js/WorkflowPage-LfHVIZLv.js              376.38 kB │ gzip: 120.04 kB
+
+[32m✓ built in 1.17s[39m
+

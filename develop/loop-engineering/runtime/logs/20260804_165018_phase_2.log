@@ -1,0 +1,2251 @@
+
+===== 2026-08-04T17:11:28.787135 :: codex exec "Adversarial review of Phase 2 (Configuration & validation) of _dev/loop-engineering/phases-plans/implementation-plan.md — commits bbdb576..f8ec1ee, covering steps 2.5.
+1) Hunt for real bugs across the WHOLE phase: correctness, integration seams between the steps, contract violations vs _dev/loop-engineering/phases-plans/contracts.md, security, edge cases.
+2) Smoke test: run pytest from the repo root; run 'npm run test' and 'npm run build' in frontend/; verify the Flask app still boots (venv/Scripts/python.exe -c 'import app').
+3) Fix every bug you find, keep all suites green, and commit the fixes with subject 'fix(review): phase 2'.
+If nothing needs fixing, change nothing."
+OpenAI Codex v0.146.0
+--------
+workdir: D:\@Workspace\@Development\@Scripts\@Python\ScriptToScene-Studio-V2
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: medium
+reasoning summaries: none
+session id: 019fced4-ee53-7152-8643-4a3162b175f3
+--------
+user
+Adversarial review of Phase 2 (Configuration & validation) of _dev/loop-engineering/phases-plans/implementation-plan.md — commits bbdb576..f8ec1ee, covering steps 2.5.
+codex
+I’ll audit the Phase 2.5 changes against the implementation plan and surrounding configuration contracts, then run focused tests. I’ll report only actionable defects, prioritized by severity, with exact file/line references.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "Get-ChildItem -Force; rg --files -g 'AGENTS.md' -g '"'!**/.git/**'"'; git status --short; git log --oneline --decorate bbdb576..f8ec1ee" in D:\@Workspace\@Development\@Scripts\@Python\ScriptToScene-Studio-V2
+2026-08-04T22:12:03.333343Z ERROR codex_core::tools::router: error=Exit code: 1
+Wall time: 20.2 seconds
+Output:
+
+
+    Directory: D:\@Workspace\@Development\@Scripts\@Python\ScriptToScene-Studio-V2
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+d-----          8/4/2026   4:47 PM                .claude                                                              
+d--h--          8/4/2026   5:11 PM                .git                                                                 
+d-----          8/4/2026  12:43 AM                .pytest_cache                                                        
+d-----          8/3/2026   7:47 AM                .start-dev                                                           
+d-----          8/3/2026   7:47 AM                .vscode                                                              
+d-----          8/3/2026   7:47 AM                bin                                                                  
+d-----          8/3/2026   7:47 AM                data                                                                 
+d-----          8/3/2026   7:47 AM                docs                                                                 
+d-----          8/4/2026  12:40 AM                frontend                                                             
+d-----          8/4/2026   1:14 AM                logs                                                                 
+d-----          8/3/2026   7:47 AM                models                                                               
+d-----          8/4/2026   4:18 AM                output                                                               
+d-----          8/3/2026   7:48 AM                resources                                                            
+d-----          8/3/2026   7:48 AM                settings                                                             
+d-----          8/3/2026   7:48 AM                static                                                               
+d-----          8/4/2026   1:12 AM                studio                                                               
+d-----          8/4/2026   5:07 PM                tests                                                                
+d-----          8/4/2026   4:06 PM                tmp                                                                  
+d-----          8/4/2026  12:41 AM                venv                                                                 
+d-----          8/3/2026   7:49 AM                venv_broken_py312                                                    
+d-----          8/3/2026   7:49 AM                _data                                                                
+d-----          8/4/2026   4:11 PM                _dev                                                                 
+d-----          8/4/2026   4:25 AM                __pycache__                                                          
+-a----         3/31/2026   6:00 PM           1297 .env                                                                 
+-a----         3/23/2026   7:50 AM            354 .env.example                                                         
+-a----          8/4/2026   5:10 PM            308 .gitattributes                                                       
+-a----          8/4/2026   4:03 PM            717 .gitignore                                                           
+-a----          3/8/2026   7:06 PM            292 .mcp.example.json                                                    
+-a----         2/28/2026  10:36 PM            605 .mcp.json                                                            
+-a----         3/31/2026   1:22 PM           1949 app-config.json                                                      
+-a----         3/23/2026   9:19 PM           1913 app-config.json.bak                                                  
+-a----          8/4/2026   4:17 AM          18646 app.py                                                               
+-a----          8/4/2026   4:15 AM           6709 config.py                                                            
+-a----          4/8/2026   2:23 PM          36939 README.md                                                            
+-a----          8/4/2026  12:58 AM             74 requirements-dev.txt                                                 
+-a----          4/6/2026   9:38 AM            587 requirements.txt                                                     
+-a----         3/27/2026  11:45 AM           2351 setup.bat                                                            
+-a----          4/7/2026   6:56 PM          11842 start-dev.bat                                                        
+-a----         3/27/2026  11:45 AM           4325 start-prod.bat                                                       
+
+
+fatal: detected dubious ownership in repository at 'D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2'
+'D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' is owned by:
+	'S-1-5-32-544'
+but the current user is:
+	'S-1-5-21-4218969372-1645167379-354272111-1003'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2
+fatal: detected dubious ownership in repository at 'D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2'
+'D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' is owned by:
+	'S-1-5-32-544'
+but the current user is:
+	'S-1-5-21-4218969372-1645167379-354272111-1003'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2
+
+ exited 1 in 20214ms:
+
+
+    Directory: D:\@Workspace\@Development\@Scripts\@Python\ScriptToScene-Studio-V2
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+d-----          8/4/2026   4:47 PM                .claude                                                              
+d--h--          8/4/2026   5:11 PM                .git                                                                 
+d-----          8/4/2026  12:43 AM                .pytest_cache                                                        
+d-----          8/3/2026   7:47 AM                .start-dev                                                           
+d-----          8/3/2026   7:47 AM                .vscode                                                              
+d-----          8/3/2026   7:47 AM                bin                                                                  
+d-----          8/3/2026   7:47 AM                data                                                                 
+d-----          8/3/2026   7:47 AM                docs                                                                 
+d-----          8/4/2026  12:40 AM                frontend                                                             
+d-----          8/4/2026   1:14 AM                logs                                                                 
+d-----          8/3/2026   7:47 AM                models                                                               
+d-----          8/4/2026   4:18 AM                output                                                               
+d-----          8/3/2026   7:48 AM                resources                                                            
+d-----          8/3/2026   7:48 AM                settings                                                             
+d-----          8/3/2026   7:48 AM                static                                                               
+d-----          8/4/2026   1:12 AM                studio                                                               
+d-----          8/4/2026   5:07 PM                tests                                                                
+d-----          8/4/2026   4:06 PM                tmp                                                                  
+d-----          8/4/2026  12:41 AM                venv                                                                 
+d-----          8/3/2026   7:49 AM                venv_broken_py312                                                    
+d-----          8/3/2026   7:49 AM                _data                                                                
+d-----          8/4/2026   4:11 PM                _dev                                                                 
+d-----          8/4/2026   4:25 AM                __pycache__                                                          
+-a----         3/31/2026   6:00 PM           1297 .env                                                                 
+-a----         3/23/2026   7:50 AM            354 .env.example                                                         
+-a----          8/4/2026   5:10 PM            308 .gitattributes                                                       
+-a----          8/4/2026   4:03 PM            717 .gitignore                                                           
+-a----          3/8/2026   7:06 PM            292 .mcp.example.json                                                    
+-a----         2/28/2026  10:36 PM            605 .mcp.json                                                            
+-a----         3/31/2026   1:22 PM           1949 app-config.json                                                      
+-a----         3/23/2026   9:19 PM           1913 app-config.json.bak                                                  
+-a----          8/4/2026   4:17 AM          18646 app.py                                                               
+-a----          8/4/2026   4:15 AM           6709 config.py                                                            
+-a----          4/8/2026   2:23 PM          36939 README.md                                                            
+-a----          8/4/2026  12:58 AM             74 requirements-dev.txt                                                 
+-a----          4/6/2026   9:38 AM            587 requirements.txt                                                     
+-a----         3/27/2026  11:45 AM           2351 setup.bat                                                            
+-a----          4/7/2026   6:56 PM          11842 start-dev.bat                                                        
+-a----         3/27/2026  11:45 AM           4325 start-prod.bat                                                       
+
+
+fatal: detected dubious ownership in repository at 'D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2'
+'D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' is owned by:
+	'S-1-5-32-544'
+but the current user is:
+	'S-1-5-21-4218969372-1645167379-354272111-1003'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2
+fatal: detected dubious ownership in repository at 'D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2'
+'D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' is owned by:
+	'S-1-5-32-544'
+but the current user is:
+	'S-1-5-21-4218969372-1645167379-354272111-1003'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2
+
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "git -c safe.directory='D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' status --short; git -c safe.directory='D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' log --oneline --decorate bbdb576..f8ec1ee; git -c safe.directory='D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' diff --stat bbdb576..f8ec1ee; rg -n -C 6 \"2\\.5|Step 2\\.5\" _dev/loop-engineering/phases-plans/implementation-plan.md" in D:\@Workspace\@Development\@Scripts\@Python\ScriptToScene-Studio-V2
+ succeeded in 1625ms:
+f8ec1ee (HEAD -> main) feat(workflow): step 2.5 - Sample-data stubs: fixtures + auto-attach UX (loop auto-commit)
+adcbf6d chore(loop): absorb uncommitted changes before step 2.5
+ .gitattributes                                     |   5 +
+ _dev/loop-engineering/phases-plans/contracts.md    |  13 +-
+ _dev/loop-engineering/watch.ps1                    | 113 ++++
+ .../src/features/workflow/__tests__/stubs.test.js  | 292 +++++++++++
+ .../src/features/workflow/components/NodeCard.vue  |  67 ++-
+ frontend/src/features/workflow/schema.js           |  12 +
+ frontend/src/features/workflow/stores/workflow.js  | 210 +++++++-
+ frontend/src/features/workflow/stubPayloads.js     | 382 ++++++++++++++
+ .../src/features/workflow/views/WorkflowPage.vue   | 128 ++++-
+ studio/workflows/fixtures/alignment.json           | 211 ++++++++
+ studio/workflows/fixtures/audio_file.json          |  10 +
+ studio/workflows/fixtures/captions.json            | 305 +++++++++++
+ studio/workflows/fixtures/generate.py              | 527 +++++++++++++++++++
+ studio/workflows/fixtures/image_prompts.json       |  17 +
+ studio/workflows/fixtures/initial.json             | 414 +++++++++++++++
+ studio/workflows/fixtures/manifest.json            | 184 +++++++
+ studio/workflows/fixtures/media/logo.png           | Bin 0 -> 460 bytes
+ studio/workflows/fixtures/media/music.wav          | Bin 0 -> 32044 bytes
+ studio/workflows/fixtures/media/scene.jpg          | Bin 0 -> 1320 bytes
+ studio/workflows/fixtures/media/scene.mp4          | Bin 0 -> 1706 bytes
+ studio/workflows/fixtures/media/storyboard.png     | Bin 0 -> 576 bytes
+ studio/workflows/fixtures/media/voice.wav          | Bin 0 -> 128044 bytes
+ studio/workflows/fixtures/metadata.json            |  37 ++
+ studio/workflows/fixtures/music_track.json         |  14 +
+ studio/workflows/fixtures/project_settings.json    |  19 +
+ studio/workflows/fixtures/scenes.json              |  57 ++
+ studio/workflows/fixtures/script.json              |   5 +
+ studio/workflows/fixtures/segmented.json           |  50 ++
+ studio/workflows/fixtures/storyboard.json          |  28 +
+ studio/workflows/fixtures/tts.json                 |  18 +
+ studio/workflows/fixtures/video_file.json          |   7 +
+ studio/workflows/routes.py                         |   7 +-
+ studio/workflows/sample_data.py                    | 571 +++++++++++++++++++++
+ studio/workflows/validation.py                     |  26 +-
+ tests/test_workflow_fixtures.py                    | 187 +++++++
+ 35 files changed, 3897 insertions(+), 19 deletions(-)
+36-**Deliverable:** `_dev/loop-engineering/phases-plans/contracts.md` with the input/output contract table.
+37-**Done when:** every node in the catalog maps to a real function + real artifacts; every edge in every built-in template names real ports; project/source-folder identity propagation is explicit; and discrepancies vs the spec are documented and resolved in favor of working behavior.
+38-
+39-### 0.2 Freeze the machine contracts
+40-In the same doc, freeze: workflow JSON schema (with `schema_version`, `type_version`, reserved `variables`), execution record schema, the served node-type shape, exact HTTP request/response envelopes and status codes, the full API route list, SSE event shape (with `sequence` and standard SSE `id`/`Last-Event-ID` replay), port-type compatibility matrix, control-edge readiness semantics, dynamic-port resolution for `stub.input`, `stub.output`, and `workflow.output`, and stable error codes. Include security/threat notes: strict ID validation, `safe_join`, redaction points, import limits, endpoint authorization/loopback policy, approved async option sources, and managed-media rules.
+41-
+42:Define the fixture inventory and validation schema in this step. Capture or generate the actual sanitized fixtures before step 2.5, when they are first consumed. Prefer deterministic local media generation and provider-mocked JSON; a Phase 0 gate must not depend on live n8n/provider availability.
+43-
+44-**Done when:** the contracts are internally consistent; every persistent and served field has a type, required/optional status, limits, and unknown-field policy; templates validate against named ports; and later phases can code against them without redesign.
+45-
+46-### 0.3 Test infrastructure
+47-Establish and record the backend baseline. Add **Vitest + @vue/test-utils + jsdom** to `frontend/` with an `npm run test` script and one trivial smoke test that mounts a component. Add a reproducible development dependency declaration for pytest instead of relying on packages installed only inside one local venv.
+48-
+49-**Done when:** `npm run test` and `npm run build` pass; the backend suite is green, or a pre-existing environment-sensitive failure has a tracked resolution (dependency pin, corrected test/code, or explicit quarantine with owner approval). Merely recording a failure is not a green Phase 0 gate. CI/dev docs note exact commands and supported Node/Python versions.
+50-
+51-### 0.4 Phase 0 consistency review and gate
+52-Validate `contracts.md` against `proposition-final.md` and the repository one final time. Check every built-in template edge, node port, artifact filename, API route, status enum, and ID/path rule. Record completed, deferred, and blocked items with evidence; do not label draft prose as a frozen machine contract.
+53-
+54:**Done when:** there are no unresolved contradictions; fixture capture has an owner and deadline before 2.5; test results are current; and Phase 1 can begin without inventing contract semantics.
+55-
+56-### Phase 0 review status — 2026-08-04
+57-
+58-- **0.1: complete.** The module/artifact audit, named port contracts, control readiness, source artifacts, and Storyboard/Animator/Assemble discrepancy are documented.
+59:- **0.2: complete for Phase 0.** Field constraints, HTTP envelopes/status codes, strict IDs, SSE `Last-Event-ID` replay, security limits, and fixture validation rules are frozen. The actual deterministic fixture files are an explicit prerequisite of step 2.5, where they are first used.
+60-- **0.3: complete.** `requirements-dev.txt` tracks pytest; backend is 14 passed plus 2 subtests; Vitest is 1 passed; the production frontend build succeeds; supported runtimes are recorded in `contracts.md`.
+61-- **0.4: complete.** The corrected contracts and plan are internally consistent and Phase 1 can begin without inventing graph, persistence, API, or replay semantics.
+62-
+63-**Phase 0 is gated complete.** The next implementation step is 1.1. Fixture files remain a
+64:tracked prerequisite of 2.5, not a hidden Phase 0 dependency.
+65-
+66-Phase 0 verification commands:
+67-
+68-```powershell
+69-python -m pip install -r requirements-dev.txt
+70-python -m pytest tests -q
+--
+143-**Done when:** TTS voice, tone, style, and provider dropdowns populate live; a logo uploads, previews, persists in workflow JSON as a managed reference, and survives save/reload; a test proves unknown identifiers and disallowed file types are rejected.
+144-
+145-### 2.4 Dirty state, draft autosave, leave protection
+146-Debounced draft autosave (separate from explicit save), unsaved-change indicator, navigation warning, draft recovery on reopen.
+147-**Done when:** killing the tab mid-edit loses nothing; explicit save clears dirty state.
+148-
+149:### 2.5 Sample-data stubs — node types + auto-attach UX (no execution yet)
+150-Capture/generate and validate the fixture inventory defined in 0.2 before building the UI; fixtures must be deterministic, sanitized, small, and independent of live providers. Add `stub.input` (Sample Input) and `stub.output` (Result Viewer) to the registry with dynamic `port_type` resolution in the compatibility matrix. Frontend: dropping a node with no connections auto-spawns one pre-connected Sample Input stub per required input and one Result Viewer on the principal output; half-height dashed rendering with "sample" badge; connecting a real edge to a stubbed input removes that stub (undoably); auto-attach toggle in workflow settings; manual attach via library "Testing" category and node context menu. Stub payloads editable in the inspector with per-port-type validation; file-backed types reference bundled fixtures only (never browser-supplied paths).
+151-**Done when:** dropping a lone Segmenter shows editable stubs wired up; Vitest covers auto-attach, auto-detach-on-real-edge, undo, and payload validation; server-side validation accepts stub graphs. **Phase 2 gate.**
+152-
+153----
+154-
+155-## Phase 3 — Core execution & observability
+--
+231-## Step count & sequencing summary
+232-
+233-| Phase | Steps | Parallelizable? |
+234-|---|---|---|
+235-| 0 — Audit & contracts | 0.1–0.4 (4) | 0.3 can run alongside 0.1/0.2 |
+236-| 1 — Canvas & persistence MVP | 1.1–1.7 (7) | 1.2 alongside 1.1/1.3 |
+237:| 2 — Config & validation | 2.1–2.5 (5) | sequential; 2.5 after 2.1 |
+238-| 3 — Execution | 3.1–3.6 (6) | 3.1 must land alone; 3.3/3.4 parallel after 3.2 |
+239-| 4 — Partial runs & resilience | 4.1–4.4 (4) | 4.3 parallel with 4.2 |
+240-| 5 — Power UX & expressions | 5.1–5.5 (5) | 5.1–5.3 parallelizable |
+241-
+242-31 steps total. The critical path is 0.1 → 0.2 → 0.4 → 1.2 → 1.6 → 3.1 → 3.2 → 3.3 → 3.5 → 3.6; everything else hangs off it. The two steps to treat with the most care are **3.1** (extracting step functions from the 2,400-line `routes.py` without behavior change) and **4.2** (cache correctness — wrong reuse silently corrupts projects).
+warning: unable to access 'C:\Users\Admin/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\Admin/.config/git/ignore': Permission denied
+
+codex
+The range contains two commits, including an “absorb uncommitted changes” commit before the named 2.5 feature commit. I’m treating the whole requested range as review scope and separating pre-existing/ancillary edits from defects that affect the 2.5 contract.
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "git -c safe.directory='D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' show --stat --oneline adcbf6d; git -c safe.directory='D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' show --stat --oneline f8ec1ee; git -c safe.directory='D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2' diff bbdb576..f8ec1ee -- frontend/src/features/workflow/schema.js studio/workflows/routes.py studio/workflows/validation.py _dev/loop-engineering/phases-plans/contracts.md" in D:\@Workspace\@Development\@Scripts\@Python\ScriptToScene-Studio-V2
+ succeeded in 1369ms:
+adcbf6d chore(loop): absorb uncommitted changes before step 2.5
+ _dev/loop-engineering/watch.ps1 | 113 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 113 insertions(+)
+f8ec1ee feat(workflow): step 2.5 - Sample-data stubs: fixtures + auto-attach UX (loop auto-commit)
+ .gitattributes                                     |   5 +
+ _dev/loop-engineering/phases-plans/contracts.md    |  13 +-
+ .../src/features/workflow/__tests__/stubs.test.js  | 292 +++++++++++
+ .../src/features/workflow/components/NodeCard.vue  |  67 ++-
+ frontend/src/features/workflow/schema.js           |  12 +
+ frontend/src/features/workflow/stores/workflow.js  | 210 +++++++-
+ frontend/src/features/workflow/stubPayloads.js     | 382 ++++++++++++++
+ .../src/features/workflow/views/WorkflowPage.vue   | 128 ++++-
+ studio/workflows/fixtures/alignment.json           | 211 ++++++++
+ studio/workflows/fixtures/audio_file.json          |  10 +
+ studio/workflows/fixtures/captions.json            | 305 +++++++++++
+ studio/workflows/fixtures/generate.py              | 527 +++++++++++++++++++
+ studio/workflows/fixtures/image_prompts.json       |  17 +
+ studio/workflows/fixtures/initial.json             | 414 +++++++++++++++
+ studio/workflows/fixtures/manifest.json            | 184 +++++++
+ studio/workflows/fixtures/media/logo.png           | Bin 0 -> 460 bytes
+ studio/workflows/fixtures/media/music.wav          | Bin 0 -> 32044 bytes
+ studio/workflows/fixtures/media/scene.jpg          | Bin 0 -> 1320 bytes
+ studio/workflows/fixtures/media/scene.mp4          | Bin 0 -> 1706 bytes
+ studio/workflows/fixtures/media/storyboard.png     | Bin 0 -> 576 bytes
+ studio/workflows/fixtures/media/voice.wav          | Bin 0 -> 128044 bytes
+ studio/workflows/fixtures/metadata.json            |  37 ++
+ studio/workflows/fixtures/music_track.json         |  14 +
+ studio/workflows/fixtures/project_settings.json    |  19 +
+ studio/workflows/fixtures/scenes.json              |  57 ++
+ studio/workflows/fixtures/script.json              |   5 +
+ studio/workflows/fixtures/segmented.json           |  50 ++
+ studio/workflows/fixtures/storyboard.json          |  28 +
+ studio/workflows/fixtures/tts.json                 |  18 +
+ studio/workflows/fixtures/video_file.json          |   7 +
+ studio/workflows/routes.py                         |   7 +-
+ studio/workflows/sample_data.py                    | 571 +++++++++++++++++++++
+ studio/workflows/validation.py                     |  26 +-
+ tests/test_workflow_fixtures.py                    | 187 +++++++
+ 34 files changed, 3784 insertions(+), 19 deletions(-)
+diff --git a/_dev/loop-engineering/phases-plans/contracts.md b/_dev/loop-engineering/phases-plans/contracts.md
+index e21abde..52ff79a 100644
+--- a/_dev/loop-engineering/phases-plans/contracts.md
++++ b/_dev/loop-engineering/phases-plans/contracts.md
+@@ -373,9 +373,16 @@ artifacts; strip timestamps, secrets, provider payloads, and absolute paths; gen
+ WAV/image/video media deterministically with local tools; validate all cross-references; and
+ commit the result. Live n8n/provider access must not be required to reproduce the fixture set.
+ 
+-**Current status: fixtures are not captured.** They are required before step 2.5, where stubs
+-first consume them, rather than being silently deferred to Phase 1. Until the files and their
+-validation checks exist, this section is an inventory, not a frozen fixture contract.
++**Current status: captured and frozen (step 2.5, 2026-08-04).** The fixture set lives in
++`studio/workflows/fixtures/` (~188 KiB total) with `manifest.json` recording SHA-256, byte
++size, media metadata, port types, and `fixture_schema_version: 1` for every file. Media is
++generated locally (stdlib `wave`, Pillow, ffmpeg in bitexact mode) by
++`studio/workflows/fixtures/generate.py`, which is byte-for-byte reproducible and requires no
++provider access. `studio/workflows/sample_data.py` enforces the type-specific validation rules
++above (`validate_fixtures()`, exercised by `tests/test_workflow_fixtures.py`) and serves the
++per-port-type sample payloads consumed by stub nodes. One deliberate divergence from the
++inventory table: the `music_track` fixture references a bundled `media/music.wav` instead of a
++resources-library track so the set stays self-contained under the fixture root.
+ 
+ ## 11. Security / threat notes
+ 
+diff --git a/frontend/src/features/workflow/schema.js b/frontend/src/features/workflow/schema.js
+index 9769e13..204d411 100644
+--- a/frontend/src/features/workflow/schema.js
++++ b/frontend/src/features/workflow/schema.js
+@@ -4,6 +4,8 @@
+  * checks that matter while editing; the server stays authoritative.
+  */
+ 
++import { validateStubPayload } from './stubPayloads.js'
++
+ /** n8n-style display_options: {show: {field: [values]}, hide: {...}}. */
+ export function shouldDisplayField(field, configuration) {
+   const display = field.display_options
+@@ -108,6 +110,16 @@ export function nodeIssues(node, def, edges) {
+     if (message) issues.push(configIssue(field.name, message))
+   }
+ 
++  // Sample Input payloads are typed sample data (step 2.5) — validate them
++  // against the selected port type, not just "is JSON".
++  if (node.type === 'stub.input') {
++    const portType = configuration.port_type ?? 'generic_json'
++    const payload = Object.hasOwn(configuration, 'payload') ? configuration.payload : {}
++    for (const message of validateStubPayload(portType, payload)) {
++      issues.push(configIssue('payload', message))
++    }
++  }
++
+   for (const port of def.inputs || []) {
+     if (!port.required || port.type === 'control') continue
+     const connected = edges.some(
+diff --git a/studio/workflows/routes.py b/studio/workflows/routes.py
+index a1bec9c..e9ccee4 100644
+--- a/studio/workflows/routes.py
++++ b/studio/workflows/routes.py
+@@ -23,6 +23,7 @@ from .persistence import (
+ )
+ from .options import resolve_options
+ from .registry import serialize_registry
++from .sample_data import all_sample_payloads
+ from .templates import serialize_templates
+ from .validation import MAX_DOCUMENT_BYTES, validate_workflow
+ 
+@@ -76,7 +77,11 @@ def node_types():
+     denied = _require_loopback()
+     if denied:
+         return denied
+-    return jsonify(serialize_registry())
++    payload = serialize_registry()
++    # Default stub payloads per dynamic port type (step 2.5). Fixture-derived,
++    # presentation-safe: fixture-relative refs only, no executor internals.
++    payload["sample_payloads"] = all_sample_payloads()
++    return jsonify(payload)
+ 
+ 
+ @workflows_bp.route("/api/workflow/templates", methods=["GET"])
+diff --git a/studio/workflows/validation.py b/studio/workflows/validation.py
+index e42a0b2..1007436 100644
+--- a/studio/workflows/validation.py
++++ b/studio/workflows/validation.py
+@@ -13,6 +13,7 @@ from datetime import datetime
+ from typing import Any
+ 
+ from .registry import DYNAMIC_PORT_TYPES, get_node_type, is_supported
++from .sample_data import validate_stub_payload
+ 
+ MAX_DOCUMENT_BYTES = 2 * 1024 * 1024
+ MAX_NODES = 200
+@@ -190,6 +191,20 @@ def _validate_config(
+         elif widget == "media_asset" and value is not None and not isinstance(value, dict):
+             problems.append(_problem("WORKFLOW_INVALID", "must be a managed media reference", field_path))
+ 
++    # Sample Input payloads are typed data, not free-form JSON: enforce the
++    # per-port-type stub contract, including fixture-only file references
++    # (contracts.md §2 "Utility/testing nodes", step 2.5).
++    if node.get("type") == "stub.input":
++        port_type = config.get("port_type", "generic_json")
++        if port_type in DYNAMIC_PORT_TYPES:
++            payload = config.get("payload", fields.get("payload", {}).get("default"))
++            for stub_problem in validate_stub_payload(port_type, payload):
++                problems.append(_problem(
++                    stub_problem["code"],
++                    stub_problem["message"],
++                    f"{path}.configuration.payload",
++                ))
++
+ 
+ def validate_workflow(document: Any, *, require_identity: bool = True, require_complete: bool = False) -> list[dict]:
+     """Return structured errors/warnings for a workflow document."""
+@@ -367,8 +382,15 @@ def validate_workflow(document: Any, *, require_identity: bool = True, require_c
+         problems.append(_problem("WORKFLOW_INVALID", "variables must remain empty until Phase 5", "variables"))
+     _validate_extensions(document.get("extensions"), "extensions", problems)
+     settings = document.get("settings", {"on_error": "stop"})
+-    if not isinstance(settings, dict) or settings.get("on_error", "stop") != "stop":
+-        problems.append(_problem("WORKFLOW_INVALID", "settings.on_error must be stop in Phase 1", "settings.on_error"))
++    if not isinstance(settings, dict):
++        problems.append(_problem("WORKFLOW_INVALID", "settings must be an object", "settings"))
++    else:
++        for unknown in sorted(set(settings) - {"on_error", "auto_attach_stubs"}):
++            problems.append(_problem("WORKFLOW_INVALID", f"Unknown settings field: {unknown}", f"settings.{unknown}"))
++        if settings.get("on_error", "stop") != "stop":
++            problems.append(_problem("WORKFLOW_INVALID", "settings.on_error must be stop in Phase 1", "settings.on_error"))
++        if not isinstance(settings.get("auto_attach_stubs", True), bool):
++            problems.append(_problem("WORKFLOW_INVALID", "settings.auto_attach_stubs must be a boolean", "settings.auto_attach_stubs"))
+     return problems
+ 
+ 
+
+exec
+"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'Get-Content frontend/src/features/workflow/stubPayloads.js; Get-Content frontend/src/features/workflow/stores/workflow.js; Get-Content frontend/src/features/workflow/views/WorkflowPage.vue' in D:\@Workspace\@Development\@Scripts\@Python\ScriptToScene-Studio-V2
+ succeeded in 1579ms:
+/**
+ * Per-port-type validation for editable Sample Input payloads (step 2.5).
+ * Mirrors the structural rules of studio/workflows/sample_data.py so the
+ * inspector can flag broken sample data live; the server stays authoritative
+ * (it additionally verifies that fixture references actually exist).
+ */
+
+const PROJECT_ID_RE = /^p[pm]_[A-Za-z0-9]{6}$/
+
+function isFinite_(value) {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isInt(value) {
+  return Number.isInteger(value)
+}
+
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * File references inside sample payloads must stay inside the bundled
+ * fixture folder: relative, no drive letters, no parent traversal.
+ * (Existence is checked server-side â€” the browser has no fixture list.)
+ */
+function refError(ref, label) {
+  if (typeof ref !== 'string' || !ref.trim()) {
+    return `${label} must be a non-empty fixture-relative path`
+  }
+  const normalized = ref.replace(/\\/g, '/')
+  if (
+    normalized.startsWith('/')
+    || normalized.startsWith('~')
+    || /^[A-Za-z]:/.test(normalized)
+    || normalized.split('/').includes('..')
+  ) {
+    return `${label} must stay inside the bundled sample fixtures`
+  }
+  return null
+}
+
+function checkRef(ref, label, problems) {
+  const message = refError(ref, label)
+  if (message) problems.push(message)
+}
+
+function checkArtifactRefs(payload, problems) {
+  const refs = payload.artifact_refs
+  if (refs === undefined) return
+  if (!Array.isArray(refs)) {
+    problems.push('artifact_refs must be a list of fixture-relative paths')
+    return
+  }
+  refs.forEach((ref, index) => checkRef(ref, `artifact_refs[${index}]`, problems))
+}
+
+function requireObject(payload, problems, typeName) {
+  if (!isObject(payload)) {
+    problems.push(`A ${typeName} payload must be a JSON object`)
+    return false
+  }
+  return true
+}
+
+function validateString(payload, problems, label, maxLength = 10000) {
+  if (typeof payload !== 'string' || !payload.trim()) {
+    problems.push(`A ${label} payload must be a non-empty string`)
+  } else if (payload.length > maxLength) {
+    problems.push(`A ${label} payload must stay under ${maxLength} characters`)
+  }
+}
+
+const VALIDATORS = {
+  text: (payload, problems) => validateString(payload, problems, 'text'),
+  script: (payload, problems) => validateString(payload, problems, 'script'),
+  export_profile: (payload, problems) => validateString(payload, problems, 'export_profile', 80),
+
+  project_id(payload, problems) {
+    if (typeof payload !== 'string' || !PROJECT_ID_RE.test(payload)) {
+      problems.push('A project_id payload must match pp_XXXXXX or pm_XXXXXX')
+    }
+  },
+
+  project_settings(payload, problems) {
+    if (!requireObject(payload, problems, 'project_settings')) return
+    const logo = payload.logo
+    if (logo !== undefined && logo !== null) {
+      if (!isObject(logo)) problems.push('logo must be an object reference')
+      else if (logo.path) checkRef(logo.path, 'logo.path', problems)
+    }
+  },
+
+  audio_file(payload, problems) {
+    if (!requireObject(payload, problems, 'audio_file')) return
+    checkRef(payload.wav_path, 'wav_path', problems)
+    if (!isFinite_(payload.duration_seconds) || payload.duration_seconds <= 0) {
+      problems.push('duration_seconds must be a positive number')
+    }
+  },
+
+  tts_metadata(payload, problems) {
+    if (!requireObject(payload, problems, 'tts_metadata')) return
+    for (const key of ['folder', 'filename']) {
+      if (typeof payload[key] !== 'string' || !payload[key]) {
+        problems.push(`${key} must be a non-empty string`)
+      }
+    }
+    checkRef(payload.wav_path, 'wav_path', problems)
+    if (!isFinite_(payload.duration_seconds) || payload.duration_seconds <= 0) {
+      problems.push('duration_seconds must be a positive number')
+    }
+    if (!isInt(payload.words) || payload.words <= 0) {
+      problems.push('words must be a positive integer')
+    }
+  },
+
+  alignment(payload, problems) {
+    if (!requireObject(payload, problems, 'alignment')) return
+    if (typeof payload.transcript !== 'string' || !payload.transcript.trim()) {
+      problems.push('transcript must be a non-empty string')
+    }
+    const words = payload.alignment
+    if (!Array.isArray(words) || !words.length) {
+      problems.push('alignment must be a non-empty list of timed words')
+      return
+    }
+    let previousBegin = -Infinity
+    for (let i = 0; i < words.length; i += 1) {
+      const word = words[i]
+      if (!isObject(word) || typeof word.word !== 'string') {
+        problems.push(`alignment[${i}] must be {word, begin, end}`)
+        return
+      }
+      if (!isFinite_(word.begin) || !isFinite_(word.end) || word.begin < 0 || word.end < word.begin) {
+        problems.push(`alignment[${i}] has invalid word timings`)
+        return
+      }
+      if (word.begin < previousBegin) {
+        problems.push('alignment words must be ordered by start time')
+        return
+      }
+      previousBegin = word.begin
+    }
+  },
+
+  segments(payload, problems) {
+    if (!requireObject(payload, problems, 'segments')) return
+    const segments = payload.segments
+    if (!Array.isArray(segments) || !segments.length) {
+      problems.push('segments must be a non-empty list')
+      return
+    }
+    let previousEnd = -Infinity
+    for (let i = 0; i < segments.length; i += 1) {
+      const segment = segments[i]
+      if (!isObject(segment)) {
+        problems.push(`segments[${i}] must be an object`)
+        return
+      }
+      if (!isFinite_(segment.start) || !isFinite_(segment.end)
+        || segment.start < 0 || segment.end < segment.start) {
+        problems.push(`segments[${i}] has invalid start/end times`)
+        return
+      }
+      if (segment.start < previousEnd - 1e-6) {
+        problems.push('segments must be ordered and non-overlapping')
+        return
+      }
+      if (typeof segment.words !== 'string') {
+        problems.push(`segments[${i}].words must be a string`)
+        return
+      }
+      previousEnd = segment.end
+    }
+  },
+
+  scenes(payload, problems) {
+    if (!requireObject(payload, problems, 'scenes')) return
+    const scenes = payload.scenes
+    if (!Array.isArray(scenes) || !scenes.length) {
+      problems.push('scenes must be a non-empty list')
+      return
+    }
+    const seen = new Set()
+    for (let i = 0; i < scenes.length; i += 1) {
+      const scene = scenes[i]
+      if (!isObject(scene)) {
+        problems.push(`scenes[${i}] must be an object`)
+        return
+      }
+      if (!isInt(scene.index) || seen.has(scene.index)) {
+        problems.push('every scene needs a stable unique integer index')
+        return
+      }
+      seen.add(scene.index)
+      if (typeof scene.image_prompt !== 'string' || !scene.image_prompt.trim()) {
+        problems.push(`scenes[${i}].image_prompt must be a non-empty string`)
+        return
+      }
+    }
+  },
+
+  image_prompts(payload, problems) {
+    if (!requireObject(payload, problems, 'image_prompts')) return
+    const prompts = payload.prompts
+    if (!Array.isArray(prompts) || !prompts.length) {
+      problems.push('prompts must be a non-empty list')
+      return
+    }
+    for (let i = 0; i < prompts.length; i += 1) {
+      const item = prompts[i]
+      if (!isObject(item) || !isInt(item.index)
+        || typeof item.image_prompt !== 'string' || !item.image_prompt.trim()) {
+        problems.push(`prompts[${i}] must be {index, image_prompt}`)
+        return
+      }
+    }
+  },
+
+  storyboard_images(payload, problems) {
+    if (!requireObject(payload, problems, 'storyboard_images')) return
+    const counts = readCounts(payload, problems, 'storyboard_images')
+    const statuses = payload.scene_statuses
+    if (!isObject(statuses)) {
+      problems.push('scene_statuses must be an object keyed by scene')
+      return
+    }
+    let readySeen = 0
+    let errorSeen = 0
+    for (const [key, status] of Object.entries(statuses)) {
+      if (!isObject(status) || typeof status.status !== 'string') {
+        problems.push(`scene_statuses[${key}] must carry a status string`)
+        return
+      }
+      if (status.status === 'ready') {
+        readySeen += 1
+        if ('local_path' in status) {
+          checkRef(status.local_path, `scene_statuses[${key}].local_path`, problems)
+        }
+      } else if (status.status === 'error') {
+        errorSeen += 1
+      }
+    }
+    if (counts) {
+      const [total, ready, errors] = counts
+      if (Object.keys(statuses).length !== total || readySeen !== ready || errorSeen !== errors) {
+        problems.push('storyboard counts must match the listed scene statuses')
+      }
+    }
+  },
+
+  animation_assets(payload, problems) {
+    if (!requireObject(payload, problems, 'animation_assets')) return
+    const counts = readCounts(payload, problems, 'animation_assets')
+    const scenes = payload.scenes
+    if (!isObject(scenes) || !Object.keys(scenes).length) {
+      problems.push('scenes must be a non-empty object keyed by scene')
+      return
+    }
+    let readySeen = 0
+    for (const [key, scene] of Object.entries(scenes)) {
+      if (!isObject(scene) || !Array.isArray(scene.local_files)) {
+        problems.push(`scenes[${key}] must carry a local_files list`)
+        return
+      }
+      if (scene.local_files.length) readySeen += 1
+      scene.local_files.forEach(
+        (ref, index) => checkRef(ref, `scenes[${key}].local_files[${index}]`, problems),
+      )
+    }
+    if (counts) {
+      const [total, ready] = counts
+      if (Object.keys(scenes).length !== total || readySeen !== ready) {
+        problems.push('animation asset counts must match the listed scenes')
+      }
+    }
+  },
+
+  captions(payload, problems) {
+    if (!requireObject(payload, problems, 'captions')) return
+    const captions = payload.captions
+    if (!Array.isArray(captions) || !captions.length) {
+      problems.push('captions must be a non-empty list')
+      return
+    }
+    let previousStart = -Infinity
+    for (let i = 0; i < captions.length; i += 1) {
+      const caption = captions[i]
+      if (!isObject(caption) || typeof caption.text !== 'string') {
+        problems.push(`captions[${i}] must carry a text string`)
+        return
+      }
+      if (!isFinite_(caption.start) || !isFinite_(caption.end)
+        || caption.start < 0 || caption.end < caption.start) {
+        problems.push(`captions[${i}] has invalid timings`)
+        return
+      }
+      if (caption.start < previousStart) {
+        problems.push('captions must be ordered by start time')
+        return
+      }
+      previousStart = caption.start
+    }
+  },
+
+  music_track(payload, problems) {
+    if (!requireObject(payload, problems, 'music_track')) return
+    checkRef(payload.track_ref, 'track_ref', problems)
+    if (!isFinite_(payload.volume) || payload.volume < 0 || payload.volume > 1) {
+      problems.push('volume must be a number between 0 and 1')
+    }
+  },
+
+  editor_project(payload, problems) {
+    if (!requireObject(payload, problems, 'editor_project')) return
+    if (typeof payload.project_id !== 'string' || !payload.project_id) {
+      problems.push('project_id must be a non-empty string')
+    }
+    const scenes = payload.scenes
+    if (!Array.isArray(scenes) || !scenes.length) {
+      problems.push('scenes must be a non-empty list')
+      return
+    }
+    if (payload.scene_count !== scenes.length) {
+      problems.push('scene_count must match the scenes list')
+    }
+    if (!isFinite_(payload.total_duration) || payload.total_duration <= 0) {
+      problems.push('total_duration must be a positive number')
+    }
+    scenes.forEach((scene, index) => {
+      if (!isObject(scene)) problems.push(`scenes[${index}] must be an object`)
+      else if (scene.mediaUrl) checkRef(scene.mediaUrl, `scenes[${index}].mediaUrl`, problems)
+    })
+    ;(payload.audio_tracks || []).forEach((track, index) => {
+      if (isObject(track) && track.path) {
+        checkRef(track.path, `audio_tracks[${index}].path`, problems)
+      }
+    })
+  },
+
+  video_file(payload, problems) {
+    if (!requireObject(payload, problems, 'video_file')) return
+    checkRef(payload.path, 'path', problems)
+  },
+
+  generic_json(payload, problems) {
+    if (payload === null || payload === undefined) {
+      problems.push('A generic_json payload cannot be null')
+    }
+  },
+}
+
+function readCounts(payload, problems, typeName) {
+  const values = []
+  for (const key of ['total', 'ready', 'errors']) {
+    const value = payload[key]
+    if (!isInt(value) || value < 0) {
+      problems.push(`${typeName}.${key} must be a non-negative integer`)
+      return null
+    }
+    values.push(value)
+  }
+  const [total, ready, errors] = values
+  if (ready + errors > total) {
+    problems.push(`${typeName} ready+errors cannot exceed total`)
+    return null
+  }
+  return values
+}
+
+/**
+ * @returns {string[]} plain-language problems; empty == payload acceptable.
+ */
+export function validateStubPayload(portType, payload) {
+  const validator = VALIDATORS[portType]
+  if (!validator) return [`Unsupported sample data type: ${portType}`]
+  const problems = []
+  validator(payload, problems)
+  if (isObject(payload)) checkArtifactRefs(payload, problems)
+  return problems
+}
+import { ref, computed } from 'vue'
+import { defineStore } from 'pinia'
+import { api } from '@/shared/api/client.js'
+import { validateConnection } from '../validation.js'
+import { nodeIssues } from '../schema.js'
+
+/**
+ * Workflow builder store â€” the domain model behind the canvas.
+ * Nodes/edges are stored in the persisted document shape (contracts.md Â§4);
+ * WorkflowPage maps them to Vue Flow elements. Vue Flow runtime props never
+ * enter this store.
+ */
+
+// Draft autosave (step 2.4). Drafts live in localStorage â€” not the backend â€”
+// so a synchronous flush during beforeunload/visibilitychange can never be
+// lost to an in-flight network call, and the frozen API surface stays intact.
+export const DRAFT_STORAGE_KEY = 'sts-workflow-draft'
+export const DRAFT_DEBOUNCE_MS = 1000
+
+export const useWorkflowStore = defineStore('workflow', () => {
+  // â”€â”€ Registry (served by the backend, loaded once) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const registryVersion = ref(null)
+  const nodeTypes = ref({})
+  const categories = ref({})
+  const portTypes = ref([])
+  const samplePayloads = ref({})
+  const registryLoading = ref(false)
+  const registryError = ref('')
+
+  async function loadNodeTypes() {
+    if (registryLoading.value || registryVersion.value !== null) return
+    registryLoading.value = true
+    registryError.value = ''
+    try {
+      const data = await api.get('/api/workflow/node-types')
+      registryVersion.value = data.registry_version
+      nodeTypes.value = data.node_types || {}
+      categories.value = data.categories || {}
+      portTypes.value = data.port_types || []
+      samplePayloads.value = data.sample_payloads || {}
+    } catch (err) {
+      registryError.value = err?.message || 'Failed to load node types'
+    } finally {
+      registryLoading.value = false
+    }
+  }
+
+  // â”€â”€ Document state (persisted shape only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const workflowId = ref(null)
+  const workflowName = ref('Untitled workflow')
+  const workflowDescription = ref('')
+  const nodes = ref([])   // {id, type, type_version, name, position, configuration, disabled}
+  const edges = ref([])   // {id, source_node, source_port, target_node, target_port, edge_type}
+  const viewport = ref({ x: 0, y: 0, zoom: 1 })
+  const variables = ref({})
+  const settings = ref({ on_error: 'stop' })
+  const extensions = ref({})
+  const createdAt = ref(null)
+  const updatedAt = ref(null)
+  const dirty = ref(false)
+  const draftSavedAt = ref(null)
+
+  // â”€â”€ Draft autosave (step 2.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  let draftTimer = null
+
+  function cancelDraftAutosave() {
+    if (draftTimer !== null) {
+      clearTimeout(draftTimer)
+      draftTimer = null
+    }
+  }
+
+  function scheduleDraftAutosave() {
+    cancelDraftAutosave()
+    draftTimer = setTimeout(() => {
+      draftTimer = null
+      flushDraft()
+    }, DRAFT_DEBOUNCE_MS)
+  }
+
+  /** Every mutation that makes the document diverge from disk funnels here. */
+  function markDocumentDirty() {
+    dirty.value = true
+    scheduleDraftAutosave()
+  }
+
+  /** Write the draft immediately (no-op when there is nothing unsaved). */
+  function flushDraft() {
+    cancelDraftAutosave()
+    if (!dirty.value) return false
+    try {
+      const payload = {
+        version: 1,
+        saved_at: new Date().toISOString(),
+        document: toDocument(),
+      }
+      globalThis.localStorage?.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload))
+      draftSavedAt.value = payload.saved_at
+      return true
+    } catch {
+      // Quota exceeded / storage disabled: autosave is best-effort, the
+      // explicit Save path and dirty indicator still protect the user.
+      return false
+    }
+  }
+
+  /** Read the stored draft without applying it. Corrupt drafts are dropped. */
+  function peekDraft() {
+    let raw = null
+    try {
+      raw = globalThis.localStorage?.getItem(DRAFT_STORAGE_KEY)
+    } catch {
+      return null
+    }
+    if (!raw) return null
+    try {
+      const draft = JSON.parse(raw)
+      if (!draft || typeof draft !== 'object') throw new Error('not an object')
+      if (!draft.document || typeof draft.document !== 'object') throw new Error('no document')
+      return draft
+    } catch {
+      clearDraft()
+      return null
+    }
+  }
+
+  function clearDraft() {
+    cancelDraftAutosave()
+    draftSavedAt.value = null
+    try {
+      globalThis.localStorage?.removeItem(DRAFT_STORAGE_KEY)
+    } catch {
+      /* storage unavailable â€” nothing to clear */
+    }
+  }
+
+  /** Apply the stored draft as the (still unsaved) working document. */
+  function recoverDraft() {
+    const draft = peekDraft()
+    if (!draft) return false
+    applyDocument(draft.document, { markDirty: true })
+    draftSavedAt.value = draft.saved_at || null
+    return true
+  }
+
+  const workflowList = ref([])
+  const templates = ref([])
+  const persistenceLoading = ref(false)
+  const persistenceError = ref('')
+
+  let idCounter = 0
+  function nextNodeId() {
+    idCounter += 1
+    let candidate = `n_${idCounter}`
+    while (nodes.value.some((n) => n.id === candidate)) {
+      idCounter += 1
+      candidate = `n_${idCounter}`
+    }
+    return candidate
+  }
+
+  function defaultsFor(typeKey) {
+    const def = nodeTypes.value[typeKey]
+    const configuration = {}
+    for (const field of def?.config_schema || []) {
+      const value = field.default ?? null
+      // Registry defaults are plain JSON; structuredClone would choke on
+      // the reactive proxies wrapping them.
+      configuration[field.name] = value === null ? null : JSON.parse(JSON.stringify(value))
+    }
+    return configuration
+  }
+
+  function addNode(typeKey, position) {
+    const def = nodeTypes.value[typeKey]
+    if (!def) return null
+    const node = {
+      id: nextNodeId(),
+      type: typeKey,
+      type_version: def.type_version,
+      name: def.display_name,
+      position: {
+        x: Math.round((position?.x ?? 0) / 20) * 20,
+        y: Math.round((position?.y ?? 0) / 20) * 20,
+      },
+      configuration: defaultsFor(typeKey),
+      disabled: false,
+    }
+    nodes.value.push(node)
+    markDocumentDirty()
+    return node
+  }
+
+  function moveNode(nodeId, position) {
+    const node = nodes.value.find((n) => n.id === nodeId)
+    if (!node) return
+    node.position = { x: position.x, y: position.y }
+    markDocumentDirty()
+  }
+
+  function renameNode(nodeId, name) {
+    const node = nodes.value.find((n) => n.id === nodeId)
+    if (!node) return
+    node.name = name
+    markDocumentDirty()
+  }
+
+  function removeNodes(nodeIds) {
+    const doomed = new Set(nodeIds)
+    if (!doomed.size) return
+    nodes.value = nodes.value.filter((n) => !doomed.has(n.id))
+    edges.value = edges.value.filter(
+      (e) => !doomed.has(e.source_node) && !doomed.has(e.target_node),
+    )
+    if (doomed.has(selectedNodeId.value)) selectedNodeId.value = null
+    markDocumentDirty()
+  }
+
+  let edgeCounter = 0
+  function nextEdgeId() {
+    edgeCounter += 1
+    let candidate = `e_${edgeCounter}`
+    while (edges.value.some((e) => e.id === candidate)) {
+      edgeCounter += 1
+      candidate = `e_${edgeCounter}`
+    }
+    return candidate
+  }
+
+  /**
+   * Validate + create a connection. Returns the validation result;
+   * on success the edge is appended in the persisted shape.
+   *
+   * Step 2.5: when a REAL edge lands on an input currently fed by a Sample
+   * Input stub, the stub edge (and the stub itself, unless it still feeds
+   * other inputs) is removed first â€” undoably via undoStubDetach().
+   */
+  function connectNodes({ sourceNode, sourcePort, targetNode, targetPort }) {
+    const sourceIsStub = nodeById(sourceNode)?.type === 'stub.input'
+    const stubEdge = sourceIsStub
+      ? null
+      : edges.value.find(
+        (e) => e.target_node === targetNode && e.target_port === targetPort
+          && nodeById(e.source_node)?.type === 'stub.input',
+      )
+    // Validate against the graph as it would look after the stub detaches,
+    // so replacing sample data with a real edge is never "input occupied".
+    const candidateEdges = stubEdge
+      ? edges.value.filter((e) => e.id !== stubEdge.id)
+      : edges.value
+    const verdict = validateConnection(
+      { nodes: nodes.value, edges: candidateEdges, nodeTypes: nodeTypes.value, portTypes: portTypes.value },
+      { sourceNode, sourcePort, targetNode, targetPort },
+    )
+    if (!verdict.ok) return verdict
+
+    let undoEntry = null
+    if (stubEdge) {
+      const stubNode = nodeById(stubEdge.source_node)
+      const stillFeedsOthers = edges.value.some(
+        (e) => e.source_node === stubNode.id && e.id !== stubEdge.id,
+      )
+      undoEntry = {
+        stubNode: stillFeedsOthers ? null : plain(stubNode),
+        stubEdge: plain(stubEdge),
+      }
+      edges.value = edges.value.filter((e) => e.id !== stubEdge.id)
+      if (!stillFeedsOthers) {
+        nodes.value = nodes.value.filter((n) => n.id !== stubNode.id)
+        if (selectedNodeId.value === stubNode.id) selectedNodeId.value = null
+      }
+    }
+
+    const edge = {
+      id: nextEdgeId(),
+      source_node: sourceNode,
+      source_port: sourcePort,
+      target_node: targetNode,
+      target_port: targetPort,
+      edge_type: verdict.edgeType,
+    }
+    edges.value.push(edge)
+    if (undoEntry) {
+      undoEntry.realEdgeId = edge.id
+      stubDetachUndo.value.push(undoEntry)
+    }
+    markDocumentDirty()
+    return { ...verdict, detachedStub: Boolean(undoEntry) }
+  }
+
+  function removeEdges(edgeIds) {
+    const doomed = new Set(edgeIds)
+    if (!doomed.size) return
+    edges.value = edges.value.filter((e) => !doomed.has(e.id))
+    markDocumentDirty()
+  }
+
+  // â”€â”€ Sample-data stubs (step 2.5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // {stubNode|null, stubEdge, realEdgeId} entries, newest last. Replaced by
+  // the full command stack in Phase 5.1.
+  const stubDetachUndo = ref([])
+  const canUndoStubDetach = computed(() => stubDetachUndo.value.length > 0)
+
+  const autoAttachStubs = computed(() => settings.value.auto_attach_stubs !== false)
+
+  function setAutoAttachStubs(enabled) {
+    settings.value = { ...settings.value, auto_attach_stubs: Boolean(enabled) }
+    markDocumentDirty()
+  }
+
+  function isStubType(typeKey) {
+    return nodeTypes.value[typeKey]?.category === 'testing'
+  }
+
+  function samplePayloadFor(portType) {
+    const sample = samplePayloads.value[portType]
+    return sample === undefined ? {} : plain(sample)
+  }
+
+  /** Resolve one endpoint's port type, honouring dynamic stub ports. */
+  function endpointPortType(node, kind, portId) {
+    const port = (nodeTypes.value[node?.type]?.[kind] || []).find((p) => p.id === portId)
+    if (!port) return null
+    if (port.type !== 'dynamic') return port.type
+    return node.configuration?.port_type || 'generic_json'
+  }
+
+  /**
+   * Spawn one pre-connected Sample Input per still-unconnected required
+   * data input of `nodeId`. Returns the created stub nodes.
+   */
+  function attachSampleInputs(nodeId) {
+    const node = nodeById(nodeId)
+    const def = nodeTypes.value[node?.type]
+    if (!node || !def || !nodeTypes.value['stub.input']) return []
+    const created = []
+    let slot = 0
+    for (const port of def.inputs || []) {
+      if (!port.required || port.type === 'control') continue
+      const connected = edges.value.some(
+        (e) => e.target_node === nodeId && e.target_port === port.id,
+      )
+      if (connected) continue
+      const stub = addNode('stub.input', {
+        x: node.position.x - 260,
+        y: node.position.y + slot * 80,
+      })
+      stub.name = `Sample ${port.id}`
+      stub.configuration.port_type = port.type
+      stub.configuration.payload = samplePayloadFor(port.type)
+      edges.value.push({
+        id: nextEdgeId(),
+        source_node: stub.id,
+        source_port: 'value',
+        target_node: nodeId,
+        target_port: port.id,
+        edge_type: 'data',
+      })
+      created.push(stub)
+      slot += 1
+    }
+    if (created.length) markDocumentDirty()
+    return created
+  }
+
+  /** Attach a Result Viewer to the node's principal (first data) output. */
+  function attachResultViewer(nodeId) {
+    const node = nodeById(nodeId)
+    const def = nodeTypes.value[node?.type]
+    if (!node || !def || !nodeTypes.value['stub.output']) return null
+    const port = (def.outputs || []).find((p) => p.type !== 'control')
+    if (!port) return null
+    const stub = addNode('stub.output', {
+      x: node.position.x + 260,
+      y: node.position.y,
+    })
+    stub.name = `View ${port.id}`
+    stub.configuration.port_type = port.type
+    edges.value.push({
+      id: nextEdgeId(),
+      source_node: nodeId,
+      source_port: port.id,
+      target_node: stub.id,
+      target_port: 'value',
+      edge_type: 'data',
+    })
+    markDocumentDirty()
+    return stub
+  }
+
+  /**
+   * Palette-drop entry point: add the node and â€” when the workflow-level
+   * auto-attach setting is on and the node is not itself a testing stub â€”
+   * wire up sample inputs and a result viewer.
+   */
+  function addNodeWithStubs(typeKey, position) {
+    const node = addNode(typeKey, position)
+    if (!node) return null
+    if (autoAttachStubs.value && !isStubType(typeKey)) {
+      attachSampleInputs(node.id)
+      attachResultViewer(node.id)
+    }
+    return node
+  }
+
+  /** Undo the most recent stub detach: drop the real edge, restore the stub. */
+  function undoStubDetach() {
+    const entry = stubDetachUndo.value.pop()
+    if (!entry) return false
+    edges.value = edges.value.filter((e) => e.id !== entry.realEdgeId)
+    if (entry.stubNode && !nodeById(entry.stubNode.id)) {
+      const restored = plain(entry.stubNode)
+      if (nodes.value.some((n) => n.id === restored.id)) restored.id = nextNodeId()
+      nodes.value.push(restored)
+      entry.stubEdge.source_node = restored.id
+    }
+    const stubEdge = plain(entry.stubEdge)
+    const occupied = edges.value.some(
+      (e) => e.target_node === stubEdge.target_node && e.target_port === stubEdge.target_port,
+    )
+    if (!occupied && nodeById(stubEdge.source_node) && nodeById(stubEdge.target_node)) {
+      if (edges.value.some((e) => e.id === stubEdge.id)) stubEdge.id = nextEdgeId()
+      edges.value.push(stubEdge)
+    }
+    markDocumentDirty()
+    return true
+  }
+
+  function setViewport(vp) {
+    // Viewport is cosmetic state: remember it for the next save, but merely
+    // panning/zooming must not flag unsaved changes or arm discard prompts.
+    viewport.value = { x: vp.x, y: vp.y, zoom: vp.zoom }
+  }
+
+  function plain(value) {
+    return JSON.parse(JSON.stringify(value))
+  }
+
+  function toDocument() {
+    const document = {
+      schema_version: 1,
+      name: workflowName.value.trim() || 'Untitled workflow',
+      description: workflowDescription.value,
+      nodes: plain(nodes.value),
+      edges: plain(edges.value),
+      variables: plain(variables.value),
+      viewport: plain(viewport.value),
+      settings: plain(settings.value),
+      extensions: plain(extensions.value),
+    }
+    if (workflowId.value) document.workflow_id = workflowId.value
+    if (createdAt.value) document.created_at = createdAt.value
+    if (updatedAt.value) document.updated_at = updatedAt.value
+    return document
+  }
+
+  function resetCounters() {
+    idCounter = 0
+    edgeCounter = 0
+  }
+
+  function applyDocument(document, { markDirty = false, preserveSelection = false } = {}) {
+    workflowId.value = document.workflow_id || null
+    workflowName.value = document.name || 'Untitled workflow'
+    workflowDescription.value = document.description || ''
+    nodes.value = plain(document.nodes || [])
+    edges.value = plain(document.edges || [])
+    variables.value = plain(document.variables || {})
+    viewport.value = plain(document.viewport || { x: 0, y: 0, zoom: 1 })
+    settings.value = plain(document.settings || { on_error: 'stop' })
+    extensions.value = plain(document.extensions || {})
+    createdAt.value = document.created_at || null
+    updatedAt.value = document.updated_at || null
+    resetCounters()
+    stubDetachUndo.value = []
+    if (!preserveSelection || !nodeById(selectedNodeId.value)) selectedNodeId.value = null
+    if (markDirty) {
+      // Unsaved content (template/import-as-draft, draft recovery): keep the
+      // autosave loop armed so the new document is protected too.
+      markDocumentDirty()
+    } else {
+      // A clean document from disk supersedes any stored draft.
+      dirty.value = false
+      clearDraft()
+    }
+  }
+
+  function newWorkflow(name = 'Untitled workflow') {
+    applyDocument({
+      schema_version: 1,
+      name,
+      description: '',
+      nodes: [],
+      edges: [],
+      variables: {},
+      viewport: { x: 0, y: 0, zoom: 1 },
+      settings: { on_error: 'stop' },
+      extensions: {},
+    })
+  }
+
+  async function refreshWorkflowList() {
+    const data = await api.get('/api/workflows', { params: { limit: 200 } })
+    workflowList.value = data.workflows || []
+    return workflowList.value
+  }
+
+  async function loadTemplates() {
+    const data = await api.get('/api/workflow/templates')
+    templates.value = data.templates || []
+    return templates.value
+  }
+
+  async function openWorkflow(id) {
+    persistenceLoading.value = true
+    persistenceError.value = ''
+    try {
+      const data = await api.get(`/api/workflows/${encodeURIComponent(id)}`)
+      applyDocument(data.workflow)
+      return data.workflow
+    } catch (err) {
+      persistenceError.value = err?.message || 'Failed to open workflow'
+      throw err
+    } finally {
+      persistenceLoading.value = false
+    }
+  }
+
+  async function saveWorkflow() {
+    persistenceLoading.value = true
+    persistenceError.value = ''
+    try {
+      const document = toDocument()
+      const data = workflowId.value
+        ? await api.put(`/api/workflows/${encodeURIComponent(workflowId.value)}`, {
+          body: { workflow: document, expected_updated_at: updatedAt.value },
+        })
+        : await api.post('/api/workflows', { body: { workflow: document } })
+      applyDocument(data.workflow, { preserveSelection: true })
+      await refreshWorkflowList()
+      return data.workflow
+    } catch (err) {
+      persistenceError.value = err?.message || 'Failed to save workflow'
+      throw err
+    } finally {
+      persistenceLoading.value = false
+    }
+  }
+
+  async function saveAs(name) {
+    persistenceLoading.value = true
+    persistenceError.value = ''
+    try {
+      const document = toDocument()
+      delete document.workflow_id
+      delete document.created_at
+      delete document.updated_at
+      document.name = name?.trim() || `${workflowName.value} copy`
+      const data = await api.post('/api/workflows', { body: { workflow: document } })
+      applyDocument(data.workflow, { preserveSelection: true })
+      await refreshWorkflowList()
+      return data.workflow
+    } catch (err) {
+      persistenceError.value = err?.message || 'Failed to save workflow copy'
+      throw err
+    } finally {
+      persistenceLoading.value = false
+    }
+  }
+
+  async function importDocument(document) {
+    persistenceLoading.value = true
+    persistenceError.value = ''
+    try {
+      const data = await api.post('/api/workflows/import', {
+        body: { workflow: document, on_conflict: 'new_id' },
+      })
+      applyDocument(data.workflow)
+      await refreshWorkflowList()
+      return data.workflow
+    } catch (err) {
+      persistenceError.value = err?.message || 'Failed to import workflow'
+      throw err
+    } finally {
+      persistenceLoading.value = false
+    }
+  }
+
+  function applyTemplate(templateId) {
+    const template = templates.value.find((item) => item.template_id === templateId)
+    if (!template) return false
+    applyDocument(template.workflow, { markDirty: true })
+    return true
+  }
+
+  function nodeById(nodeId) {
+    return nodes.value.find((n) => n.id === nodeId) || null
+  }
+
+  const nodeCount = computed(() => nodes.value.length)
+
+  // Per-node editing issues (step 2.2) â€” recomputed on every graph change.
+  const issuesByNode = computed(() => {
+    const map = {}
+    for (const node of nodes.value) {
+      const issues = nodeIssues(node, nodeTypes.value[node.type], edges.value)
+      if (issues.length) map[node.id] = issues
+    }
+    return map
+  })
+
+  // â”€â”€ Selection + inspector editing (step 2.1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const selectedNodeId = ref(null)
+  const selectedNode = computed(() => nodeById(selectedNodeId.value))
+
+  function selectNode(nodeId) {
+    selectedNodeId.value = nodeById(nodeId) ? nodeId : null
+  }
+
+  function clearSelection() {
+    selectedNodeId.value = null
+  }
+
+  function updateNodeConfig(nodeId, name, value) {
+    const node = nodeById(nodeId)
+    if (!node) return
+    const previous = node.configuration[name]
+    node.configuration[name] = value
+    // Retyping a stub retargets its dynamic port: reseed the editable sample
+    // payload and drop edges that no longer type-match (contracts Â§3 â€”
+    // dynamic ports obey exact-match once resolved).
+    if (
+      name === 'port_type' && value !== previous
+      && (node.type === 'stub.input' || node.type === 'stub.output')
+    ) {
+      if (node.type === 'stub.input') {
+        node.configuration.payload = samplePayloadFor(value)
+      }
+      edges.value = edges.value.filter((e) => {
+        if (e.source_node === nodeId && e.source_port === 'value') {
+          const target = nodeById(e.target_node)
+          return endpointPortType(target, 'inputs', e.target_port) === value
+        }
+        if (e.target_node === nodeId && e.target_port === 'value') {
+          const source = nodeById(e.source_node)
+          return endpointPortType(source, 'outputs', e.source_port) === value
+        }
+        return true
+      })
+    }
+    markDocumentDirty()
+  }
+
+  function setNodeDisabled(nodeId, disabled) {
+    const node = nodeById(nodeId)
+    if (!node) return
+    node.disabled = Boolean(disabled)
+    markDocumentDirty()
+  }
+
+  function duplicateNode(nodeId) {
+    const source = nodeById(nodeId)
+    if (!source) return null
+    const suffix = ' copy'
+    const copyName = `${source.name.slice(0, 120 - suffix.length).trimEnd()}${suffix}`
+    const copy = {
+      id: nextNodeId(),
+      type: source.type,
+      type_version: source.type_version,
+      name: copyName,
+      position: {
+        x: Math.min(1_000_000, source.position.x + 40),
+        y: Math.min(1_000_000, source.position.y + 40),
+      },
+      configuration: plain(source.configuration),
+      disabled: source.disabled,
+      ...(source.extensions ? { extensions: plain(source.extensions) } : {}),
+    }
+    nodes.value.push(copy)
+    markDocumentDirty()
+    selectedNodeId.value = copy.id
+    return copy
+  }
+
+  return {
+    // registry
+    registryVersion, nodeTypes, categories, portTypes, samplePayloads,
+    registryLoading, registryError, loadNodeTypes,
+    // document
+    workflowId, workflowName, workflowDescription, nodes, edges, viewport,
+    variables, settings, extensions, createdAt, updatedAt, dirty, nodeCount,
+    workflowList, templates, persistenceLoading, persistenceError,
+    addNode, moveNode, renameNode, removeNodes, removeEdges, connectNodes,
+    setViewport, nodeById, defaultsFor, toDocument, applyDocument, newWorkflow,
+    refreshWorkflowList, loadTemplates, openWorkflow, saveWorkflow, saveAs,
+    importDocument, applyTemplate,
+    // draft autosave (step 2.4)
+    draftSavedAt, markDocumentDirty, flushDraft, peekDraft, clearDraft, recoverDraft,
+    // selection + inspector
+    selectedNodeId, selectedNode, selectNode, clearSelection,
+    updateNodeConfig, setNodeDisabled, duplicateNode,
+    // validation (step 2.2)
+    issuesByNode,
+    // sample-data stubs (step 2.5)
+    autoAttachStubs, setAutoAttachStubs, isStubType, samplePayloadFor,
+    addNodeWithStubs, attachSampleInputs, attachResultViewer,
+    canUndoStubDetach, undoStubDetach,
+  }
+})
+<script setup>
+import { computed, markRaw, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
+import { VueFlow, useVueFlow, MarkerType } from '@vue-flow/core'
+import { Background } from '@vue-flow/background'
+import { Controls } from '@vue-flow/controls'
+import { MiniMap } from '@vue-flow/minimap'
+import dagre from '@dagrejs/dagre'
+import '@vue-flow/core/dist/style.css'
+import '@vue-flow/core/dist/theme-default.css'
+import '@vue-flow/controls/dist/style.css'
+import '@vue-flow/minimap/dist/style.css'
+import { api } from '@/shared/api/client.js'
+import { useWorkflowStore } from '../stores/workflow.js'
+import { DRAG_MIME } from '../constants.js'
+import { validateConnection } from '../validation.js'
+import { useToast } from '@/shared/composables/useToast.js'
+import NodeLibrary from '../components/NodeLibrary.vue'
+import NodeCard from '../components/NodeCard.vue'
+import NodeInspector from '../components/NodeInspector.vue'
+
+const store = useWorkflowStore()
+const toast = useToast()
+const { screenToFlowCoordinate, fitView, setViewport: setFlowViewport } = useVueFlow()
+const importInput = ref(null)
+
+onMounted(async () => {
+  try {
+    await Promise.all([
+      store.loadNodeTypes(),
+      store.refreshWorkflowList(),
+      store.loadTemplates(),
+    ])
+  } catch (err) {
+    toast.error(err?.message || 'Failed to load workflow data')
+  }
+  await maybeRecoverDraft()
+  window.addEventListener('beforeunload', onBeforeUnload)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('keydown', onKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('keydown', onKeydown)
+  // The component is going away (in-app navigation): persist any pending
+  // debounced edits so nothing is lost while the user is elsewhere.
+  store.flushDraft()
+})
+
+// Ctrl+Z restores the most recently auto-detached sample stub (step 2.5;
+// the full undo/redo command stack arrives in Phase 5.1).
+function onKeydown(event) {
+  if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== 'z') return
+  const target = event.target
+  if (target instanceof HTMLElement
+    && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) {
+    return
+  }
+  if (store.canUndoStubDetach && store.undoStubDetach()) {
+    event.preventDefault()
+    toast.info('Sample input restored')
+  }
+}
+
+// â”€â”€ Draft autosave protection (step 2.4) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+async function maybeRecoverDraft() {
+  const draft = store.peekDraft()
+  if (!draft) return
+  const name = draft.document?.name || 'Untitled workflow'
+  const when = draft.saved_at ? ` (autosaved ${new Date(draft.saved_at).toLocaleString()})` : ''
+  if (window.confirm(`Recover unsaved draft "${name}"${when}?`)) {
+    store.recoverDraft()
+    // Deliberately not restoreViewport(): the recovered document is unsaved
+    // and must stay dirty until the user explicitly saves it.
+    await setFlowViewport(store.viewport)
+    toast.info('Draft recovered â€” save to keep it')
+  } else {
+    store.clearDraft()
+  }
+}
+
+function onBeforeUnload(event) {
+  // Synchronous flush: this is what makes a killed tab lose nothing.
+  store.flushDraft()
+  if (store.dirty) {
+    event.preventDefault()
+    event.returnValue = ''
+  }
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'hidden') store.flushDraft()
+}
+
+onBeforeRouteLeave(() => {
+  if (!store.dirty) return true
+  store.flushDraft()
+  return window.confirm(
+    'You have unsaved workflow changes. A draft has been kept â€” leave the workflow builder?',
+  )
+})
+
+const nodeTypes = { sts: markRaw(NodeCard) }
+
+// Store (persisted shape) â†’ Vue Flow elements. Vue Flow runtime props stay here.
+const flowNodes = computed(() =>
+  store.nodes.map((n) => ({
+    id: n.id,
+    type: 'sts',
+    position: { ...n.position },
+    data: { nodeType: n.type, label: n.name, disabled: n.disabled },
+  })),
+)
+
+const flowEdges = computed(() =>
+  store.edges.map((e) => ({
+    id: e.id,
+    source: e.source_node,
+    target: e.target_node,
+    sourceHandle: e.source_port,
+    targetHandle: e.target_port,
+    markerEnd: MarkerType.ArrowClosed,
+    class: e.edge_type === 'control' ? 'wf-edge-control' : 'wf-edge-data',
+  })),
+)
+
+// â”€â”€ Palette drop â†’ add node at canvas position â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function onDragOver(event) {
+  if (event.dataTransfer?.types?.includes(DRAG_MIME)) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+}
+
+function onDrop(event) {
+  const typeKey = event.dataTransfer?.getData(DRAG_MIME)
+  if (!typeKey) return
+  const position = screenToFlowCoordinate({ x: event.clientX, y: event.clientY })
+  // Auto-spawns pre-connected sample stubs when the workflow setting is on.
+  store.addNodeWithStubs(typeKey, position)
+}
+
+// â”€â”€ Sync Vue Flow interactions back into the store â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function onNodeDragStop({ node, nodes: draggedNodes }) {
+  // Multi-select/box drags carry every moved node in `nodes`; persisting
+  // only the grab target would snap the rest back on the next re-render.
+  const moved = draggedNodes?.length ? draggedNodes : [node]
+  for (const dragged of moved) {
+    store.moveNode(dragged.id, { x: dragged.position.x, y: dragged.position.y })
+  }
+}
+
+function onNodesChange(changes) {
+  const removed = changes.filter((c) => c.type === 'remove').map((c) => c.id)
+  if (removed.length) store.removeNodes(removed)
+}
+
+function onEdgesChange(changes) {
+  const removed = changes.filter((c) => c.type === 'remove').map((c) => c.id)
+  if (removed.length) store.removeEdges(removed)
+}
+
+function onViewportChangeEnd(vp) {
+  store.setViewport(vp)
+}
+
+// â”€â”€ Connections (validated, contracts Â§3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function toConnectionShape(params) {
+  return {
+    sourceNode: params.source,
+    sourcePort: params.sourceHandle,
+    targetNode: params.target,
+    targetPort: params.targetHandle,
+    // Present only when Vue Flow re-validates an existing edge; interactive
+    // connection params carry no id.
+    edgeId: params.id,
+  }
+}
+
+function onConnect(params) {
+  const verdict = store.connectNodes(toConnectionShape(params))
+  if (!verdict.ok) {
+    toast.error(verdict.reason)
+  } else if (verdict.detachedStub) {
+    toast.info('Sample input replaced by the real connection â€” Ctrl+Z restores it')
+  }
+}
+
+// â”€â”€ Node context menu: manual stub attachment (step 2.5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const contextMenu = ref(null) // {nodeId, x, y}
+
+function onNodeContextMenu({ event, node }) {
+  event.preventDefault()
+  if (store.isStubType(store.nodeById(node.id)?.type)) {
+    contextMenu.value = null
+    return
+  }
+  // Fixed positioning: viewport coordinates work regardless of panel layout.
+  contextMenu.value = { nodeId: node.id, x: event.clientX, y: event.clientY }
+}
+
+function closeContextMenu() {
+  contextMenu.value = null
+}
+
+function onAttachSampleInputs() {
+  const created = store.attachSampleInputs(contextMenu.value.nodeId)
+  closeContextMenu()
+  toast.info(created.length
+    ? `Attached ${created.length} sample input${created.length > 1 ? 's' : ''}`
+    : 'Every required input is already connected')
+}
+
+function onAttachResultViewer() {
+  const stub = store.attachResultViewer(contextMenu.value.nodeId)
+  closeContextMenu()
+  toast.info(stub ? 'Result viewer attached' : 'This node has no data output to view')
+}
+
+// Live feedback while dragging a connection: valid targets highlight,
+// invalid ones show the not-allowed cursor.
+function isValidConnection(params) {
+  return validateConnection(
+    { nodes: store.nodes, edges: store.edges, nodeTypes: store.nodeTypes, portTypes: store.portTypes },
+    toConnectionShape(params),
+  ).ok
+}
+
+// â”€â”€ Minimap colored by category â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function minimapColor(node) {
+  const def = store.nodeTypes[node.data?.nodeType]
+  return store.categories[def?.category]?.color || '#4b5563'
+}
+
+// â”€â”€ Dagre tidy-up â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function tidyUp() {
+  if (!store.nodes.length) return
+  const g = new dagre.graphlib.Graph()
+  g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 90 })
+  g.setDefaultEdgeLabel(() => ({}))
+  for (const node of store.nodes) {
+    g.setNode(node.id, { width: 200, height: 60 })
+  }
+  for (const edge of store.edges) {
+    g.setEdge(edge.source_node, edge.target_node)
+  }
+  dagre.layout(g)
+  for (const node of store.nodes) {
+    const pos = g.node(node.id)
+    if (pos) {
+      store.moveNode(node.id, {
+        x: Math.round((pos.x - 100) / 20) * 20,
+        y: Math.round((pos.y - 30) / 20) * 20,
+      })
+    }
+  }
+  requestAnimationFrame(() => fitView({ padding: 0.15 }))
+}
+
+const validating = ref(false)
+
+async function onValidate() {
+  validating.value = true
+  try {
+    const data = await api.post('/api/workflow/validate', {
+      body: { workflow: store.toDocument() },
+    })
+    if (data.valid && !data.warnings.length) {
+      toast.success('Workflow is valid')
+    } else if (data.valid) {
+      toast.warning(`Valid, with ${data.warnings.length} warning(s): ${data.warnings[0]?.message}`)
+    } else {
+      const first = data.problems[0]?.message || 'see node badges'
+      toast.error(`${data.problems.length} problem(s) â€” ${first}`)
+    }
+  } catch (err) {
+    toast.error(err?.message || 'Validation request failed')
+  } finally {
+    validating.value = false
+  }
+}
+
+function confirmDiscard() {
+  return !store.dirty || window.confirm('Discard unsaved workflow changes?')
+}
+
+async function restoreViewport() {
+  await setFlowViewport(store.viewport)
+  store.dirty = false
+}
+
+async function onNew() {
+  if (!confirmDiscard()) return
+  store.newWorkflow()
+  await restoreViewport()
+}
+
+async function onOpen(event) {
+  const id = event.target.value
+  event.target.value = ''
+  if (!id || !confirmDiscard()) return
+  try {
+    await store.openWorkflow(id)
+    await restoreViewport()
+    toast.success(`Opened ${store.workflowName}`)
+  } catch (err) {
+    toast.error(store.persistenceError || err.message)
+  }
+}
+
+async function onSave() {
+  try {
+    if (!store.workflowId && store.workflowName === 'Untitled workflow') {
+      const name = window.prompt('Workflow name', store.workflowName)
+      if (!name?.trim()) return
+      store.workflowName = name.trim()
+    }
+    await store.saveWorkflow()
+    toast.success('Workflow saved')
+  } catch (err) {
+    toast.error(store.persistenceError || err.message)
+  }
+}
+
+async function onSaveAs() {
+  const name = window.prompt('Save workflow as', `${store.workflowName} copy`)
+  if (!name?.trim()) return
+  try {
+    await store.saveAs(name)
+    toast.success('Workflow copy saved')
+  } catch (err) {
+    toast.error(store.persistenceError || err.message)
+  }
+}
+
+async function onDuplicate() {
+  try {
+    await store.saveAs(`${store.workflowName} copy`)
+    toast.success('Workflow duplicated')
+  } catch (err) {
+    toast.error(store.persistenceError || err.message)
+  }
+}
+
+async function onTemplate(event) {
+  const templateId = event.target.value
+  event.target.value = ''
+  if (!templateId || !confirmDiscard()) return
+  if (store.applyTemplate(templateId)) {
+    requestAnimationFrame(() => fitView({ padding: 0.1 }))
+    toast.info('Template loaded â€” add your script and save when ready')
+  }
+}
+
+async function onImportFile(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file || !confirmDiscard()) return
+  if (file.size > 2 * 1024 * 1024) {
+    toast.error('Workflow JSON exceeds the 2 MiB limit')
+    return
+  }
+  try {
+    const document = JSON.parse(await file.text())
+    await store.importDocument(document)
+    await restoreViewport()
+    toast.success('Workflow imported')
+  } catch (err) {
+    toast.error(store.persistenceError || err?.message || 'Invalid workflow JSON')
+  }
+}
+
+function onExport() {
+  if (!store.workflowId) {
+    toast.warning('Save the workflow before exporting it')
+    return
+  }
+  const anchor = document.createElement('a')
+  anchor.href = `/api/workflows/${encodeURIComponent(store.workflowId)}/export`
+  anchor.download = `${store.workflowId}.json`
+  anchor.click()
+}
+</script>
+
+<template>
+  <div class="workflow-page">
+    <!-- Top â€” toolbar -->
+    <header class="wf-toolbar">
+      <div class="wf-toolbar-group">
+        <span class="wf-title">{{ store.workflowName }}</span>
+        <span v-if="store.dirty" class="wf-dirty" title="Unsaved changes">â—</span>
+        <span
+          v-if="store.dirty && store.draftSavedAt"
+          class="wf-draft-hint"
+          :title="`Draft autosaved ${new Date(store.draftSavedAt).toLocaleTimeString()}`"
+        >
+          draft saved
+        </span>
+        <span class="wf-badge">MVP</span>
+      </div>
+      <div class="wf-toolbar-group wf-toolbar-actions">
+        <button class="wf-btn" :disabled="store.persistenceLoading" @click="onNew">New</button>
+        <select class="wf-select" :disabled="store.persistenceLoading" aria-label="Open workflow" @change="onOpen">
+          <option value="">Openâ€¦</option>
+          <option v-for="item in store.workflowList" :key="item.workflow_id" :value="item.workflow_id">
+            {{ item.name }}
+          </option>
+        </select>
+        <select class="wf-select" :disabled="store.persistenceLoading" aria-label="Workflow template" @change="onTemplate">
+          <option value="">Templateâ€¦</option>
+          <option v-for="item in store.templates" :key="item.template_id" :value="item.template_id">
+            {{ item.workflow.name }}
+          </option>
+        </select>
+        <button class="wf-btn primary" :disabled="store.persistenceLoading || (!!store.workflowId && !store.dirty)" @click="onSave">
+          Save
+        </button>
+        <button class="wf-btn" :disabled="store.persistenceLoading" @click="onSaveAs">Save As</button>
+        <button class="wf-btn" :disabled="store.persistenceLoading" @click="onDuplicate">Duplicate</button>
+        <button class="wf-btn" :disabled="store.persistenceLoading" @click="importInput?.click()">Import</button>
+        <button class="wf-btn" :disabled="!store.workflowId" @click="onExport">Export</button>
+        <input ref="importInput" class="wf-file-input" type="file" accept="application/json,.json" @change="onImportFile" />
+        <button class="wf-btn" :disabled="!store.nodeCount || validating" title="Validate workflow on the server" @click="onValidate">
+          Validate
+        </button>
+        <button class="wf-btn" :disabled="!store.nodeCount" title="Auto-arrange nodes" @click="tidyUp">
+          Tidy up
+        </button>
+        <button class="wf-btn" :disabled="!store.nodeCount" title="Fit view" @click="fitView({ padding: 0.15 })">
+          Fit
+        </button>
+        <label class="wf-toggle" title="Auto-attach editable sample stubs when dropping unconnected nodes">
+          <input
+            type="checkbox"
+            :checked="store.autoAttachStubs"
+            @change="store.setAutoAttachStubs($event.target.checked)"
+          />
+          Auto-stubs
+        </label>
+      </div>
+    </header>
+
+    <div class="wf-body">
+      <!-- Left â€” node library -->
+      <aside class="wf-library">
+        <div class="wf-panel-header">Nodes</div>
+        <NodeLibrary />
+      </aside>
+
+      <!-- Center â€” canvas -->
+      <main class="wf-canvas" @dragover="onDragOver" @drop="onDrop">
+        <VueFlow
+          :nodes="flowNodes"
+          :edges="flowEdges"
+          :node-types="nodeTypes"
+          :min-zoom="0.1"
+          :max-zoom="1.5"
+          :snap-to-grid="true"
+          :snap-grid="[20, 20]"
+          :delete-key-code="'Delete'"
+          :multi-selection-key-code="'Control'"
+          :selection-key-code="'Shift'"
+          :is-valid-connection="isValidConnection"
+          fit-view-on-init
+          @connect="onConnect"
+          @node-click="({ node }) => store.selectNode(node.id)"
+          @node-context-menu="onNodeContextMenu"
+          @pane-click="store.clearSelection(); closeContextMenu()"
+          @node-drag-stop="onNodeDragStop"
+          @nodes-change="onNodesChange"
+          @edges-change="onEdgesChange"
+          @viewport-change-end="onViewportChangeEnd"
+        >
+          <Background pattern-color="rgba(255,255,255,0.12)" :gap="20" />
+          <Controls position="bottom-left" />
+          <MiniMap position="bottom-right" pannable zoomable :node-color="minimapColor" />
+          <div v-if="!store.nodeCount" class="wf-canvas-hint">
+            Drag a node from the library to start building
+          </div>
+        </VueFlow>
+
+        <!-- Node context menu: manual stub attachment (step 2.5) -->
+        <template v-if="contextMenu">
+          <div class="wf-context-backdrop" @click="closeContextMenu" @contextmenu.prevent="closeContextMenu" />
+          <div class="wf-context-menu" :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }">
+            <button class="wf-context-item" @click="onAttachSampleInputs">Attach sample inputs</button>
+            <button class="wf-context-item" @click="onAttachResultViewer">Attach result viewer</button>
+          </div>
+        </template>
+      </main>
+
+      <!-- Right â€” node inspector -->
+      <aside class="wf-inspector">
+        <div class="wf-panel-header">Inspector</div>
+        <NodeInspector />
+      </aside>
+    </div>
+
+    <!-- Bottom â€” execution inspector -->
+    <footer class="wf-bottom">
+      <div class="wf-panel-header">Executions</div>
+    </footer>
+  </div>
+</template>
+
+<style scoped>
+.workflow-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-dark);
+  color: var(--text);
+}
+
+.wf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-darkest);
+}
+
+.wf-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wf-toolbar-actions {
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.wf-toolbar-actions > * {
+  flex: 0 0 auto;
+}
+
+.wf-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.wf-dirty {
+  color: var(--accent-warning, #ffb347);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.wf-draft-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.wf-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid rgba(78, 205, 196, 0.4);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.wf-btn {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.wf-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.wf-btn.primary {
+  color: var(--bg-darkest);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.wf-select {
+  max-width: 150px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.wf-file-input {
+  display: none;
+}
+
+.wf-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wf-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.wf-library {
+  width: 240px;
+  min-width: 240px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-darkest);
+  display: flex;
+  flex-direction: column;
+}
+
+.wf-inspector {
+  width: 300px;
+  min-width: 300px;
+  border-left: 1px solid var(--border);
+  background: var(--bg-darkest);
+  display: flex;
+  flex-direction: column;
+}
+
+.wf-canvas {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.wf-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.wf-toggle input {
+  accent-color: var(--accent);
+}
+
+.wf-context-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.wf-context-menu {
+  position: fixed;
+  z-index: 41;
+  min-width: 180px;
+  background: var(--bg-darkest);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.wf-context-item {
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.wf-context-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.wf-canvas-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-muted);
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.wf-bottom {
+  height: 140px;
+  min-height: 140px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-darkest);
+}
+
+.wf-panel-header {
+  font-size: 10px;
+  font-weight: 700;

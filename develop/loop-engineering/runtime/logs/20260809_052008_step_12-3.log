@@ -1,0 +1,245 @@
+
+===== 2026-08-09T05:20:08.429022 :: claude -p --permission-mode acceptEdits "You are executing step 12.3 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 12.3: Provider-aware generic node configuration.
+
+Step description:
+Add a generic provider field/schema primitive keyed only by `provider_domain`. Convert the **five**
+provider-backed nodes — `story.generate`, `scenes.blueprint`, `tts.generate`, `storyboard.generate`,
+`animator.generate` — to the common persisted pair `provider_id` + `provider_options`; their node types,
+ports, and executors remain stable. The inspector composes provider settings dynamically from the
+catalog. Remove Grok-, Gemini-, WaveSpeed-, Kokoro-, and other provider-specific fields and
+`display_options` from the node registry, moving them into provider settings schemas. Server
+validation resolves the selected provider/schema authoritatively and fails open only for explicitly
+documented unavailable-provider recovery cases.
+
+`music.select` and `captions.generate` are **not** converted and must be left byte-identical: they are
+local, single-implementation services with no provider dimension (owner decision — see the audit
+header). Their `mode`/`tone`/`preset` fields are domain configuration, not provider selection, and must
+not be mistaken for provider-specific fields during the registry cleanup.
+
+**Bridging rule — this step runs ahead of the domain migrations.** Only `tts`, `storyboard`, and
+`animator` have provider packages today; `script` and `scene_blueprint` get theirs in Phase 13.
+Converting their nodes to `provider_id` + `provider_options` first would leave two nodes selecting from an
+empty catalog. So each un-migrated domain must, in this step, register a single `builtin` provider that
+is a thin passthrough to today's concrete service, with a manifest and a settings schema carrying
+exactly the fields being removed from the node definition. Phase 13 then splits, renames, or extends
+that `builtin` provider behind the interface it already satisfies. A domain's node is never converted
+before its domain has at least one registered provider.
+
+**Done when:** the five converted nodes contain no provider IDs or provider-specific settings in their
+node definitions; every one of the five domains resolves at least one registered provider and the two
+`builtin` passthroughs produce byte-identical artifacts to their pre-conversion services;
+`music.select` and `captions.generate` are provably unchanged; each existing saved config migrates to
+the new shape through the contracts §41.3 migrations (M1–M3 bump here; M4 uses a non-mutating
+fallback); future-version/unavailable-provider workflows remain
+safely inspectable; and pytest/Vitest prove provider-specific forms and validation are driven entirely
+by catalog metadata.
+
+Done when: the five converted nodes contain no provider IDs or provider-specific settings in their
+node definitions; every one of the five domains resolves at least one registered provider and the two
+`builtin` passthroughs produce byte-identical artifacts to their pre-conversion services;
+`music.select` and `captions.generate` are provably unchanged; each existing saved config migrates to
+the new shape through the contracts §41.3 migrations (M1–M3 bump here; M4 uses a non-mutating
+fallback); future-version/unavailable-provider workflows remain
+safely inspectable; and pytest/Vitest prove provider-specific forms and validation are driven entirely
+by catalog metadata.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 12.3'. Do not push."
+You've hit your limit · resets 5:40am (Etc/GMT+5)
+
+===== LIMIT FALLBACK :: claude -> agy
+
+===== 2026-08-09T05:45:44.341946 :: agy --mode accept-edits --dangerously-skip-permissions --print-timeout 60m -p "You are executing step 12.3 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 12.3: Provider-aware generic node configuration.
+
+Step description:
+Add a generic provider field/schema primitive keyed only by `provider_domain`. Convert the **five**
+provider-backed nodes — `story.generate`, `scenes.blueprint`, `tts.generate`, `storyboard.generate`,
+`animator.generate` — to the common persisted pair `provider_id` + `provider_options`; their node types,
+ports, and executors remain stable. The inspector composes provider settings dynamically from the
+catalog. Remove Grok-, Gemini-, WaveSpeed-, Kokoro-, and other provider-specific fields and
+`display_options` from the node registry, moving them into provider settings schemas. Server
+validation resolves the selected provider/schema authoritatively and fails open only for explicitly
+documented unavailable-provider recovery cases.
+
+`music.select` and `captions.generate` are **not** converted and must be left byte-identical: they are
+local, single-implementation services with no provider dimension (owner decision — see the audit
+header). Their `mode`/`tone`/`preset` fields are domain configuration, not provider selection, and must
+not be mistaken for provider-specific fields during the registry cleanup.
+
+**Bridging rule — this step runs ahead of the domain migrations.** Only `tts`, `storyboard`, and
+`animator` have provider packages today; `script` and `scene_blueprint` get theirs in Phase 13.
+Converting their nodes to `provider_id` + `provider_options` first would leave two nodes selecting from an
+empty catalog. So each un-migrated domain must, in this step, register a single `builtin` provider that
+is a thin passthrough to today's concrete service, with a manifest and a settings schema carrying
+exactly the fields being removed from the node definition. Phase 13 then splits, renames, or extends
+that `builtin` provider behind the interface it already satisfies. A domain's node is never converted
+before its domain has at least one registered provider.
+
+**Done when:** the five converted nodes contain no provider IDs or provider-specific settings in their
+node definitions; every one of the five domains resolves at least one registered provider and the two
+`builtin` passthroughs produce byte-identical artifacts to their pre-conversion services;
+`music.select` and `captions.generate` are provably unchanged; each existing saved config migrates to
+the new shape through the contracts §41.3 migrations (M1–M3 bump here; M4 uses a non-mutating
+fallback); future-version/unavailable-provider workflows remain
+safely inspectable; and pytest/Vitest prove provider-specific forms and validation are driven entirely
+by catalog metadata.
+
+Done when: the five converted nodes contain no provider IDs or provider-specific settings in their
+node definitions; every one of the five domains resolves at least one registered provider and the two
+`builtin` passthroughs produce byte-identical artifacts to their pre-conversion services;
+`music.select` and `captions.generate` are provably unchanged; each existing saved config migrates to
+the new shape through the contracts §41.3 migrations (M1–M3 bump here; M4 uses a non-mutating
+fallback); future-version/unavailable-provider workflows remain
+safely inspectable; and pytest/Vitest prove provider-specific forms and validation are driven entirely
+by catalog metadata.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 12.3'. Do not push."
+### Summary of Completed Work
+
+I have completed **Step 12.3: Provider-aware generic node configuration** of the workflow-builder implementation plan ([`implementation-plan.md`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/_dev/loop-engineering/phases-plans/implementation-plan.md)).
+
+#### Key Deliverables & Changes
+
+1. **Transitional Built-in Providers (Phase 12 Bridging Rule)**:
+   - Verified and registered `builtin` transitional providers for `script` and `scene_blueprint` domains:
+     - [`studio/story/providers/builtin/manifest.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/studio/story/providers/builtin/manifest.py) & [`provider.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/studio/story/providers/builtin/provider.py)
+     - [`studio/build_scene_blueprints/providers/builtin/manifest.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/studio/build_scene_blueprints/providers/builtin/manifest.py) & [`provider.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/studio/build_scene_blueprints/providers/builtin/provider.py)
+   - These passthrough providers fulfill the bridging rule so `story.generate` and `scenes.blueprint` can select `provider_id` from a non-empty catalog ahead of Phase 13 domain migrations.
+
+2. **Generic Provider Node Definitions in Registry**:
+   - Converted all 5 provider-backed nodes (`story.generate`, `scenes.blueprint`, `tts.generate`, `storyboard.generate`, `animator.generate`) in [`studio/workflows/registry.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/studio/workflows/registry.py#L112-L149) to the common `provider_id` + `provider_options` schema primitives:
+     - Replaced hardcoded provider fields/display options with domain-based `_provider_field(domain)` and `_provider_options_field(domain)`.
+   - Verified that [`music.select`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/studio/workflows/registry.py#L406-L435) and [`captions.generate`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/studio/workflows/registry.py#L388-L405) remain **byte-identical** without any provider dimensions.
+
+3. **Node Version Bumps & Migrations (M1–M4)**:
+   - Configured `config_migrations.py` ([`config_migrations.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/studio/workflows/config_migrations.py#L55-L73)):
+     - **M1**: `tts.generate` (v1 → v2: `engine` → `provider_id`)
+     - **M2**: `storyboard.generate` (v1 → v2: `provider` → `provider_id`, `prompt_prefix`/`auto_type` move to `provider_options`)
+     - **M3**: `animator.generate` (v1 → v2: `provider` → `provider_id`, `mode`/`quality`/`duration`/`auto_type` move to `provider_options`)
+     - **M4**: `story.generate` & `scenes.blueprint` use a non-mutating fallback without bumping `type_version`.
+
+4. **Updated Documentation and Test Suites**:
+   - Regenerated node reference docs via [`studio.workflows.docs`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/studio/workflows/docs.py) for `REGISTRY_VERSION = 4`.
+   - Updated test assertions across [`test_provider_hub.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/tests/test_provider_hub.py), [`test_workflow_registry.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/tests/test_workflow_registry.py), [`test_workflow_utilities.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/tests/test_workflow_utilities.py), [`test_workflow_persistence.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/tests/test_workflow_persistence.py), [`test_workflow_watch_folders.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/tests/test_workflow_watch_folders.py), and [`test_workflow_webhooks.py`](file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/tests/test_workflow_webhooks.py).
+
+---
+
+### Verification Results
+
+- **Backend Pytest Suite**: `585 passed, 10 skipped` (live provider tests), `225 subtests passed` in 14.54s.
+- **Frontend Vitest Suite**: `32 passed` test files, `232 passed` unit tests in 14.86s.
+- **Frontend Build**: `npm run build` completed cleanly in 1.56s.
+
+----- validate:pytest
+ssssssssss......................... [  5%]
+................................................................. [ 16%]
+................................................................. [ 27%]
+................................................. [ 35%]
+.................................................................................. [ 49%]
+................................................................ [ 60%]
+.................................................................................. [ 74%]
+........................................................ [ 83%]
+........................................................................ [ 95%]
+.........................                                             [100%]
+585 passed, 10 skipped, 225 subtests passed in 16.34s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/providers/__tests__/providerSettingsForm.test.js [2m([22m[2m18 tests[22m[2m)[22m[33m 460[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSettingsModal.test.js [2m([22m[2m7 tests[22m[2m)[22m[33m 445[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 456[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 469[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/largeCanvasPerformance.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 406[2mms[22m[39m
+     [33m[2m✓[22m[39m loads, culls, pans, drags, and defers draft persistence on the fixture [33m 383[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m2 tests[22m[2m)[22m[33m 406[2mms[22m[39m
+     [33m[2m✓[22m[39m renders node, edge, and pane actions and dispatches duplicate undoably [33m 341[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 544[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 275[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notificationCenter.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 249[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelectorActions.test.js [2m([22m[2m5 tests[22m[2m)[22m[33m 437[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerCatalog.test.js [2m([22m[2m27 tests[22m[2m)[22m[33m 502[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 197[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[32m 247[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/webhookSettings.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 239[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 316[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 126[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/scheduleSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 202[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/projectArchiveManager.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 205[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m18 tests[22m[2m)[22m[32m 171[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/legacyBridge.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 223[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 126[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/assetGarbageCollection.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 115[2mms[22m[39m
+ [32m✓[39m src/shared/composables/__tests__/optionSources.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 183[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/watchFolderSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 162[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelection.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/shared/schema/__tests__/visibility.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/__tests__/routerBridge.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m32 passed[39m[22m[90m (32)[39m
+[2m      Tests [22m [1m[32m232 passed[39m[22m[90m (232)[39m
+[2m   Start at [22m 05:53:33
+[2m   Duration [22m 17.00s[2m (transform 5.44s, setup 0ms, import 18.07s, tests 7.55s, environment 70.76s)[22m
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 217 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                 1.65 kB │ gzip:   0.77 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css          8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/TimingPage-358TMXoQ.css            11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/TtsPage-BH7NOR03.css               17.40 kB │ gzip:   3.27 kB
+../static/dist/assets/StoryboardPage-oauSXe56.css        17.74 kB │ gzip:   3.71 kB
+../static/dist/assets/ScenesPage-CSjIarG6.css            18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/SettingsPage-BuzhdxTL.css          19.30 kB │ gzip:   3.60 kB
+../static/dist/assets/AssetsPage-DVrglYp-.css            23.24 kB │ gzip:   4.31 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css     29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-Bho969zx.css          54.98 kB │ gzip:   9.76 kB
+../static/dist/assets/PipelinePage-D2JJByEX.css          80.82 kB │ gzip:  12.99 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css            93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-BcZNBqdU.css                155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-ebXo2Uix.js              0.20 kB │ gzip:   0.18 kB
+../static/dist/js/format-D6QnDI5p.js                      1.07 kB │ gzip:   0.55 kB
+../static/dist/js/visibility-HBTt58b-.js                  1.29 kB │ gzip:   0.69 kB
+../static/dist/js/stagingStore-DBc7wou5.js                1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-Ujg5SKdi.js            1.47 kB │ gzip:   0.69 kB
+../static/dist/js/useTiming-Bt8_LqQg.js                   2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-KZnttTgT.js                   4.81 kB │ gzip:   1.97 kB
+../static/dist/js/useAssets-Btaz8yq6.js                   5.48 kB │ gzip:   2.18 kB
+../static/dist/js/pinia-NOtNFqTC.js                       5.99 kB │ gzip:   2.83 kB
+../static/dist/js/useToast-DfPeOUa8.js                   16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-DFALlZQe.js                 17.52 kB │ gzip:   6.21 kB
+../static/dist/js/SegmenterPage-BfpWxV64.js              20.06 kB │ gzip:   6.98 kB
+../static/dist/js/ScenesPage-DSH83LzR.js                 23.25 kB │ gzip:   7.48 kB
+../static/dist/js/StoryboardPage-CrhqjQKS.js             23.65 kB │ gzip:   7.35 kB
+../static/dist/js/SettingsPage-CAoslDvx.js               36.18 kB │ gzip:  11.83 kB
+../static/dist/js/AssetsPage-36XjWTQf.js                 37.09 kB │ gzip:  11.49 kB
+../static/dist/js/TtsPage-D4VZO9Bd.js                    43.43 kB │ gzip:  14.27 kB
+../static/dist/js/ExportLibraryPage-CnyNoC0t.js          47.25 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-BKYln_wf.js   66.07 kB │ gzip:  25.85 kB
+../static/dist/js/index-DtcV4XsI.js                      84.72 kB │ gzip:  27.44 kB
+../static/dist/js/PipelinePage-B9rPp2tU.js              108.22 kB │ gzip:  26.76 kB
+../static/dist/js/EditorPage-Bgtipc8L.js                143.15 kB │ gzip:  21.93 kB
+../static/dist/js/useRandomStory-D2UiuIUG.js            194.13 kB │ gzip:  73.38 kB
+../static/dist/js/WorkflowPage-BF4garBq.js              375.86 kB │ gzip: 119.91 kB
+
+[32m✓ built in 1.47s[39m
+

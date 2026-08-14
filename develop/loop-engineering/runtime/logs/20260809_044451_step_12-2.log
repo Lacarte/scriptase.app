@@ -1,0 +1,165 @@
+
+===== 2026-08-09T04:44:51.855281 :: claude -p --permission-mode acceptEdits "You are executing step 12.2 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 12.2: Metadata-driven selector and settings renderer.
+
+Step description:
+Evolve `ProviderSelector.vue`, `ProviderSettingsForm.vue`, and `ProviderSettingsModal.vue` into the
+single UI for provider selection and configuration. Render all fields, conditional visibility,
+descriptions, validation, secret-write behavior, capability badges, health actions, and provider URLs
+from public metadata. Reuse `ConfigField.vue` primitives where possible so workflow and legacy forms
+interpret the same settings contract.
+
+Implement the parameterized option-source contract frozen in 10.2: extend `ASYNC_OPTION_SOURCES`,
+`studio/workflows/options.py` `_RESOLVERS`, `GET /api/workflow/options/<source>`, and
+`useOptionSources.js` so a resolver can receive validated context (domain + selected provider) and so
+the shared module-level cache is keyed by source **and** context. Keep the existing module-level assert
+and `test_workflow_options.py` allowlist/resolver-parity guards intact. Without this, no dropdown can
+depend on the selected provider and 15.2 cannot deliver per-provider voices.
+
+**Done when:** fixture schemas exercise every supported widget and conditional rule; a fixture
+option source resolves differently for two providers and its cache invalidates when the selection
+changes; unknown sources and unvalidated context are still rejected server-side; secrets are never
+echoed; switching providers preserves each provider's unsaved non-secret draft independently; health
+and validation feedback name the provider; and no provider ID appears in component control flow.
+
+Done when: fixture schemas exercise every supported widget and conditional rule; a fixture
+option source resolves differently for two providers and its cache invalidates when the selection
+changes; unknown sources and unvalidated context are still rejected server-side; secrets are never
+echoed; switching providers preserves each provider's unsaved non-secret draft independently; health
+and validation feedback name the provider; and no provider ID appears in component control flow.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 12.2'. Do not push."
+Step 12.2 is complete. All four verification gates are green: 585 backend tests (10 live skipped, 219 subtests), 232 frontend tests across 32 files, the Vite production build, and the generated-doc drift check.
+
+## What landed
+
+**Backend — the parameterized option-source contract (§23, delta D16/D17)**
+- `ASYNC_OPTION_SOURCES` became the frozen dict of `OptionSourceSpec` (`registry.py:29-72`), with three new `*_providers` sources. Every consumer used `set(...)`/`in`, so the parity assert and its test survived untouched.
+- `options.py` is rewritten around `OptionContext`. Query parameters are a second allowlist: an undeclared name is rejected rather than ignored, `domain` must be a real (and in-scope) domain, `provider` normalizes through id-then-alias to the canonical id, `node_type`/`project_id` are validated. An omitted parameter falls back to the source's scope and the §24.1 selection chain, which is why every existing context-free caller still works.
+- `_provider_options` reads its domain off the spec — P32 is gone, one resolver serves all five domains.
+- The cache is keyed `(source, normalized_context)`, LRU-bounded per source, with the three §23.4 policies wired to dev reload, provider settings writes, and selection writes. Failures are never cached.
+- `OPTION_CONTEXT_INVALID` added to the §7 list, as §23.3 authorizes.
+
+**Two real defects found while implementing**
+- Wiring context in immediately broke 17 tests: a saved `tts.generate` with no explicit `engine` had its voice validated against the *global* selection, so switching providers invalidated saved workflows — what §24.1 rule 2 forbids. `config_option_context()` now resolves the node's own provider field including its schema default.
+- The 12.1 modal's `watch` was change-only while the page passes `visible` already true, so it rendered against a null schema. Now `immediate`, and the draft watcher no longer files edits under the provider being switched *to*.
+
+**Frontend**
+- `ProviderSettingsForm.vue` renders the whole frozen widget vocabulary plus `ui.show_if`, `ui.options_source`, per-field issues, and required marks from `schema.required` (the old form marked every password required).
+- "Reuse ConfigField primitives" is honored as shared *rules*: one visibility implementation behind both `display_options` and `ui.show_if`, one option-source client behind both forms.
+- Secret state is the sentinel itself rather than a local editing flag, so the widget can't disagree with what the server will do.
+- Drafts are per-provider and secret-free; capability badges, manifest links, and provider-named health/validation feedback come from `public_dict()`. P47 closed early, with a test that fails on any shipped provider id in a provider component.
+
+Two guards were mutation-checked: collapsing the cache key to the bare source and disabling the context allowlist each fail their tests.
+
+----- validate:pytest
+ssssssssss......................... [  5%]
+................................................................. [ 16%]
+................................................................. [ 27%]
+..................................................... [ 36%]
+.................................................................................... [ 50%]
+................................................................ [ 61%]
+.................................................................................. [ 75%]
+........................................................ [ 84%]
+........................................................................ [ 96%]
+...................                                                   [100%]
+585 passed, 10 skipped, 219 subtests passed in 14.68s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/providers/__tests__/providerSettingsForm.test.js [2m([22m[2m18 tests[22m[2m)[22m[33m 327[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSettingsModal.test.js [2m([22m[2m7 tests[22m[2m)[22m[33m 326[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 321[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 361[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/largeCanvasPerformance.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 312[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m2 tests[22m[2m)[22m[33m 312[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 435[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelectorActions.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 290[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/projectArchiveManager.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 182[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 166[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerCatalog.test.js [2m([22m[2m27 tests[22m[2m)[22m[33m 320[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[32m 165[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 145[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/scheduleSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 153[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 185[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/webhookSettings.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 210[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notificationCenter.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 216[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m18 tests[22m[2m)[22m[32m 123[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/legacyBridge.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 158[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/watchFolderSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 113[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 94[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 101[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 77[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m src/shared/composables/__tests__/optionSources.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/assetGarbageCollection.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 109[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/shared/schema/__tests__/visibility.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/__tests__/routerBridge.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelection.test.js [2m([22m[2m7 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m32 passed[39m[22m[90m (32)[39m
+[2m      Tests [22m [1m[32m232 passed[39m[22m[90m (232)[39m
+[2m   Start at [22m 05:19:53
+[2m   Duration [22m 12.60s[2m (transform 3.89s, setup 0ms, import 13.27s, tests 5.46s, environment 52.45s)[22m
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 217 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                 1.65 kB │ gzip:   0.77 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css          8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/TimingPage-358TMXoQ.css            11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/TtsPage-BH7NOR03.css               17.40 kB │ gzip:   3.27 kB
+../static/dist/assets/StoryboardPage-oauSXe56.css        17.74 kB │ gzip:   3.71 kB
+../static/dist/assets/ScenesPage-CSjIarG6.css            18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/SettingsPage-BuzhdxTL.css          19.30 kB │ gzip:   3.60 kB
+../static/dist/assets/AssetsPage-DVrglYp-.css            23.24 kB │ gzip:   4.31 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css     29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-Bho969zx.css          54.98 kB │ gzip:   9.76 kB
+../static/dist/assets/PipelinePage-D2JJByEX.css          80.82 kB │ gzip:  12.99 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css            93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-BcZNBqdU.css                155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-ebXo2Uix.js              0.20 kB │ gzip:   0.18 kB
+../static/dist/js/format-D6QnDI5p.js                      1.07 kB │ gzip:   0.55 kB
+../static/dist/js/visibility-HBTt58b-.js                  1.29 kB │ gzip:   0.69 kB
+../static/dist/js/stagingStore-DBc7wou5.js                1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-Ujg5SKdi.js            1.47 kB │ gzip:   0.69 kB
+../static/dist/js/useTiming-Bt8_LqQg.js                   2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-KZnttTgT.js                   4.81 kB │ gzip:   1.97 kB
+../static/dist/js/useAssets-Btaz8yq6.js                   5.48 kB │ gzip:   2.18 kB
+../static/dist/js/pinia-NOtNFqTC.js                       5.99 kB │ gzip:   2.83 kB
+../static/dist/js/useToast-DfPeOUa8.js                   16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-DFALlZQe.js                 17.52 kB │ gzip:   6.21 kB
+../static/dist/js/SegmenterPage-BfpWxV64.js              20.06 kB │ gzip:   6.98 kB
+../static/dist/js/ScenesPage-DSH83LzR.js                 23.25 kB │ gzip:   7.48 kB
+../static/dist/js/StoryboardPage-CrhqjQKS.js             23.65 kB │ gzip:   7.35 kB
+../static/dist/js/SettingsPage-CAoslDvx.js               36.18 kB │ gzip:  11.83 kB
+../static/dist/js/AssetsPage-36XjWTQf.js                 37.09 kB │ gzip:  11.49 kB
+../static/dist/js/TtsPage-D4VZO9Bd.js                    43.43 kB │ gzip:  14.27 kB
+../static/dist/js/ExportLibraryPage-CnyNoC0t.js          47.25 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-BKYln_wf.js   66.07 kB │ gzip:  25.85 kB
+../static/dist/js/index-DtcV4XsI.js                      84.72 kB │ gzip:  27.44 kB
+../static/dist/js/PipelinePage-B9rPp2tU.js              108.22 kB │ gzip:  26.76 kB
+../static/dist/js/EditorPage-Bgtipc8L.js                143.15 kB │ gzip:  21.93 kB
+../static/dist/js/useRandomStory-D2UiuIUG.js            194.13 kB │ gzip:  73.38 kB
+../static/dist/js/WorkflowPage-BF4garBq.js              375.86 kB │ gzip: 119.91 kB
+
+[32m✓ built in 1.19s[39m
+

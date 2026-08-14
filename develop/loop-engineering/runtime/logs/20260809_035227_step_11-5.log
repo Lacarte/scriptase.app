@@ -1,0 +1,172 @@
+
+===== 2026-08-09T03:52:27.546600 :: claude -p --permission-mode acceptEdits "You are executing step 11.5 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 11.5: Unified provider API and application startup.
+
+Step description:
+Replace the three startup-specific initialization blocks in `app.py:90-95` with hub initialization while
+preserving their compatibility functions. Serve one versioned provider catalog plus domain/provider
+detail, health, settings-read, settings-write, and option/capability endpoints using the standard
+error envelope and loopback/security policy. The current provider API lives in the **editor** blueprint
+(`studio/editor/routes.py:230-372`, which re-imports all three registries inside each of its five
+handlers) — move it to a provider blueprint and keep the old paths as thin deprecated facades until the
+final compatibility gate. Replace the whole-blob `PUT /api/settings/v2` selection write with the
+targeted selection endpoint decided in 10.2, routing it through the existing but unused
+`settings_manager.set_selected_provider()`.
+
+**Done when:** one API enumerates every healthy, unavailable, deprecated, and broken provider by
+domain; settings and health use only registry metadata; old provider endpoints return compatible
+answers; startup/shutdown initializes each runtime exactly once; and backend tests cover auth,
+redaction, invalid domains/IDs, unavailable providers, and mixed healthy/broken catalogs.
+
+---
+
+## Phase 12 — Generic provider UI and generic workflow nodes
+
+Done when: one API enumerates every healthy, unavailable, deprecated, and broken provider by
+domain; settings and health use only registry metadata; old provider endpoints return compatible
+answers; startup/shutdown initializes each runtime exactly once; and backend tests cover auth,
+redaction, invalid domains/IDs, unavailable providers, and mixed healthy/broken catalogs.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; read CLAUDE.md at the repo root before touching code. Verification commands — 'python' and 'pytest' are NOT on PATH on this machine, always use the venv interpreter: from the repo root run 'venv/Scripts/python.exe -m pytest tests/ -q', then from frontend/ run 'npm run test' and 'npm run build'. Get all three green BEFORE committing; finish with exactly one commit whose subject contains 'step 11.5'. Do not push."
+Step 11.5 is implemented and verified. Summary:
+
+**New provider blueprint** — `studio/providers/` (`routes.py` + `catalog.py`), registered in `app.py`. Thirteen handlers, all loopback-only and all using the `{"error": {"code","message","details?"}}` envelope:
+
+| surface | endpoints |
+|---|---|
+| catalog | `GET /api/providers` → `{catalog_version, domains}`, `GET /api/providers/<domain>` |
+| detail | `GET /api/providers/<d>/<p>`, `.../capabilities` |
+| health | `GET .../health` (stored settings), `POST .../test` (candidate patch) |
+| settings | `GET/PUT .../settings`, `POST .../validate` |
+| selection | `PUT /api/providers/<domain>/selection` (new, D13) |
+| document | `GET/PUT/PATCH /api/settings/v2` (`PATCH` new, D13) |
+
+`studio/editor/routes.py` lost 189 lines and no longer imports `settings_manager`; the URLs are unchanged, so no consumer broke.
+
+**Defect found and fixed:** `_rebind_new_runtimes` re-ran `register_runtime()` for every provider on each catalog reload — a second claim on an already-registered `@sock.route`. The hub now keeps a `(domain, provider_id)` binding ledger, cleared on `shutdown()`.
+
+**Frontend:** `useProviders.selectProvider` replaced its `GET → spread → PUT /api/settings/v2` read-modify-write (a real lost-update window plus a redundant validate round trip) with the one targeted call. No Vue component changed.
+
+**Adjustments recorded in the plan** — the "deprecated facade" is a no-op because the paths didn't move; "deprecated" providers are enumerated via `aliases` since §20.1 declares no such flag; the API became loopback-only (it wasn't); and `PUT /api/settings/v2` stays permissive so whole-document import still works.
+
+Verification: 545 backend tests (10 live skipped, 198 subtests), 160 frontend tests / 26 files, Vite build, docs drift — all green. Both new guards were mutation-checked.
+
+----- validate:pytest
+ssssssssss......................... [  6%]
+................................................................. [ 18%]
+................................................................. [ 29%]
+..................................................... [ 39%]
+.................................................................................... [ 54%]
+................................................................ [ 65%]
+....................................................................................... [ 81%]
+........................................................................ [ 94%]
+..............................                                        [100%]
+545 passed, 10 skipped, 198 subtests passed in 13.52s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/workflow/__tests__/webhookSettings.test.js [2m([22m[2m2 tests[22m[2m)[22m[32m 128[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notificationCenter.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 136[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 309[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 357[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/largeCanvasPerformance.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 305[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m2 tests[22m[2m)[22m[33m 327[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 414[2mms[22m[39m
+ [32m✓[39m src/features/providers/__tests__/providerSelection.test.js [2m([22m[2m6 tests[22m[2m)[22m[32m 126[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/legacyBridge.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 132[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[32m 170[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/projectArchiveManager.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 176[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/scheduleSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 166[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 138[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 164[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m13 tests[22m[2m)[22m[32m 138[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/watchFolderSettings.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 94[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m18 tests[22m[2m)[22m[32m 102[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 98[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/assetGarbageCollection.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 110[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[32m 92[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 75[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/__tests__/routerBridge.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m26 passed[39m[22m[90m (26)[39m
+[2m      Tests [22m [1m[32m160 passed[39m[22m[90m (160)[39m
+[2m   Start at [22m 04:17:34
+[2m   Duration [22m 10.05s[2m (transform 3.31s, setup 0ms, import 10.59s, tests 3.87s, environment 42.03s)[22m
+
+[90mstderr[2m | src/features/providers/__tests__/providerSelection.test.js[2m > [22m[2museProviders.selectProvider[2m > [22m[2mpropagates a failed selection instead of faking a switch
+[22m[39m[Providers] Failed to select provider: Error: Provider not found
+    at D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend/src/features/providers/__tests__/providerSelection.test.js:123:19
+    at [90mfile:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at [90mfile:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at [90mfile:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10[90m)[39m
+    at [90mfile:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10[90m)[39m
+    at [90mfile:///D:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64 {
+  status: [33m404[39m,
+  code: [32m'PROVIDER_NOT_FOUND'[39m
+}
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 213 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                 1.65 kB │ gzip:   0.77 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css          8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/TimingPage-358TMXoQ.css            11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/SettingsPage-BLAeVZuE.css          17.12 kB │ gzip:   3.31 kB
+../static/dist/assets/TtsPage-BH7NOR03.css               17.40 kB │ gzip:   3.27 kB
+../static/dist/assets/StoryboardPage-oauSXe56.css        17.74 kB │ gzip:   3.71 kB
+../static/dist/assets/ScenesPage-CSjIarG6.css            18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/AssetsPage-DVrglYp-.css            23.24 kB │ gzip:   4.31 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css     29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-CiRRJDgT.css          54.98 kB │ gzip:   9.76 kB
+../static/dist/assets/PipelinePage-D2JJByEX.css          80.82 kB │ gzip:  12.99 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css            93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-BcZNBqdU.css                155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-cFEg5tWF.js              0.20 kB │ gzip:   0.18 kB
+../static/dist/js/format-D6QnDI5p.js                      1.07 kB │ gzip:   0.55 kB
+../static/dist/js/stagingStore-DBc7wou5.js                1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-Ujg5SKdi.js            1.47 kB │ gzip:   0.69 kB
+../static/dist/js/useTiming-Bt8_LqQg.js                   2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-DJaOGocG.js                   4.81 kB │ gzip:   1.97 kB
+../static/dist/js/useAssets-Btaz8yq6.js                   5.48 kB │ gzip:   2.18 kB
+../static/dist/js/pinia-NOtNFqTC.js                       5.99 kB │ gzip:   2.83 kB
+../static/dist/js/useToast-DfPeOUa8.js                   16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-DOrnqqws.js                 17.52 kB │ gzip:   6.21 kB
+../static/dist/js/SegmenterPage-DVvMk-Ss.js              20.06 kB │ gzip:   6.98 kB
+../static/dist/js/ScenesPage-D2WWRaK1.js                 23.25 kB │ gzip:   7.48 kB
+../static/dist/js/StoryboardPage-GZEVaHXu.js             23.65 kB │ gzip:   7.36 kB
+../static/dist/js/SettingsPage-BAMzsAf8.js               28.34 kB │ gzip:   9.17 kB
+../static/dist/js/AssetsPage-CBDvtfrb.js                 37.09 kB │ gzip:  11.50 kB
+../static/dist/js/TtsPage-BA70GyPI.js                    43.43 kB │ gzip:  14.26 kB
+../static/dist/js/ExportLibraryPage-D6AOFXqc.js          47.25 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-BKYln_wf.js   66.07 kB │ gzip:  25.85 kB
+../static/dist/js/index-DIBJBZec.js                      84.68 kB │ gzip:  27.42 kB
+../static/dist/js/PipelinePage-B-9lILCq.js              108.22 kB │ gzip:  26.76 kB
+../static/dist/js/EditorPage-BmrdNRgT.js                143.15 kB │ gzip:  21.93 kB
+../static/dist/js/useRandomStory-D2UiuIUG.js            194.13 kB │ gzip:  73.38 kB
+../static/dist/js/WorkflowPage-CVq70AdO.js              376.38 kB │ gzip: 120.04 kB
+
+[32m✓ built in 1.18s[39m
+

@@ -1,0 +1,125 @@
+
+===== 2026-08-05T07:56:50.077089 :: claude -p --permission-mode acceptEdits "You are executing step 6.5 of the workflow-builder plan (_dev/loop-engineering/phases-plans/implementation-plan.md). Step 6.5: Legacy UI bridge.
+
+Step description:
+The canvas becomes the default landing surface. Legacy step pages stay reachable behind explicit
+navigation, with cross-links both ways for the same project; routes that no surface links to
+anymore are removed. No behavior changes inside the legacy pages themselves.
+**Done when:** opening the app lands on the workflow builder, each surface links to the other, and no dead routes remain.
+
+Done when: opening the app lands on the workflow builder, each surface links to the other, and no dead routes remain.
+
+Working agreements: implement ONLY this step (do not start other steps); follow existing conventions and _dev/loop-engineering/phases-plans/contracts.md; run pytest, 'npm run test' and 'npm run build' (frontend/) and get them green BEFORE committing; finish with exactly one commit whose subject contains 'step 6.5'. Do not push."
+Step 6.5 complete, committed as `61c6af3`.
+
+**What changed**
+
+- **Default landing surface** — `frontend/src/app/router.js:6`: `/` now redirects to `/workflow` instead of `/pipeline`; the workflow route is listed first and the pipeline route's meta title reads "Legacy Pipeline".
+- **Sidebar reorder** — `frontend/src/app/SidebarNav.vue:81`: Workflow Builder is the primary nav entry; the pipeline dashboard sits below it with the explicit title "Legacy Pipeline Dashboard". All legacy step pages remain reachable through their existing sidebar groups.
+- **Cross-links both ways**
+  - Workflow → legacy: new "Legacy → Pipeline" link in the workflow toolbar (`WorkflowPage.vue`), a plain hash-history anchor. The project-scoped bridge already existed and is untouched: ExecutionPanel's "Open in Timeline Editor" carries `?project=` into the legacy editor.
+  - Legacy → workflow: the pipeline header now shows a "Legacy" badge and an "Open Workflow Builder" link (`PipelinePage.vue`). No behavior inside the legacy page changed — both additions are pure navigation anchors.
+- **Dead route removed** — the `/timing` → `/alignment` alias redirect, which no surface linked to (only `/alignment` is used everywhere), is deleted.
+
+**Verification**
+
+- 4 new Vitest cases: `routerBridge.test.js` (default redirect to `/workflow`, legacy pipeline reachable, every remaining route is surface-linked / no `/timing`) and `legacyBridge.test.js` (workflow toolbar renders the `#/pipeline` link).
+- Frontend suite: 135 passed across 18 files; production build succeeds. No backend code changed, so the backend suite is unaffected.
+
+Remaining for this step's "done when" is only the usual in-app visual confirmation (land on canvas, click both cross-links) when the browser surface is next available — same caveat the loop has recorded for prior UI steps. Next step is 6.6 (docs and onboarding).
+
+----- validate:pytest
+ssssssssss................................................................................................... [ 64%]
+.............................................................         [100%]
+160 passed, 10 skipped, 38 subtests passed in 16.90s
+
+
+----- validate:vitest
+
+> scripttoscene-frontend@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/@Workspace/@Development/@Scripts/@Python/ScriptToScene-Studio-V2/frontend[39m
+
+ [32m✓[39m src/features/workflow/__tests__/stubs.test.js [2m([22m[2m16 tests[22m[2m)[22m[32m 211[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/schema.test.js [2m([22m[2m12 tests[22m[2m)[22m[33m 481[2mms[22m[39m
+     [33m[2m✓[22m[39m reveals conditional fields when their condition flips [33m 390[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionPanel.test.js [2m([22m[2m1 test[22m[2m)[22m[33m 621[2mms[22m[39m
+     [33m[2m✓[22m[39m shows persisted diagnostics and starts a failed-only retry [33m 615[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/legacyBridge.test.js [2m([22m[2m1 test[22m[2m)[22m[33m 369[2mms[22m[39m
+     [33m[2m✓[22m[39m links to the legacy pipeline dashboard from the toolbar [33m 364[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUxPage.test.js [2m([22m[2m1 test[22m[2m)[22m[33m 661[2mms[22m[39m
+     [33m[2m✓[22m[39m renders node, edge, and pane actions and dispatches duplicate undoably [33m 632[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/inspector.test.js [2m([22m[2m16 tests[22m[2m)[22m[33m 1130[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/errorTruth.test.js [2m([22m[2m26 tests[22m[2m)[22m[33m 1139[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/powerUx.test.js [2m([22m[2m5 tests[22m[2m)[22m[32m 229[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/notesAndRecent.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 593[2mms[22m[39m
+     [33m[2m✓[22m[39m renders a Recently used section in the library [33m 527[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/liveExecution.test.js [2m([22m[2m8 tests[22m[2m)[22m[33m 399[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/expressions.test.js [2m([22m[2m3 tests[22m[2m)[22m[33m 555[2mms[22m[39m
+     [33m[2m✓[22m[39m inserts an expression and renders a whole-value expression editor [33m 521[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/draftAutosave.test.js [2m([22m[2m9 tests[22m[2m)[22m[33m 681[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/workflowStore.test.js [2m([22m[2m10 tests[22m[2m)[22m[32m 257[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/commandStack.test.js [2m([22m[2m8 tests[22m[2m)[22m[32m 183[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/executionEvents.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/__tests__/smoke.test.js [2m([22m[2m1 test[22m[2m)[22m[32m 77[2mms[22m[39m
+ [32m✓[39m src/__tests__/routerBridge.test.js [2m([22m[2m3 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/features/workflow/__tests__/validation.test.js [2m([22m[2m11 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m18 passed[39m[22m[90m (18)[39m
+[2m      Tests [22m [1m[32m135 passed[39m[22m[90m (135)[39m
+[2m   Start at [22m 08:05:45
+[2m   Duration [22m 20.47s[2m (transform 8.76s, setup 0ms, import 21.86s, tests 7.71s, environment 80.24s)[22m
+
+
+
+----- validate:build
+
+> scripttoscene-frontend@0.1.0 build
+> vite build
+
+[36mvite v8.0.0 [32mbuilding client environment for production...[36m[39m
+[2K
+transforming...✓ 200 modules transformed.
+rendering chunks...
+computing gzip size...
+../static/dist/index.html                                 1.65 kB │ gzip:   0.77 kB
+../static/dist/assets/SegmenterPage-Bo7VnFZy.css          8.86 kB │ gzip:   2.05 kB
+../static/dist/assets/TimingPage-358TMXoQ.css            11.54 kB │ gzip:   2.51 kB
+../static/dist/assets/SettingsPage-BLAeVZuE.css          17.12 kB │ gzip:   3.31 kB
+../static/dist/assets/TtsPage-BH7NOR03.css               17.40 kB │ gzip:   3.27 kB
+../static/dist/assets/StoryboardPage-oauSXe56.css        17.74 kB │ gzip:   3.71 kB
+../static/dist/assets/ScenesPage-CSjIarG6.css            18.68 kB │ gzip:   3.46 kB
+../static/dist/assets/AssetsPage-DVrglYp-.css            23.24 kB │ gzip:   4.31 kB
+../static/dist/assets/ExportLibraryPage-CM6CfT9G.css     29.21 kB │ gzip:   5.36 kB
+../static/dist/assets/WorkflowPage-Dsu3e7ey.css          37.99 kB │ gzip:   7.31 kB
+../static/dist/assets/PipelinePage-D2JJByEX.css          80.82 kB │ gzip:  12.99 kB
+../static/dist/assets/EditorPage-Db-kx9Vy.css            93.08 kB │ gzip:  15.12 kB
+../static/dist/assets/index-BcZNBqdU.css                155.38 kB │ gzip:  25.14 kB
+../static/dist/js/useProjectSync-tZ8iZsVD.js              0.20 kB │ gzip:   0.18 kB
+../static/dist/js/format-D6QnDI5p.js                      1.07 kB │ gzip:   0.55 kB
+../static/dist/js/stagingStore-B95bPi4f.js                1.45 kB │ gzip:   0.55 kB
+../static/dist/js/useAudioPlayback-CHvqx1-n.js            1.47 kB │ gzip:   0.68 kB
+../static/dist/js/useTiming-CnIvvJfN.js                   2.34 kB │ gzip:   1.03 kB
+../static/dist/js/useScenes-DxTQp4wL.js                   4.81 kB │ gzip:   1.97 kB
+../static/dist/js/useAssets-B-Lhi274.js                   5.48 kB │ gzip:   2.18 kB
+../static/dist/js/pinia-BT7N-eTL.js                       5.99 kB │ gzip:   2.83 kB
+../static/dist/js/useToast-DjL2syDo.js                   16.43 kB │ gzip:   7.10 kB
+../static/dist/js/TimingPage-_Fj0wXGv.js                 17.51 kB │ gzip:   6.19 kB
+../static/dist/js/SegmenterPage-BthRwCO2.js              20.06 kB │ gzip:   6.97 kB
+../static/dist/js/ScenesPage-6g0bxyde.js                 23.25 kB │ gzip:   7.48 kB
+../static/dist/js/StoryboardPage-BYEInd5_.js             23.65 kB │ gzip:   7.35 kB
+../static/dist/js/SettingsPage-CwtL5_zl.js               28.37 kB │ gzip:   9.18 kB
+../static/dist/js/AssetsPage-C-SwYZOw.js                 37.09 kB │ gzip:  11.46 kB
+../static/dist/js/TtsPage-BR4hBu6d.js                    43.43 kB │ gzip:  14.24 kB
+../static/dist/js/ExportLibraryPage-D0hgXU-d.js          47.26 kB │ gzip:  14.14 kB
+../static/dist/js/runtime-core.esm-bundler-Ch2j_Tzz.js   65.95 kB │ gzip:  25.81 kB
+../static/dist/js/index-BIdVA7Pu.js                      84.68 kB │ gzip:  27.42 kB
+../static/dist/js/PipelinePage-BVBjB2A1.js              108.21 kB │ gzip:  26.77 kB
+../static/dist/js/EditorPage-Cv8aERq5.js                143.15 kB │ gzip:  21.93 kB
+../static/dist/js/useRandomStory-JxYVc6uU.js            194.13 kB │ gzip:  73.38 kB
+../static/dist/js/WorkflowPage-CAg1SXb2.js              346.16 kB │ gzip: 111.89 kB
+
+[32m✓ built in 2.52s[39m
+
