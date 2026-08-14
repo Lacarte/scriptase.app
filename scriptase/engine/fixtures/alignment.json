@@ -1,0 +1,211 @@
+{
+  "alignment": [
+    {
+      "begin": 0.7,
+      "end": 0.85,
+      "word": "A"
+    },
+    {
+      "begin": 0.87,
+      "end": 1.02,
+      "word": "lighthouse"
+    },
+    {
+      "begin": 1.04,
+      "end": 1.19,
+      "word": "keeper"
+    },
+    {
+      "begin": 1.21,
+      "end": 1.36,
+      "word": "climbs"
+    },
+    {
+      "begin": 1.38,
+      "end": 1.53,
+      "word": "the"
+    },
+    {
+      "begin": 1.55,
+      "end": 1.7,
+      "word": "spiral"
+    },
+    {
+      "begin": 1.72,
+      "end": 1.87,
+      "word": "stairs"
+    },
+    {
+      "begin": 1.89,
+      "end": 2.04,
+      "word": "at"
+    },
+    {
+      "begin": 2.06,
+      "end": 2.21,
+      "word": "dusk"
+    },
+    {
+      "begin": 2.23,
+      "end": 2.38,
+      "word": "The"
+    },
+    {
+      "begin": 2.4,
+      "end": 2.55,
+      "word": "lamp"
+    },
+    {
+      "begin": 2.57,
+      "end": 2.72,
+      "word": "turns"
+    },
+    {
+      "begin": 2.74,
+      "end": 2.89,
+      "word": "sweeping"
+    },
+    {
+      "begin": 2.91,
+      "end": 3.06,
+      "word": "gold"
+    },
+    {
+      "begin": 3.08,
+      "end": 3.23,
+      "word": "across"
+    },
+    {
+      "begin": 3.25,
+      "end": 3.4,
+      "word": "the"
+    },
+    {
+      "begin": 3.42,
+      "end": 3.57,
+      "word": "waves"
+    },
+    {
+      "begin": 3.59,
+      "end": 3.74,
+      "word": "Far"
+    },
+    {
+      "begin": 3.76,
+      "end": 3.91,
+      "word": "below"
+    },
+    {
+      "begin": 3.93,
+      "end": 4.08,
+      "word": "a"
+    },
+    {
+      "begin": 4.1,
+      "end": 4.25,
+      "word": "small"
+    },
+    {
+      "begin": 4.27,
+      "end": 4.42,
+      "word": "boat"
+    },
+    {
+      "begin": 4.44,
+      "end": 4.59,
+      "word": "finds"
+    },
+    {
+      "begin": 4.61,
+      "end": 4.76,
+      "word": "its"
+    },
+    {
+      "begin": 4.78,
+      "end": 4.93,
+      "word": "way"
+    },
+    {
+      "begin": 4.95,
+      "end": 5.1,
+      "word": "home"
+    },
+    {
+      "begin": 5.12,
+      "end": 5.27,
+      "word": "The"
+    },
+    {
+      "begin": 5.29,
+      "end": 5.44,
+      "word": "keeper"
+    },
+    {
+      "begin": 5.46,
+      "end": 5.61,
+      "word": "smiles"
+    },
+    {
+      "begin": 5.63,
+      "end": 5.78,
+      "word": "writes"
+    },
+    {
+      "begin": 5.8,
+      "end": 5.95,
+      "word": "the"
+    },
+    {
+      "begin": 5.97,
+      "end": 6.12,
+      "word": "date"
+    },
+    {
+      "begin": 6.14,
+      "end": 6.29,
+      "word": "in"
+    },
+    {
+      "begin": 6.31,
+      "end": 6.46,
+      "word": "the"
+    },
+    {
+      "begin": 6.48,
+      "end": 6.63,
+      "word": "log"
+    },
+    {
+      "begin": 6.65,
+      "end": 6.8,
+      "word": "and"
+    },
+    {
+      "begin": 6.82,
+      "end": 6.97,
+      "word": "watches"
+    },
+    {
+      "begin": 6.99,
+      "end": 7.14,
+      "word": "the"
+    },
+    {
+      "begin": 7.16,
+      "end": 7.31,
+      "word": "stars"
+    },
+    {
+      "begin": 7.33,
+      "end": 7.48,
+      "word": "arrive"
+    }
+  ],
+  "folder": "pm_SAMPLE",
+  "inference_time": 0.0,
+  "project_id": "pm_SAMPLE",
+  "source_file": "voice.wav",
+  "timestamp": "2026-01-01T00:00:00Z",
+  "transcript": "A lighthouse keeper climbs the spiral stairs at dusk. The lamp turns, sweeping gold across the waves. Far below, a small boat finds its way home. The keeper smiles, writes the date in the log, and watches the stars arrive.",
+  "word_count": 40
+}

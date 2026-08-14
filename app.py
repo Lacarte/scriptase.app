@@ -1,24 +1,27 @@
 """Flask entry point: application factory, blueprint registration, provider init.
 
-Scaffold only. Blueprints land as their packages do:
+Blueprints land as their packages do:
 
-* step 0.2 — engine and provider platform routes
+* step 0.2 — engine and provider platform routes  ← here
 * step 0.3 — media module blueprints
 * step 1.3 — Channel CRUD
 * step 2.x — Production view and stage projection
 
 Workflow and provider API routes stay loopback-only; they describe and mutate
-the credential store.
+the credential store. That check lives inside the blueprints themselves rather
+than here, so a route cannot be added that quietly skips it.
 """
 
 from __future__ import annotations
+
+import os
 
 from flask import Flask, jsonify
 
 import config
 
 
-def create_app() -> Flask:
+def create_app(*, discover_providers: bool = True) -> Flask:
     config.ensure_runtime_dirs()
 
     app = Flask(
@@ -26,17 +29,61 @@ def create_app() -> Flask:
         static_folder=str(config.STATIC_DIST_DIR),
         static_url_path="/static",
     )
+    app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB max request body
+
+    _configure_cors(app)
+    sock = _configure_sock(app)
 
     @app.get("/api/health")
     def health():
         return jsonify(status="ok", version=_version())
 
     register_blueprints(app)
+    if discover_providers:
+        init_provider_platform(app, sock)
     return app
 
 
 def register_blueprints(app: Flask) -> None:
     """Attach feature blueprints. Populated as packages land in Phase 0."""
+    from scriptase.engine.routes import workflows_bp
+    from scriptase.providers.routes import providers_bp
+
+    app.register_blueprint(workflows_bp)
+    app.register_blueprint(providers_bp)
+
+
+def init_provider_platform(app: Flask, sock) -> None:
+    """Discover every provider domain and bind extension runtimes."""
+    from loguru import logger
+
+    from scriptase.providers.hub import hub, init_providers
+
+    init_providers(app=app, sock=sock)
+    logger.info(
+        "[providers] {} domains: {}",
+        len(hub.domains()),
+        {domain: len(hub.registry(domain)) for domain in hub.domains()},
+    )
+
+
+def _configure_cors(app: Flask) -> None:
+    """Allow the Vite dev-server origins only. Production is same-origin."""
+    from flask_cors import CORS
+
+    raw = os.environ.get(
+        "SCRIPTASE_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    )
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    CORS(app, origins=origins or None)
+
+
+def _configure_sock(app: Flask):
+    """The WebSocket surface extension providers register their runtime on."""
+    from flask_sock import Sock
+
+    return Sock(app)
 
 
 def _version() -> str:
@@ -46,4 +93,15 @@ def _version() -> str:
 
 
 if __name__ == "__main__":
-    create_app().run(host=config.HOST, port=config.PORT, debug=config.DEBUG)
+    from scriptase.engine.scheduled_runs import schedule_service
+    from scriptase.engine.watch_folders import watch_folder_service
+
+    application = create_app()
+    # Trigger services start here in the dev server. Step 9.2 moves them behind
+    # an app-factory hook so they also run under a WSGI host — starting them
+    # under `__main__` only is the V2 defect that step records.
+    schedule_service.start()
+    watch_folder_service.start()
+    application.run(
+        host=config.HOST, port=config.PORT, debug=config.DEBUG, threaded=True
+    )

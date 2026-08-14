@@ -58,11 +58,19 @@ def test_package_imports(name):
 
 
 def test_config_paths_are_under_the_repo_root():
+    """Managed roots are absolute.
+
+    They are ``str`` rather than ``Path``: the engine and provider platform
+    ported in step 0.2 do ``os.path.join`` on them and the managed-path helpers
+    compare them as strings, and the ``output/`` layout has to stay
+    V2-compatible for the Phase 10 import.
+    """
     import config
 
     assert config.ROOT == ROOT
     for managed in config.MANAGED_ROOTS:
-        assert managed.is_absolute()
+        assert isinstance(managed, str), f"{managed!r} should be a str path"
+        assert Path(managed).is_absolute()
 
 
 def test_plan_documents_are_present():

@@ -1,0 +1,14 @@
+{
+  "artifact_refs": [
+    "media/music.wav"
+  ],
+  "ducking_enabled": true,
+  "ducking_level": 0.2,
+  "duration_seconds": 2.0,
+  "fade_in": 2.0,
+  "fade_out": 3.0,
+  "loop": true,
+  "title": "Sample Tone",
+  "track_ref": "media/music.wav",
+  "volume": 0.15
+}

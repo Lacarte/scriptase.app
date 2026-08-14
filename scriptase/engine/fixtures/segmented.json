@@ -1,0 +1,50 @@
+{
+  "config": {
+    "gap_filler": 0.3,
+    "hard_max": 5.0,
+    "hard_min": 0.8,
+    "target_max": 4.0,
+    "target_min": 1.5
+  },
+  "metadata": {
+    "aspect_ratio": "9:16",
+    "project_id": "pm_SAMPLE",
+    "segmented_at": "2026-01-01T00:00:00Z",
+    "source_folder": "pm_SAMPLE",
+    "style": "cinematic",
+    "total_duration": 8.0,
+    "transcript": "A lighthouse keeper climbs the spiral stairs at dusk. The lamp turns, sweeping gold across the waves. Far below, a small boat finds its way home. The keeper smiles, writes the date in the log, and watches the stars arrive."
+  },
+  "segments": [
+    {
+      "break_reason": "strong_break",
+      "duration": 1.51,
+      "end": 2.21,
+      "index": 0,
+      "is_filler": false,
+      "start": 0.7,
+      "word_count": 9,
+      "words": "A lighthouse keeper climbs the spiral stairs at dusk."
+    },
+    {
+      "break_reason": "strong_break",
+      "duration": 1.34,
+      "end": 3.57,
+      "index": 1,
+      "is_filler": false,
+      "start": 2.23,
+      "word_count": 8,
+      "words": "The lamp turns, sweeping gold across the waves."
+    },
+    {
+      "break_reason": "strong_break",
+      "duration": 3.89,
+      "end": 7.48,
+      "index": 2,
+      "is_filler": false,
+      "start": 3.59,
+      "word_count": 23,
+      "words": "Far below, a small boat finds its way home. The keeper smiles, writes the date in the log, and watches the stars arrive."
+    }
+  ]
+}

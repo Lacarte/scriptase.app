@@ -1,0 +1,57 @@
+{
+  "analysis": {
+    "core_theme": "A keeper's steady light guides a small boat home.",
+    "mood": "Calm, warm, hopeful.",
+    "tone": "gentle",
+    "visual_style": "Painterly coastal dusk with warm lamplight."
+  },
+  "project_id": "pm_SAMPLE",
+  "scenes": [
+    {
+      "duration": 2.23,
+      "image_prompt": "wide shot, a lighthouse keeper climbing a spiral staircase at dusk, warm lantern light on stone walls, deep blue evening sky through narrow windows",
+      "index": 0,
+      "narrative_role": "hook",
+      "segment_end": 2.21,
+      "segment_start": 0.7,
+      "segment_words": "A lighthouse keeper climbs the spiral stairs at dusk.",
+      "shot_type": "wide",
+      "timeline_end": 2.23,
+      "timeline_start": 0.0,
+      "title": "The Climb",
+      "type_of_scene": "video"
+    },
+    {
+      "duration": 1.36,
+      "image_prompt": "close-up, the great lighthouse lamp turning, a beam of golden light sweeping across dark rolling waves, spray catching the glow",
+      "index": 1,
+      "narrative_role": "escalation",
+      "segment_end": 3.57,
+      "segment_start": 2.23,
+      "segment_words": "The lamp turns, sweeping gold across the waves.",
+      "shot_type": "close",
+      "timeline_end": 3.59,
+      "timeline_start": 2.23,
+      "title": "The Beam",
+      "type_of_scene": "video"
+    },
+    {
+      "duration": 4.41,
+      "image_prompt": "aerial shot, a small fishing boat following the light home to a quiet harbor, stars appearing above a calm indigo sea",
+      "index": 2,
+      "narrative_role": "release",
+      "segment_end": 7.48,
+      "segment_start": 3.59,
+      "segment_words": "Far below, a small boat finds its way home. The keeper smiles, writes the date in the log, and watches the stars arrive.",
+      "shot_type": "aerial",
+      "timeline_end": 8.0,
+      "timeline_start": 3.59,
+      "title": "The Way Home",
+      "type_of_scene": "video"
+    }
+  ],
+  "source_folder": "pm_SAMPLE",
+  "style": "cinematic",
+  "timestamp": "2026-01-01T00:00:00Z",
+  "total_duration": 8.0
+}

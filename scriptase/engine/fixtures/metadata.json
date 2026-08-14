@@ -1,0 +1,37 @@
+{
+  "artifact_refs": [
+    "media/scene.mp4",
+    "media/scene.jpg"
+  ],
+  "errors": 0,
+  "project_id": "pm_SAMPLE",
+  "provider": "grok_automa",
+  "ready": 3,
+  "scenes": {
+    "0": {
+      "file_count": 1,
+      "local_files": [
+        "media/scene.mp4"
+      ],
+      "scene": "0",
+      "source_urls": []
+    },
+    "1": {
+      "file_count": 1,
+      "local_files": [
+        "media/scene.jpg"
+      ],
+      "scene": "1",
+      "source_urls": []
+    },
+    "2": {
+      "file_count": 1,
+      "local_files": [
+        "media/scene.mp4"
+      ],
+      "scene": "2",
+      "source_urls": []
+    }
+  },
+  "total": 3
+}

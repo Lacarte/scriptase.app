@@ -1,0 +1,18 @@
+{
+  "artifact_refs": [
+    "media/voice.wav"
+  ],
+  "duration_seconds": 8.0,
+  "filename": "voice.wav",
+  "folder": "pm_SAMPLE",
+  "model": "sample-fixture",
+  "project_id": "pm_SAMPLE",
+  "prompt": "A lighthouse keeper climbs the spiral stairs at dusk. The lamp turns, sweeping gold across the waves. Far below, a small boat finds its way home. The keeper smiles, writes the date in the log, and watches the stars arrive.",
+  "provider": "sample",
+  "sample_rate": 8000,
+  "speed": 1.0,
+  "timestamp": "2026-01-01T00:00:00Z",
+  "voice": "af_heart",
+  "wav_path": "media/voice.wav",
+  "words": 40
+}

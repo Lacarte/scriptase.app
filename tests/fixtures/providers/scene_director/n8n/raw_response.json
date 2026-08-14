@@ -1,0 +1,49 @@
+{
+  "analysis": {
+    "category": "mystery",
+    "story_tone": "mysterious",
+    "visual_style": "cinematic"
+  },
+  "scenes": [
+    {
+      "index": 0,
+      "title": "First Glimpse",
+      "narrative_role": "hook",
+      "type_of_scene": "video",
+      "image_prompt": "wide, lone figure noticing repeated symbols in a corridor, dim hallway, cool lighting, uneasy wonder, dust drifting, slow push-in, cinematic",
+      "text_content": null
+    },
+    {
+      "index": 1,
+      "title": "Everywhere",
+      "narrative_role": "buildup",
+      "type_of_scene": "video",
+      "image_prompt": "medium, same figure turning as repeated symbols appear in windows, urban interior, cool lighting, rising tension, reflections shifting, camera drift, cinematic",
+      "text_content": null
+    },
+    {
+      "index": 2,
+      "title": "Shift",
+      "narrative_role": "text_accent",
+      "type_of_scene": "text",
+      "image_prompt": "medium, blurred corridor with repeating symbols, same urban interior, cool lighting, ominous mood, cinematic",
+      "text_content": "THE SHIFT"
+    },
+    {
+      "index": 3,
+      "title": "Unseen",
+      "narrative_role": "peak",
+      "type_of_scene": "video",
+      "image_prompt": "close-up, figure staring at layered reflections, mirrored wall, cold lighting, intense unease, light flicker, breath tremor, cinematic",
+      "text_content": null
+    },
+    {
+      "index": 4,
+      "title": "What Else",
+      "narrative_role": "cta",
+      "type_of_scene": "image",
+      "image_prompt": "wide, same figure alone at the end of the corridor, dim institutional interior, cold lighting, lingering doubt, cinematic",
+      "text_content": null
+    }
+  ]
+}

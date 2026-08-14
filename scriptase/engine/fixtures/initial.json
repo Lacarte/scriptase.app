@@ -1,0 +1,414 @@
+{
+  "artifact_refs": [
+    "media/scene.mp4",
+    "media/scene.jpg",
+    "media/voice.wav",
+    "media/music.wav"
+  ],
+  "audio_tracks": [
+    {
+      "duckingEnabled": false,
+      "duckingLevel": 0.2,
+      "duration": 8.0,
+      "fadeIn": 0,
+      "fadeOut": 0,
+      "file": "voice.wav",
+      "id": "at_voice",
+      "label": "Voice",
+      "loop": false,
+      "muted": false,
+      "path": "media/voice.wav",
+      "startOffset": 0,
+      "timelineOffset": 0,
+      "trimmedDuration": null,
+      "type": "voice",
+      "volume": 1
+    },
+    {
+      "duckingEnabled": true,
+      "duckingLevel": 0.2,
+      "duration": 2.0,
+      "fadeIn": 2.0,
+      "fadeOut": 3.0,
+      "file": "music.wav",
+      "id": "at_music",
+      "label": "Music",
+      "loop": true,
+      "muted": false,
+      "path": "media/music.wav",
+      "startOffset": 0,
+      "timelineOffset": 0,
+      "trimmedDuration": null,
+      "type": "music",
+      "volume": 0.15
+    }
+  ],
+  "captions": [
+    {
+      "end": 1.19,
+      "start": 0.7,
+      "text": "A lighthouse keeper",
+      "words": [
+        {
+          "begin": 0.7,
+          "end": 0.85,
+          "word": "A"
+        },
+        {
+          "begin": 0.87,
+          "end": 1.02,
+          "word": "lighthouse"
+        },
+        {
+          "begin": 1.04,
+          "end": 1.19,
+          "word": "keeper"
+        }
+      ]
+    },
+    {
+      "end": 1.7,
+      "start": 1.21,
+      "text": "climbs the spiral",
+      "words": [
+        {
+          "begin": 1.21,
+          "end": 1.36,
+          "word": "climbs"
+        },
+        {
+          "begin": 1.38,
+          "end": 1.53,
+          "word": "the"
+        },
+        {
+          "begin": 1.55,
+          "end": 1.7,
+          "word": "spiral"
+        }
+      ]
+    },
+    {
+      "end": 2.21,
+      "start": 1.72,
+      "text": "stairs at dusk",
+      "words": [
+        {
+          "begin": 1.72,
+          "end": 1.87,
+          "word": "stairs"
+        },
+        {
+          "begin": 1.89,
+          "end": 2.04,
+          "word": "at"
+        },
+        {
+          "begin": 2.06,
+          "end": 2.21,
+          "word": "dusk"
+        }
+      ]
+    },
+    {
+      "end": 2.72,
+      "start": 2.23,
+      "text": "The lamp turns",
+      "words": [
+        {
+          "begin": 2.23,
+          "end": 2.38,
+          "word": "The"
+        },
+        {
+          "begin": 2.4,
+          "end": 2.55,
+          "word": "lamp"
+        },
+        {
+          "begin": 2.57,
+          "end": 2.72,
+          "word": "turns"
+        }
+      ]
+    },
+    {
+      "end": 3.23,
+      "start": 2.74,
+      "text": "sweeping gold across",
+      "words": [
+        {
+          "begin": 2.74,
+          "end": 2.89,
+          "word": "sweeping"
+        },
+        {
+          "begin": 2.91,
+          "end": 3.06,
+          "word": "gold"
+        },
+        {
+          "begin": 3.08,
+          "end": 3.23,
+          "word": "across"
+        }
+      ]
+    },
+    {
+      "end": 3.74,
+      "start": 3.25,
+      "text": "the waves Far",
+      "words": [
+        {
+          "begin": 3.25,
+          "end": 3.4,
+          "word": "the"
+        },
+        {
+          "begin": 3.42,
+          "end": 3.57,
+          "word": "waves"
+        },
+        {
+          "begin": 3.59,
+          "end": 3.74,
+          "word": "Far"
+        }
+      ]
+    },
+    {
+      "end": 4.25,
+      "start": 3.76,
+      "text": "below a small",
+      "words": [
+        {
+          "begin": 3.76,
+          "end": 3.91,
+          "word": "below"
+        },
+        {
+          "begin": 3.93,
+          "end": 4.08,
+          "word": "a"
+        },
+        {
+          "begin": 4.1,
+          "end": 4.25,
+          "word": "small"
+        }
+      ]
+    },
+    {
+      "end": 4.76,
+      "start": 4.27,
+      "text": "boat finds its",
+      "words": [
+        {
+          "begin": 4.27,
+          "end": 4.42,
+          "word": "boat"
+        },
+        {
+          "begin": 4.44,
+          "end": 4.59,
+          "word": "finds"
+        },
+        {
+          "begin": 4.61,
+          "end": 4.76,
+          "word": "its"
+        }
+      ]
+    },
+    {
+      "end": 5.27,
+      "start": 4.78,
+      "text": "way home The",
+      "words": [
+        {
+          "begin": 4.78,
+          "end": 4.93,
+          "word": "way"
+        },
+        {
+          "begin": 4.95,
+          "end": 5.1,
+          "word": "home"
+        },
+        {
+          "begin": 5.12,
+          "end": 5.27,
+          "word": "The"
+        }
+      ]
+    },
+    {
+      "end": 5.78,
+      "start": 5.29,
+      "text": "keeper smiles writes",
+      "words": [
+        {
+          "begin": 5.29,
+          "end": 5.44,
+          "word": "keeper"
+        },
+        {
+          "begin": 5.46,
+          "end": 5.61,
+          "word": "smiles"
+        },
+        {
+          "begin": 5.63,
+          "end": 5.78,
+          "word": "writes"
+        }
+      ]
+    },
+    {
+      "end": 6.29,
+      "start": 5.8,
+      "text": "the date in",
+      "words": [
+        {
+          "begin": 5.8,
+          "end": 5.95,
+          "word": "the"
+        },
+        {
+          "begin": 5.97,
+          "end": 6.12,
+          "word": "date"
+        },
+        {
+          "begin": 6.14,
+          "end": 6.29,
+          "word": "in"
+        }
+      ]
+    },
+    {
+      "end": 6.8,
+      "start": 6.31,
+      "text": "the log and",
+      "words": [
+        {
+          "begin": 6.31,
+          "end": 6.46,
+          "word": "the"
+        },
+        {
+          "begin": 6.48,
+          "end": 6.63,
+          "word": "log"
+        },
+        {
+          "begin": 6.65,
+          "end": 6.8,
+          "word": "and"
+        }
+      ]
+    },
+    {
+      "end": 7.31,
+      "start": 6.82,
+      "text": "watches the stars",
+      "words": [
+        {
+          "begin": 6.82,
+          "end": 6.97,
+          "word": "watches"
+        },
+        {
+          "begin": 6.99,
+          "end": 7.14,
+          "word": "the"
+        },
+        {
+          "begin": 7.16,
+          "end": 7.31,
+          "word": "stars"
+        }
+      ]
+    },
+    {
+      "end": 7.48,
+      "start": 7.33,
+      "text": "arrive",
+      "words": [
+        {
+          "begin": 7.33,
+          "end": 7.48,
+          "word": "arrive"
+        }
+      ]
+    }
+  ],
+  "captionsEnabled": true,
+  "disabled_tracks": [],
+  "edit_history": [],
+  "grain_overlay": false,
+  "history_index": -1,
+  "project_id": "pm_SAMPLE",
+  "project_name": "Sample Project",
+  "saved_at": "2026-01-01T00:00:00Z",
+  "scene_count": 3,
+  "scenes": [
+    {
+      "duration": 2.23,
+      "effect": {
+        "type": "none"
+      },
+      "id": 0,
+      "image": "",
+      "image_prompt": "wide shot, a lighthouse keeper climbing a spiral staircase at dusk, warm lantern light on stone walls, deep blue evening sky through narrow windows",
+      "mediaUrl": "media/scene.mp4",
+      "scene_id": 0,
+      "scene_type": "hook",
+      "transition": {
+        "duration": 0,
+        "type": "none"
+      },
+      "type": "video",
+      "visual_fx": "static"
+    },
+    {
+      "duration": 1.36,
+      "effect": {
+        "type": "none"
+      },
+      "id": 1,
+      "image": "",
+      "image_prompt": "close-up, the great lighthouse lamp turning, a beam of golden light sweeping across dark rolling waves, spray catching the glow",
+      "mediaUrl": "media/scene.jpg",
+      "scene_id": 1,
+      "scene_type": "escalation",
+      "transition": {
+        "duration": 0,
+        "type": "none"
+      },
+      "type": "image",
+      "visual_fx": "static"
+    },
+    {
+      "duration": 4.41,
+      "effect": {
+        "type": "none"
+      },
+      "id": 2,
+      "image": "",
+      "image_prompt": "aerial shot, a small fishing boat following the light home to a quiet harbor, stars appearing above a calm indigo sea",
+      "mediaUrl": "media/scene.mp4",
+      "scene_id": 2,
+      "scene_type": "release",
+      "transition": {
+        "duration": 0,
+        "type": "none"
+      },
+      "type": "video",
+      "visual_fx": "static"
+    }
+  ],
+  "source_folder": "pm_SAMPLE",
+  "style": "cinematic",
+  "total_duration": 8.0
+}

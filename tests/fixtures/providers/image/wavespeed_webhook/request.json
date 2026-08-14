@@ -1,0 +1,9 @@
+{
+  "scenes": [
+    {"index": 0, "prompt": "A lighthouse at dusk, spiral stairs, warm lamp glow"},
+    {"index": 1, "prompt": "The lamp turns, gold light sweeping across dark waves"},
+    {"index": 2, "prompt": "A small boat finding its way home under first stars"}
+  ],
+  "aspect_ratio": "9:16",
+  "style": "cinematic"
+}

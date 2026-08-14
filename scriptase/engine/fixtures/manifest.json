@@ -1,0 +1,184 @@
+{
+  "canonical_audio_seconds": 8.0,
+  "files": {
+    "alignment.json": {
+      "bytes": 3401,
+      "port_types": [
+        "alignment"
+      ],
+      "sha256": "64b18652f009dcce4b9cb12e88a9911fa603e7f0121713018a0d17fb011a9a32"
+    },
+    "audio_file.json": {
+      "bytes": 186,
+      "port_types": [
+        "audio_file"
+      ],
+      "sha256": "b81e3810b3f8415a36dabaa53daab02d909013d2f28bf971a2776a3c8bb1a872"
+    },
+    "captions.json": {
+      "bytes": 5404,
+      "port_types": [
+        "captions"
+      ],
+      "sha256": "f6d2e931c2aea178078db074544571f53d973249517023afe801131248a59fee"
+    },
+    "image_prompts.json": {
+      "bytes": 610,
+      "port_types": [
+        "image_prompts"
+      ],
+      "sha256": "1208e28251b34a1ec7f65838c9f7631f75f565c1b720dbabf2793e4fdf51108e"
+    },
+    "initial.json": {
+      "bytes": 8105,
+      "port_types": [
+        "editor_project"
+      ],
+      "sha256": "fe69fd383293e4fcf0bc178e3518c185fe68a98209493521c51a3f5e0f417e64"
+    },
+    "media/logo.png": {
+      "bytes": 460,
+      "media": {
+        "height": 64,
+        "kind": "image/png",
+        "width": 64
+      },
+      "port_types": [
+        "project_settings"
+      ],
+      "sha256": "091c085ba7cb1cd7ea3bd03f3a7d79eb96e7ac0f1ed3f292d655609d2adbaa47"
+    },
+    "media/music.wav": {
+      "bytes": 32044,
+      "media": {
+        "duration_seconds": 2.0,
+        "kind": "audio/wav",
+        "sample_rate": 8000
+      },
+      "port_types": [
+        "music_track"
+      ],
+      "sha256": "efe125c87ef3e41315789510652a6fcc095ec9950b98505d4de3de2e0842e7f4"
+    },
+    "media/scene.jpg": {
+      "bytes": 1320,
+      "media": {
+        "height": 160,
+        "kind": "image/jpeg",
+        "width": 90
+      },
+      "port_types": [
+        "animation_assets",
+        "editor_project"
+      ],
+      "sha256": "6b3e9ca9d218690344c5b3550a3514d707f90c05ab052836da3cb5351c9f4cdd"
+    },
+    "media/scene.mp4": {
+      "bytes": 1706,
+      "media": {
+        "duration_seconds": 1.0,
+        "height": 160,
+        "kind": "video/mp4",
+        "width": 90
+      },
+      "port_types": [
+        "animation_assets",
+        "editor_project",
+        "video_file"
+      ],
+      "sha256": "2ac456437197e3310ebe41355c9768b9b245c2380488243a48b17ca2dbc34cb5"
+    },
+    "media/storyboard.png": {
+      "bytes": 576,
+      "media": {
+        "height": 160,
+        "kind": "image/png",
+        "width": 90
+      },
+      "port_types": [
+        "storyboard_images"
+      ],
+      "sha256": "3d6acf56ca1fd25a27d1cffc2f46979ebaa08fd5c0a513acb67a43fa7ddb1acb"
+    },
+    "media/voice.wav": {
+      "bytes": 128044,
+      "media": {
+        "duration_seconds": 8.0,
+        "kind": "audio/wav",
+        "sample_rate": 8000
+      },
+      "port_types": [
+        "audio_file",
+        "tts_metadata"
+      ],
+      "sha256": "776c8a6c0c1dddcd7b33190e32502cee1c4256eb407097e294d003e1bc9e1263"
+    },
+    "metadata.json": {
+      "bytes": 622,
+      "port_types": [
+        "animation_assets"
+      ],
+      "sha256": "7196b9435f5f7086659e42fd0f18455fdd064bc152d4e6eae96bfe473eb9f503"
+    },
+    "music_track.json": {
+      "bytes": 260,
+      "port_types": [
+        "music_track"
+      ],
+      "sha256": "04ac7f95ecc125686cb8ec81643aae8c247167928c9dc67bb659235a16627e34"
+    },
+    "project_settings.json": {
+      "bytes": 385,
+      "port_types": [
+        "project_settings"
+      ],
+      "sha256": "22ef075a568294d5d129644e1468c03656c1fa13431a578903fe380632a99046"
+    },
+    "scenes.json": {
+      "bytes": 2028,
+      "port_types": [
+        "scenes"
+      ],
+      "sha256": "f4b94019efb5af373030b4d0c5d8b270a13f6c4d76526cd92355c9928089f1e9"
+    },
+    "script.json": {
+      "bytes": 288,
+      "port_types": [
+        "text",
+        "script"
+      ],
+      "sha256": "236e93c0171370eee3459bbe582aae8dd2f9def76b88ee78d81d04190f44267a"
+    },
+    "segmented.json": {
+      "bytes": 1426,
+      "port_types": [
+        "segments"
+      ],
+      "sha256": "c4c431938aa3c43cfdf6e769be724b65519dca71e7cf6f5523829561811fb9a5"
+    },
+    "storyboard.json": {
+      "bytes": 533,
+      "port_types": [
+        "storyboard_images"
+      ],
+      "sha256": "dc35a2650ee717da233729d51c88815043cd4ec661d2809beddfb865fbc91db3"
+    },
+    "tts.json": {
+      "bytes": 599,
+      "port_types": [
+        "tts_metadata"
+      ],
+      "sha256": "862b866c60d612b0dde1499be2ad5d8d96427083054edaee571e65d5a6fdbf70"
+    },
+    "video_file.json": {
+      "bytes": 106,
+      "port_types": [
+        "video_file"
+      ],
+      "sha256": "dd9b2d79f4baf634686650a5a5c06d79eb7cd066068c94b1190b03da60bf029e"
+    }
+  },
+  "fixture_schema_version": 1,
+  "generated_by": "scriptase/engine/fixtures/generate.py",
+  "project_id": "pm_SAMPLE"
+}

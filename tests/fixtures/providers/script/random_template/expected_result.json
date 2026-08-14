@@ -1,0 +1,48 @@
+{
+  "result_version": 1,
+  "domain": "script",
+  "provider_id": "random_template",
+  "provider_version": "1.0.0",
+  "contract_version": 1,
+  "status": "succeeded",
+  "payload": {
+    "script_text": "Once upon a time, there was a boy who planted a seed and nothing grew. He watered it every day for a week. Nothing. Two weeks. Nothing. A month. His friends laughed and said it was a dud. But the boy kept watering. After three months, the tiniest green sprout appeared. After a year, it was a sapling. After ten years, it was the tallest tree in the village, and families came from everywhere to sit in its shade and eat picnics beneath its branches. An old woman asked the boy, now a young man, what his secret was. He said, \"I just didn't stop on the day before it was going to work.\"",
+    "sections": {},
+    "word_count": 114,
+    "estimated_duration_s": 46,
+    "language": "english",
+    "document_ref": "stories/pm_SAMPLE/story.json"
+  },
+  "artifact_refs": [
+    "stories/pm_SAMPLE/story.json"
+  ],
+  "units": [],
+  "metadata": {
+    "preset_style": "cinematic",
+    "story_category": "Children's Story",
+    "story_tone": "",
+    "duration": 45,
+    "template_type": "Children's Story",
+    "template_styles": "children_storybook,watercolor",
+    "template_index": 57,
+    "seed": 42,
+    "timestamp": "2026-01-01T00:00:00+00:00"
+  },
+  "warnings": [],
+  "provenance": {
+    "invocation_id": "",
+    "domain": "",
+    "provider_id": "",
+    "provider_version": "",
+    "contract_version": 1,
+    "settings_version": 0,
+    "resolved_settings_redacted": {},
+    "options": {},
+    "selection_reason": "default",
+    "started_at": "",
+    "finished_at": "",
+    "duration_ms": 0,
+    "cache_hit": false
+  },
+  "job": null
+}

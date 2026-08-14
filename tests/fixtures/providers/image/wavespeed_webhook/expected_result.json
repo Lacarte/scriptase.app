@@ -1,0 +1,71 @@
+{
+  "result_version": 1,
+  "domain": "image",
+  "provider_id": "wavespeed_webhook",
+  "provider_version": "1.0.0",
+  "contract_version": 1,
+  "status": "partial",
+  "payload": {
+    "total": 3,
+    "ready": 2,
+    "errors": 1,
+    "manifest_ref": "storyboard/pm_SAMPLE/storyboard.json"
+  },
+  "artifact_refs": [
+    "storyboard/pm_SAMPLE/0/image.png",
+    "storyboard/pm_SAMPLE/1/image.png",
+    "storyboard/pm_SAMPLE/storyboard.json"
+  ],
+  "units": [
+    {
+      "unit_index": 0,
+      "state": "succeeded",
+      "artifact_refs": [
+        "storyboard/pm_SAMPLE/0/image.png"
+      ],
+      "metadata": {
+        "thumbnail_ref": "storyboard/pm_SAMPLE/0/thumb.jpg"
+      }
+    },
+    {
+      "unit_index": 1,
+      "state": "succeeded",
+      "artifact_refs": [
+        "storyboard/pm_SAMPLE/1/image.png"
+      ],
+      "metadata": {
+        "thumbnail_ref": "storyboard/pm_SAMPLE/1/thumb.jpg"
+      }
+    },
+    {
+      "unit_index": 2,
+      "state": "failed",
+      "artifact_refs": [],
+      "metadata": {},
+      "error": {
+        "code": "PROVIDER_UNIT_FAILED",
+        "message": "Webhook returned 500: upstream render pool exhausted",
+        "retryable": true,
+        "recovery_suggestion": "Review the provider settings and inputs, then retry the node."
+      }
+    }
+  ],
+  "metadata": {},
+  "warnings": [],
+  "provenance": {
+    "invocation_id": "",
+    "domain": "",
+    "provider_id": "",
+    "provider_version": "",
+    "contract_version": 1,
+    "settings_version": 0,
+    "resolved_settings_redacted": {},
+    "options": {},
+    "selection_reason": "default",
+    "started_at": "",
+    "finished_at": "",
+    "duration_ms": 0,
+    "cache_hit": false
+  },
+  "job": null
+}

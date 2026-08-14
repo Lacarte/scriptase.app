@@ -12,7 +12,11 @@ pydantic>=2.6
 pytest>=8.0
 
 # --- Added in step 0.2: engine + provider platform ---------------------------
-# requests, python-dotenv, jsonschema
+loguru>=0.7          # redacted logging on every provider boundary
+requests>=2.31       # webhook and direct-API provider transports
+flask-cors>=4.0      # dev-server origins for the Vite frontend
+flask-sock>=0.7      # extension-provider WebSocket runtimes
+pillow>=10.0         # managed-upload image type/size validation
 
 # --- Added in step 0.3: media modules ----------------------------------------
 # stable-ts / openai-whisper (timing), moviepy or direct ffmpeg (compose),

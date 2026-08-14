@@ -1,0 +1,14 @@
+{
+  "script": "You notice the pattern for the first time. Then it starts appearing everywhere around you. That is when the story shifts. Now you cannot unsee it. What else have you been missing?",
+  "segments": [
+    {"index": 0, "words": "You notice the pattern for the first time."},
+    {"index": 1, "words": "Then it starts appearing everywhere around you."},
+    {"index": 2, "words": "That is when the story shifts."},
+    {"index": 3, "words": "Now you cannot unsee it."},
+    {"index": 4, "words": "What else have you been missing?"}
+  ],
+  "style": "cinematic",
+  "style_notes": "",
+  "tone": "mysterious",
+  "aspect_ratio": "9:16"
+}

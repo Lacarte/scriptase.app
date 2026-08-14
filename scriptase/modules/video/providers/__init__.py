@@ -1,0 +1,12 @@
+"""Animator provider package — compatibility facade over the provider hub.
+
+The registry, discovery, and lookup logic lives in
+`scriptase.providers.hub`; this module only binds the `animator` domain
+and keeps the historical import surface working.
+"""
+
+from scriptase.providers.hub import bind_domain
+
+registry, discover, get_provider, list_providers, init_animator_registry = bind_domain('video')
+
+__all__ = ['registry', 'discover', 'get_provider', 'list_providers', 'init_animator_registry']

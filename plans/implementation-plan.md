@@ -75,6 +75,24 @@ emits an absolute `"path"`, violating the rule its TTS adapter enforces. Do **no
 `pipeline/routes.py`, the legacy step pages, the dead provider ABC layer, or
 `providers_common/http_client.py`.
 
+Handed over by 0.2, which ported each domain's `providers/` package and the modules those
+import at module scope so the platform could register and validate providers at all:
+
+- **Restore five deferred test modules** from V2 with the code they exercise —
+  `test_workflow_adapters`, `test_workflow_utilities`, `test_provider_first_execution`,
+  `test_provider_platform_gate`, `test_provider_transports` — plus
+  `BlueprintRegistrationTests` (`test_provider_api`) and `AppConfigKeyRetirementTests`
+  (`test_provider_cleanup`), both of which register `editor_bp` and so must be rewritten
+  against the split blueprints rather than restored verbatim.
+- **Close the two `routes.py` imports the port carried in**:
+  `video/providers/grok_automa` reaches into `video/routes` for its WebSocket runtime, and
+  `scene_director/service` imports three helpers from its own `routes`.
+- **Re-add `pipeline/services.py`'s successor to `AUDITED_SURFACES`** in
+  `test_provider_extensibility`, at whatever path the `_step_*` functions land.
+- **Relocate `scriptase/modules/pipeline`** — 0.2 renamed the four adapter imports of
+  `studio.pipeline.services` mechanically rather than guessing their 0.3 homes.
+- **Retire `modules/niches/`** — 1.3 migrates the presets into starter Channels.
+
 **Done when:** no module imports business logic from a `routes.py`, a test proves no port payload contains an absolute filesystem path, and the ported adapter suite is green.
 
 ### 0.4 Contract freeze and gate

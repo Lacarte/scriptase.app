@@ -1,0 +1,10 @@
+{
+  "artifact_refs": [
+    "media/voice.wav"
+  ],
+  "duration_seconds": 8.0,
+  "filename": "voice.wav",
+  "folder": "pm_SAMPLE",
+  "sample_rate": 8000,
+  "wav_path": "media/voice.wav"
+}

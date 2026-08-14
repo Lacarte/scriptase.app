@@ -40,7 +40,32 @@ Tests that call a real provider are behind `@pytest.mark.live` and run only with
 
 ## Documentation
 
+Plans and contracts:
+
 - `plans/proposition-final.md` — authoritative specification
 - `plans/implementation-plan.md` — phase and step breakdown
 - `plans/contracts.md` — frozen machine contracts
 - `CLAUDE.md` — working notes and non-negotiables for contributors and agents
+
+Building workflows:
+
+- [`docs/workflow-guide.md`](docs/workflow-guide.md) — building and running a workflow
+- [`docs/workflow-nodes.md`](docs/workflow-nodes.md) — node reference (generated)
+- [`docs/workflow-node-author-guide.md`](docs/workflow-node-author-guide.md) — adding a node
+- [`docs/workflow-canvas-performance.md`](docs/workflow-canvas-performance.md) — canvas performance notes
+
+Building providers:
+
+- [`docs/providers.md`](docs/providers.md) — provider reference (generated)
+- [`docs/provider-author-guide.md`](docs/provider-author-guide.md) — adding a provider, including
+  its troubleshooting section
+- [`docs/provider-template/`](docs/provider-template/) — copy-paste starting point
+
+The four generated references are rewritten from the live registry and provider hub.
+Regenerate them, and fail the build on drift, with:
+
+```bash
+venv/Scripts/python.exe -m scriptase.engine.docs             # rewrite all four
+venv/Scripts/python.exe -m scriptase.engine.docs --check     # node-doc drift gate
+venv/Scripts/python.exe -m scriptase.providers.docs --check  # provider-doc drift gate
+```

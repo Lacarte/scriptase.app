@@ -1,0 +1,60 @@
+{
+  "result_version": 1,
+  "domain": "video",
+  "provider_id": "kie_ai",
+  "provider_version": "1.0.0",
+  "contract_version": 1,
+  "status": "partial",
+  "payload": {
+    "total": 2,
+    "ready": 1,
+    "errors": 1,
+    "manifest_ref": "animator/pm_SAMPLE/grabber_job.json"
+  },
+  "artifact_refs": [
+    "animator/pm_SAMPLE/0/aaaa-0000.mp4",
+    "animator/pm_SAMPLE/grabber_job.json"
+  ],
+  "units": [
+    {
+      "unit_index": 0,
+      "state": "succeeded",
+      "artifact_refs": [
+        "animator/pm_SAMPLE/0/aaaa-0000.mp4"
+      ],
+      "metadata": {
+        "kind": "video"
+      }
+    },
+    {
+      "unit_index": 1,
+      "state": "failed",
+      "artifact_refs": [],
+      "metadata": {},
+      "error": {
+        "code": "PROVIDER_UNIT_FAILED",
+        "message": "Kie AI task timed out after 180s",
+        "retryable": true,
+        "recovery_suggestion": "Review the provider settings and inputs, then retry the node."
+      }
+    }
+  ],
+  "metadata": {},
+  "warnings": [],
+  "provenance": {
+    "invocation_id": "",
+    "domain": "",
+    "provider_id": "",
+    "provider_version": "",
+    "contract_version": 1,
+    "settings_version": 0,
+    "resolved_settings_redacted": {},
+    "options": {},
+    "selection_reason": "default",
+    "started_at": "",
+    "finished_at": "",
+    "duration_ms": 0,
+    "cache_hit": false
+  },
+  "job": null
+}

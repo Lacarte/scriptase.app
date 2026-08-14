@@ -1,0 +1,30 @@
+{
+  "project_id": "pm_SAMPLE",
+  "status": "done",
+  "total": 3,
+  "ready": 2,
+  "errors": 1,
+  "aspect_ratio": "9:16",
+  "created_at": "2026-01-01T00:00:00Z",
+  "completed_at": "2026-01-01T00:00:00Z",
+  "scene_statuses": {
+    "0": {
+      "status": "ready",
+      "image_url": "https://cdn.example.invalid/generated/scene-0.png",
+      "local_path": "/output/storyboard/pm_SAMPLE/0/image.png",
+      "thumb_path": "/output/storyboard/pm_SAMPLE/0/thumb.jpg"
+    },
+    "1": {
+      "status": "ready",
+      "image_url": "https://cdn.example.invalid/generated/scene-1.png",
+      "local_path": "/output/storyboard/pm_SAMPLE/1/image.png",
+      "thumb_path": "/output/storyboard/pm_SAMPLE/1/thumb.jpg"
+    },
+    "2": {
+      "status": "error",
+      "image_url": null,
+      "local_path": null,
+      "error": "Webhook returned 500: upstream render pool exhausted"
+    }
+  }
+}

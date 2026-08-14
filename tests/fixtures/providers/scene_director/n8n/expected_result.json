@@ -1,0 +1,103 @@
+{
+  "result_version": 1,
+  "domain": "scene_director",
+  "provider_id": "n8n",
+  "provider_version": "1.0.0",
+  "contract_version": 1,
+  "status": "succeeded",
+  "payload": {
+    "scenes": [
+      {
+        "index": 0,
+        "title": "First Glimpse",
+        "narrative_role": "hook",
+        "type_of_scene": "video",
+        "image_prompt": "wide, lone figure noticing repeated symbols in a corridor, dim hallway, cool lighting, uneasy wonder, dust drifting, slow push-in, cinematic",
+        "text_content": null
+      },
+      {
+        "index": 1,
+        "title": "Everywhere",
+        "narrative_role": "buildup",
+        "type_of_scene": "video",
+        "image_prompt": "medium, same figure turning as repeated symbols appear in windows, urban interior, cool lighting, rising tension, reflections shifting, camera drift, cinematic",
+        "text_content": null
+      },
+      {
+        "index": 2,
+        "title": "Shift",
+        "narrative_role": "text_accent",
+        "type_of_scene": "text",
+        "image_prompt": "medium, blurred corridor with repeating symbols, same urban interior, cool lighting, ominous mood, cinematic",
+        "text_content": "THE SHIFT"
+      },
+      {
+        "index": 3,
+        "title": "Unseen",
+        "narrative_role": "peak",
+        "type_of_scene": "video",
+        "image_prompt": "close-up, figure staring at layered reflections, mirrored wall, cold lighting, intense unease, light flicker, breath tremor, cinematic",
+        "text_content": null
+      },
+      {
+        "index": 4,
+        "title": "What Else",
+        "narrative_role": "cta",
+        "type_of_scene": "image",
+        "image_prompt": "wide, same figure alone at the end of the corridor, dim institutional interior, cold lighting, lingering doubt, cinematic",
+        "text_content": null
+      }
+    ],
+    "style_spec": {
+      "id": "cinematic",
+      "label": "Cinematic"
+    },
+    "style_prompt": "cinematic realistic",
+    "analysis": {
+      "category": "mystery",
+      "story_tone": "mysterious",
+      "visual_style": "cinematic"
+    },
+    "coherence": {
+      "score": 0.92,
+      "warnings": [],
+      "metrics": {
+        "role_mismatches": 0
+      }
+    },
+    "sfx_report": {
+      "hint_count": 0,
+      "hint_max": 3,
+      "hint_min": 0,
+      "dropped": 0
+    },
+    "total_duration_s": 12.5,
+    "document_ref": "scenes/pm_SAMPLE/scenes.json"
+  },
+  "artifact_refs": [
+    "scenes/pm_SAMPLE/scenes.json"
+  ],
+  "units": [],
+  "metadata": {
+    "style": "cinematic",
+    "generation_time": 2.5,
+    "timestamp": "2026-01-01T00:00:00+00:00"
+  },
+  "warnings": [],
+  "provenance": {
+    "invocation_id": "",
+    "domain": "",
+    "provider_id": "",
+    "provider_version": "",
+    "contract_version": 1,
+    "settings_version": 0,
+    "resolved_settings_redacted": {},
+    "options": {},
+    "selection_reason": "default",
+    "started_at": "",
+    "finished_at": "",
+    "duration_ms": 0,
+    "cache_hit": false
+  },
+  "job": null
+}

@@ -1,0 +1,19 @@
+{
+  "artifact_refs": [
+    "media/logo.png"
+  ],
+  "aspect_ratio": "9:16",
+  "channel_name": "Sample Channel",
+  "logo": {
+    "filename": "logo.png",
+    "path": "media/logo.png"
+  },
+  "logo_enabled": true,
+  "logo_margin": 32,
+  "logo_opacity": 0.9,
+  "logo_position": "top_right",
+  "logo_size": 10,
+  "project_name": "Sample Project",
+  "style": "cinematic",
+  "tone": "gentle"
+}

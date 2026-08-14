@@ -1,0 +1,99 @@
+"""Node configuration migrations for the provider conversion (step 12.3).
+
+The complete, frozen set of `type_version` bumps the provider platform is
+permitted to make is contracts.md §41.3. This module ships M1–M3; M4
+(`story.generate`, `scenes.blueprint`) is deliberately *not* here, because a
+non-mutating read fallback in the adapter is enough for a key that is new and
+optional — `setdefault` would change the fingerprinted configuration and
+invalidate exactly the cache it is meant to preserve.
+
+Every function is a pure `dict -> dict`. It receives a deep copy from
+`migrate_workflow`, so mutating and returning the argument is safe, and it must
+not touch files, settings, or the provider registry: a migration has to produce
+the same result on a machine where the provider was never installed.
+
+The fallback ids are today's *effective* defaults, taken from the v1 schema —
+not from the domain catalog. A workflow saved before this step ran on the node's
+own default, so reproducing it byte-for-byte means using that value even where
+the domain default now differs (the `image` domain defaults to `gemini_ws`,
+while a v1 `storyboard.generate` with no explicit `provider` ran
+`wavespeed_webhook`).
+
+Function names track the *node type* (`storyboard.generate`, `animator.generate`),
+which step 0.2 deliberately does not rename — a saved workflow stores the node
+type, and the graph contract has to survive the port. Only the `domain` argument
+moved to the renamed provider domains.
+"""
+
+from __future__ import annotations
+
+from scriptase.providers.compatibility import normalize_selection_alias
+
+# The v1 config-schema defaults, frozen here so a later registry edit cannot
+# silently change what an old workflow migrates to.
+TTS_V1_DEFAULT_ENGINE = "kokoro"
+STORYBOARD_V1_DEFAULT_PROVIDER = "wavespeed_webhook"
+ANIMATOR_V1_DEFAULT_PROVIDER = "grok_automa"
+
+# Keys the node used to own that now belong to the provider's own settings.
+# Only keys actually present are moved: inventing one would write a value the
+# saved workflow never had.
+STORYBOARD_V1_PROVIDER_KEYS = ("prompt_prefix", "auto_type")
+ANIMATOR_V1_PROVIDER_KEYS = ("mode", "quality", "duration", "auto_type")
+
+
+def _rename_provider(config: dict, legacy_key: str, default: str, *, domain: str) -> None:
+    """Pop the legacy key and persist the *canonical* provider id.
+
+    A saved v1 document may still carry a wire alias (`webhook`, `grok`, …).
+    contracts.md §40.3 rule 1: only the canonical id is written after upgrade.
+    """
+    raw = config.pop(legacy_key, default)
+    if not isinstance(raw, str) or not raw.strip():
+        raw = default
+    config["provider_id"] = normalize_selection_alias(raw, domain=domain)
+
+
+def _move_to_provider_options(config: dict, keys) -> None:
+    """Move present `keys` into `provider_options` without clobbering it.
+
+    An existing `provider_options` entry wins: it was written against the
+    provider explicitly and is the more specific value.
+    """
+    options = config.get("provider_options")
+    options = dict(options) if isinstance(options, dict) else {}
+    for key in keys:
+        if key in config:
+            options.setdefault(key, config.pop(key))
+    config["provider_options"] = options
+
+
+def tts_generate_1_to_2(config: dict) -> dict:
+    """M1 — `engine` becomes `provider_id`; `voice`/`speed`/options untouched."""
+    _rename_provider(config, "engine", TTS_V1_DEFAULT_ENGINE, domain="tts")
+    return config
+
+
+def storyboard_generate_1_to_2(config: dict) -> dict:
+    """M2 — `provider` becomes `provider_id`; the gemini_ws fields move."""
+    _rename_provider(
+        config, "provider", STORYBOARD_V1_DEFAULT_PROVIDER, domain="image"
+    )
+    _move_to_provider_options(config, STORYBOARD_V1_PROVIDER_KEYS)
+    return config
+
+
+def animator_generate_1_to_2(config: dict) -> dict:
+    """M3 — `provider` becomes `provider_id`; the grok_automa fields move."""
+    _rename_provider(
+        config, "provider", ANIMATOR_V1_DEFAULT_PROVIDER, domain="video"
+    )
+    _move_to_provider_options(config, ANIMATOR_V1_PROVIDER_KEYS)
+    return config
+
+
+__all__ = [
+    "animator_generate_1_to_2",
+    "storyboard_generate_1_to_2",
+    "tts_generate_1_to_2",
+]

@@ -1,0 +1,8 @@
+{
+  "scenes": [
+    {"index": 0, "prompt": "Lighthouse beam sweeping over waves", "reference_ref": "storyboard/pm_SAMPLE/0/image.png"},
+    {"index": 1, "prompt": "Small boat rocking gently at night", "reference_ref": null}
+  ],
+  "aspect_ratio": "9:16",
+  "mode": "video"
+}

@@ -1,0 +1,17 @@
+{
+  "project_id": "pm_SAMPLE",
+  "prompts": [
+    {
+      "image_prompt": "wide shot, a lighthouse keeper climbing a spiral staircase at dusk, warm lantern light on stone walls, deep blue evening sky through narrow windows",
+      "index": 0
+    },
+    {
+      "image_prompt": "close-up, the great lighthouse lamp turning, a beam of golden light sweeping across dark rolling waves, spray catching the glow",
+      "index": 1
+    },
+    {
+      "image_prompt": "aerial shot, a small fishing boat following the light home to a quiet harbor, stars appearing above a calm indigo sea",
+      "index": 2
+    }
+  ]
+}

@@ -34,6 +34,44 @@ These are ported wholesale and must not drift during Phase 0. The authoritative 
 | Cache fingerprint | Node type, type version, configuration, inputs, upstream artifact fingerprints, adapter cache schema version. Artifact integrity is re-verified on lookup. |
 | Redaction | Applied to execution records, queue records, SSE events, workflow documents, notifications, archives, and logs. |
 
+### 1.1 Port types & compatibility matrix
+
+Adapted from V2 at step 0.2, ahead of the rest of section 1, because the generated node
+author guide reads this prose verbatim and the 0.2 doc-drift gate depends on it. The type
+inventory is deliberately stated here as prose only — `scriptase/engine/registry.py` is the
+executable source of truth for the list itself.
+
+Types (v1): `control, text, script, project_id, project_settings, audio_file, tts_metadata, alignment, segments, scenes, image_prompts, storyboard_images, animation_assets, captions, music_track, editor_project, export_profile, video_file, generic_json`.
+
+Compatibility rule: **exact type match only.** No wildcard: `generic_json` connects only to `generic_json`. `stub.input`/`stub.output` resolve their dynamic type from configuration at validation time and then obey exact-match. Additional rules: no in→in / out→out; single-value inputs reject a second edge; DAG only (cycle rejection); control edges distinct from data edges. Every payload that references files carries `{artifact_refs: [relpaths]}` alongside inline JSON; integrity check = existence + nonzero size.
+
+Data edges establish both a dependency and a typed value. Control edges establish only a
+dependency and never satisfy a required data input. A node with a connected `trigger` waits
+for that control predecessor as well as all required data. An unconnected optional `trigger`
+does not block a node. A node emits `control` only after successful completion; skipped,
+failed, and cancelled propagation is handled explicitly by scheduler policy rather than by
+fabricating a success token. These rules make Manual Trigger useful without making it
+mandatory for partial or isolated execution.
+
+### 1.2 Node type keys survive the rename
+
+Step 0.2 renamed packages and provider **domain ids**, not the graph contract. Node type
+keys (`story.generate`, `storyboard.generate`, `animator.generate`, `scenes.blueprint`),
+port ids, and port types (`storyboard_images`, `animation_assets`) are unchanged, because a
+saved workflow stores them. What did change:
+
+| Axis | V2 | Scriptase |
+|---|---|---|
+| Provider domain id | `scene_blueprint`, `storyboard`, `animator` | `scene_director`, `image`, `video` |
+| Option source id | `scene_blueprint_providers`, `storyboard_providers`, `animator_providers`, `storyboard_image_models` | `scene_director_providers`, `image_providers`, `video_providers`, `image_models` |
+| Adapter module | `adapters/story.py`, `scenes.py`, `storyboard.py`, `animator.py`, `editor.py` | `adapters/script.py`, `scene_director.py`, `image.py`, `video.py`, `compose.py` |
+| Settings `domains` block key | `scene_blueprint`, `storyboard`, `animator` | renamed by settings migration **v5** |
+
+`providers/domains.py` carries `DOMAIN_ALIASES` and `canonical_domain()` — the single
+translation point — so an un-migrated settings file, a V2-era node config, and an API caller
+written against the old wire value all still resolve. Aliases are *input only*; nothing
+serializes them back out.
+
 ---
 
 ## 2. Provenance — extended at 0.4

@@ -1,0 +1,28 @@
+{
+  "artifact_refs": [
+    "media/storyboard.png"
+  ],
+  "aspect_ratio": "9:16",
+  "errors": 0,
+  "project_id": "pm_SAMPLE",
+  "ready": 3,
+  "scene_statuses": {
+    "0": {
+      "image_url": null,
+      "local_path": "media/storyboard.png",
+      "status": "ready"
+    },
+    "1": {
+      "image_url": null,
+      "local_path": "media/storyboard.png",
+      "status": "ready"
+    },
+    "2": {
+      "image_url": null,
+      "local_path": "media/storyboard.png",
+      "status": "ready"
+    }
+  },
+  "status": "done",
+  "total": 3
+}

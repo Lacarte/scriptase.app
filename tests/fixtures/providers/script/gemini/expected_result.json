@@ -1,0 +1,51 @@
+{
+  "result_version": 1,
+  "domain": "script",
+  "provider_id": "gemini",
+  "provider_version": "1.0.0",
+  "contract_version": 1,
+  "status": "succeeded",
+  "payload": {
+    "script_text": "Hook: Ever had a dream so real, you wake up still feeling it? That lingering chill?\n\nBuild: Most people just shake it off. But what if those dreams are not just dreams? What if they are a window, slowly opening? It starts subtle. The faint smell of rain when it is not raining. A shadow in your peripheral vision, gone when you turn. You dismiss it as tiredness. Too much screen time. But then the dreams become more vivid. The fog from your sleep curls around your feet in the hallway. The whispers from your nightmare echo in an empty room. You start seeing figures from your deepest sleep, standing just out of reach. Everyone says it is stress.\n\nClimax: They are wrong. Your subconscious is not creating these things. It is remembering them. And now, they are stepping through.\n\nCTA: Are your dreams truly your own?",
+    "sections": {
+      "hook": "Ever had a dream so real, you wake up still feeling it? That lingering chill?",
+      "build": "Most people just shake it off. But what if those dreams are not just dreams? What if they are a window, slowly opening? It starts subtle. The faint smell of rain when it is not raining. A shadow in your peripheral vision, gone when you turn. You dismiss it as tiredness. Too much screen time. But then the dreams become more vivid. The fog from your sleep curls around your feet in the hallway. The whispers from your nightmare echo in an empty room. You start seeing figures from your deepest sleep, standing just out of reach. Everyone says it is stress.",
+      "climax": "They are wrong. Your subconscious is not creating these things. It is remembering them. And now, they are stepping through.",
+      "cta": "Are your dreams truly your own?"
+    },
+    "word_count": 147,
+    "estimated_duration_s": 59,
+    "language": "english",
+    "document_ref": "stories/pm_SAMPLE/story.json"
+  },
+  "artifact_refs": [
+    "stories/pm_SAMPLE/story.json"
+  ],
+  "units": [],
+  "metadata": {
+    "preset_style": "neural_glow",
+    "story_category": "horror",
+    "story_tone": "suspenseful",
+    "duration": 50,
+    "generation_time": 1.25,
+    "timestamp": "2026-01-01T00:00:00+00:00",
+    "concept_family": "recurring dreams that bleed into waking life"
+  },
+  "warnings": [],
+  "provenance": {
+    "invocation_id": "",
+    "domain": "",
+    "provider_id": "",
+    "provider_version": "",
+    "contract_version": 1,
+    "settings_version": 0,
+    "resolved_settings_redacted": {},
+    "options": {},
+    "selection_reason": "default",
+    "started_at": "",
+    "finished_at": "",
+    "duration_ms": 0,
+    "cache_hit": false
+  },
+  "job": null
+}

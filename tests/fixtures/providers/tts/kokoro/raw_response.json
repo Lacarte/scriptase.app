@@ -1,0 +1,35 @@
+{
+  "filename": "voice.wav",
+  "folder": "pm_SAMPLE",
+  "prompt": "A lighthouse keeper climbs the spiral stairs at dusk. The lamp turns, sweeping gold across the waves. Far below, a small boat finds its way home. The keeper smiles, writes the date in the log, and watches the stars arrive.",
+  "model": "kokoro-v1.0",
+  "model_id": "kokoro",
+  "provider": "kokoro",
+  "voice": "af_heart",
+  "project_id": "pm_SAMPLE",
+  "visual_style": "cinematic",
+  "story_tone": "warm",
+  "category": "slice_of_life",
+  "timestamp": "2026-01-01T00:00:00",
+  "inference_time": 1.234,
+  "rtf": 0.1543,
+  "duration_seconds": 8.0,
+  "sample_rate": 24000,
+  "speed": 1.0,
+  "words": 40,
+  "approx_tokens": 52,
+  "wav_path": "tts/pm_SAMPLE/voice.wav",
+  "cache_hit": false,
+  "job_meta": {
+    "provider_id": "kokoro",
+    "provider_version": "1.0.0",
+    "provider_kind": "local",
+    "resolved_settings_redacted": {
+      "voice": "af_heart",
+      "speed": 1.0
+    },
+    "provider_options": {},
+    "resolved_at": "2026-01-01T00:00:00+00:00",
+    "settings_version": 2
+  }
+}

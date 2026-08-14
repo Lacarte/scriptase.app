@@ -1,0 +1,77 @@
+{
+  "fixture_schema_version": 1,
+  "files": {
+    "image/wavespeed_webhook/expected_result.json": {
+      "bytes": 1761,
+      "sha256": "aa84194069fdcf06dfdad297a04befb64f1ada1f0f16d7636e33c5a22c891085"
+    },
+    "image/wavespeed_webhook/raw_response.json": {
+      "bytes": 907,
+      "sha256": "07884c786e3bf663787db7e869710159b33e18ea8d2b1cb55c27de47131b2be0"
+    },
+    "image/wavespeed_webhook/request.json": {
+      "bytes": 331,
+      "sha256": "6a7824b4cf8b13773abc183de02d50ce4f1a42f0638d5bf8fcc4a51600f2bcf4"
+    },
+    "scene_director/n8n/expected_result.json": {
+      "bytes": 3082,
+      "sha256": "3fe6376dfdb03c30d024549bd7e4d71227a59742fed4cf7327875dcdcfc7d7d5"
+    },
+    "scene_director/n8n/raw_response.json": {
+      "bytes": 1737,
+      "sha256": "adbec7d9385b88f9794b62cffe6343bfaa7f09faa8b0b372d749eb801bb2d398"
+    },
+    "scene_director/n8n/request.json": {
+      "bytes": 657,
+      "sha256": "b14bfb82fa561a166274f66faf4171f8bed9a2f73a51b8b10933b25c98690d87"
+    },
+    "script/gemini/expected_result.json": {
+      "bytes": 2838,
+      "sha256": "9329d5d1c232e531a4fa0b9eaeb6b1914100b3070bc4444c9c4dd8ecf663b36b"
+    },
+    "script/gemini/raw_response.json": {
+      "bytes": 851,
+      "sha256": "ff804e3df8b5e0660091ab845c0c15ecc128a47cc987bffffb090f7f63b3c085"
+    },
+    "script/gemini/request.json": {
+      "bytes": 261,
+      "sha256": "3f9f3cf682eba5e946724281157119d16bb795cc5478c9456653ece8d3e2cf18"
+    },
+    "script/random_template/expected_result.json": {
+      "bytes": 1779,
+      "sha256": "0e30760788404b9bb028e106b967479d1f5471dc7c6c5913d0429ae9019dc180"
+    },
+    "script/random_template/raw_response.json": {
+      "bytes": 736,
+      "sha256": "9a1102ca2efd7a04ed84117e6109ccfa8f6b65e3d5bfe5b8aaa57cc7d29f867a"
+    },
+    "script/random_template/request.json": {
+      "bytes": 196,
+      "sha256": "4b884dc2fc799b49e673f7a8e1cea05cd328f969a84de63e2fe2167ce637bc4c"
+    },
+    "tts/kokoro/expected_result.json": {
+      "bytes": 1674,
+      "sha256": "8c89e7034f87a9f2cc628703e93e585e7e833896176b1d7a540843a008ce7e6c"
+    },
+    "tts/kokoro/raw_response.json": {
+      "bytes": 1094,
+      "sha256": "69b567fee85a59f2b555b215bb083d95481dac483f69a5e212139fac9ec719b5"
+    },
+    "tts/kokoro/request.json": {
+      "bytes": 338,
+      "sha256": "e8eba44c29667a8a468345faa667504b97ef69f0ad51e4737eee7fc7b508b1e2"
+    },
+    "video/kie_ai/expected_result.json": {
+      "bytes": 1416,
+      "sha256": "fc9271eec5469033e82e04c1f762e054f5849af3a1c7ca0a01a2604b44175029"
+    },
+    "video/kie_ai/raw_response.json": {
+      "bytes": 828,
+      "sha256": "cafe22d0717260a5ec4a664686243a2a0b82fa5ebea5eebbcf885b06976b869a"
+    },
+    "video/kie_ai/request.json": {
+      "bytes": 283,
+      "sha256": "ea80a3bb6a7512eb473a1b57538ada8b0ec0724e3c1a3dd94b9bcf6c9063b60b"
+    }
+  }
+}

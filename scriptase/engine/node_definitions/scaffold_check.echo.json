@@ -1,0 +1,47 @@
+{
+  "key": "scaffold_check.echo",
+  "definition": {
+    "type_version": 1,
+    "display_name": "Scaffold Check Echo",
+    "description": "Echo a JSON value for node-author verification.",
+    "category": "testing",
+    "icon": "box",
+    "inputs": [
+      {
+        "id": "trigger",
+        "type": "control",
+        "required": false,
+        "multiple": false
+      },
+      {
+        "id": "source",
+        "type": "generic_json",
+        "required": false,
+        "multiple": false
+      }
+    ],
+    "outputs": [
+      {
+        "id": "control",
+        "type": "control"
+      },
+      {
+        "id": "result",
+        "type": "generic_json"
+      }
+    ],
+    "config_schema": [
+      {
+        "name": "value",
+        "label": "Fallback value",
+        "type": "json",
+        "default": {}
+      }
+    ],
+    "capabilities": {
+      "retry": false,
+      "cancel": false
+    },
+    "executor": "scriptase.engine.adapters.generated.scaffold_check_echo:execute"
+  }
+}

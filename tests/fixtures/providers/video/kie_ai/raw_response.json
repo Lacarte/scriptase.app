@@ -1,0 +1,30 @@
+{
+  "grabber_id": "workflow_pm_SAMPLE",
+  "project_id": "pm_SAMPLE",
+  "provider": "kie_ai",
+  "arguments": "",
+  "status": "done",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "payload": {
+    "projectId": "pm_SAMPLE",
+    "aspect_ratio": "9:16",
+    "scenes": [
+      {"scene": 0, "prompt": "Lighthouse beam sweeping over waves"},
+      {"scene": 1, "prompt": "Small boat rocking gently at night"}
+    ]
+  },
+  "scene_statuses": {
+    "0": {
+      "status": "ready",
+      "urls": ["https://cdn.example.invalid/generated/aaaa-0000/clip.mp4"],
+      "local_files": ["/output/animator/pm_SAMPLE/0/aaaa-0000.mp4"]
+    },
+    "1": {
+      "status": "error",
+      "urls": [],
+      "local_files": [],
+      "error": "Kie AI task timed out after 180s"
+    }
+  }
+}
