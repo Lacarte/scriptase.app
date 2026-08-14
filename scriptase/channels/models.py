@@ -342,6 +342,94 @@ class ExportDefaults(BaseModel):
         return text
 
 
+# Script-stage source modes mirrored here so Channels do not import jobs.
+CADENCE_SOURCE_MODES = ("automatic", "topic", "idea", "paste", "manual")
+CADENCE_EXECUTION_MODES = ("manual", "assisted", "automatic")
+
+
+class CadenceSource(BaseModel):
+    """Default Job script-stage source for cadence-created runs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: str = "topic"
+    topic: str = ""
+    idea: str = ""
+    pasted_script: str = ""
+    references: list[str] = Field(default_factory=list)
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def _mode(cls, value: Any) -> str:
+        text = _strip_str(value) or "topic"
+        if text not in CADENCE_SOURCE_MODES:
+            raise ValueError(
+                f"cadence.source.mode must be one of: {', '.join(CADENCE_SOURCE_MODES)}"
+            )
+        return text
+
+    @field_validator("topic", "idea", "pasted_script", mode="before")
+    @classmethod
+    def _strip_fields(cls, value: Any) -> str:
+        return _strip_str(value)
+
+    @field_validator("references", mode="before")
+    @classmethod
+    def _references(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError("references must be a list of strings")
+        return [_strip_str(item) for item in value if _strip_str(item)]
+
+
+class ContentCadence(BaseModel):
+    """Channel content cadence — creates Jobs on a UTC cron schedule (step 9.2).
+
+    When ``enabled``, the channel cadence service creates Automatic (by default)
+    Jobs using ``default_workflow_id`` and the configured script source. Cursor
+    state lives outside the Channel document so ticks never bump content version.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    cron: str = ""
+    execution_mode: str = "automatic"
+    source: CadenceSource = Field(default_factory=CadenceSource)
+
+    @field_validator("cron", mode="before")
+    @classmethod
+    def _cron(cls, value: Any) -> str:
+        return _strip_str(value)
+
+    @field_validator("execution_mode", mode="before")
+    @classmethod
+    def _execution_mode(cls, value: Any) -> str:
+        text = _strip_str(value) or "automatic"
+        if text not in CADENCE_EXECUTION_MODES:
+            raise ValueError(
+                "cadence.execution_mode must be one of: "
+                f"{', '.join(CADENCE_EXECUTION_MODES)}"
+            )
+        return text
+
+    @model_validator(mode="after")
+    def _enabled_requires_valid_cron(self) -> ContentCadence:
+        if not self.enabled:
+            return self
+        if not self.cron:
+            raise ValueError("cadence.cron is required when cadence is enabled")
+        # Import lazily: CronExpression lives with the schedule engine.
+        from scriptase.engine.scheduled_runs import CronExpression, CronExpressionError
+
+        try:
+            CronExpression(self.cron)
+        except CronExpressionError as exc:
+            raise ValueError(f"cadence.cron is invalid: {exc}") from exc
+        return self
+
+
 # ---------------------------------------------------------------------------
 # Top-level document
 # ---------------------------------------------------------------------------
@@ -372,6 +460,7 @@ class ChannelProfile(BaseModel):
     budget: Budget = Field(default_factory=Budget)
     export_defaults: ExportDefaults = Field(default_factory=ExportDefaults)
     default_workflow_id: str | None = None
+    cadence: ContentCadence = Field(default_factory=ContentCadence)
 
     created_at: str = ""
     updated_at: str = ""
@@ -433,6 +522,7 @@ class ChannelDraft(BaseModel):
     budget: Budget = Field(default_factory=Budget)
     export_defaults: ExportDefaults = Field(default_factory=ExportDefaults)
     default_workflow_id: str | None = None
+    cadence: ContentCadence = Field(default_factory=ContentCadence)
 
     @field_validator("name", mode="before")
     @classmethod
@@ -501,6 +591,8 @@ __all__ = [
     "CHANNEL_ID_RE",
     "CHANNEL_SCHEMA_VERSION",
     "PROVIDER_DEFAULT_DOMAINS",
+    "CADENCE_SOURCE_MODES",
+    "CADENCE_EXECUTION_MODES",
     "Branding",
     "Content",
     "PatternEntry",
@@ -512,6 +604,8 @@ __all__ = [
     "ReviewPolicy",
     "Budget",
     "ExportDefaults",
+    "CadenceSource",
+    "ContentCadence",
     "ChannelProfile",
     "ChannelDraft",
     "validation_problems",

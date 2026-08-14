@@ -85,10 +85,19 @@ def validate_webhook_settings(value: Any, node_map: Mapping, problems: list[dict
     if not isinstance(value, dict):
         problems.append({"code": "WORKFLOW_INVALID", "message": "settings.webhook must be an object", "path": path, "severity": "error"})
         return
-    for unknown in sorted(set(value) - {"enabled", "mappings"}):
+    for unknown in sorted(set(value) - {"enabled", "mappings", "channel_id"}):
         problems.append({"code": "WORKFLOW_INVALID", "message": f"Unknown webhook field: {unknown}", "path": f"{path}.{unknown}", "severity": "error"})
     if not isinstance(value.get("enabled"), bool):
         problems.append({"code": "WORKFLOW_INVALID", "message": "Webhook enabled must be a boolean", "path": f"{path}.enabled", "severity": "error"})
+    channel_id = value.get("channel_id")
+    if channel_id is not None and channel_id != "":
+        if not isinstance(channel_id, str) or not re.fullmatch(r"ch_[A-Z0-9]{6}", channel_id):
+            problems.append({
+                "code": "WORKFLOW_INVALID",
+                "message": "Webhook channel_id must match ch_[A-Z0-9]{6}",
+                "path": f"{path}.channel_id",
+                "severity": "error",
+            })
     mappings = value.get("mappings")
     if not isinstance(mappings, list):
         problems.append({"code": "WORKFLOW_INVALID", "message": "Webhook mappings must be an array", "path": f"{path}.mappings", "severity": "error"})

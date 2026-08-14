@@ -485,19 +485,46 @@ def workflow_hook(workflow_id, token):
         return _error("WEBHOOK_NOT_FOUND", "Webhook not found", 404)
     try:
         overrides = map_webhook_payload(workflow, body)
-        execution_id, project_id = execution_manager.start(
-            workflow,
-            run_mode="full",
-            target_node_ids=[],
-            source="webhook",
-            input_overrides=overrides,
+        # Step 9.2: channel-bound webhooks create Jobs; unbound keep raw runs.
+        from scriptase.jobs.triggers import TriggerEnqueueError, enqueue_webhook_workflow
+
+        # Use this module's execution_manager so tests can monkeypatch routes.
+        result = enqueue_webhook_workflow(
+            workflow, overrides, manager=execution_manager
         )
+        if isinstance(result, dict) and result.get("job_id"):
+            return jsonify({
+                "job_id": result.get("job_id"),
+                "execution_id": result.get("execution_id"),
+                "project_id": result.get("project_id"),
+                "status": result.get("status") or "queued",
+                "source": "webhook",
+            }), 202
+        # Legacy tuple from raw execution_manager.start.
+        if isinstance(result, tuple) and len(result) == 2:
+            execution_id, project_id = result
+            return jsonify({
+                "execution_id": execution_id,
+                "project_id": project_id,
+                "status": "queued",
+            }), 202
+        execution_id = getattr(result, "execution_id", None) or (result or {}).get("execution_id")
+        project_id = getattr(result, "project_id", None) or (result or {}).get("project_id")
+        return jsonify({
+            "execution_id": execution_id,
+            "project_id": project_id,
+            "status": "queued",
+        }), 202
     except WebhookPayloadError as exc:
         return _error("WEBHOOK_PAYLOAD_INVALID", str(exc), 422, exc.details)
+    except TriggerEnqueueError as exc:
+        status = 422 if exc.code in {
+            "JOB_INVALID", "WORKFLOW_REQUIRED", "CHANNEL_NOT_FOUND",
+        } else 400
+        return _error(exc.code, str(exc), status, exc.details)
     except ExecutionRequestError as exc:
         status = 422 if exc.code in {"WORKFLOW_INVALID", "MISSING_REQUIRED_INPUT"} else 400
         return _error(exc.code, str(exc), status, exc.details)
-    return jsonify({"execution_id": execution_id, "project_id": project_id, "status": "queued"}), 202
 
 
 @workflows_bp.route("/api/workflows/<workflow_id>", methods=["PUT"])

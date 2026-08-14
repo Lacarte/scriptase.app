@@ -126,7 +126,7 @@ def _validate_schedules(value: Any, problems: list[dict]) -> None:
         if not isinstance(schedule, dict):
             problems.append(_problem("WORKFLOW_INVALID", "Schedule must be an object", path))
             continue
-        for unknown in sorted(set(schedule) - {"id", "cron", "enabled"}):
+        for unknown in sorted(set(schedule) - {"id", "cron", "enabled", "channel_id"}):
             problems.append(_problem("WORKFLOW_INVALID", f"Unknown schedule field: {unknown}", f"{path}.{unknown}"))
         schedule_id = schedule.get("id")
         if not isinstance(schedule_id, str) or not re.fullmatch(r"sch_[A-Za-z0-9_-]{1,32}", schedule_id):
@@ -136,6 +136,14 @@ def _validate_schedules(value: Any, problems: list[dict]) -> None:
         seen.add(schedule_id)
         if not isinstance(schedule.get("enabled"), bool):
             problems.append(_problem("WORKFLOW_INVALID", "Schedule enabled must be a boolean", f"{path}.enabled"))
+        channel_id = schedule.get("channel_id")
+        if channel_id is not None and channel_id != "":
+            if not isinstance(channel_id, str) or not re.fullmatch(r"ch_[A-Z0-9]{6}", channel_id):
+                problems.append(_problem(
+                    "WORKFLOW_INVALID",
+                    "Schedule channel_id must match ch_[A-Z0-9]{6}",
+                    f"{path}.channel_id",
+                ))
         try:
             CronExpression(schedule.get("cron"))
         except CronExpressionError as exc:
@@ -149,11 +157,19 @@ def _validate_watch_folder(value: Any, node_map: dict, problems: list[dict]) -> 
     if not isinstance(value, dict):
         problems.append(_problem("WORKFLOW_INVALID", "settings.watch_folder must be an object", path))
         return
-    allowed = {"enabled", "folder", "pattern", "target_node_id", "target_port"}
+    allowed = {"enabled", "folder", "pattern", "target_node_id", "target_port", "channel_id"}
     for unknown in sorted(set(value) - allowed):
         problems.append(_problem("WORKFLOW_INVALID", f"Unknown watch-folder field: {unknown}", f"{path}.{unknown}"))
     if not isinstance(value.get("enabled"), bool):
         problems.append(_problem("WORKFLOW_INVALID", "Watch-folder enabled must be a boolean", f"{path}.enabled"))
+    channel_id = value.get("channel_id")
+    if channel_id is not None and channel_id != "":
+        if not isinstance(channel_id, str) or not re.fullmatch(r"ch_[A-Z0-9]{6}", channel_id):
+            problems.append(_problem(
+                "WORKFLOW_INVALID",
+                "Watch channel_id must match ch_[A-Z0-9]{6}",
+                f"{path}.channel_id",
+            ))
     folder = value.get("folder")
     if not isinstance(folder, str) or not folder.strip() or len(folder) > 1024 or not os.path.isabs(folder):
         problems.append(_problem("WORKFLOW_INVALID", "Watch folder must be an absolute path", f"{path}.folder"))
@@ -675,12 +691,23 @@ def validate_workflow(
     if not isinstance(settings, dict):
         problems.append(_problem("WORKFLOW_INVALID", "settings must be an object", "settings"))
     else:
-        for unknown in sorted(set(settings) - {"on_error", "auto_attach_stubs", "schedules", "watch_folder", "webhook", "notifications"}):
+        for unknown in sorted(set(settings) - {
+            "on_error", "auto_attach_stubs", "schedules", "watch_folder",
+            "webhook", "notifications", "channel_id",
+        }):
             problems.append(_problem("WORKFLOW_INVALID", f"Unknown settings field: {unknown}", f"settings.{unknown}"))
         if settings.get("on_error", "stop") != "stop":
             problems.append(_problem("WORKFLOW_INVALID", "settings.on_error must be stop in Phase 1", "settings.on_error"))
         if not isinstance(settings.get("auto_attach_stubs", True), bool):
             problems.append(_problem("WORKFLOW_INVALID", "settings.auto_attach_stubs must be a boolean", "settings.auto_attach_stubs"))
+        channel_id = settings.get("channel_id")
+        if channel_id is not None and channel_id != "":
+            if not isinstance(channel_id, str) or not re.fullmatch(r"ch_[A-Z0-9]{6}", channel_id):
+                problems.append(_problem(
+                    "WORKFLOW_INVALID",
+                    "settings.channel_id must match ch_[A-Z0-9]{6}",
+                    "settings.channel_id",
+                ))
         _validate_schedules(settings.get("schedules"), problems)
         _validate_watch_folder(settings.get("watch_folder"), node_map, problems)
         _validate_webhook(settings.get("webhook"), node_map, problems)

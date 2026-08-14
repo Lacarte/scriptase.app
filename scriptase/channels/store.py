@@ -140,6 +140,7 @@ def create_channel(draft: dict[str, Any]) -> ChannelProfile:
         budget=parsed.budget,
         export_defaults=parsed.export_defaults,
         default_workflow_id=parsed.default_workflow_id,
+        cadence=parsed.cadence,
         created_at=timestamp,
         updated_at=timestamp,
     )
@@ -219,6 +220,7 @@ def update_channel(
             budget=parsed.budget,
             export_defaults=parsed.export_defaults,
             default_workflow_id=parsed.default_workflow_id,
+            cadence=parsed.cadence,
             created_at=current.created_at,
             updated_at=timestamp,
         )
@@ -303,6 +305,7 @@ def default_draft(*, name: str = "New Channel") -> dict[str, Any]:
         "budget": {},
         "export_defaults": {},
         "default_workflow_id": None,
+        "cadence": {},
     })
 
 

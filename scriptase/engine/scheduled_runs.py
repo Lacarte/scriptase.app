@@ -16,7 +16,6 @@ from config import OUTPUT_DIR
 from scriptase.shared.io_utils import safe_json_read, safe_json_write
 from scriptase.shared.security import safe_join
 
-from .execution import execution_manager
 from .persistence import list_workflows, load_workflow
 
 
@@ -149,7 +148,7 @@ class ScheduleService:
         *,
         state_root: str = SCHEDULE_STATE_DIR,
         workflow_loader: Callable[[], Iterable[Mapping]] | None = None,
-        enqueue: Callable[[Mapping], object] | None = None,
+        enqueue: Callable[..., object] | None = None,
         clock: Callable[[], datetime] | None = None,
         poll_seconds: float = 15.0,
     ):
@@ -167,10 +166,16 @@ class ScheduleService:
         return [load_workflow(item["workflow_id"]) for item in summaries]
 
     @staticmethod
-    def _enqueue(workflow: Mapping):
-        return execution_manager.start(
-            workflow, run_mode="full", target_node_ids=[], source="schedule"
-        )
+    def _enqueue(workflow: Mapping, schedule: Mapping | None = None):
+        # Step 9.2: channel-bound schedules create Jobs; unbound keep raw runs.
+        from scriptase.jobs.triggers import enqueue_scheduled_workflow
+
+        return enqueue_scheduled_workflow(workflow, schedule)
+
+    @property
+    def is_running(self) -> bool:
+        return bool(self._thread and self._thread.is_alive())
+
 
     def _state_path(self, workflow_id: str) -> str:
         return safe_join(self.state_root, f"{workflow_id}.json")
@@ -216,7 +221,7 @@ class ScheduleService:
                     "schedules": {key: value for key, value in schedule_state.items() if key in active_ids},
                 }, indent=2)
                 if due:
-                    result = self.enqueue(workflow)
+                    result = self.enqueue(workflow, schedule)
                     enqueued.append({
                         "workflow_id": workflow_id,
                         "schedule_id": schedule_id,

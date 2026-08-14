@@ -9,11 +9,17 @@ Channels reference provider *instance ids*, never duplicated account
 configuration, and never credentials.
 """
 
+from scriptase.channels.cadence import (
+    ChannelCadenceService,
+    channel_cadence_service,
+)
 from scriptase.channels.models import (
     CHANNEL_ID_RE,
     CHANNEL_SCHEMA_VERSION,
+    CadenceSource,
     ChannelDraft,
     ChannelProfile,
+    ContentCadence,
     PatternEntry,
     VisualDirection,
     parse_channel,
@@ -41,6 +47,8 @@ from scriptase.channels.store import (
 __all__ = [
     "CHANNEL_ID_RE",
     "CHANNEL_SCHEMA_VERSION",
+    "CadenceSource",
+    "ContentCadence",
     "ChannelDraft",
     "ChannelProfile",
     "PatternEntry",
@@ -61,4 +69,6 @@ __all__ = [
     "preset_to_channel_draft",
     "seed_starter_channels",
     "channels_bp",
+    "ChannelCadenceService",
+    "channel_cadence_service",
 ]

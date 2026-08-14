@@ -416,13 +416,25 @@ def start_job(
     wait: bool = False,
     timeout: float = 120.0,
     workflow: Mapping[str, Any] | None = None,
+    source: str = "manual",
+    input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> Job:
     """Start the Job's workflow through the ported execution manager.
 
     The Job does not become a node. It records ``execution_id`` and then
     derives status from that execution. When ``wait`` is True the call blocks
     until the run finishes (or ``timeout`` elapses) and harvests artifacts.
+
+    ``source`` is the queue/execution trigger source (``manual``, ``schedule``,
+    ``watch``, ``webhook``). Triggered Jobs (step 9.2) pass the firing source
+    so queue records show how the run was started.
     """
+    if source not in {"manual", "schedule", "watch", "webhook"}:
+        raise JobOrchestrationError(
+            "BAD_REQUEST",
+            "Unsupported run source",
+            details={"source": source},
+        )
     job = get_job(job_id)
     if job.status in TERMINAL_STATUSES:
         raise JobTerminal(job.id, job.status)
@@ -459,7 +471,9 @@ def start_job(
             target_node_ids=[],
             project_id=project_id,
             force=force,
-            source="manual",
+            source=source,
+            input_overrides=input_overrides,
+            current_job_id=job.id,
         )
     except ExecutionRequestError as exc:
         raise JobOrchestrationError(exc.code, str(exc), details=exc.details) from exc

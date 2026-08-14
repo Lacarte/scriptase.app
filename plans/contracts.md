@@ -499,7 +499,15 @@ ChannelProfile
 - budget            { max_generations, max_cost, currency }
 - export_defaults   { aspect_ratio, resolution, fps, profile }
 - default_workflow_id
+- cadence           { enabled, cron, execution_mode, source }             # step 9.2
 ```
+
+`cadence` is the Channel content schedule (UTC five-field cron). When enabled, the
+channel cadence service creates Jobs (not raw executions) using `default_workflow_id`
+and `cadence.source` / `cadence.execution_mode`. Runtime cursors live outside the Channel
+document so ticks never bump content version. Workflow-level schedule / watch / webhook
+triggers may bind a `channel_id` (per entry or `settings.channel_id`) so they also create
+Jobs; the queue record `source` is `schedule` | `watch` | `webhook`.
 
 `visual_direction.pattern` is **structured**, never free text:
 

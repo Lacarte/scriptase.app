@@ -10,7 +10,6 @@ import time
 from copy import deepcopy
 from typing import Callable, Iterable, Mapping
 
-from .execution import execution_manager
 from .persistence import list_workflows, load_workflow
 
 
@@ -62,14 +61,15 @@ class WatchFolderService:
 
     @staticmethod
     def _enqueue(workflow: Mapping, content: str, settings: Mapping):
-        snapshot, overrides = watch_run_payload(workflow, content, settings)
-        return execution_manager.start(
-            snapshot,
-            run_mode="full",
-            target_node_ids=[],
-            source="watch",
-            input_overrides=overrides,
-        )
+        # Step 9.2: channel-bound watches create Jobs; unbound keep raw runs.
+        from scriptase.jobs.triggers import enqueue_watch_workflow
+
+        return enqueue_watch_workflow(workflow, content, settings)
+
+    @property
+    def is_running(self) -> bool:
+        return bool(self._thread and self._thread.is_alive())
+
 
     @staticmethod
     def _processed_path(source: str) -> str:

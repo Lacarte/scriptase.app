@@ -37,7 +37,7 @@ def test_accelerated_clock_enqueues_once_at_fire_and_catches_up_latest_only(tmp_
     service = ScheduleService(
         state_root=str(tmp_path / "state"),
         workflow_loader=lambda: [workflow],
-        enqueue=lambda document: queued.append(document["workflow_id"]),
+        enqueue=lambda document, schedule=None: queued.append(document["workflow_id"]),
     )
 
     assert service.tick(_at(12, 0, 30)) == []  # New schedule establishes its cursor.
@@ -61,7 +61,7 @@ def test_disabled_schedule_never_fires_and_advances_cursor(tmp_path):
     service = ScheduleService(
         state_root=str(tmp_path / "state"),
         workflow_loader=lambda: [workflow],
-        enqueue=lambda document: queued.append(document),
+        enqueue=lambda document, schedule=None: queued.append(document),
     )
     service.tick(_at(12, 0))
     service.tick(_at(13, 0))

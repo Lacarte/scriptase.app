@@ -21,7 +21,19 @@ from flask import Flask, jsonify
 import config
 
 
-def create_app(*, discover_providers: bool = True) -> Flask:
+def create_app(
+    *,
+    discover_providers: bool = True,
+    start_triggers: bool | None = None,
+) -> Flask:
+    """Application factory.
+
+    ``start_triggers`` controls the schedule / watch-folder / channel-cadence
+    background services. Step 9.2 starts them from the factory so they run under
+    both the dev server and a WSGI host (V2 only started them under
+    ``__main__``). Default is on unless ``SCRIPTASE_DISABLE_TRIGGERS=1`` or the
+    process is under pytest; pass ``start_triggers=True/False`` to override.
+    """
     config.ensure_runtime_dirs()
 
     app = Flask(
@@ -41,7 +53,64 @@ def create_app(*, discover_providers: bool = True) -> Flask:
     register_blueprints(app)
     if discover_providers:
         init_provider_platform(app, sock)
+
+    if start_triggers is None:
+        start_triggers = _default_start_triggers()
+    app.config["START_TRIGGERS"] = bool(start_triggers)
+    if start_triggers:
+        start_trigger_services()
     return app
+
+
+def _default_start_triggers() -> bool:
+    """Triggers on for real servers; off under pytest and when explicitly disabled."""
+    if os.environ.get("SCRIPTASE_DISABLE_TRIGGERS", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        return False
+    if os.environ.get("SCRIPTASE_START_TRIGGERS", "").strip().lower() in {
+        "0", "false", "no", "off",
+    }:
+        return False
+    # pytest sets this for every test item; keep unit tests free of daemon threads.
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return False
+    if os.environ.get("SCRIPTASE_TESTING", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        return False
+    return True
+
+
+def start_trigger_services() -> dict[str, bool]:
+    """Start schedule, watch-folder, and channel-cadence services (idempotent).
+
+    Safe to call from the app factory, a WSGI entrypoint, or the dev
+    ``__main__`` block. Returns a map of service name → running state.
+    """
+    from scriptase.channels.cadence import channel_cadence_service
+    from scriptase.engine.scheduled_runs import schedule_service
+    from scriptase.engine.watch_folders import watch_folder_service
+
+    schedule_service.start()
+    watch_folder_service.start()
+    channel_cadence_service.start()
+    return {
+        "schedule": schedule_service.is_running,
+        "watch_folder": watch_folder_service.is_running,
+        "channel_cadence": channel_cadence_service.is_running,
+    }
+
+
+def stop_trigger_services() -> None:
+    """Stop background trigger services (tests / orderly shutdown)."""
+    from scriptase.channels.cadence import channel_cadence_service
+    from scriptase.engine.scheduled_runs import schedule_service
+    from scriptase.engine.watch_folders import watch_folder_service
+
+    schedule_service.stop()
+    watch_folder_service.stop()
+    channel_cadence_service.stop()
 
 
 def register_blueprints(app: Flask) -> None:
@@ -179,15 +248,9 @@ def _version() -> str:
 
 
 if __name__ == "__main__":
-    from scriptase.engine.scheduled_runs import schedule_service
-    from scriptase.engine.watch_folders import watch_folder_service
-
-    application = create_app()
-    # Trigger services start here in the dev server. Step 9.2 moves them behind
-    # an app-factory hook so they also run under a WSGI host — starting them
-    # under `__main__` only is the V2 defect that step records.
-    schedule_service.start()
-    watch_folder_service.start()
+    # Dev server: factory starts trigger services (step 9.2). The same hook
+    # runs under WSGI via wsgi.py — V2 only started them under __main__.
+    application = create_app(start_triggers=True)
     application.run(
         host=config.HOST, port=config.PORT, debug=config.DEBUG, threaded=True
     )

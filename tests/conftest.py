@@ -19,6 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Step 9.2: create_app starts schedule/watch/cadence threads by default for
+# real servers. Keep unit tests free of those daemons unless a test opts in.
+os.environ.setdefault("SCRIPTASE_DISABLE_TRIGGERS", "1")
+
 
 def pytest_collection_modifyitems(config, items):
     if os.environ.get("STS_LIVE") == "1":
