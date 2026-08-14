@@ -1,0 +1,11 @@
+{
+  "id": "notice_pattern_envelope",
+  "domain": "scene_director",
+  "description": "Same script via the provider-result envelope (expected_result.json). Confirms structure survives the legacy adapter, not only the raw webhook body.",
+  "source": {
+    "kind": "provider_fixture",
+    "domain": "scene_director",
+    "provider_id": "n8n",
+    "file": "expected_result.json"
+  }
+}

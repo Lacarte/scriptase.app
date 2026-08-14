@@ -675,6 +675,31 @@ Each `alignment[]` entry is `{word, begin, end}` (floats, seconds). Provider spe
 shape. The segmenter and captions consume only this schema; they cannot determine
 which strategy ran (`tests/test_timing_strategy.py`).
 
+### 8.2 Prompt evaluation harness
+
+Implemented at 5.4 (`scriptase.providers.prompt_eval`). Extends the provider
+golden-fixture layer (§ provider fixtures under `tests/fixtures/providers/`)
+with structural expectations so a prompt change has a regression signal without
+exact-text equality on free-form `image_prompt` wording and without spending
+provider credits.
+
+```
+tests/fixtures/prompt_eval/<domain>/<case_id>/
+  case.json                 # source: provider_fixture | inline | offline_planner
+  expected_structure.json   # structural axes + rules
+```
+
+Structural axes (compared when present): `scene_count`, `roles[]`, `types[]`,
+`indexes[]`. Rules (boolean / list checks, never free-form text):
+`indexes_dense_from_zero`, `first_not_text`, `last_not_text`,
+`roles_in_vocabulary`, `types_in_vocabulary`, `nonempty_image_prompt`,
+`required_fields`, `must_include_roles`, `min_scene_count`, `max_scene_count`.
+
+Also checks the Scene Director system prompt builder for required instructional
+markers (`SCENE_DIRECTOR_PROMPT_MARKERS`). Offline only —
+`python -m scriptase.providers.prompt_eval --check`
+(`tests/test_prompt_eval.py`).
+
 ---
 
 ## 9. ReviewIssue
@@ -896,6 +921,7 @@ decision freeze.
 | SceneSpec round-trip | Shape frozen in §8; `tests/test_scene_spec.py` | 5.1 |
 | Channel visual direction → Director | Typed `VisualDirectionInput` on request; pattern diverges SceneSpecs; prompt text under `providers/` | 5.2 |
 | Timing strategy AUTO | Native word timings when advertised; else force-align; identical alignment schema | 5.3 |
+| Prompt evaluation harness | Structural drift over golden fixtures + offline planner; prompt-builder markers; no credits | 5.4 |
 | Review provider domain | Uses standard result envelope + ReviewIssue | 7.3 |
 | V2 project import | Map niche presets → Channels; keep output/ layout | 10.1 / 1.3 |
 | Indexed storage for runs/queue/jobs | Performance only; no schema meaning change | 10.2 |

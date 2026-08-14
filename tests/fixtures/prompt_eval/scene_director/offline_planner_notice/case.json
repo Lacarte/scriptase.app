@@ -1,0 +1,33 @@
+{
+  "id": "offline_planner_notice",
+  "domain": "scene_director",
+  "description": "Same five-segment script through the offline Channel-direction planner. No provider, no network, no credits — pure structural regression signal for the Director planning path.",
+  "source": {
+    "kind": "offline_planner",
+    "script": "You notice the pattern for the first time. Then it starts appearing everywhere around you. That is when the story shifts. Now you cannot unsee it. What else have you been missing?",
+    "segments": [
+      {"index": 0, "words": "You notice the pattern for the first time."},
+      {"index": 1, "words": "Then it starts appearing everywhere around you."},
+      {"index": 2, "words": "That is when the story shifts."},
+      {"index": 3, "words": "Now you cannot unsee it."},
+      {"index": 4, "words": "What else have you been missing?"}
+    ],
+    "style": "cinematic",
+    "visual_direction": {
+      "style": "cinematic",
+      "pattern": [
+        {"narrative_role": "hook", "shot": "extreme close-up"},
+        {"narrative_role": "buildup", "shot": "medium cinematic"},
+        {"narrative_role": "peak", "shot": "wide environmental"},
+        {"narrative_role": "cta", "shot": "symbolic visual"}
+      ],
+      "palette": "teal, amber, charcoal",
+      "lighting": "cool institutional rim light",
+      "camera": "slow push-in",
+      "character_style": "solitary silhouetted figure",
+      "continuity": "same protagonist wardrobe across all scenes",
+      "negative_prompt": "text overlays, watermarks, logos",
+      "references": []
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "scene_count": 5,
+  "roles": ["hook", "buildup", "text_accent", "peak", "cta"],
+  "types": ["video", "video", "text", "video", "image"],
+  "indexes": [0, 1, 2, 3, 4],
+  "rules": {
+    "indexes_dense_from_zero": true,
+    "first_not_text": true,
+    "last_not_text": true,
+    "roles_in_vocabulary": true,
+    "types_in_vocabulary": true,
+    "nonempty_image_prompt": true,
+    "required_fields": ["narrative_role", "type_of_scene", "image_prompt"],
+    "must_include_roles": ["hook", "peak", "cta"]
+  }
+}

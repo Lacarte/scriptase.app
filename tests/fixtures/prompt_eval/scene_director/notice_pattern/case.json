@@ -1,0 +1,11 @@
+{
+  "id": "notice_pattern",
+  "domain": "scene_director",
+  "description": "Five-segment mystery monologue recorded against the n8n scene-director fixture. Structural axes only — free-form image_prompt wording is not pinned.",
+  "source": {
+    "kind": "provider_fixture",
+    "domain": "scene_director",
+    "provider_id": "n8n",
+    "file": "raw_response.json"
+  }
+}
