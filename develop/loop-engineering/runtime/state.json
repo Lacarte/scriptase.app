@@ -688,6 +688,12 @@
       "step": "8.4",
       "event": "start",
       "detail": ""
+    },
+    {
+      "ts": "2026-08-14T16:19:21",
+      "step": "8.4",
+      "event": "done",
+      "detail": "e4e20fc"
     }
   ]
 }
