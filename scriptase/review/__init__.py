@@ -15,7 +15,9 @@ the full ReviewIssue schema and durable store. Step 7.4 adds early quality
 gates (image before video, video before final review). Step 8.1 freezes the
 §12.2 ownership table as ``scriptase.review.policy``. Step 8.2 adds targeted
 repair with per-issue attempt budgets, Job generation/cost ceilings, escalation,
-and safe degradation (``scriptase.review.repair``).
+and safe degradation (``scriptase.review.repair``). Step 8.4 persists every
+repair outcome as a ``RepairHistoryEntry`` tied to superseded artifact versions
+(``scriptase.review.history``).
 """
 
 from scriptase.review.gates import (
@@ -70,6 +72,21 @@ from scriptase.review.policy import (
     route_issue,
     route_problem,
 )
+from scriptase.review.history import (
+    REPAIR_HISTORY_ACTIONS,
+    REPAIR_HISTORY_ID_RE,
+    REPAIR_HISTORY_RESULTS,
+    REPAIR_HISTORY_SCHEMA_VERSION,
+    RepairHistoryEntry,
+    RepairHistoryError,
+    RepairHistoryNotFound,
+    RepairHistoryValidationError,
+    create_repair_history_entry,
+    get_repair_history_entry,
+    list_repair_history,
+    reconstruct_job_repair_history,
+    record_repair_outcome,
+)
 from scriptase.review.repair import (
     BUDGET_EXCEEDED,
     DEFAULT_CONFIDENCE_FLOOR,
@@ -90,6 +107,7 @@ from scriptase.review.repair import (
     decide_issue_repair,
     plan_job_repairs,
     process_job_repairs,
+    record_repair_attempt,
     resolve_repair_policy,
 )
 from scriptase.review.store import (
@@ -135,6 +153,10 @@ __all__ = [
     "OWNERSHIP_TABLE",
     "PROBLEM_KEYS",
     "QUALITY_GATE_FAILED",
+    "REPAIR_HISTORY_ACTIONS",
+    "REPAIR_HISTORY_ID_RE",
+    "REPAIR_HISTORY_RESULTS",
+    "REPAIR_HISTORY_SCHEMA_VERSION",
     "REPAIR_LIMIT_REACHED",
     "SAFE_DEGRADATION",
     "SEVERITIES",
@@ -155,6 +177,10 @@ __all__ = [
     "QualityGateResult",
     "RepairBudgetError",
     "RepairDecision",
+    "RepairHistoryEntry",
+    "RepairHistoryError",
+    "RepairHistoryNotFound",
+    "RepairHistoryValidationError",
     "RepairLimitError",
     "RepairPlan",
     "RepairPolicy",
@@ -185,18 +211,24 @@ __all__ = [
     "create_from_review_result",
     "create_from_technical",
     "create_open_issue",
+    "create_repair_history_entry",
     "create_review_issue",
     "decide_issue_repair",
     "enforce_image_gate_for_video",
     "get_issue",
+    "get_repair_history_entry",
     "issues_for_nodes",
     "list_issues",
+    "list_repair_history",
     "ownership_rows",
     "parse_draft",
     "parse_issue",
     "plan_job_repairs",
     "probe_media",
     "process_job_repairs",
+    "reconstruct_job_repair_history",
+    "record_repair_attempt",
+    "record_repair_outcome",
     "resolve_problem_key",
     "resolve_repair_policy",
     "retarget_issues",

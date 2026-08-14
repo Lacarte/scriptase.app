@@ -76,6 +76,9 @@ SCENE_RECORDS_DIR = os.path.join(OUTPUT_DIR, "scene_records")
 # ReviewIssue documents (step 7.2). One JSON document per issue id
 # (iss_XXXXXX). Full structured schema; free-text results are rejected.
 ISSUES_DIR = os.path.join(OUTPUT_DIR, "issues")
+# RepairHistoryEntry documents (step 8.4). One JSON document per entry id
+# (rph_XXXXXX). Job.repair_history[] holds the ordered id list.
+REPAIR_HISTORY_DIR = os.path.join(OUTPUT_DIR, "repair_history")
 
 # Read-only built-in asset library.
 APP_ASSETS_DIR = RESOURCES_DIR
@@ -145,8 +148,8 @@ RUNTIME_DIRS = (
     WORKFLOW_EXECUTIONS_DIR, BRANDING_DIR, ALIGN_DIR, SCENES_DIR, STORIES_DIR,
     ANIMATOR_DIR, STORYBOARD_DIR, SEGMENTER_DIR, CAPTIONS_DIR, TTS_DIR,
     EXPORT_DIR, PROJECTS_DIR, MUSIC_DIR, THUMBNAILS_DIR, CHANNELS_DIR,
-    ARTIFACTS_DIR, JOBS_DIR, SCENE_RECORDS_DIR, ISSUES_DIR, MODELS_DIR,
-    TTS_CACHE_DIR,
+    ARTIFACTS_DIR, JOBS_DIR, SCENE_RECORDS_DIR, ISSUES_DIR, REPAIR_HISTORY_DIR,
+    MODELS_DIR, TTS_CACHE_DIR,
 )
 
 

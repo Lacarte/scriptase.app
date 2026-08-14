@@ -801,12 +801,23 @@ RepairHistoryEntry
 - provider_instance_id
 - action                   # regenerate | re-prompt | adjust | escalate | accept | fallback
 - instruction              # bounded; what was preserved / changed
+- reason                   # why this repair was attempted (decision / issue reason)
+- prompt_revision          # model / prompt revision used for the attempt, if known
 - input_artifact_ids[]
 - output_artifact_ids[]    # new versions; prior ones superseded
 - provenance_ref
 - result                   # resolved | failed | escalated | degraded
 - created_at
 ```
+
+Rules:
+
+- Every repair decision that reaches an outcome writes one entry. Entries are
+  append-only; a Job's ``repair_history[]`` lists their ids in attempt order.
+- ``output_artifact_ids`` reference the new immutable versions (step 1.2). Prior
+  versions remain resolvable and carry ``superseded_by`` — reconstruction walks
+  those chains so history never loses evidence.
+- Secrets never enter a history entry (instance id only; no credentials).
 
 ---
 

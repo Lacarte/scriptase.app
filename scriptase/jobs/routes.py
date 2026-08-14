@@ -10,6 +10,7 @@ Job creation (Step 0 / step 2.5)
 * ``GET    /api/jobs`` — list (newest first)
 * ``POST   /api/jobs`` — create from Channel + source + workflow + mode
 * ``GET    /api/jobs/<job_id>`` — full document (snapshot is secret-free)
+* ``GET    /api/jobs/<job_id>/repair-history`` — full repair sequence (8.4)
 * ``POST   /api/jobs/<job_id>/start`` — run through the ported engine
 * ``POST   /api/jobs/<job_id>/test-node`` — isolated Test Node run; never advances Job (4.2)
 * ``POST   /api/jobs/<job_id>/approve`` — durable checkpoint approve + resume (2.6)
@@ -260,6 +261,32 @@ def jobs_get(job_id: str):
     except (JobNotFound, JobValidationError, ValueError) as exc:
         return _store_error(exc)
     return jsonify({"job": _job_public(document)})
+
+
+@jobs_bp.route("/api/jobs/<job_id>/repair-history", methods=["GET"])
+def jobs_repair_history(job_id: str):
+    """Full repair sequence for a Job (step 8.4).
+
+    Reconstructs every RepairHistoryEntry in attempt order, including
+    superseded artifact versions and the reason each repair was attempted.
+    """
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    try:
+        get_job(job_id)
+    except (JobNotFound, JobValidationError, ValueError) as exc:
+        return _store_error(exc)
+
+    from scriptase.review.history import (
+        RepairHistoryError,
+        reconstruct_job_repair_history,
+    )
+
+    try:
+        history = reconstruct_job_repair_history(job_id)
+    except RepairHistoryError as exc:
+        return _error(exc.code, exc.message, 400, exc.details)
+    return jsonify(history)
 
 
 @jobs_bp.route("/api/jobs/<job_id>/start", methods=["POST"])

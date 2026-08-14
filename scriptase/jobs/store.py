@@ -355,6 +355,36 @@ def add_artifact_ids(
         return _write(document)
 
 
+def add_repair_history_ids(
+    job_id: str,
+    entry_ids: Iterable[str],
+    *,
+    allow_terminal: bool = False,
+) -> Job:
+    """Append unique RepairHistoryEntry ids to the Job (order-preserving).
+
+    Used by step 8.4 when a repair outcome is persisted. Terminal jobs still
+    accept bookkeeping when ``allow_terminal=True`` so a completed Job can
+    carry its full repair sequence.
+    """
+    lock = _thread_lock(job_id)
+    with lock:
+        current = get_job(job_id)
+        if not allow_terminal:
+            _require_mutable(current)
+        merged = list(current.repair_history)
+        seen = set(merged)
+        for entry_id in entry_ids:
+            text = str(entry_id or "").strip()
+            if not text or text in seen:
+                continue
+            merged.append(text)
+            seen.add(text)
+        payload = {**current.to_document(), "repair_history": merged}
+        document = _validate_document(payload)
+        return _write(document)
+
+
 def delete_job(job_id: str) -> None:
     """Soft-delete: move primary (and .bak) into TRASH/jobs/."""
     if not isinstance(job_id, str) or not JOB_ID_RE.fullmatch(job_id):
@@ -435,6 +465,7 @@ __all__ = [
     "list_jobs",
     "update_job",
     "add_artifact_ids",
+    "add_repair_history_ids",
     "delete_job",
     "job_summary",
     "default_draft",

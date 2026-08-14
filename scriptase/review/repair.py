@@ -13,9 +13,11 @@ Control surface (all required by §12.5 / contracts.md §12):
 * Configured safe degradation (e.g. keep the still when video keeps failing)
 
 This module is pure policy + durable status updates. Step 8.3 owns fallback
-instance chains; step 8.4 owns ``RepairHistoryEntry`` persistence; step 9.1
-wires Automatic mode end-to-end. The engine run body built here reuses the
-ported run modes only — no second execution path.
+instance chains; step 8.4 owns ``RepairHistoryEntry`` persistence (recorded
+from :func:`apply_repair_decision` for terminal decisions and from
+:func:`record_repair_attempt` after a provider re-run); step 9.1 wires
+Automatic mode end-to-end. The engine run body built here reuses the ported
+run modes only — no second execution path.
 """
 
 from __future__ import annotations
@@ -945,6 +947,7 @@ def apply_repair_decision(
     *,
     update_job_fn: Any | None = None,
     mark_repairing: bool = True,
+    record_history: bool = True,
 ) -> ReviewIssue | None:
     """Persist the decision onto the ReviewIssue (and optionally the Job).
 
@@ -952,6 +955,11 @@ def apply_repair_decision(
     * ``escalate`` → status ``escalated``
     * ``degrade`` / ``accept`` → status ``accepted`` (artifact kept)
     * ``refuse_budget`` / ``skip`` → issue unchanged
+
+    Terminal outcomes (escalate / accept / degrade) also write a
+    :class:`~scriptase.review.history.RepairHistoryEntry` when
+    ``record_history`` is True (step 8.4). Admitted repairs write history
+    only after the attempt finishes via :func:`record_repair_attempt`.
 
     When ``update_job_fn`` is provided and the decision carries
     ``job_status_reason``, it is called as
@@ -990,6 +998,7 @@ def apply_repair_decision(
             )[:500]
         except Exception:
             new_reason = f"escalated: {decision.reason}"[:500]
+            current = None
         issue = update_issue(
             decision.issue_id,
             status="escalated",
@@ -997,6 +1006,8 @@ def apply_repair_decision(
             attempt_count=decision.attempt_count,
             reason=new_reason,
         )
+        if record_history:
+            _record_decision_history(decision, issue=current or issue)
         if decision.job_status_reason and callable(update_job_fn) and decision.job_id:
             _stop_job(update_job_fn, decision, status="awaiting_approval")
         return issue
@@ -1010,6 +1021,7 @@ def apply_repair_decision(
             ]
         except Exception:
             new_reason = note[:500]
+            current = None
         kwargs: dict[str, Any] = {
             "status": "accepted",
             "suggested_action": "accept",
@@ -1017,9 +1029,96 @@ def apply_repair_decision(
         }
         if decision.action == "degrade" and decision.degradation_mode:
             kwargs["repair_instruction"] = f"degraded:{decision.degradation_mode}"
-        return update_issue(decision.issue_id, **kwargs)
+        issue = update_issue(decision.issue_id, **kwargs)
+        if record_history:
+            _record_decision_history(decision, issue=current or issue)
+        return issue
 
     return None
+
+
+def _record_decision_history(
+    decision: RepairDecision,
+    *,
+    issue: Any | None = None,
+) -> None:
+    """Best-effort step-8.4 history write for a terminal decision."""
+    try:
+        from scriptase.review.history import record_repair_outcome
+
+        record_repair_outcome(decision, issue=issue)
+    except Exception:
+        pass
+
+
+def record_repair_attempt(
+    decision: RepairDecision,
+    *,
+    result: Literal["resolved", "failed", "escalated", "degraded"],
+    issue: Any | None = None,
+    input_artifact_ids: Sequence[str] | None = None,
+    output_artifact_ids: Sequence[str] | None = None,
+    provider_instance_id: str | None = None,
+    prompt_revision: str | None = None,
+    provenance_ref: str | None = None,
+    selection_reason: str | None = None,
+    instruction: str | None = None,
+    reason: str | None = None,
+    resolve_issue: bool = True,
+) -> Any:
+    """Record the outcome of an admitted repair re-run (step 8.4).
+
+    Call after the engine finishes a targeted repair. Writes a
+    ``RepairHistoryEntry``, appends it to ``Job.repair_history``, and
+    optionally marks the issue resolved / re-opens it on failure.
+
+    Returns the history entry (or None when the decision is not a repair).
+    """
+    from scriptase.review.history import record_repair_outcome
+
+    if issue is None and decision.issue_id:
+        try:
+            issue = get_issue(decision.issue_id)
+        except Exception:
+            issue = None
+
+    entry = record_repair_outcome(
+        decision,
+        result=result,
+        issue=issue,
+        input_artifact_ids=input_artifact_ids,
+        output_artifact_ids=output_artifact_ids,
+        provider_instance_id=provider_instance_id,
+        prompt_revision=prompt_revision,
+        provenance_ref=provenance_ref,
+        selection_reason=selection_reason,
+        instruction=instruction,
+        reason=reason if reason is not None else decision.reason,
+    )
+
+    if resolve_issue and decision.issue_id:
+        try:
+            if result == "resolved":
+                update_issue(decision.issue_id, status="resolved")
+            elif result == "escalated":
+                update_issue(
+                    decision.issue_id,
+                    status="escalated",
+                    suggested_action="escalate",
+                )
+            elif result == "degraded":
+                update_issue(
+                    decision.issue_id,
+                    status="accepted",
+                    suggested_action="accept",
+                )
+            elif result == "failed":
+                # Re-open so the next cycle can re-decide (escalate / retry).
+                update_issue(decision.issue_id, status="open")
+        except Exception:
+            pass
+
+    return entry
 
 
 def _stop_job(
@@ -1054,6 +1153,7 @@ def apply_repair_plan(
     *,
     update_job_fn: Any | None = None,
     mark_repairing: bool = True,
+    record_history: bool = True,
 ) -> list[ReviewIssue]:
     """Apply every decision in a plan. Returns updated issues (may be partial)."""
     updated: list[ReviewIssue] = []
@@ -1072,14 +1172,20 @@ def apply_repair_plan(
             if job_stopped:
                 # Still escalate the issue, but do not thrash job status.
                 result = apply_repair_decision(
-                    decision, update_job_fn=None, mark_repairing=mark_repairing
+                    decision,
+                    update_job_fn=None,
+                    mark_repairing=mark_repairing,
+                    record_history=record_history,
                 )
                 if result is not None:
                     updated.append(result)
                 continue
 
         result = apply_repair_decision(
-            decision, update_job_fn=job_fn, mark_repairing=mark_repairing
+            decision,
+            update_job_fn=job_fn,
+            mark_repairing=mark_repairing,
+            record_history=record_history,
         )
         if result is not None:
             updated.append(result)
@@ -1098,12 +1204,14 @@ def process_job_repairs(
     update_job_fn: Any | None = None,
     mark_repairing: bool = True,
     estimated_cost_per_repair: float = 0.0,
+    record_history: bool = True,
 ) -> RepairPlan:
     """Plan and apply one repair cycle for a Job.
 
     Returns the plan (including run requests for admitted repairs). Does **not**
     start the engine — callers (orchestration / Automatic mode) own execution
-    so tests can assert policy without provider calls.
+    so tests can assert policy without provider calls. Terminal decisions write
+    repair-history entries when ``record_history`` is True (step 8.4).
     """
     plan = plan_job_repairs(
         job,
@@ -1116,6 +1224,7 @@ def process_job_repairs(
         plan,
         update_job_fn=update_job_fn,
         mark_repairing=mark_repairing,
+        record_history=record_history,
     )
     return plan
 
@@ -1173,6 +1282,7 @@ __all__ = [
     "estimate_repair_generations",
     "plan_job_repairs",
     "process_job_repairs",
+    "record_repair_attempt",
     "record_repair_failure",
     "resolve_repair_policy",
     "resolve_target_node_id",
