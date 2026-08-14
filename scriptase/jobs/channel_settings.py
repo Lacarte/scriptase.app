@@ -3,6 +3,10 @@
 Adapters merge these via ``inherited_config()`` (contracts.md §1 / product §4):
 explicit node configuration wins; an empty string is not explicit. The snapshot
 carries provider **instance references** only — never credentials.
+
+``project.setup`` (step 1.7) is the reader of the Job channel snapshot: empty
+fields on a V2-era node yield to channel values; the logo block is inherited as
+a package when the node has no managed logo asset of its own.
 """
 
 from __future__ import annotations
@@ -10,6 +14,30 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from scriptase.engine.adapters.common import inherited_config
+
+# project.setup schema field names that map from a channel snapshot.
+_SETUP_FIELD_NAMES: frozenset[str] = frozenset({
+    "channel_name",
+    "tone",
+    "style",
+    "aspect_ratio",
+    "logo_enabled",
+    "logo",
+    "logo_position",
+    "logo_size",
+    "logo_opacity",
+    "logo_margin",
+})
+
+# Logo presentation keys travel with the logo package.
+_LOGO_PACKAGE_KEYS: frozenset[str] = frozenset({
+    "logo",
+    "logo_enabled",
+    "logo_position",
+    "logo_size",
+    "logo_opacity",
+    "logo_margin",
+})
 
 
 def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -63,9 +91,6 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
         "voice": _text(audio.get("voice")),
         "speed": audio.get("speed") if audio.get("speed") is not None else "",
         "music_profile": _text(audio.get("music_profile")),
-        # Branding (setup-shaped; logo asset path resolution is step 1.7)
-        "logo_enabled": bool(branding.get("enabled")),
-        "logo_position": _text(branding.get("position")),
         # Captions are a local service — mode/preset fields only
         "caption_preset": _text(captions.get("preset")),
         "caption_position": _text(captions.get("position")),
@@ -80,9 +105,59 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
         },
     }
 
+    # Branding → setup logo block (managed ref only; never a filesystem path).
+    settings.update(_logo_settings_from_branding(branding))
+
     # Drop empty strings so inherited_config treats them as non-explicit when
     # nested further (explicit empty never overrides non-empty inherited).
     return {key: value for key, value in settings.items() if value not in (None, "")}
+
+
+def setup_seed_from_channel_settings(channel_settings: Mapping[str, Any] | None) -> dict[str, Any]:
+    """project.setup-shaped seed: schema keys only, position already normalized."""
+    if not isinstance(channel_settings, Mapping):
+        return {}
+    seed: dict[str, Any] = {}
+    for key in _SETUP_FIELD_NAMES:
+        if key not in channel_settings:
+            continue
+        value = channel_settings[key]
+        if key == "logo_position" and isinstance(value, str):
+            # Channel branding uses hyphenated CSS-ish positions; setup uses
+            # underscored option ids (top_right, bottom_left, …).
+            value = value.replace("-", "_")
+        seed[key] = value
+    return seed
+
+
+def merge_setup_config_with_channel(
+    node_config: Mapping[str, Any] | None,
+    channel_settings: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Merge project.setup configuration with channel defaults.
+
+    Explicit non-empty node fields win. Empty strings yield to the channel.
+    The logo block is a package: when the node has no managed logo asset of
+    its own, channel branding (enabled flag, asset, presentation) fills in
+    so a V2-era workflow with schema defaults still inherits Channel identity
+    when run inside a Job.
+    """
+    seed = setup_seed_from_channel_settings(channel_settings)
+    config = dict(node_config or {})
+
+    if not _has_logo_asset(config.get("logo")) and seed:
+        # Inherit the full logo package from the channel when the node never
+        # selected a logo. Explicit logo_enabled=True without an asset is left
+        # alone so LOGO_REQUIRED still fires (user turned it on, forgot asset).
+        if not config.get("logo_enabled"):
+            for key in _LOGO_PACKAGE_KEYS:
+                if key in seed:
+                    config[key] = seed[key]
+        elif "logo" in seed:
+            # Enabled on the node but no asset — take channel asset only.
+            config["logo"] = seed["logo"]
+
+    return inherited_config(config, seed)
 
 
 def merge_node_config_with_channel(
@@ -118,6 +193,90 @@ def script_text_from_source(source: Mapping[str, Any] | None) -> str:
     return idea or topic or pasted
 
 
+def resolve_channel_settings(context: Any) -> dict[str, Any]:
+    """Pull flat channel settings off an AdapterContext or mapping.
+
+    Job orchestration stamps ``extensions.channel_settings`` on the workflow
+    document; the scheduler copies that onto AdapterContext.channel_settings
+    so ``project.setup`` can read the snapshot at runtime without knowing
+    about Jobs.
+    """
+    if context is None:
+        return {}
+    if isinstance(context, Mapping):
+        direct = context.get("channel_settings")
+        if isinstance(direct, Mapping):
+            return dict(direct)
+        extensions = context.get("workflow_extensions") or context.get("extensions") or {}
+        if isinstance(extensions, Mapping):
+            nested = extensions.get("channel_settings")
+            if isinstance(nested, Mapping):
+                return dict(nested)
+        return {}
+    direct = getattr(context, "channel_settings", None)
+    if isinstance(direct, Mapping):
+        return dict(direct)
+    extensions = getattr(context, "workflow_extensions", None) or {}
+    if isinstance(extensions, Mapping):
+        nested = extensions.get("channel_settings")
+        if isinstance(nested, Mapping):
+            return dict(nested)
+    return {}
+
+
+def _logo_settings_from_branding(branding: Mapping[str, Any]) -> dict[str, Any]:
+    """Map Channel branding onto project.setup logo field names."""
+    out: dict[str, Any] = {}
+    enabled = bool(branding.get("enabled"))
+    # Always surface enabled so merge can see an explicit channel True/False.
+    out["logo_enabled"] = enabled
+
+    asset = _text(branding.get("logo_asset_id"))
+    if asset:
+        ref = asset if asset.startswith("branding/") else f"branding/{asset.lstrip('/')}"
+        # Reject absolute / drive-letter leakage — managed relative refs only.
+        if ":" not in ref and not ref.startswith("/") and "\\" not in ref:
+            out["logo"] = {"ref": ref, "path": ref}
+
+    position = _text(branding.get("position"))
+    if position:
+        out["logo_position"] = position.replace("-", "_")
+
+    size = branding.get("size")
+    if size is not None:
+        try:
+            # Channel size is a 0–1 fraction of frame width → setup percent.
+            out["logo_size"] = max(2, min(40, round(float(size) * 100)))
+        except (TypeError, ValueError):
+            pass
+
+    opacity = branding.get("opacity")
+    if opacity is not None:
+        try:
+            out["logo_opacity"] = max(0.05, min(1.0, float(opacity)))
+        except (TypeError, ValueError):
+            pass
+
+    margin = branding.get("margin")
+    if margin is not None:
+        try:
+            m = float(margin)
+            # Channel margin is a 0–0.5 fraction; setup uses pixels. Scale by
+            # a 1080 short-side reference so defaults land near the V2 32 px.
+            out["logo_margin"] = max(0, min(200, round(m * 1080)))
+        except (TypeError, ValueError):
+            pass
+
+    return out
+
+
+def _has_logo_asset(logo: Any) -> bool:
+    if not isinstance(logo, Mapping):
+        return False
+    ref = logo.get("ref") or logo.get("path")
+    return bool(str(ref or "").strip())
+
+
 def _text(value: Any) -> str:
     if value is None:
         return ""
@@ -127,5 +286,8 @@ def _text(value: Any) -> str:
 __all__ = [
     "channel_settings_from_snapshot",
     "merge_node_config_with_channel",
+    "merge_setup_config_with_channel",
+    "resolve_channel_settings",
     "script_text_from_source",
+    "setup_seed_from_channel_settings",
 ]

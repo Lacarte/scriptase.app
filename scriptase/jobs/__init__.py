@@ -12,7 +12,10 @@ branch is added.
 from scriptase.jobs.channel_settings import (
     channel_settings_from_snapshot,
     merge_node_config_with_channel,
+    merge_setup_config_with_channel,
+    resolve_channel_settings,
     script_text_from_source,
+    setup_seed_from_channel_settings,
 )
 from scriptase.jobs.models import (
     EXECUTION_MODES,
@@ -96,8 +99,11 @@ __all__ = [
     "list_jobs",
     "load_job_workflow",
     "merge_node_config_with_channel",
+    "merge_setup_config_with_channel",
     "parse_draft",
     "parse_job",
+    "resolve_channel_settings",
+    "setup_seed_from_channel_settings",
     "prepare_workflow_for_job",
     "script_text_from_source",
     "snapshot_contains_credentials",

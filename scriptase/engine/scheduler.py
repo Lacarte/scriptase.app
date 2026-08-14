@@ -748,12 +748,19 @@ class WorkflowScheduler:
                 output_dir=self.output_dir,
                 execution_id=f"{self.execution_id}_{node_id}",
             )
+            extensions = self.workflow.get("extensions")
+            channel_settings = None
+            if isinstance(extensions, dict):
+                raw_channel = extensions.get("channel_settings")
+                if isinstance(raw_channel, dict):
+                    channel_settings = raw_channel
             context = AdapterContext(
                 project_id=self.project_id,
                 execution_id=self.execution_id,
                 node_id=node_id,
                 stage_artifact=promoter.stage_path,
                 stop_requested=self.stop_requested,
+                channel_settings=channel_settings,
             )
             failure = None
             cancelled = False

@@ -10,7 +10,22 @@ from .common import AdapterError, outputs, project_id, with_artifacts
 
 
 def setup(inputs, config, context):
-    settings = dict(config or {})
+    """Emit project_settings, reading the Job channel snapshot when present.
+
+    V2-era workflows carried identity on this node (channel_name, logo, tone,
+    style, aspect_ratio). Inside a Job it is a reader and per-workflow override
+    of the channel snapshot: empty configuration yields to channel values;
+    explicit non-empty fields win. Standalone (non-Job) runs keep V2 behaviour.
+    """
+    # Lazy import: jobs.orchestration pulls the engine; a module-level import
+    # here would cycle when adapters load first.
+    from scriptase.jobs.channel_settings import (
+        merge_setup_config_with_channel,
+        resolve_channel_settings,
+    )
+
+    channel_settings = resolve_channel_settings(context)
+    settings = merge_setup_config_with_channel(config, channel_settings)
     logo = settings.get("logo")
     if settings.get("logo_enabled"):
         if not isinstance(logo, dict) or not (logo.get("ref") or logo.get("path")):

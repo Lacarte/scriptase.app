@@ -33,6 +33,10 @@ class AdapterContext:
     # that is invisible to readers until the node succeeds.  Existing
     # adapters remain compatible while they are migrated to staged writes.
     stage_artifact: Callable[[str], str] | None = None
+    # Flat channel defaults from Job orchestration (extensions.channel_settings).
+    # project.setup reads these at runtime; other adapters keep using the
+    # settings port. Never carries credentials.
+    channel_settings: Mapping[str, Any] | None = None
 
 
 def context_value(context: AdapterContext | Mapping[str, Any], name: str, default=None):

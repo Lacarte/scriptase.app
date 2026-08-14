@@ -22,6 +22,7 @@ from scriptase.engine.registry import get_node_type
 from scriptase.jobs.channel_settings import (
     channel_settings_from_snapshot,
     merge_node_config_with_channel,
+    merge_setup_config_with_channel,
     script_text_from_source,
 )
 from scriptase.jobs.models import TERMINAL_STATUSES, Job
@@ -67,19 +68,10 @@ _KIND_BY_PREFIX: tuple[tuple[str, str], ...] = (
 # stages receive them as the settings port and merge via inherited_config at
 # adapter runtime — writing free-form channel keys into every node config
 # would fail schema validation (unknown fields / option allowlists).
+# project.setup also re-reads extensions.channel_settings at runtime (1.7).
 _SETUP_NODE_TYPE = "project.setup"
 _SCRIPT_INPUT_TYPE = "script.input"
 _STORY_GENERATE_TYPE = "story.generate"
-
-# project.setup schema field names that map 1:1 from channel_settings keys.
-_SETUP_CHANNEL_KEYS: frozenset[str] = frozenset({
-    "channel_name",
-    "tone",
-    "style",
-    "aspect_ratio",
-    "logo_enabled",
-    "logo_position",
-})
 
 
 class JobOrchestrationError(RuntimeError):
@@ -142,7 +134,6 @@ def prepare_workflow_for_job(
         else dict(job.source or {})
     )
     script_text = script_text_from_source(source_payload)
-    setup_seed = _setup_seed_from_channel(channel_settings)
 
     nodes = document.get("nodes")
     if not isinstance(nodes, list):
@@ -156,9 +147,13 @@ def prepare_workflow_for_job(
         node_type = str(node.get("type") or "")
         config = dict(node.get("configuration") or {})
 
-        if node_type == _SETUP_NODE_TYPE and setup_seed:
-            # Explicit setup fields win; empty strings yield to channel values.
-            config = merge_node_config_with_channel(config, setup_seed)
+        if node_type == _SETUP_NODE_TYPE and channel_settings:
+            # Same merge the adapter applies at runtime: empty fields + logo
+            # package yield to the channel; explicit non-empty wins.
+            # Schema-filter so unknown channel keys never reach validation.
+            allowed = _config_field_names(_SETUP_NODE_TYPE)
+            merged = merge_setup_config_with_channel(config, channel_settings)
+            config = {key: value for key, value in merged.items() if key in allowed}
 
         if node_type == _SCRIPT_INPUT_TYPE and script_text:
             config = merge_node_config_with_channel(config, {"text": script_text})
@@ -179,9 +174,9 @@ def prepare_workflow_for_job(
 
     document["nodes"] = prepared_nodes
 
-    # Carry Job identity + the flat channel settings blob for step 1.7 readers
-    # (project.setup will read the snapshot at runtime). Extensions are ignored
-    # by execution (contracts.md §1.4) and never hold secrets.
+    # Carry Job identity + the flat channel settings blob so project.setup
+    # (and any future readers) can re-merge at runtime. Extensions are ignored
+    # by scheduler control-flow (contracts.md §1.4) and never hold secrets.
     extensions = dict(document.get("extensions") or {})
     extensions["job_id"] = job.id
     extensions["channel_id"] = job.channel_id
@@ -191,24 +186,6 @@ def prepare_workflow_for_job(
     document["extensions"] = extensions
 
     return document
-
-
-def _setup_seed_from_channel(channel_settings: Mapping[str, Any]) -> dict[str, Any]:
-    """project.setup-shaped seed: schema keys only, position normalized."""
-    seed: dict[str, Any] = {}
-    for key in _SETUP_CHANNEL_KEYS:
-        if key not in channel_settings:
-            continue
-        value = channel_settings[key]
-        if key == "logo_position" and isinstance(value, str):
-            # Channel branding uses hyphenated CSS-ish positions; setup uses
-            # underscored option ids (top_right, bottom_left, …).
-            value = value.replace("-", "_")
-        seed[key] = value
-    # Restrict further to the live schema so a future field rename cannot
-    # inject unknown keys at prepare time.
-    allowed = _config_field_names(_SETUP_NODE_TYPE)
-    return {key: value for key, value in seed.items() if key in allowed}
 
 
 def _story_seed_from_source(
