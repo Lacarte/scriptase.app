@@ -76,13 +76,17 @@ def test_plan_documents_are_present():
 def test_gitignore_covers_every_generated_tree():
     import subprocess
 
+    # Paths go as arguments, not through --stdin. In text mode Python rewrites
+    # every \n to \r\n on Windows, git keeps the CR as part of the pathname and
+    # then C-quotes the result because it holds a control character -- so each
+    # echoed path comes back as "venv/...\r" and matches nothing.
     result = subprocess.run(
-        ["git", "check-ignore", "--no-index", "--stdin"],
-        input="\n".join(MUST_BE_IGNORED),
+        ["git", "check-ignore", "--no-index", *MUST_BE_IGNORED],
         capture_output=True,
         text=True,
         cwd=ROOT,
     )
+    assert result.returncode in (0, 1), f"git check-ignore failed: {result.stderr}"
     ignored = set(result.stdout.split())
     missing = [path for path in MUST_BE_IGNORED if path not in ignored]
     assert not missing, f"not covered by .gitignore: {missing}"
