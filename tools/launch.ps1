@@ -28,6 +28,9 @@
 .PARAMETER NoBrowser
     Do not open a browser window.
 
+.PARAMETER NoPull
+    Skip the fast-forward pull from origin.
+
 .PARAMETER Reinstall
     Force dependency reinstall even when the stamps are current.
 
@@ -41,6 +44,7 @@ param(
     [ValidateSet('dev', 'prod', 'setup')]
     [string]$Mode = 'dev',
     [switch]$NoBrowser,
+    [switch]$NoPull,
     [switch]$Reinstall
 )
 
@@ -84,6 +88,86 @@ function Fail {
     if ($Fix) { Write-Host "    $Fix" -ForegroundColor DarkGray }
     Write-Host ''
     exit 1
+}
+
+# ---------------------------------------------------------------------------
+# 0. Update from origin
+# ---------------------------------------------------------------------------
+
+function Update-FromGit {
+    <#
+        Fast-forward only, and never fatal.
+
+        A launcher that refuses to start the app because the network is flaky,
+        or that leaves a half-merged tree behind, is worse than one that runs
+        slightly stale code. Every failure path here warns and continues:
+
+          - not a git repo, or no 'origin'      -> skip
+          - detached HEAD or no upstream        -> skip
+          - uncommitted changes                 -> skip, never stash or discard
+          - fetch fails (offline, auth, DNS)    -> warn, launch anyway
+          - would need a real merge             -> warn, launch anyway
+
+        --ff-only is the load-bearing part: it can advance the branch or refuse,
+        but it can never produce a merge commit or a conflicted working tree.
+    #>
+    if ($NoPull) { return }
+
+    if (-not (Test-Path (Join-Path $Root '.git'))) { return }
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { return }
+
+    Push-Location $Root
+    try {
+        $remotes = & git remote 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $remotes) { return }
+
+        $branch = (& git rev-parse --abbrev-ref HEAD 2>$null)
+        if ($LASTEXITCODE -ne 0 -or -not $branch -or $branch -eq 'HEAD') {
+            Write-Warn 'Detached HEAD -- skipping pull'
+            return
+        }
+
+        & git rev-parse --abbrev-ref "--symbolic-full-name" '@{u}' 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { return }   # no upstream configured
+
+        # Local edits outrank anything upstream. Pulling over them is how V2's
+        # launcher could halt on a conflict the user never asked for.
+        $dirty = & git status --porcelain 2>$null
+        if ($dirty) {
+            Write-Warn "Local changes present -- skipping pull ($(@($dirty).Count) file(s))"
+            return
+        }
+
+        Write-Step 'Checking origin for updates...'
+        $before = (& git rev-parse HEAD 2>$null)
+
+        & git fetch --quiet origin 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn 'Could not reach origin -- continuing with local code'
+            return
+        }
+
+        $merged = & git merge --ff-only '@{u}' 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn 'Local branch has diverged from origin -- continuing without pulling'
+            Write-Host '    Reconcile manually: git pull --rebase' -ForegroundColor DarkGray
+            return
+        }
+
+        $after = (& git rev-parse HEAD 2>$null)
+        if ($before -eq $after) {
+            Write-Ok 'Already up to date'
+        } else {
+            $count = (& git rev-list --count "$before..$after" 2>$null)
+            Write-Ok "Updated to $($after.Substring(0,7)) ($count new commit(s))"
+        }
+    }
+    catch {
+        Write-Warn "Update check failed -- continuing with local code"
+    }
+    finally {
+        Pop-Location
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -433,6 +517,11 @@ function Wait-ForPort {
 # ---------------------------------------------------------------------------
 
 Write-Banner
+
+# Pull first, then sync dependencies. A pulled change to requirements.txt or
+# package-lock.json changes its hash, so the stamps below pick it up in the same
+# run -- otherwise you launch new code against old dependencies.
+Update-FromGit
 
 $python = Test-Toolchain
 Initialize-Venv -Python $python
