@@ -205,6 +205,7 @@ for projects) before `safe_join`. Never normalize invalid IDs into acceptance.
       "resolved_inputs_summary": {"script": {"chars": 812}},
       "outputs_summary": {"audio_file": {"artifact": "tts/pm_X/voice.wav", "duration_s": 28.5}},
       "artifact_refs": ["tts/pm_X/voice.wav"],
+      "source_artifact_ids": ["art_XXXXXX"],  // step 4.1 — inputs from the artifact library
       "logs": [{"ts": "ISO", "level": "info", "message": "…"}],
       "error": null
     }
@@ -216,6 +217,15 @@ Persisted at `output/workflows/executions/{execution_id}.json` (atomic, redacted
 bodies are never persisted — only summaries and relative artifact refs. Status transitions
 are monotonic; terminal states cannot return to running. `awaiting_approval` is added by
 step 2.6 as a durable pause that **releases the worker thread**.
+
+**Standalone input sources (step 4.1 / §9.1).** `POST /api/workflow/run` accepts optional
+`input_bindings` (`{node_id: {port_id: binding}}`) and/or `input_overrides`
+(`{node_id: {port_id: payload}}`), plus `current_job_id` for `current_job` bindings.
+Binding `source` is one of: `current_job`, `job`, `library`, `upload`, `manual`, `sample`,
+`run_deps`. Resolved source artifact ids are recorded on the node as `source_artifact_ids`
+(and mirrored under `resolved_inputs_summary.source_artifact_ids`). Artifact library routes:
+`GET/POST /api/artifacts`, `GET /api/artifacts/<id>`, `GET /api/artifacts/<id>/payload`,
+`POST /api/artifacts/upload`, `POST /api/artifacts/resolve-inputs`.
 
 **Cache fingerprint** inputs: node type, type version, configuration, inputs, upstream
 artifact fingerprints, adapter cache schema version. Artifact integrity is re-verified on

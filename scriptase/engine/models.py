@@ -25,6 +25,9 @@ class NodeExecutionRecord:
     resolved_inputs_summary: dict[str, Any] = field(default_factory=dict)
     outputs_summary: dict[str, Any] = field(default_factory=dict)
     artifact_refs: list[str] = field(default_factory=list)
+    # Artifact ids that supplied this node's inputs (step 4.1 standalone
+    # input picker). Distinct from artifact_refs, which are outputs.
+    source_artifact_ids: list[str] = field(default_factory=list)
     logs: list[dict[str, Any]] = field(default_factory=list)
     attempt_errors: list[dict[str, Any]] = field(default_factory=list)
     error: dict[str, Any] | None = None

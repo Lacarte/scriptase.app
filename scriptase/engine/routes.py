@@ -651,6 +651,15 @@ def workflow_run():
         return _error("BAD_REQUEST", "target_node_ids must be an array of node IDs", 400)
     if not isinstance(body.get("force", False), bool):
         return _error("BAD_REQUEST", "force must be a boolean", 400)
+    input_overrides = body.get("input_overrides")
+    if input_overrides is not None and not isinstance(input_overrides, dict):
+        return _error("BAD_REQUEST", "input_overrides must be an object", 400)
+    input_bindings = body.get("input_bindings")
+    if input_bindings is not None and not isinstance(input_bindings, dict):
+        return _error("BAD_REQUEST", "input_bindings must be an object", 400)
+    current_job_id = body.get("current_job_id")
+    if current_job_id is not None and not isinstance(current_job_id, str):
+        return _error("BAD_REQUEST", "current_job_id must be a string", 400)
     try:
         if has_id:
             workflow = load_workflow(body.get("workflow_id"))
@@ -664,11 +673,23 @@ def workflow_run():
             target_node_ids=targets,
             project_id=body.get("project_id"),
             force=body.get("force", False),
+            input_overrides=input_overrides,
+            input_bindings=input_bindings,
+            current_job_id=current_job_id,
         )
     except WorkflowNotFound:
         return _error("NOT_FOUND", "Workflow not found", 404)
     except ExecutionRequestError as exc:
-        status = 422 if exc.code in {"WORKFLOW_INVALID", "MISSING_REQUIRED_INPUT"} else 400
+        status = 422 if exc.code in {
+            "WORKFLOW_INVALID",
+            "MISSING_REQUIRED_INPUT",
+            "RUN_DEPS",
+            "ARTIFACT_INVALID",
+        } else 400
+        if exc.code in {"ARTIFACT_NOT_FOUND", "ARTIFACT_MISSING"}:
+            status = 404
+        if exc.code == "ARTIFACT_SUPERSEDED":
+            status = 409
         return _error(exc.code, str(exc), status, exc.details)
     except ValueError as exc:
         return _error("BAD_REQUEST", str(exc), 400)

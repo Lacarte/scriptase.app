@@ -52,6 +52,7 @@ def register_blueprints(app: Flask) -> None:
     seven `compose_*` ones below without moving a single behaviour: the logic
     they used to hold now lives in `scriptase/modules/compose/*_service.py`.
     """
+    from scriptase.artifacts import artifacts_bp
     from scriptase.channels import channels_bp
     from scriptase.engine.routes import workflows_bp
     from scriptase.jobs.routes import jobs_bp
@@ -80,6 +81,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(providers_bp)
     app.register_blueprint(channels_bp)
     app.register_blueprint(jobs_bp)
+    app.register_blueprint(artifacts_bp)
 
     for blueprint in (
         story_bp,

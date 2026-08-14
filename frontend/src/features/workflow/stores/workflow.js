@@ -467,6 +467,9 @@ export const useWorkflowStore = defineStore('workflow', () => {
     runMode = 'full',
     targetNodeIds = [],
     EventSourceImpl,
+    inputBindings = null,
+    inputOverrides = null,
+    currentJobId = null,
   } = {}) {
     executionLoading.value = true
     executionError.value = ''
@@ -476,13 +479,24 @@ export const useWorkflowStore = defineStore('workflow', () => {
       const payload = workflowId.value && !dirty.value
         ? { workflow_id: workflowId.value }
         : { workflow: toDocument() }
+      const body = {
+        ...payload,
+        run_mode: runMode,
+        target_node_ids: [...targetNodeIds],
+        force: false,
+      }
+      // Standalone input picker (step 4.1): optional bindings / overrides.
+      if (inputBindings && typeof inputBindings === 'object') {
+        body.input_bindings = inputBindings
+      }
+      if (inputOverrides && typeof inputOverrides === 'object') {
+        body.input_overrides = inputOverrides
+      }
+      if (currentJobId) {
+        body.current_job_id = currentJobId
+      }
       const data = await api.post('/api/workflow/run', {
-        body: {
-          ...payload,
-          run_mode: runMode,
-          target_node_ids: [...targetNodeIds],
-          force: false,
-        },
+        body,
       })
       currentExecution.value = {
         schema_version: 1,

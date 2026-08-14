@@ -452,6 +452,7 @@ class WorkflowScheduler:
         force: bool = False,
         sleeper: Callable[[float], None] = time.sleep,
         input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
+        source_artifact_ids: Mapping[str, list[str]] | None = None,
         max_workers: int = 4,
         # Durable approval (step 2.6): pause after these node ids succeed.
         checkpoint_after_node_ids: list[str] | None = None,
@@ -464,6 +465,10 @@ class WorkflowScheduler:
             raise ValueError("max_workers must be a positive integer")
         self.input_overrides = {
             str(node_id): dict(ports) for node_id, ports in (input_overrides or {}).items()
+        }
+        self.source_artifact_ids = {
+            str(node_id): list(dict.fromkeys(ids))
+            for node_id, ids in (source_artifact_ids or {}).items()
         }
         provided_inputs = {
             (node_id, port_id)
@@ -776,7 +781,21 @@ class WorkflowScheduler:
                 for edge in graph.incoming[node_id]
             )
         )
+        # Standalone input picker (4.1): record which artifacts fed this node.
+        source_ids = list(self.source_artifact_ids.get(node_id) or [])
+        try:
+            from scriptase.artifacts.input_sources import source_artifact_ids_from_inputs
+            source_ids.extend(source_artifact_ids_from_inputs(inputs))
+        except Exception:
+            pass
+        node_record.source_artifact_ids = list(dict.fromkeys(source_ids))
         node_record.resolved_inputs_summary = self.redactor(_summarize(inputs))
+        if node_record.source_artifact_ids:
+            # Surface ids in the inputs summary so clients without the new field
+            # can still read provenance from the existing summary shape.
+            summary = dict(node_record.resolved_inputs_summary or {})
+            summary["source_artifact_ids"] = list(node_record.source_artifact_ids)
+            node_record.resolved_inputs_summary = summary
         try:
             configuration = resolve_configuration(
                 self._configuration(node),

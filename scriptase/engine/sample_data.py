@@ -97,9 +97,14 @@ def all_sample_payloads() -> dict:
 # File-reference containment: fixture-relative paths only.
 # ---------------------------------------------------------------------------
 
+# Thread-local-ish override for ref checks during input-override validation
+# (step 4.1). Fixture mode remains the default for stub.input payloads.
+_REF_MODE = "fixture"  # "fixture" | "managed"
+
+
 def _check_ref(ref: Any, problems: list[dict], label: str) -> None:
     if not isinstance(ref, str) or not ref.strip():
-        problems.append(_invalid(f"{label} must be a non-empty fixture-relative path"))
+        problems.append(_invalid(f"{label} must be a non-empty relative path"))
         return
     normalized = ref.replace("\\", "/")
     parts = PurePosixPath(normalized).parts
@@ -110,9 +115,19 @@ def _check_ref(ref: Any, problems: list[dict], label: str) -> None:
         or ".." in parts
         or not parts
     ):
-        problems.append(_invalid(
-            f"{label} must stay inside the bundled sample fixtures (got: {ref})"
-        ))
+        if _REF_MODE == "managed":
+            problems.append(_invalid(
+                f"{label} must be a managed relative path under output/ (got: {ref})"
+            ))
+        else:
+            problems.append(_invalid(
+                f"{label} must stay inside the bundled sample fixtures (got: {ref})"
+            ))
+        return
+    if _REF_MODE == "managed":
+        # Shape-only here: existence is enforced when the artifact is
+        # materialized / registered. Avoid coupling validation to the live
+        # OUTPUT_DIR layout during unit tests that supply synthetic payloads.
         return
     if not (FIXTURES_DIR / Path(*parts)).is_file():
         problems.append(_problem(
@@ -126,7 +141,7 @@ def _check_artifact_refs(payload: dict, problems: list[dict]) -> None:
     if refs is None:
         return
     if not isinstance(refs, list):
-        problems.append(_invalid("artifact_refs must be a list of fixture-relative paths"))
+        problems.append(_invalid("artifact_refs must be a list of relative paths"))
         return
     for index, ref in enumerate(refs):
         _check_ref(ref, problems, f"artifact_refs[{index}]")
@@ -442,15 +457,35 @@ def validate_stub_payload(port_type: str, payload: Any) -> list[dict]:
 
     Returns ``[{code, message}]`` with codes STUB_PAYLOAD_INVALID or
     SAMPLE_FIXTURE_MISSING; empty list means the payload is acceptable.
+    File refs must point at bundled fixtures under ``fixtures/``.
     """
+    return _validate_payload(port_type, payload, ref_mode="fixture")
+
+
+def validate_port_payload(port_type: str, payload: Any) -> list[dict]:
+    """Structural validation for a runtime port value (input overrides, 4.1).
+
+    Same shape rules as stubs, but file refs may be managed relative paths
+    under ``output/`` (artifact library / Job artifacts), not only fixtures.
+    """
+    return _validate_payload(port_type, payload, ref_mode="managed")
+
+
+def _validate_payload(port_type: str, payload: Any, *, ref_mode: str) -> list[dict]:
+    global _REF_MODE
     validator = _VALIDATORS.get(port_type)
     if validator is None:
         return [_invalid(f"Unsupported sample data type: {port_type}")]
-    problems: list[dict] = []
-    validator(payload, problems)
-    if isinstance(payload, dict):
-        _check_artifact_refs(payload, problems)
-    return problems
+    previous = _REF_MODE
+    _REF_MODE = ref_mode
+    try:
+        problems: list[dict] = []
+        validator(payload, problems)
+        if isinstance(payload, dict):
+            _check_artifact_refs(payload, problems)
+        return problems
+    finally:
+        _REF_MODE = previous
 
 
 # ---------------------------------------------------------------------------

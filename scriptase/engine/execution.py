@@ -49,7 +49,7 @@ from .persistence import (
     save_queue_record,
 )
 from .registry import get_node_type
-from .sample_data import validate_stub_payload
+from .sample_data import validate_port_payload
 from .scheduler import WorkflowScheduler, calculate_scope, resolve_executor
 from .validation import validate_workflow, validation_errors
 
@@ -106,7 +106,13 @@ def prepare_snapshot(
     return snapshot
 
 
-def resolve_scope(workflow: Mapping[str, Any], run_mode: str, target_node_ids: list[str]) -> list[str]:
+def resolve_scope(
+    workflow: Mapping[str, Any],
+    run_mode: str,
+    target_node_ids: list[str],
+    *,
+    provided_inputs: set[tuple[str, str]] | None = None,
+) -> list[str]:
     nodes = {node["id"]: node for node in workflow.get("nodes", [])}
     try:
         scope = calculate_scope(workflow, run_mode, target_node_ids)
@@ -117,21 +123,27 @@ def resolve_scope(workflow: Mapping[str, Any], run_mode: str, target_node_ids: l
 
     target = target_node_ids[0]
     # Isolation deliberately ignores normal upstream nodes. Required inputs
-    # must instead be supplied by directly connected Sample Input nodes.
+    # must be supplied by directly connected Sample Input stubs **or** by
+    # input_overrides / input_bindings from the artifact input picker (4.1).
     incoming = [edge for edge in workflow.get("edges", []) if edge["target_node"] == target]
     stub_ids = {
         edge["source_node"] for edge in incoming
         if nodes[edge["source_node"]].get("type") == "stub.input"
     }
+    overrides = provided_inputs or set()
     definition = get_node_type(nodes[target]["type"])
     for port in definition.get("inputs", []):
         if not port.get("required"):
             continue
-        sources = [edge["source_node"] for edge in incoming if edge["target_port"] == port["id"]]
+        port_id = port["id"]
+        if (target, port_id) in overrides:
+            continue
+        sources = [edge["source_node"] for edge in incoming if edge["target_port"] == port_id]
         if not sources or any(source not in stub_ids for source in sources):
             raise ExecutionRequestError(
                 "MISSING_REQUIRED_INPUT",
-                f"Isolated node {target} requires Sample Input data for port {port['id']}",
+                f"Isolated node {target} requires Sample Input data or an input "
+                f"binding for port {port_id}",
             )
     scope = stub_ids | {target}
     return [node_id for node_id in nodes if node_id in scope]
@@ -202,13 +214,69 @@ class ExecutionManager:
         force: bool = False,
         source: str = "manual",
         input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
+        input_bindings: Mapping[str, Mapping[str, Any]] | None = None,
+        source_artifact_ids: Mapping[str, list[str]] | None = None,
+        current_job_id: str | None = None,
         checkpoint_after_node_ids: list[str] | None = None,
     ) -> tuple[str, str]:
         if source not in {"manual", "schedule", "watch", "webhook"}:
             raise ExecutionRequestError("BAD_REQUEST", "Unsupported run source")
-        overrides = self._validate_input_overrides(workflow, input_overrides or {})
+        overrides = dict(input_overrides or {})
+        recorded_sources: dict[str, list[str]] = {
+            str(node_id): list(ids)
+            for node_id, ids in (source_artifact_ids or {}).items()
+        }
+        if input_bindings:
+            try:
+                from scriptase.artifacts.input_sources import (
+                    InputSourceError,
+                    port_types_for_workflow,
+                    resolve_input_bindings,
+                )
+            except ImportError as exc:  # pragma: no cover
+                raise ExecutionRequestError(
+                    "BAD_REQUEST", "Input bindings are unavailable"
+                ) from exc
+            try:
+                bound_overrides, bound_sources = resolve_input_bindings(
+                    input_bindings,
+                    current_job_id=current_job_id,
+                    port_types=port_types_for_workflow(workflow),
+                )
+            except InputSourceError as exc:
+                status_code = "BAD_REQUEST"
+                if exc.code in {
+                    "ARTIFACT_NOT_FOUND",
+                    "ARTIFACT_MISSING",
+                    "ARTIFACT_SUPERSEDED",
+                    "ARTIFACT_INVALID",
+                    "SAMPLE_FIXTURE_MISSING",
+                    "RUN_DEPS",
+                }:
+                    status_code = exc.code
+                raise ExecutionRequestError(
+                    status_code, exc.message, details=exc.details or None
+                ) from exc
+            # Explicit overrides win over bindings on the same port.
+            for node_id, ports in bound_overrides.items():
+                merged = dict(ports)
+                merged.update(overrides.get(node_id) or {})
+                overrides[node_id] = merged
+            for node_id, ids in bound_sources.items():
+                existing = list(recorded_sources.get(node_id) or [])
+                existing.extend(ids)
+                recorded_sources[node_id] = list(dict.fromkeys(existing))
+
+        overrides = self._validate_input_overrides(workflow, overrides)
         snapshot = prepare_snapshot(workflow, input_overrides=overrides)
-        scope = resolve_scope(snapshot, run_mode, target_node_ids)
+        provided = {
+            (str(node_id), str(port_id))
+            for node_id, ports in overrides.items()
+            for port_id in ports
+        }
+        scope = resolve_scope(
+            snapshot, run_mode, target_node_ids, provided_inputs=provided
+        )
         resolved_project = resolve_project_id(snapshot, project_id)
         execution_id = generate_execution_id(root=self.execution_root)
         stream = self.events.create(execution_id)
@@ -256,6 +324,7 @@ class ExecutionManager:
             executor_resolver=self.executor_resolver,
             force=force,
             input_overrides=overrides,
+            source_artifact_ids=recorded_sources,
             checkpoint_after_node_ids=checkpoint_after_node_ids,
         )
         scheduler.record.status = "queued"
@@ -292,7 +361,9 @@ class ExecutionManager:
                 port_type = port.get("type") if port else None
                 if port_type == "dynamic":
                     port_type = (node.get("configuration") or {}).get("port_type")
-                problems = validate_stub_payload(port_type, value) if port else []
+                # Overrides may carry managed artifact paths (4.1) as well as
+                # fixture refs; use the managed-aware structural validator.
+                problems = validate_port_payload(port_type, value) if port else []
                 if not port or port_type == "control" or problems:
                     raise ExecutionRequestError(
                         "BAD_REQUEST", f"Input override {node_id}.{port_id} is not valid {port_type or 'data'}",
@@ -794,6 +865,7 @@ class ExecutionManager:
                 resolved_inputs_summary=dict(raw.get("resolved_inputs_summary") or {}),
                 outputs_summary=dict(raw.get("outputs_summary") or {}),
                 artifact_refs=list(raw.get("artifact_refs") or []),
+                source_artifact_ids=list(raw.get("source_artifact_ids") or []),
                 logs=list(raw.get("logs") or []),
                 attempt_errors=list(raw.get("attempt_errors") or []),
                 error=dict(raw["error"]) if isinstance(raw.get("error"), Mapping) else None,
