@@ -56,7 +56,9 @@ def _resolved_settings(provider: str) -> dict:
     instance_id, type_id = resolve_provider_binding(DOMAIN, provider)
     saved = settings_manager.get_instance_settings(DOMAIN, instance_id)
     package = hub.get(DOMAIN, type_id)
-    return package.resolve_settings(saved) if package is not None else dict(saved)
+    if package is None:
+        return dict(saved)
+    return package.resolve_settings(saved, instance_id=instance_id)
 
 
 def _step_assets(scenes_result, config, pid, context):

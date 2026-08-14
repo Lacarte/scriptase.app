@@ -134,9 +134,14 @@ def _seed_from_env() -> dict:
 def save_settings(data: dict) -> None:
     """Save settings to settings/settings.json atomically.
 
-    Uses write-to-temp-then-rename for atomicity.
+    Uses write-to-temp-then-rename for atomicity. Plaintext credentials are
+    materialised into the secret store first so ``settings.json`` never holds
+    an inline secret (step 3.4 / contracts.md §7).
     """
+    from scriptase.providers.secrets import extract_plaintext_from_document
+
     _ensure_settings_dir()
+    data = extract_plaintext_from_document(dict(data) if isinstance(data, dict) else {})
 
     with _lock:
         temp_fd, temp_path = tempfile.mkstemp(
@@ -336,8 +341,15 @@ def set_instance_settings(
     *,
     provider_type: str | None = None,
     label: str | None = None,
+    schema: dict | None = None,
 ) -> None:
-    """Write settings for one instance, creating the record when missing."""
+    """Write settings for one instance, creating the record when missing.
+
+    Plaintext secret fields are replaced with ``{"$secret": ref}`` before the
+    document is persisted (step 3.4).
+    """
+    from scriptase.providers.secrets import extract_plaintext_from_settings
+
     if not instance_id:
         raise ValueError("instance_id must be a non-empty string")
     settings = load_settings()
@@ -345,18 +357,26 @@ def set_instance_settings(
     existing = block["instances"].get(instance_id)
     type_id = provider_type
     display = label
+    previous_settings: dict = {}
     if isinstance(existing, dict):
         if not type_id:
             type_id = existing.get("type") if isinstance(existing.get("type"), str) else instance_id
         if not display:
             display = existing.get("label") if isinstance(existing.get("label"), str) else type_id
+        if isinstance(existing.get("settings"), dict):
+            previous_settings = existing["settings"]
     else:
         type_id = type_id or instance_id
         display = display or type_id
+    stored_settings = extract_plaintext_from_settings(
+        dict(instance_settings or {}),
+        schema=schema,
+        previous=previous_settings,
+    )
     block["instances"][instance_id] = {
         "type": type_id,
         "label": display,
-        "settings": dict(instance_settings or {}),
+        "settings": stored_settings,
     }
     save_settings(settings)
 
@@ -414,13 +434,22 @@ def upsert_instance(
             n += 1
         iid = f"{provider_type}_{n}"
 
+    from scriptase.providers.secrets import extract_plaintext_from_settings
+
     existing = instances.get(iid) if isinstance(instances.get(iid), dict) else {}
     display = label or existing.get("label") or provider_type
-    body = settings if settings is not None else existing.get("settings") or {}
+    previous = existing.get("settings") if isinstance(existing.get("settings"), dict) else {}
+    if settings is not None:
+        body = extract_plaintext_from_settings(
+            dict(settings) if isinstance(settings, dict) else {},
+            previous=previous,
+        )
+    else:
+        body = dict(previous)
     instances[iid] = {
         "type": provider_type,
         "label": display,
-        "settings": dict(body) if isinstance(body, dict) else {},
+        "settings": body,
     }
     save_settings(doc)
     return iid
@@ -512,8 +541,12 @@ def restore_redacted_secrets(stored: Any, incoming: Any) -> Any:
     """Recursively drop sentinel secrets from a whole-document settings write.
 
     `PUT /api/settings/v2` round-trips the entire document, so a redacted read
-    would otherwise write `"***"` over every stored secret.
+    would otherwise write `"***"` over every stored secret. After step 3.4 the
+    stored value is typically a secret ref (not plaintext); restoring the
+    sentinel re-attaches that ref, never the resolved credential.
     """
+    from scriptase.providers.secrets import is_secret_ref
+
     if not isinstance(incoming, dict):
         return incoming
     stored = stored if isinstance(stored, dict) else {}
@@ -522,6 +555,14 @@ def restore_redacted_secrets(stored: Any, incoming: Any) -> Any:
         if value == REDACTION_SENTINEL and SENSITIVE_KEYS_RE.search(key):
             if key in stored:
                 result[key] = stored[key]
+            continue
+        # A client must never submit a raw secret-ref object it invented; only
+        # the store's own refs (restored via the sentinel) are durable. An
+        # incoming ref that matches the stored one is kept; any other ref is
+        # dropped in favour of the stored value when present.
+        if is_secret_ref(value):
+            prev = stored.get(key)
+            result[key] = prev if is_secret_ref(prev) or prev is not None else value
             continue
         if isinstance(value, dict):
             result[key] = restore_redacted_secrets(stored.get(key), value)

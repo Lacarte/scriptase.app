@@ -558,11 +558,13 @@ class MigrationSequencingTests(unittest.TestCase):
         self.assertEqual(migrated['domains']['tts']['selected_instance_id'], 'kokoro')
 
     def test_migration_is_lossless(self):
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         migrated, _ = apply_migrations(json.loads(json.dumps(V1_SETTINGS)), {})
-        self.assertEqual(
-            migrated['domains']['tts']['instances']['inworld']['settings'],
-            {'api_key': 'sk'},
-        )
+        stored = migrated['domains']['tts']['instances']['inworld']['settings']
+        # Step 3.4: credentials become secret refs; the value is still recoverable.
+        self.assertTrue(is_secret_ref(stored['api_key']))
+        self.assertEqual(resolve_secret_refs(stored), {'api_key': 'sk'})
         # Domains added to the catalog after the file was written are backfilled.
         self.assertEqual(set(migrated['domains']), set(DOMAINS))
         for domain_id, spec in DOMAINS.items():
@@ -698,25 +700,36 @@ class ProviderApiRedactionTests(unittest.TestCase):
         self.assertNotIn(self.SECRET, resp.get_data(as_text=True))
 
     def test_saving_the_sentinel_preserves_the_stored_secret(self):
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         resp = self.client.put(
             '/api/providers/tts/inworld/settings',
             json={'api_key': ss.REDACTION_SENTINEL, 'voice': 'Carter'},
         )
         self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
         stored = self.saved[-1]['domains']['tts']['instances']['inworld']['settings']
-        self.assertEqual(stored['api_key'], self.SECRET)
+        # Step 3.4: the store holds a ref; the credential is still the original.
+        self.assertTrue(is_secret_ref(stored['api_key']))
+        self.assertEqual(resolve_secret_refs(stored)['api_key'], self.SECRET)
         self.assertEqual(stored['voice'], 'Carter')
 
     def test_a_whole_document_round_trip_preserves_the_stored_secret(self):
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         document = self.client.get('/api/settings/v2').get_json()
         document['domains']['tts']['selected_instance_id'] = 'kokoro'
         resp = self.client.put('/api/settings/v2', json=document)
         self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
         written = self.saved[-1]
-        self.assertEqual(
-            written['domains']['tts']['instances']['inworld']['settings']['api_key'],
-            self.SECRET,
-        )
+        key = written['domains']['tts']['instances']['inworld']['settings']['api_key']
+        # Either still plaintext (no write through set_instance) or a ref that
+        # resolves to the original secret.
+        if is_secret_ref(key):
+            self.assertEqual(
+                resolve_secret_refs({'api_key': key})['api_key'], self.SECRET
+            )
+        else:
+            self.assertEqual(key, self.SECRET)
         self.assertEqual(written['domains']['tts']['selected_instance_id'], 'kokoro')
 
     def test_the_environment_value_never_reaches_a_response(self):

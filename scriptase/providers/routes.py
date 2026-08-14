@@ -139,7 +139,7 @@ def _issue_dicts(issues):
 
 
 def _health_dict(provider, settings, *, instance_id=None):
-    health = provider.health_check(settings)
+    health = provider.health_check(settings, instance_id=instance_id)
     return {
         "status": health.status,
         "latency_ms": health.latency_ms,
@@ -291,7 +291,9 @@ def create_domain_instance(domain):
     ) if settings_patch else None
 
     if merged is not None:
-        issues = _issue_dicts(provider.validate_settings(merged))
+        issues = _issue_dicts(
+            provider.validate_settings(merged, instance_id=instance_id or provider.id)
+        )
         if any(i.get("severity") == "error" for i in issues):
             return _error("SETTINGS_INVALID", "Validation failed", 400, {"issues": issues})
     else:
@@ -411,7 +413,7 @@ def validate_instance_settings(domain, instance_id):
     merged = settings_manager.merge_provider_settings(
         domain, iid, patch, provider.settings_schema()
     )
-    issues = _issue_dicts(provider.validate_settings(merged))
+    issues = _issue_dicts(provider.validate_settings(merged, instance_id=iid))
     return jsonify({
         "valid": not any(i.get("severity") == "error" for i in issues),
         "issues": issues,
@@ -458,15 +460,19 @@ def put_instance_settings_route(domain, instance_id):
     if err is not None:
         return err
 
-    merged = settings_manager.merge_provider_settings(
-        domain, iid, patch, provider.settings_schema()
-    )
-    issues = _issue_dicts(provider.validate_settings(merged))
+    schema = provider.settings_schema()
+    merged = settings_manager.merge_provider_settings(domain, iid, patch, schema)
+    issues = _issue_dicts(provider.validate_settings(merged, instance_id=iid))
     if any(i.get("severity") == "error" for i in issues):
         return _error("SETTINGS_INVALID", "Validation failed", 400, {"issues": issues})
 
     settings_manager.set_instance_settings(
-        domain, iid, merged, provider_type=provider.id, label=provider.label
+        domain,
+        iid,
+        merged,
+        provider_type=provider.id,
+        label=provider.label,
+        schema=schema,
     )
     invalidate_settings_cache(domain)
     return jsonify({
@@ -599,7 +605,7 @@ def validate_provider_settings(domain, provider_id):
     merged = settings_manager.merge_provider_settings(
         domain, iid, patch, provider.settings_schema()
     )
-    issues = _issue_dicts(provider.validate_settings(merged))
+    issues = _issue_dicts(provider.validate_settings(merged, instance_id=iid))
     return jsonify({
         "valid": not any(i.get("severity") == "error" for i in issues),
         "issues": issues,
@@ -654,15 +660,19 @@ def put_provider_settings(domain, provider_id):
         return err
 
     # A secret submitted as the redaction sentinel leaves the stored value alone.
-    merged = settings_manager.merge_provider_settings(
-        domain, iid, patch, provider.settings_schema()
-    )
-    issues = _issue_dicts(provider.validate_settings(merged))
+    schema = provider.settings_schema()
+    merged = settings_manager.merge_provider_settings(domain, iid, patch, schema)
+    issues = _issue_dicts(provider.validate_settings(merged, instance_id=iid))
     if any(i.get("severity") == "error" for i in issues):
         return _error("SETTINGS_INVALID", "Validation failed", 400, {"issues": issues})
 
     settings_manager.set_instance_settings(
-        domain, iid, merged, provider_type=provider.id, label=provider.label
+        domain,
+        iid,
+        merged,
+        provider_type=provider.id,
+        label=provider.label,
+        schema=schema,
     )
     # Options that depend on settings must refetch — changing an API key changes
     # what the provider can offer (contracts.md §23.4).
@@ -734,7 +744,7 @@ def put_domain_selection(domain):
         "selected_instance_id": iid,
         "provider_type": provider.id,
         "availability": provider.availability(stored, instance_id=iid),
-        "issues": _issue_dicts(provider.validate_settings(stored)),
+        "issues": _issue_dicts(provider.validate_settings(stored, instance_id=iid)),
     })
 
 

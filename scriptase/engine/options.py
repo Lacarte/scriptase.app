@@ -452,11 +452,11 @@ def _provider_models(ctx: OptionContext) -> list:
     if not callable(hook):
         return []
     try:
+        iid = instance_key or package.id
         models = hook(
             package.resolve_settings(
-                settings_manager.get_instance_settings(
-                    domain, instance_key or package.id
-                )
+                settings_manager.get_instance_settings(domain, iid),
+                instance_id=iid,
             )
         )
     except Exception as exc:

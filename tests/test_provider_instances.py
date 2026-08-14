@@ -95,17 +95,21 @@ class InstanceSettingsMigrationTests(unittest.TestCase):
         self.assertTrue(changed)
         self.assertEqual(migrated["version"], SETTINGS_VERSION)
 
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         tts = migrated["domains"]["tts"]
         self.assertEqual(tts["selected_instance_id"], "inworld")
         self.assertNotIn("selected_provider", tts)
         self.assertNotIn("per_provider", tts)
+        inworld = tts["instances"]["inworld"]
+        self.assertEqual(inworld["type"], "inworld")
+        self.assertEqual(inworld["label"], "inworld")
+        self.assertEqual(inworld["settings"]["voice"], "Ashley")
+        # Step 3.4 (v7): credentials become secret refs.
+        self.assertTrue(is_secret_ref(inworld["settings"]["api_key"]))
         self.assertEqual(
-            tts["instances"]["inworld"],
-            {
-                "type": "inworld",
-                "label": "inworld",
-                "settings": {"api_key": "sk-keep", "voice": "Ashley"},
-            },
+            resolve_secret_refs(inworld["settings"]),
+            {"api_key": "sk-keep", "voice": "Ashley"},
         )
         self.assertEqual(
             tts["instances"]["kokoro"]["settings"],
@@ -136,14 +140,15 @@ class InstanceSettingsMigrationTests(unittest.TestCase):
         }
         legacy = {"sts-tts-provider": "inworld"}
         migrated, _ = apply_migrations(json.loads(json.dumps(v1)), legacy)
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         self.assertEqual(migrated["version"], SETTINGS_VERSION)
         self.assertEqual(
             migrated["domains"]["tts"]["selected_instance_id"], "inworld"
         )
-        self.assertEqual(
-            migrated["domains"]["tts"]["instances"]["inworld"]["settings"]["api_key"],
-            "sk",
-        )
+        key = migrated["domains"]["tts"]["instances"]["inworld"]["settings"]["api_key"]
+        self.assertTrue(is_secret_ref(key))
+        self.assertEqual(resolve_secret_refs({"api_key": key})["api_key"], "sk")
 
 
 class TwoInstancesIndependenceTests(unittest.TestCase):
@@ -204,9 +209,11 @@ class TwoInstancesIndependenceTests(unittest.TestCase):
         self.assertIsNotNone(self.provider)
 
     def test_settings_are_independent(self):
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         main = settings_manager.get_instance_settings("demo", "alpha_main")
         backup = settings_manager.get_instance_settings("demo", "alpha_backup")
-        self.assertEqual(main, {"api_key": "sk-main"})
+        self.assertEqual(resolve_secret_refs(main), {"api_key": "sk-main"})
         self.assertEqual(backup, {})
 
         settings_manager.set_instance_settings(
@@ -217,13 +224,15 @@ class TwoInstancesIndependenceTests(unittest.TestCase):
             label="Alpha Backup",
         )
         self.assertEqual(
-            settings_manager.get_instance_settings("demo", "alpha_main"),
+            resolve_secret_refs(
+                settings_manager.get_instance_settings("demo", "alpha_main")
+            ),
             {"api_key": "sk-main"},
         )
-        self.assertEqual(
-            settings_manager.get_instance_settings("demo", "alpha_backup"),
-            {"api_key": "sk-backup"},
-        )
+        backup_after = settings_manager.get_instance_settings("demo", "alpha_backup")
+        # Step 3.4: writes materialise credentials as secret refs.
+        self.assertTrue(is_secret_ref(backup_after["api_key"]))
+        self.assertEqual(resolve_secret_refs(backup_after), {"api_key": "sk-backup"})
 
     def test_availability_is_independent(self):
         main_settings = settings_manager.get_instance_settings("demo", "alpha_main")

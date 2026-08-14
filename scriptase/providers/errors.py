@@ -38,6 +38,8 @@ PROVIDER_ARTIFACT_MISSING = "PROVIDER_ARTIFACT_MISSING"
 PROVIDER_ARTIFACT_UNMANAGED = "PROVIDER_ARTIFACT_UNMANAGED"
 PROVIDER_FAILED = "PROVIDER_FAILED"
 CANCELLED = "CANCELLED"
+# Scriptase §13.3 — secret reference could not be resolved at call time (3.4).
+SECRET_REF_UNRESOLVED = "SECRET_REF_UNRESOLVED"
 
 # `retryable` is a property of the code, not of the provider: a provider may not
 # mark PROVIDER_AUTH_FAILED retryable to force retries (§34.3). `None` means
@@ -59,6 +61,7 @@ RETRYABLE: dict[str, bool | None] = {
     PROVIDER_ARTIFACT_UNMANAGED: False,
     PROVIDER_FAILED: False,
     CANCELLED: False,
+    SECRET_REF_UNRESOLVED: False,
 }
 
 PROVIDER_CODES = frozenset(RETRYABLE)
@@ -97,6 +100,7 @@ _RECOVERY = {
     PROVIDER_RATE_LIMITED: "Wait for the provider rate limit to reset, then retry.",
     PROVIDER_TIMEOUT: "Retry the node, or choose a faster provider.",
     CANCELLED: "Start a new run when ready.",
+    SECRET_REF_UNRESOLVED: "Re-enter the provider credentials in settings, then retry.",
 }
 _DEFAULT_RECOVERY = "Review the provider settings and inputs, then retry the node."
 
@@ -324,6 +328,7 @@ __all__ = [
     "PROVIDER_UNAVAILABLE",
     "PROVIDER_UNIT_FAILED",
     "RETRYABLE",
+    "SECRET_REF_UNRESOLVED",
     "WORKFLOW_CODE",
     "ProviderCancelled",
     "ProviderError",

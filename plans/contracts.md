@@ -807,7 +807,7 @@ decision freeze.
 | Error-code rename for domains | None — domains alias, codes do not | — |
 | Per-unit provenance runtime | Shape frozen in §1.7 / §2; runtime fallback | 8.3 |
 | Provider type/instance split | `provider_instance_id` populated; settings `instances` map | 3.1 |
-| Secret references | `{"$secret": "<ref>"}` wire form frozen; resolver | 3.4 |
+| Secret references | `{"$secret": "<ref>"}` wire form frozen; resolver in `ProviderInstance.resolve_settings`; secret store + settings migration v7 | 3.4 |
 | Durable approval engine state | Status token frozen; worker-release behaviour | 2.6 |
 | Stage projection endpoint | Shape frozen in §10 | 2.2 |
 | SceneSpec round-trip | Shape frozen in §8 | 5.1 |

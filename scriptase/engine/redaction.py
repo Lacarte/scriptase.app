@@ -30,12 +30,20 @@ def is_sensitive_key(key: Any) -> bool:
 
 
 def collect_secrets(value: Any) -> set[str]:
-    """Collect scalar values stored under explicitly sensitive keys."""
+    """Collect scalar values stored under explicitly sensitive keys.
+
+    Secret references (``{"$secret": "<ref>"}``) are not credentials — only
+    plaintext strings under sensitive keys are harvested (step 3.4).
+    """
     found: set[str] = set()
 
     def visit(item: Any) -> None:
         if isinstance(item, Mapping):
+            if _is_secret_ref(item):
+                return
             for key, child in item.items():
+                if _is_secret_ref(child):
+                    continue
                 if is_sensitive_key(key) and isinstance(child, (str, bytes)):
                     text = child.decode("utf-8", "ignore") if isinstance(child, bytes) else child
                     if text:
@@ -62,16 +70,34 @@ def redact_text(text: str, secrets: Iterable[str] = ()) -> str:
     return result
 
 
+def _is_secret_ref(value: Any) -> bool:
+    """True for the frozen ``{"$secret": "<ref>"}`` wire form (step 3.4).
+
+    A reference is not itself a credential, so redaction leaves it intact.
+    """
+    return (
+        isinstance(value, Mapping)
+        and set(value.keys()) == {"$secret"}
+        and isinstance(value.get("$secret"), str)
+        and bool(str(value.get("$secret")).strip())
+    )
+
+
 def redact(value: Any, *, secrets: Iterable[str] = ()) -> Any:
     """Return a detached, JSON-safe-shape copy with secrets removed."""
     known = set(secrets) | collect_secrets(value)
 
     def scrub(item: Any) -> Any:
         if isinstance(item, Mapping):
-            return {
-                key: REDACTED if is_sensitive_key(key) else scrub(child)
-                for key, child in item.items()
-            }
+            if _is_secret_ref(item):
+                return {"$secret": str(item["$secret"])}
+            out = {}
+            for key, child in item.items():
+                if is_sensitive_key(key) and not _is_secret_ref(child):
+                    out[key] = REDACTED
+                else:
+                    out[key] = scrub(child)
+            return out
         if isinstance(item, list):
             return [scrub(child) for child in item]
         if isinstance(item, tuple):

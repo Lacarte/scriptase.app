@@ -270,30 +270,58 @@ class ProviderInstance:
 
     # -- settings (contracts.md §22) ---------------------------------------
 
-    def resolve_settings(self, settings: dict | None) -> dict:
-        """Apply the manifest's environment fallbacks for provider-internal use.
+    def resolve_settings(
+        self,
+        settings: dict | None,
+        *,
+        instance_id: str | None = None,
+        strict: bool = False,
+    ) -> dict:
+        """Resolve secret references and apply environment fallbacks.
 
-        `settings[key] or os.environ[manifest.environment[key]]` (§22.6). The
-        resolved value is never written back to `settings.json` and never
+        The whole call-time resolution path for provider settings (step 3.4 /
+        contracts.md §7 / §22.6):
+
+        1. Replace every ``{"$secret": "<ref>"}`` with the plaintext from the
+           machine-local secret store.
+        2. For keys still empty, fall back to ``manifest.environment`` — but
+           **only for the default instance** of this type
+           (``instance_id is None`` or ``instance_id == self.id``). Once
+           multiple instances exist, a shared env var is ambiguous, so sibling
+           instances never inherit it.
+
+        The resolved value is never written back to ``settings.json`` and never
         returned to a caller that serializes it — only provider validation,
         health, and invocation see it.
         """
-        resolved = dict(settings or {})
-        for key, env_name in self.manifest.environment.items():
-            if not schema_tools.is_empty(resolved.get(key)):
-                continue
-            from_env = os.environ.get(env_name)
-            if from_env:
-                resolved[key] = from_env
+        from scriptase.providers.secrets import resolve_secret_refs
+
+        resolved = resolve_secret_refs(settings, strict=strict)
+
+        # Env fallback is per **type** and scoped to the default instance only.
+        apply_env = instance_id is None or instance_id == self.id
+        if apply_env:
+            for key, env_name in self.manifest.environment.items():
+                if not schema_tools.is_empty(resolved.get(key)):
+                    continue
+                from_env = os.environ.get(env_name)
+                if from_env:
+                    resolved[key] = from_env
         return resolved
 
-    def is_configured(self, settings: dict | None = None) -> bool:
-        """Every `requires` key is non-empty after env fallback (§21.5).
+    def is_configured(
+        self,
+        settings: dict | None = None,
+        *,
+        instance_id: str | None = None,
+    ) -> bool:
+        """Every `requires` key is non-empty after secret + env resolution (§21.5).
 
         Computed from `requires`, never from key presence: the live settings file
-        stores present-but-empty `api_key` values (§14.3).
+        stores present-but-empty `api_key` values (§14.3), or secret refs that
+        resolve at call time (step 3.4).
         """
-        resolved = self.resolve_settings(settings)
+        resolved = self.resolve_settings(settings, instance_id=instance_id)
         return all(
             not schema_tools.is_empty(resolved.get(key)) for key in self.requires
         )
@@ -315,18 +343,24 @@ class ProviderInstance:
             return DEGRADED
         if self.schema_failed:
             return DEGRADED
-        if not self.is_configured(settings):
+        if not self.is_configured(settings, instance_id=instance_id):
             return NEEDS_CONFIGURATION
         return AVAILABLE
 
-    def validate_settings(self, settings: dict | None) -> list[ValidationIssue]:
+    def validate_settings(
+        self,
+        settings: dict | None = None,
+        *,
+        instance_id: str | None = None,
+    ) -> list[ValidationIssue]:
         """Validate settings against the schema, then through the provider hook.
 
         Never cached — the settings differ per call. Schema validation is the
         server-side half the provider cannot skip; the hook adds whatever the
-        provider knows that the schema cannot express.
+        provider knows that the schema cannot express. Secret refs are resolved
+        before validation so required checks see plaintext or env fallbacks.
         """
-        resolved = self.resolve_settings(settings)
+        resolved = self.resolve_settings(settings, instance_id=instance_id)
         issues = [
             ValidationIssue(**issue)
             for issue in schema_tools.validate_against_schema(
@@ -366,7 +400,12 @@ class ProviderInstance:
                 issues.append(issue)
         return issues
 
-    def health_check(self, settings: dict | None) -> HealthResult:
+    def health_check(
+        self,
+        settings: dict | None = None,
+        *,
+        instance_id: str | None = None,
+    ) -> HealthResult:
         """Check provider health. May perform I/O; runs on explicit user action."""
         fn = self._resolve('health_check')
         if fn is None:
@@ -374,7 +413,7 @@ class ProviderInstance:
             # correction): claiming health it never reported is a lie.
             return HealthResult(status='unknown', message='No health check implemented')
         try:
-            result = fn(self.resolve_settings(settings))
+            result = fn(self.resolve_settings(settings, instance_id=instance_id))
         except Exception as e:
             logger.warning("[registry] health_check failed for {}: {}", self.id, e)
             return HealthResult(status='fail', message=v.sanitize_message(e))

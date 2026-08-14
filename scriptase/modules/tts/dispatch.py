@@ -229,7 +229,10 @@ def resolved_settings(instance, options=None, *, instance_id: str | None = None)
     """
     key = instance_id or instance.id
     saved = settings_manager.get_instance_settings(DOMAIN, key)
-    return {**instance.resolve_settings(saved), **dict(options or {})}
+    return {
+        **instance.resolve_settings(saved, instance_id=key),
+        **dict(options or {}),
+    }
 
 
 def cache_key(text: str, voice: str, speed: float, provider_id: str = "") -> str:

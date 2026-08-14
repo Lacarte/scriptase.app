@@ -135,13 +135,22 @@ def split_settings(schema: dict | None, values: dict) -> tuple[dict, dict]:
 
 
 def redact(values: dict, schema: dict | None = None) -> dict:
-    """Replace every secret value with the sentinel, recursing into nested dicts."""
+    """Replace every secret value with the sentinel, recursing into nested dicts.
+
+    After step 3.4, a stored secret is usually ``{"$secret": "<ref>"}``. A
+    reference is not itself a credential, but the browser still receives the
+    password-field sentinel so the existing write-only UI round-trip is
+    unchanged. Nested non-ref dicts continue to recurse.
+    """
     if not isinstance(values, dict):
         return values
+    # Local import keeps this module a leaf of the settings import chain.
+    from scriptase.providers.secrets import is_secret_ref
+
     props = properties(schema)
     redacted: dict = {}
     for key, value in values.items():
-        if is_secret_field(key, props.get(key)):
+        if is_secret_field(key, props.get(key)) or is_secret_ref(value):
             redacted[key] = REDACTION_SENTINEL
         elif isinstance(value, dict):
             redacted[key] = redact(value)
@@ -159,13 +168,20 @@ def apply_settings_patch(stored: dict, patch: dict, schema: dict | None = None) 
 
     A secret field whose submitted value is exactly `"***"` is the redacted value
     the client was served; it means "unchanged" and must never overwrite the real
-    stored secret (§22.6).
+    stored secret or secret reference (§22.6 / step 3.4).
     """
+    from scriptase.providers.secrets import is_secret_ref
+
     props = properties(schema)
     merged = dict(stored)
     for key, value in (patch or {}).items():
         if value == REDACTION_SENTINEL and is_secret_field(key, props.get(key)):
             continue
+        # Clients do not author secret refs; keep the stored ref on an
+        # accidental round-trip of a non-redacted document.
+        if is_secret_ref(value) and is_secret_field(key, props.get(key)):
+            if key in stored:
+                continue
         merged[key] = value
     return merged
 
@@ -191,11 +207,21 @@ def invocation_config(schema: dict | None, values: dict) -> dict:
 
 
 def is_empty(value: object) -> bool:
-    """Empty for the purposes of `required`. `False` and `0` are *not* empty."""
+    """Empty for the purposes of `required`. `False` and `0` are *not* empty.
+
+    A well-formed secret reference counts as present (the credential is held
+    out-of-band); validation that needs the plaintext must call
+    ``resolve_settings`` first.
+    """
     if value is None:
         return True
     if isinstance(value, str):
         return not value.strip()
+    # Local import: keep this module a leaf of the settings import chain.
+    from scriptase.providers.secrets import is_secret_ref
+
+    if is_secret_ref(value):
+        return False
     if isinstance(value, (list, dict, tuple, set)):
         return not value
     return False

@@ -371,3 +371,4 @@ Retryability is a property of the code, not of the provider. A provider must not
 | `PROVIDER_TRANSPORT_FAILED` | yes |
 | `PROVIDER_UNAVAILABLE` | yes |
 | `PROVIDER_UNIT_FAILED` | per-case |
+| `SECRET_REF_UNRESOLVED` | no |

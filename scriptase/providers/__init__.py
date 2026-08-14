@@ -27,6 +27,7 @@ Modules:
   - file_download: normalized file download to output dirs
   - progress: status.json writer for job progress
   - selection: capability selector and fallback-chain helpers (step 3.3)
+  - secrets: secret-reference store and call-time resolution (step 3.4)
   - transports: extension WebSocket hub, webhook, direct API, callback intake
 """
 
@@ -76,6 +77,14 @@ from scriptase.providers.settings_manager import (
     redacted_provider_settings,
     restore_redacted_secrets,
     validate_settings,
+)
+from scriptase.providers.secrets import (
+    SECRET_REF_KEY,
+    SecretRefUnresolved,
+    is_secret_ref,
+    make_secret_ref,
+    resolve_secret_refs,
+    secret_ref_id,
 )
 from scriptase.providers.validation import (
     EXCLUSION_REASON_CODES,
@@ -255,6 +264,12 @@ __all__ = [
     "redacted_provider_settings",
     "restore_redacted_secrets",
     "validate_settings",
+    "SECRET_REF_KEY",
+    "SecretRefUnresolved",
+    "is_secret_ref",
+    "make_secret_ref",
+    "resolve_secret_refs",
+    "secret_ref_id",
     "EXCLUSION_REASON_CODES",
     "ManifestValidation",
     "sanitize_message",

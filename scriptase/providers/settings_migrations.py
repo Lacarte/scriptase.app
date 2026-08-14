@@ -33,7 +33,8 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 #      animator → video (step 0.2).
 # v6 = provider type/instance split (step 3.1): selected_provider + per_provider
 #      → selected_instance_id + instances.
-SETTINGS_VERSION = 6
+# v7 = secret references (step 3.4): plaintext credentials → {"$secret": ref}.
+SETTINGS_VERSION = 7
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -255,6 +256,19 @@ def _normalize_instance_record(instance_id: str, rec: dict) -> dict:
     return {"type": type_id, "label": label, "settings": dict(settings)}
 
 
+@_register(7)
+def migrate_to_v7(data: dict, legacy_user: dict) -> dict:
+    """Replace inline credentials with ``{"$secret": "<ref>"}`` (step 3.4).
+
+    Plaintext values under secret-shaped keys move into the machine-local secret
+    store; ``settings.json`` keeps only the reference. Already-referenced fields
+    and empty strings are left alone. Environment fallbacks are not seeded.
+    """
+    from scriptase.providers.secrets import extract_plaintext_from_document
+
+    return extract_plaintext_from_document(data)
+
+
 def apply_migrations(data: dict, legacy_user: dict | None = None) -> tuple[dict, bool]:
     """Upgrade `data` to `SETTINGS_VERSION`.
 
@@ -297,6 +311,7 @@ __all__ = [
     "apply_migrations",
     "migrate_to_v2",
     "migrate_to_v3",
+    "migrate_to_v7",
     "migrate_to_v4",
     "migrate_to_v5",
     "migrate_to_v6",

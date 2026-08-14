@@ -169,10 +169,12 @@ class SelectionAliasAndSettingsFormatTests(unittest.TestCase):
         self.assertEqual(
             once["domains"]["video"]["selected_instance_id"], "grok_automa"
         )
-        self.assertEqual(
-            once["domains"]["tts"]["instances"]["inworld"]["settings"]["api_key"],
-            "sk-keep",
-        )
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
+        key = once["domains"]["tts"]["instances"]["inworld"]["settings"]["api_key"]
+        # Step 3.4 (v7): credentials become secret refs; the value is preserved.
+        self.assertTrue(is_secret_ref(key))
+        self.assertEqual(resolve_secret_refs({"api_key": key})["api_key"], "sk-keep")
         # Every catalog domain is present after the upgrade.
         self.assertEqual(set(once["domains"]), set(DOMAINS))
         self.assertEqual(once["domains"]["script"]["selected_instance_id"], "gemini")

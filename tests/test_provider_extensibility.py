@@ -328,6 +328,8 @@ class CatalogApiTests(FixtureCatalogCase):
         self.assertEqual(provider["availability"], AVAILABLE)
 
     def test_the_sentinel_leaves_a_stored_secret_alone(self):
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         self.client.put(
             "/api/providers/script/fixture_document/settings",
             json={"api_key": "sk-fixture-secret"},
@@ -337,7 +339,9 @@ class CatalogApiTests(FixtureCatalogCase):
             json={"api_key": "***", "voice_of": "protagonist"},
         )
         saved = self.settings["domains"]["script"]["instances"]["fixture_document"]["settings"]
-        self.assertEqual(saved["api_key"], "sk-fixture-secret")
+        # Step 3.4: credentials are stored as secret refs; the sentinel keeps them.
+        self.assertTrue(is_secret_ref(saved["api_key"]))
+        self.assertEqual(resolve_secret_refs(saved)["api_key"], "sk-fixture-secret")
         self.assertEqual(saved["voice_of"], "protagonist")
 
     def test_the_providers_own_validation_hook_is_served(self):

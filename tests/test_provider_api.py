@@ -485,16 +485,24 @@ class SettingsDocumentTests(ProviderApiTestCase):
                 }
             },
         )
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
         stored = self.saved[-1]['domains']['demo']['instances']['alpha']['settings']
         self.assertEqual(stored['voice'], 'Carter')
         # The untouched sibling — and the secret — survive the merge.
-        self.assertEqual(stored['api_key'], self.SECRET)
+        # Step 3.4 may hold the secret as a ref after any write-path extract.
+        if is_secret_ref(stored['api_key']):
+            self.assertEqual(resolve_secret_refs(stored)['api_key'], self.SECRET)
+        else:
+            self.assertEqual(stored['api_key'], self.SECRET)
         self.assertEqual(
             self.saved[-1]['domains']['demo']['selected_instance_id'], 'alpha'
         )
 
     def test_patch_treats_the_redaction_sentinel_as_unchanged(self):
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         self.client.patch(
             '/api/settings/v2',
             json={
@@ -512,7 +520,10 @@ class SettingsDocumentTests(ProviderApiTestCase):
             },
         )
         stored = self.saved[-1]['domains']['demo']['instances']['alpha']['settings']
-        self.assertEqual(stored['api_key'], self.SECRET)
+        if is_secret_ref(stored['api_key']):
+            self.assertEqual(resolve_secret_refs(stored)['api_key'], self.SECRET)
+        else:
+            self.assertEqual(stored['api_key'], self.SECRET)
 
     def test_patch_replaces_a_list_wholesale_rather_than_merging_it(self):
         self.settings['general']['voices'] = ['a', 'b']
@@ -525,16 +536,19 @@ class SettingsDocumentTests(ProviderApiTestCase):
         self.assertEqual(self.saved, [])
 
     def test_put_still_imports_a_whole_document(self):
+        from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
+
         document = self.client.get('/api/settings/v2').get_json()
         document['general']['sync_folder'] = 'D:/imported'
         resp = self.client.put('/api/settings/v2', json=document)
         self.assertEqual(resp.status_code, 200)
         written = self.saved[-1]
         self.assertEqual(written['general']['sync_folder'], 'D:/imported')
-        self.assertEqual(
-            written['domains']['demo']['instances']['alpha']['settings']['api_key'],
-            self.SECRET,
-        )
+        key = written['domains']['demo']['instances']['alpha']['settings']['api_key']
+        if is_secret_ref(key):
+            self.assertEqual(resolve_secret_refs({'api_key': key})['api_key'], self.SECRET)
+        else:
+            self.assertEqual(key, self.SECRET)
 
 
 # ---------------------------------------------------------------------------
