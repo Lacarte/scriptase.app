@@ -2,8 +2,7 @@
   "done": [
     "0.1",
     "0.2",
-    "0.3",
-    "0.4"
+    "0.3"
   ],
   "history": [
     {
@@ -103,40 +102,16 @@
       "detail": ""
     },
     {
-      "ts": "2026-08-14T09:05:28",
+      "ts": "2026-08-14T09:20:37",
       "step": "0.3",
-      "event": "start",
-      "detail": ""
+      "event": "review_red",
+      "detail": "pytest FAILED:\n    raise RuntimeError(f\"Cannot find section 1.1 in {path}\") from exc\nE   RuntimeError: Cannot find section 1.1 in D:\\@Workspace\\@Development\\@Projects\\SCRIPTASE.app\\plans\\contracts.md\n_____________ NodeAuthorGuideTests.test_readme_links_author_guide _____________\nscriptase\\engine\\docs.py:250: in _contract_connection_rules\n    section = source.split(marker, 1)[1].split(\"### 1.2\", 1)"
     },
     {
-      "ts": "2026-08-14T09:05:39",
-      "step": "0.3",
-      "event": "halt",
-      "detail": "builder agent exited with code 1"
-    },
-    {
-      "ts": "2026-08-14T09:05:56",
-      "step": "0.3",
-      "event": "start",
-      "detail": ""
-    },
-    {
-      "ts": "2026-08-14T09:13:55",
+      "ts": "2026-08-14T09:26:15",
       "step": "0.3",
       "event": "done",
-      "detail": "aaec9b2"
-    },
-    {
-      "ts": "2026-08-14T09:13:55",
-      "step": "0.4",
-      "event": "start",
-      "detail": ""
-    },
-    {
-      "ts": "2026-08-14T09:24:08",
-      "step": "0.4",
-      "event": "done",
-      "detail": "3f24459"
+      "detail": "28eea42"
     }
   ]
 }
