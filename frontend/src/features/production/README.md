@@ -14,9 +14,29 @@ Stage projection (do not reimplement in the frontend):
 | `POST /api/workflow/stages` | Project a draft / template body |
 | `GET /api/workflow/executions/<id>/stages` | Snapshot + live per-stage status |
 
+SSE (shared with the canvas — no second stream protocol):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/workflow/executions/<id>/events` | Sequenced events; `id:` frames + reset snapshot |
+
 The default full-video spine is Script → Voice → Timing → Segments → Scenes →
 Images → Videos → Review → Composer → Export. Side branches (captions, music)
 collapse into Composer — adding a parallel caption branch must not add a step.
 
+## Layout
+
+```
+api.js                         stage + workflow/execution listing clients
+stageStatus.js                 pure aggregation (mirrors backend priorities)
+composables/useProductionStages.js
+                               load projection, open SSE, reload hydrate
+ProductionPage.vue             §3.1 step list + stage inspector shell
+```
+
 Do not hardcode a step array here, and do not add a second polling mechanism.
 Either one silently diverges the two views the first time a branch is added.
+
+Step detail actions (Run / Test / Regenerate / Run From Here / Approve) land in
+2.4 and map onto existing engine run modes only. Job creation and Script stage
+modes land in 2.5.

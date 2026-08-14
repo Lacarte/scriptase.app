@@ -13,6 +13,7 @@ const fullHeight = computed(() => Boolean(route.meta?.fullHeight))
     <header class="app-nav">
       <router-link class="brand" to="/">{{ APP_NAME }}</router-link>
       <nav>
+        <router-link to="/production">Production</router-link>
         <router-link to="/workflow">Workflow</router-link>
         <router-link to="/channels">Channels</router-link>
       </nav>

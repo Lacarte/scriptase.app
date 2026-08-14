@@ -12,6 +12,7 @@ describe('scaffold', () => {
       history: createMemoryHistory(),
       routes: [
         { path: '/', component: { template: `<div>${APP_NAME}</div>` } },
+        { path: '/production', component: { template: '<div>production</div>' } },
         { path: '/workflow', component: { template: '<div>workflow</div>' } },
         { path: '/channels', component: { template: '<div>channels</div>' } },
       ],
@@ -23,6 +24,7 @@ describe('scaffold', () => {
       global: { plugins: [router, createPinia()] },
     })
     expect(wrapper.text()).toContain(APP_NAME)
+    expect(wrapper.text()).toContain('Production')
     expect(wrapper.text()).toContain('Workflow')
     expect(wrapper.text()).toContain('Channels')
   })

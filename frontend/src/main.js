@@ -5,6 +5,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import ChannelsPage from './features/channels/ChannelsPage.vue'
 import ChannelEditor from './features/channels/ChannelEditor.vue'
+import ProductionPage from './features/production/ProductionPage.vue'
 import { APP_NAME } from './shared/constants.js'
 
 import './styles/theme.css'
@@ -16,9 +17,10 @@ const Home = {
       <h1 style="margin:0 0 .5rem;font-size:1.75rem;font-family:var(--font-display,system-ui)">{{ name }}</h1>
       <p style="color:var(--text-secondary,#9aa0a6);line-height:1.5">
         Channel-aware, provider-driven, local-first AI video production.
-        Production view lands in later Phase 2 steps; the Workflow canvas is live.
+        Production and Workflow views share one node-based execution.
       </p>
       <p style="margin-top:1.25rem;display:flex;gap:1.25rem;flex-wrap:wrap">
+        <router-link to="/production" style="color:var(--accent,#8ab4f8)">Open Production →</router-link>
         <router-link to="/workflow" style="color:var(--accent,#8ab4f8)">Open Workflow →</router-link>
         <router-link to="/channels" style="color:var(--accent,#8ab4f8)">Open Channels →</router-link>
       </p>
@@ -33,6 +35,12 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'home', component: Home },
+    {
+      path: '/production',
+      name: 'production',
+      component: ProductionPage,
+      meta: { title: 'Production' },
+    },
     {
       path: '/workflow',
       name: 'workflow',
