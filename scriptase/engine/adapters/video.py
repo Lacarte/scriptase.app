@@ -152,6 +152,19 @@ def _step_assets(
     # image_to_video from text_to_video without re-deriving the graph shape.
     options.setdefault("motion_mode", motion_mode)
 
+    from .common import resolve_fallback_chain_for_context, resolve_provider_binding
+
+    chain = resolve_fallback_chain_for_context(
+        DOMAIN, selected, context, config, stage="video"
+    )
+
+    def _resolve_type(iid: str) -> str:
+        _iid, tid = resolve_provider_binding(DOMAIN, iid)
+        return tid
+
+    def _resolve_provider(iid: str):
+        return resolve_provider(DOMAIN, iid)
+
     result = run_manifest_job(
         domain=DOMAIN,
         provider=type_id,
@@ -165,6 +178,13 @@ def _step_assets(
         options=options,
         failure_code="ANIMATOR_FAILED",
         failure_details={"provider": type_id, "motion_mode": motion_mode},
+        fallback_chain=chain,
+        resolve_job_provider=_resolve_provider if len(chain) > 1 else None,
+        resolve_settings=_resolved_settings if len(chain) > 1 else None,
+        resolve_type=_resolve_type if len(chain) > 1 else None,
+        provider_instance_id=selected,
+        primary_selection_reason="node_config",
+        selection_reason="node_config",
     )
     # The animator node has never exposed the raw per-scene map on its port,
     # and those entries still carry remote URLs for redownload (D38).

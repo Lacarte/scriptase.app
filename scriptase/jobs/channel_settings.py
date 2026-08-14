@@ -73,6 +73,11 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
         if isinstance(snapshot.get("provider_defaults"), Mapping)
         else {}
     )
+    fallback_policies = (
+        snapshot.get("fallback_policies")
+        if isinstance(snapshot.get("fallback_policies"), Mapping)
+        else {}
+    )
 
     tone = _text(content.get("tone"))
     style = _text(visual.get("style"))
@@ -102,6 +107,13 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
             key: value
             for key, value in providers.items()
             if isinstance(key, str) and _text(value)
+        },
+        # Step 8.3: stage → {primary, fallbacks[]} for runtime chain execution.
+        # Values are instance ids only — never credentials.
+        "fallback_policies": {
+            key: value
+            for key, value in fallback_policies.items()
+            if isinstance(key, str) and value not in (None, "", {}, [])
         },
     }
 

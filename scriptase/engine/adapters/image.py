@@ -86,6 +86,19 @@ def _step_storyboard(scenes_result, config, pid, context):
     if config.get("image_model"):
         options.setdefault("image_model", config["image_model"])
 
+    from .common import resolve_fallback_chain_for_context, resolve_provider_binding
+
+    chain = resolve_fallback_chain_for_context(
+        DOMAIN, selected, context, config, stage="image"
+    )
+
+    def _resolve_type(iid: str) -> str:
+        _iid, tid = resolve_provider_binding(DOMAIN, iid)
+        return tid
+
+    def _resolve_provider(iid: str):
+        return resolve_provider(DOMAIN, iid)
+
     return run_manifest_job(
         domain=DOMAIN,
         provider=type_id,
@@ -98,6 +111,13 @@ def _step_storyboard(scenes_result, config, pid, context):
         settings=_resolved_settings(selected),
         options=options,
         failure_code="STORYBOARD_FAILED",
+        fallback_chain=chain,
+        resolve_job_provider=_resolve_provider if len(chain) > 1 else None,
+        resolve_settings=_resolved_settings if len(chain) > 1 else None,
+        resolve_type=_resolve_type if len(chain) > 1 else None,
+        provider_instance_id=selected,
+        primary_selection_reason="node_config",
+        selection_reason="node_config",
     )
 
 

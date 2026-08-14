@@ -27,6 +27,7 @@ Modules:
   - file_download: normalized file download to output dirs
   - progress: status.json writer for job progress
   - selection: capability selector and fallback-chain helpers (step 3.3)
+  - fallback: runtime fallback chain execution + per-unit provenance (step 8.3)
   - secrets: secret-reference store and call-time resolution (step 3.4)
   - transports: extension WebSocket hub, webhook, direct API, callback intake
 """
@@ -175,6 +176,21 @@ from scriptase.providers.selection import (
     select_candidates,
     select_first,
 )
+from scriptase.providers.fallback import (
+    FALLBACK_AFTER_PREFIX,
+    FallbackAttempt,
+    FallbackRunRecord,
+    effective_unit_provenance,
+    format_fallback_reason,
+    invoke_chain,
+    is_fallback_reason,
+    parse_fallback_reason,
+    resolve_execution_chain,
+    run_with_fallback,
+    selection_reason_for_index,
+    stamp_unit_producer,
+    stamp_units_for_attempt,
+)
 from scriptase.providers.hub import (
     ProviderHub,
     DomainBinding,
@@ -231,6 +247,19 @@ __all__ = [
     "provider_default_from_snapshot",
     "select_candidates",
     "select_first",
+    "FALLBACK_AFTER_PREFIX",
+    "FallbackAttempt",
+    "FallbackRunRecord",
+    "effective_unit_provenance",
+    "format_fallback_reason",
+    "invoke_chain",
+    "is_fallback_reason",
+    "parse_fallback_reason",
+    "resolve_execution_chain",
+    "run_with_fallback",
+    "selection_reason_for_index",
+    "stamp_unit_producer",
+    "stamp_units_for_attempt",
     "REDACTION_SENTINEL",
     "SENSITIVE_KEYS_RE",
     "WIDGET_TYPES",

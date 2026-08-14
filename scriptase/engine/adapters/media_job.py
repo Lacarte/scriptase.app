@@ -23,19 +23,26 @@ What is deliberately preserved:
 Legacy providers write their assets straight to the managed output tree while
 the UI previews them, so staging/promotion stays a no-op for this bridge; real
 staging arrives with the provider migrations in 14.2/14.3.
+
+Step 8.3 adds optional fallback-chain execution: when a primary instance fails,
+the next configured instance is tried and each unit carries sparse provenance
+for its producer.
 """
 
 from __future__ import annotations
 
 import os
-from typing import Any, Callable, Mapping
+import time
+from typing import Any, Callable, Mapping, Sequence
 
-from scriptase.shared.io_utils import safe_json_read
+from scriptase.shared.io_utils import now_iso, safe_json_read
+from scriptase.providers.boundary import build_provenance
 from scriptase.providers.errors import (
     PROVIDER_UNIT_FAILED,
     ProviderCancelled,
     ProviderError,
 )
+from scriptase.providers.fallback import run_with_fallback
 from scriptase.providers.invocation import build_invocation
 from scriptase.providers.jobs import (
     RUNNING,
@@ -46,8 +53,10 @@ from scriptase.providers.jobs import (
 from scriptase.providers.media_jobs import (
     JOB_DONE_STATES,
     MediaJobService,
+    filter_request_units,
     settled_state,
     units_from_legacy_scenes,
+    units_needing_retry,
 )
 from scriptase.providers.results import UNIT_FAILED
 
@@ -131,6 +140,66 @@ def read_manifest(path: str) -> Mapping[str, Any] | None:
     return data if isinstance(data, Mapping) else None
 
 
+def _legacy_payload(
+    *,
+    result: Any,
+    scenes: list[Mapping[str, Any]],
+    job_provider: Any,
+    manifest_path: str,
+    read: Callable[[], Mapping[str, Any] | None] | None,
+    fallback_record: Any = None,
+) -> dict:
+    """Map a `ProviderResult` onto the legacy adapter payload shape."""
+    payload = result.payload if isinstance(result.payload, Mapping) else {}
+    observed = getattr(job_provider, "scene_statuses", None)
+    if observed is None:
+        manifest = read or (lambda: read_manifest(manifest_path))
+        raw = manifest()
+        scene_map = raw.get("scene_statuses") if isinstance(raw, Mapping) else None
+        observed = dict(scene_map) if isinstance(scene_map, Mapping) else {}
+    out: dict[str, Any] = {
+        "total": int(payload.get("total") or len(scenes)),
+        "ready": int(payload.get("ready") or 0),
+        "errors": sum(1 for unit in result.units if unit.state == UNIT_FAILED),
+        "scene_statuses": observed,
+        # Step 8.3: per-unit provenance for the record / History UI.
+        "units": [unit.to_dict() for unit in result.units],
+        "provenance": (
+            result.provenance.to_dict()
+            if getattr(result, "provenance", None) is not None
+            else None
+        ),
+    }
+    if fallback_record is not None:
+        out["fallback"] = {
+            "chain": list(fallback_record.chain),
+            "attempts": [attempt.to_dict() for attempt in fallback_record.attempts],
+            "units_effective": fallback_record.units_effective(),
+        }
+    return out
+
+
+def _raise_adapter_failure(
+    exc: ProviderError,
+    *,
+    failure_code: str,
+    failure_details: Mapping[str, Any] | None,
+) -> None:
+    if exc.code == PROVIDER_UNIT_FAILED:
+        reported = exc.details if isinstance(exc.details, dict) else {}
+        failed = [
+            unit
+            for unit in (reported.get("units") or [])
+            if isinstance(unit, Mapping) and unit.get("state") == UNIT_FAILED
+        ]
+        raise AdapterError(
+            failure_code,
+            exc.message,
+            details={**dict(failure_details or {}), "errors": len(failed)},
+        ) from None
+    raise exc.as_adapter_error() from None
+
+
 def run_manifest_job(
     *,
     domain: str,
@@ -148,6 +217,13 @@ def run_manifest_job(
     request: Any = None,
     settings: Mapping[str, Any] | None = None,
     options: Mapping[str, Any] | None = None,
+    fallback_chain: Sequence[str] | None = None,
+    resolve_job_provider: Callable[[str], Any] | None = None,
+    resolve_settings: Callable[[str], Mapping[str, Any]] | None = None,
+    resolve_type: Callable[[str], str] | None = None,
+    primary_selection_reason: str = "node_config",
+    selection_reason: str = "node_config",
+    provider_instance_id: str = "",
 ) -> dict:
     """Run one multi-scene job through the shared service.
 
@@ -158,64 +234,149 @@ def run_manifest_job(
     `job_provider` is a real `AsyncMediaProvider` — storyboard (14.2) and
     animator (14.3) both pass one. The `start`/`read` path remains for tests
     that synthesize a legacy store without constructing a provider package.
+
+    Step 8.3: when ``fallback_chain`` has more than one instance id and
+    ``resolve_job_provider`` is provided, a primary failure falls through to
+    the next instance with per-unit provenance stamped on the result.
     """
-    if job_provider is None:
+    chain = [str(i).strip() for i in (fallback_chain or ()) if str(i).strip()]
+    use_fallback = len(chain) > 1 and resolve_job_provider is not None
+
+    if job_provider is None and not use_fallback:
         if start is None:
             raise ValueError("run_manifest_job needs either job_provider or start")
         job_provider = ManifestJobProvider(
             start=start, read=read or (lambda: read_manifest(manifest_path)),
             unit_count=len(scenes),
         )
-    invocation = build_invocation(
-        context,
-        domain=domain,
-        provider_id=provider,
-        project_id=project_id,
-        output_dir=os.path.dirname(manifest_path),
-        settings=settings,
-        options=options,
-    )
+
+    output_dir = os.path.dirname(manifest_path)
     if request is None:
         request = {"scenes": list(scenes), "unit_count": len(scenes)}
+    media = service or MediaJobService()
+    instance_id = provider_instance_id or provider
+
+    if not use_fallback:
+        invocation = build_invocation(
+            context,
+            domain=domain,
+            provider_id=provider,
+            project_id=project_id,
+            output_dir=output_dir,
+            settings=settings,
+            options=options,
+            selection_reason=selection_reason,
+            provider_instance_id=instance_id,
+        )
+        started_at = now_iso()
+        started = time.perf_counter()
+        try:
+            result = media.run(job_provider, request, invocation)
+        except ProviderCancelled as exc:
+            raise exc.as_adapter_error() from None
+        except ProviderError as exc:
+            _raise_adapter_failure(
+                exc, failure_code=failure_code, failure_details=failure_details
+            )
+            raise  # pragma: no cover
+        result.provenance = build_provenance(
+            invocation,
+            result=result,
+            provider_version=getattr(job_provider, "version", "") or "",
+            contract_version=int(getattr(job_provider, "contract_version", 1) or 1),
+            started_at=started_at,
+            duration_ms=max(0, round((time.perf_counter() - started) * 1000)),
+            provider_instance_id=instance_id,
+        )
+        return _legacy_payload(
+            result=result,
+            scenes=scenes,
+            job_provider=job_provider,
+            manifest_path=manifest_path,
+            read=read,
+        )
+
+    # --- fallback chain (step 8.3) -----------------------------------------
+    last_provider = job_provider
+
+    def type_of(iid: str) -> str:
+        if resolve_type is not None:
+            return str(resolve_type(iid) or iid)
+        return iid
+
+    def run_one(iid: str, reason: str, prior):
+        nonlocal last_provider
+        type_id = type_of(iid)
+        provider_obj = resolve_job_provider(iid)
+        last_provider = provider_obj
+        settings_map = (
+            dict(resolve_settings(iid))
+            if resolve_settings is not None
+            else dict(settings or {})
+        )
+        options_map = dict(options or {})
+        invocation = build_invocation(
+            context,
+            domain=domain,
+            provider_id=type_id,
+            project_id=project_id,
+            output_dir=output_dir,
+            settings=settings_map,
+            options=options_map,
+            selection_reason=reason,
+            provider_instance_id=iid,
+        )
+        started_at = now_iso()
+        started = time.perf_counter()
+        attempt_request = request
+        prior_units = tuple(prior or ())
+        if prior_units:
+            needed = units_needing_retry(prior_units)
+            if needed:
+                attempt_request = filter_request_units(request, needed)
+        result = media.run(
+            provider_obj,
+            attempt_request,
+            invocation,
+            prior_units=prior_units,
+        )
+        result.provenance = build_provenance(
+            invocation,
+            result=result,
+            provider_version=getattr(provider_obj, "version", "") or "",
+            contract_version=int(getattr(provider_obj, "contract_version", 1) or 1),
+            started_at=started_at,
+            duration_ms=max(0, round((time.perf_counter() - started) * 1000)),
+            provider_instance_id=iid,
+        )
+        return result
 
     try:
-        result = (service or MediaJobService()).run(
-            job_provider, request, invocation
+        record = run_with_fallback(
+            domain=domain,
+            chain=chain,
+            run_one=run_one,
+            multi_unit=True,
+            primary_selection_reason=primary_selection_reason,
+            resolve_type=type_of,
+            expected_unit_count=len(scenes),
         )
     except ProviderCancelled as exc:
         raise exc.as_adapter_error() from None
     except ProviderError as exc:
-        if exc.code == PROVIDER_UNIT_FAILED:
-            # Preserve the node-level code the adapter has always reported for
-            # "the provider completed but produced nothing".
-            reported = exc.details if isinstance(exc.details, dict) else {}
-            failed = [
-                unit
-                for unit in (reported.get("units") or [])
-                if isinstance(unit, Mapping) and unit.get("state") == UNIT_FAILED
-            ]
-            raise AdapterError(
-                failure_code,
-                exc.message,
-                details={**dict(failure_details or {}), "errors": len(failed)},
-            ) from None
-        raise exc.as_adapter_error() from None
+        _raise_adapter_failure(
+            exc, failure_code=failure_code, failure_details=failure_details
+        )
+        raise  # pragma: no cover
 
-    payload = result.payload if isinstance(result.payload, Mapping) else {}
-    # A synthesized `ManifestJobProvider` remembers the last map it polled; a
-    # real provider does not, so the manifest it owns is read once at the end.
-    observed = getattr(job_provider, "scene_statuses", None)
-    if observed is None:
-        manifest = read or (lambda: read_manifest(manifest_path))
-        raw = manifest()
-        scene_map = raw.get("scene_statuses") if isinstance(raw, Mapping) else None
-        observed = dict(scene_map) if isinstance(scene_map, Mapping) else {}
-    return {
-        "total": int(payload.get("total") or len(scenes)),
-        "ready": int(payload.get("ready") or 0),
-        "errors": sum(1 for unit in result.units if unit.state == UNIT_FAILED),
-        "scene_statuses": observed,
-    }
+    return _legacy_payload(
+        result=record.result,
+        scenes=scenes,
+        job_provider=last_provider,
+        manifest_path=manifest_path,
+        read=read,
+        fallback_record=record,
+    )
 
 
 __all__ = [

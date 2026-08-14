@@ -93,6 +93,48 @@ def provider_id(domain: str, config: Mapping[str, Any] | None) -> str:
     return DOMAINS[domain].default_provider
 
 
+def resolve_fallback_chain_for_context(
+    domain: str,
+    primary_instance_id: str,
+    context: Any = None,
+    config: Mapping[str, Any] | None = None,
+    *,
+    stage: str | None = None,
+) -> list[str]:
+    """Ordered instance chain for step 8.3 fallback execution.
+
+    Prefers an explicit ``fallback_policy`` on node config, then the Job's
+    channel settings blob (``fallback_policies[stage]``), then a bare primary.
+    """
+    from scriptase.providers.fallback import resolve_execution_chain
+
+    policy = None
+    if isinstance(config, Mapping):
+        raw = config.get("fallback_policy")
+        if raw is not None:
+            policy = raw
+
+    channel_settings: Mapping[str, Any] | None = None
+    try:
+        from scriptase.jobs.channel_settings import resolve_channel_settings
+
+        channel_settings = resolve_channel_settings(context)
+    except Exception:
+        channel_settings = None
+    if not channel_settings and isinstance(config, Mapping):
+        nested = config.get("fallback_policies")
+        if isinstance(nested, Mapping):
+            channel_settings = {"fallback_policies": nested}
+
+    return resolve_execution_chain(
+        domain,
+        primary_instance_id=primary_instance_id,
+        fallback_policy=policy,
+        channel_settings=channel_settings,
+        stage=stage or domain,
+    )
+
+
 def resolve_provider_binding(domain: str, selected: str) -> tuple[str, str]:
     """Resolve a node selection to `(instance_id, provider_type)`.
 
