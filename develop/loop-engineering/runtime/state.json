@@ -1,5 +1,7 @@
 {
-  "done": [],
+  "done": [
+    "0.1"
+  ],
   "history": [
     {
       "ts": "2026-08-13T23:30:34",
@@ -36,6 +38,12 @@
       "step": "0.1",
       "event": "halt",
       "detail": "validation still red after max fix attempts"
+    },
+    {
+      "ts": "2026-08-13T23:54:59",
+      "step": "0.2",
+      "event": "start",
+      "detail": ""
     }
   ]
 }
