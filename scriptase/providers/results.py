@@ -113,33 +113,54 @@ def dedupe_refs(refs: Iterable[Any]) -> list[str]:
     return seen
 
 
-# -- provenance (contracts.md §31.3) ----------------------------------------
+# -- provenance (contracts.md §31.3, extended step 0.4) ---------------------
 
 
 @dataclass(frozen=True)
 class Provenance:
-    """Who ran, with what, and why — filled by the platform, never a provider."""
+    """Who ran, with what, and why — filled by the platform, never a provider.
+
+    Step 0.4 added generation-reproducibility fields (`seed`, `request_id`,
+    `model_revision`). Snapshotting configuration is not reproducibility with
+    generative providers; these three pin what the provider actually produced so
+    a repair can vary one axis ("preserve character, change lighting") rather
+    than re-rolling. `provider_instance_id` is reserved for the type/instance
+    split (step 3.1); until then it is empty and `provider_id` remains the
+    identity axis.
+    """
 
     invocation_id: str = ""
     domain: str = ""
     provider_id: str = ""
+    # Populated once step 3.1 splits type from instance; empty until then.
+    provider_instance_id: str = ""
     provider_version: str = ""
     contract_version: int = 1
     settings_version: int = 0
     resolved_settings_redacted: Mapping[str, Any] = field(default_factory=dict)
     options: Mapping[str, Any] = field(default_factory=dict)
-    # Which rung of the §24.1 precedence chain chose this provider.
+    # Which rung of the selection chain chose this provider.
+    # Values: request | node_config | settings | channel | default |
+    # fallback_after:<instance_id>
     selection_reason: str = "default"
     started_at: str = ""
     finished_at: str = ""
     duration_ms: int = 0
     cache_hit: bool = False
+    # Generation reproducibility (step 0.4). Null/empty when the provider does
+    # not expose the value — never invented by the platform.
+    seed: int | None = None
+    request_id: str = ""
+    model_revision: str = ""
+    # Optional cost report when the provider surfaces one (step 9.3 accounting).
+    cost: Mapping[str, Any] | None = None
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "invocation_id": self.invocation_id,
             "domain": self.domain,
             "provider_id": self.provider_id,
+            "provider_instance_id": self.provider_instance_id,
             "provider_version": self.provider_version,
             "contract_version": self.contract_version,
             "settings_version": self.settings_version,
@@ -150,7 +171,86 @@ class Provenance:
             "finished_at": self.finished_at,
             "duration_ms": self.duration_ms,
             "cache_hit": self.cache_hit,
+            "seed": self.seed,
+            "request_id": self.request_id,
+            "model_revision": self.model_revision,
+            "cost": dict(self.cost) if self.cost is not None else None,
         }
+        return payload
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any] | None) -> "Provenance":
+        """Build provenance from a dict, ignoring unknown keys (forward-compat)."""
+        if not isinstance(data, Mapping):
+            return cls()
+        known = cls.__dataclass_fields__
+        kwargs: dict[str, Any] = {}
+        for key, value in data.items():
+            if key not in known:
+                continue
+            if key in {"resolved_settings_redacted", "options"} and isinstance(value, Mapping):
+                kwargs[key] = dict(value)
+            elif key == "cost":
+                kwargs[key] = dict(value) if isinstance(value, Mapping) else None
+            elif key == "seed":
+                kwargs[key] = _coerce_seed(value)
+            elif key in {"contract_version", "settings_version", "duration_ms"}:
+                try:
+                    kwargs[key] = int(value or 0)
+                except (TypeError, ValueError):
+                    kwargs[key] = 0
+            elif key == "cache_hit":
+                kwargs[key] = bool(value)
+            else:
+                kwargs[key] = value if value is not None else ""
+        return cls(**kwargs)
+
+
+def _coerce_seed(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def extract_reproducibility(
+    *,
+    metadata: Mapping[str, Any] | None = None,
+    options: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Lift seed / request_id / model_revision from platform-visible surfaces.
+
+    Providers never write `Provenance` directly. They may surface these values
+    in result `metadata` (or request `options` for a caller-supplied seed); the
+    platform harvests them into the envelope. Values are never invented: missing
+    stays null/empty.
+    """
+    meta = dict(metadata or {})
+    opts = dict(options or {})
+
+    seed = _coerce_seed(meta["seed"] if "seed" in meta else opts.get("seed"))
+
+    request_id = meta.get("request_id")
+    if request_id is None or request_id == "":
+        request_id = meta.get("requestId") or ""
+    request_id = str(request_id)[:200] if request_id not in (None, "") else ""
+
+    model_revision = meta.get("model_revision")
+    if model_revision is None or model_revision == "":
+        # Prefer an explicit revision; fall back to a provider-reported model
+        # string when that is all the domain surfaces today (e.g. TTS `model`).
+        model_revision = meta.get("model") or ""
+    model_revision = (
+        str(model_revision)[:200] if model_revision not in (None, "") else ""
+    )
+
+    return {
+        "seed": seed,
+        "request_id": request_id,
+        "model_revision": model_revision,
+    }
 
 
 # -- per-unit results (contracts.md §31.5) ----------------------------------
@@ -163,6 +263,13 @@ class UnitResult:
     Media-neutral: it replaces the storyboard `SceneResult` (`image_url` /
     `image_path`) and the animator one (`video_url` / `video_path`) with the
     single shape both domains produce (§33.1).
+
+    Optional per-unit reproducibility fields (seed / request_id /
+    model_revision / provider_id / provider_instance_id / selection_reason) are
+    frozen for step 8.3 fallback: a multi-instance run produces units from
+    different providers, so provenance must be per unit. When these are empty
+    the unit inherits the envelope `provenance`. Sparse serialization keeps
+    single-provider fixtures compact.
     """
 
     unit_index: int
@@ -170,6 +277,13 @@ class UnitResult:
     artifact_refs: tuple[str, ...] = ()
     metadata: Mapping[str, Any] = field(default_factory=dict)
     error: ProviderErrorPayload | None = None
+    # Per-unit generation reproducibility (step 0.4 freeze; used by 8.3).
+    seed: int | None = None
+    request_id: str = ""
+    model_revision: str = ""
+    provider_id: str = ""
+    provider_instance_id: str = ""
+    selection_reason: str = ""
 
     def to_dict(self) -> dict:
         payload = {
@@ -180,6 +294,20 @@ class UnitResult:
         }
         if self.error is not None:
             payload["error"] = self.error.to_dict()
+        # Sparse: only emit per-unit overrides when set, so envelope provenance
+        # remains the single source for ordinary single-provider runs.
+        if self.seed is not None:
+            payload["seed"] = self.seed
+        if self.request_id:
+            payload["request_id"] = self.request_id
+        if self.model_revision:
+            payload["model_revision"] = self.model_revision
+        if self.provider_id:
+            payload["provider_id"] = self.provider_id
+        if self.provider_instance_id:
+            payload["provider_instance_id"] = self.provider_instance_id
+        if self.selection_reason:
+            payload["selection_reason"] = self.selection_reason
         return payload
 
     @classmethod
@@ -195,6 +323,12 @@ class UnitResult:
                 if isinstance(error, Mapping)
                 else None
             ),
+            seed=_coerce_seed(data.get("seed")),
+            request_id=str(data.get("request_id") or ""),
+            model_revision=str(data.get("model_revision") or ""),
+            provider_id=str(data.get("provider_id") or ""),
+            provider_instance_id=str(data.get("provider_instance_id") or ""),
+            selection_reason=str(data.get("selection_reason") or ""),
         )
 
 
@@ -387,8 +521,8 @@ def _from_mapping(data: Mapping[str, Any], *, provider_id: str) -> ProviderResul
         ],
         metadata=dict(data.get("metadata") or {}),
         warnings=list(data.get("warnings") or []),
-        provenance=(
-            Provenance(**provenance) if isinstance(provenance, Mapping) else Provenance()
+        provenance=Provenance.from_mapping(
+            provenance if isinstance(provenance, Mapping) else None
         ),
         job=job,
         result_version=int(data.get("result_version", RESULT_VERSION)),
@@ -536,6 +670,7 @@ __all__ = [
     "coerce_result",
     "dedupe_refs",
     "derive_status",
+    "extract_reproducibility",
     "normalize_ref",
     "resolve_ref",
     "validate_egress",

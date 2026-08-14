@@ -29,6 +29,7 @@ from scriptase.providers.results import (
     Provenance,
     ProviderResult,
     coerce_result,
+    extract_reproducibility,
     resolve_ref,
     validate_egress,
 )
@@ -197,6 +198,7 @@ def invoke(
 
     result.provenance = build_provenance(
         invocation,
+        result=result,
         provider_version=provider_version,
         contract_version=contract_version,
         settings_version=settings_version,
@@ -247,20 +249,33 @@ def check_artifacts(result: ProviderResult, invocation: ProviderInvocation) -> N
 def build_provenance(
     invocation: ProviderInvocation,
     *,
+    result: ProviderResult | None = None,
     provider_version: str = "",
     contract_version: int = 1,
     settings_version: int = 0,
     started_at: str = "",
     duration_ms: int = 0,
     cache_hit: bool = False,
+    provider_instance_id: str = "",
 ) -> Provenance:
-    """Fill §31.3 provenance. A provider can never write this."""
+    """Fill §31.3 provenance. A provider can never write this.
+
+    Generation-reproducibility fields (seed / request_id / model_revision) are
+    harvested from the result metadata and invocation options (step 0.4). The
+    platform never invents them: when a provider does not surface a value, the
+    field stays null or empty.
+    """
     from scriptase.providers import settings_manager
 
+    repro = extract_reproducibility(
+        metadata=result.metadata if result is not None else None,
+        options=invocation.options,
+    )
     return Provenance(
         invocation_id=invocation.invocation_id,
         domain=invocation.domain,
         provider_id=invocation.provider_id,
+        provider_instance_id=provider_instance_id,
         provider_version=provider_version,
         contract_version=contract_version,
         settings_version=settings_version,
@@ -274,6 +289,9 @@ def build_provenance(
         finished_at=now_iso(),
         duration_ms=duration_ms,
         cache_hit=cache_hit,
+        seed=repro["seed"],
+        request_id=repro["request_id"],
+        model_revision=repro["model_revision"],
     )
 
 

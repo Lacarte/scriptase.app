@@ -124,16 +124,32 @@ def tts_result_to_payload(result: Any, *, audio_ref: str) -> dict:
 
 
 def _provenance_from_job_meta(job_meta: Mapping[str, Any], *, domain: str) -> Provenance:
-    """`job_meta` (TTS-only today) -> §31.3 provenance (D39)."""
+    """`job_meta` (TTS-only today) -> §31.3 provenance (D39).
+
+    Step 0.4 reproducibility fields ride through when present; otherwise they
+    stay at their empty defaults so regenerated fixtures stay stable.
+    """
     meta = dict(job_meta or {})
+    seed = meta.get("seed")
+    try:
+        seed = int(seed) if seed is not None and seed != "" else None
+    except (TypeError, ValueError):
+        seed = None
     return Provenance(
         domain=domain,
         provider_id=str(meta.get("provider_id") or ""),
+        provider_instance_id=str(meta.get("provider_instance_id") or ""),
         provider_version=str(meta.get("provider_version") or ""),
         settings_version=int(meta.get("settings_version") or 0),
         resolved_settings_redacted=dict(meta.get("resolved_settings_redacted") or {}),
         options=dict(meta.get("provider_options") or {}),
         finished_at=str(meta.get("resolved_at") or ""),
+        seed=seed,
+        request_id=str(meta.get("request_id") or ""),
+        model_revision=str(
+            meta.get("model_revision") or meta.get("model") or ""
+        ),
+        selection_reason=str(meta.get("selection_reason") or "default"),
     )
 
 

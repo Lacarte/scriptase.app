@@ -45,6 +45,7 @@
     "invocation_id": "",
     "domain": "",
     "provider_id": "",
+    "provider_instance_id": "",
     "provider_version": "",
     "contract_version": 1,
     "settings_version": 0,
@@ -54,7 +55,11 @@
     "started_at": "",
     "finished_at": "",
     "duration_ms": 0,
-    "cache_hit": false
+    "cache_hit": false,
+    "seed": null,
+    "request_id": "",
+    "model_revision": "",
+    "cost": null
   },
   "job": null
 }

@@ -19,9 +19,17 @@ import subprocess
 from flask import Blueprint, jsonify, request, send_file
 from loguru import logger
 
-from config import THUMBNAILS_DIR, ANIMATOR_DIR, EXPORT_DIR, PROJECTS_DIR
+from config import (
+    ANIMATOR_DIR,
+    EXPORT_DIR,
+    OUTPUT_DIR,
+    PROJECTS_DIR,
+    ROOT_DIR,
+    THUMBNAILS_DIR,
+)
 from scriptase.shared.ffmpeg_utils import find_ffmpeg
 from scriptase.shared.io_utils import safe_json_read
+from scriptase.shared.security import safe_join, sanitize_project_id
 thumbnails_bp = Blueprint("thumbnails", __name__)
 
 THUMB_SIZE = "480:-1"  # width 480, auto height
@@ -32,7 +40,13 @@ THUMB_QUALITY = "4"    # ffmpeg jpeg quality (2=best, 31=worst)
 # ---------------------------------------------------------------------------
 
 def _safe_id(project_id: str) -> str:
-    return "".join(c for c in project_id if c.isalnum() or c in ("_", "-"))
+    """Return a project id only when the caller supplied its canonical form.
+
+    Silently deleting invalid characters aliases one caller-controlled id to a
+    different project (for example, ``project!`` to ``project``).
+    """
+    safe_id = sanitize_project_id(project_id)
+    return safe_id if safe_id and safe_id == project_id else ""
 
 
 def _extract_thumb(src_path: str, dest_path: str, ffmpeg: str) -> bool:
@@ -48,7 +62,7 @@ def _extract_thumb(src_path: str, dest_path: str, ffmpeg: str) -> bool:
 
     try:
         if ext in video_exts:
-            subprocess.run(
+            completed = subprocess.run(
                 [ffmpeg, "-y", "-i", src_path, "-map", "0:v:0",
                  "-vframes", "1", "-ss", "0.1",
                  "-vf", f"scale={THUMB_SIZE}",
@@ -56,7 +70,7 @@ def _extract_thumb(src_path: str, dest_path: str, ffmpeg: str) -> bool:
                 capture_output=True, timeout=15,
             )
         elif ext in image_exts:
-            subprocess.run(
+            completed = subprocess.run(
                 [ffmpeg, "-y", "-i", src_path,
                  "-vf", f"scale={THUMB_SIZE}",
                  "-q:v", THUMB_QUALITY, dest_path],
@@ -65,7 +79,7 @@ def _extract_thumb(src_path: str, dest_path: str, ffmpeg: str) -> bool:
         else:
             return False
 
-        return os.path.isfile(dest_path)
+        return completed.returncode == 0 and os.path.isfile(dest_path)
     except Exception as e:
         logger.debug("Thumbnail extraction failed for {}: {}", src_path, e)
         return False
@@ -191,14 +205,22 @@ def _generate_editor_thumb(project_id: str, ffmpeg: str, force: bool = False) ->
         if not media_url:
             continue
 
-        # Resolve URL to absolute path
+        # Resolve only managed URLs. Project files are user-editable, so a
+        # prefix check alone must not allow ``../`` to escape the media root.
         # URLs like /output/animator/pp_XXX/0/file.mp4
         if media_url.startswith("/output/"):
-            from config import OUTPUT_DIR
-            src_path = os.path.join(OUTPUT_DIR, media_url[len("/output/"):].replace("/", os.sep))
+            try:
+                src_path = safe_join(OUTPUT_DIR, media_url[len("/output/"):])
+            except ValueError:
+                continue
         elif media_url.startswith("working-assets/"):
-            from config import ROOT_DIR
-            src_path = os.path.join(ROOT_DIR, media_url.replace("/", os.sep))
+            try:
+                src_path = safe_join(
+                    os.path.join(ROOT_DIR, "working-assets"),
+                    media_url[len("working-assets/"):],
+                )
+            except ValueError:
+                continue
         else:
             continue
 
@@ -266,6 +288,8 @@ def generate_thumbnails(project_id):
 def list_thumbnails(project_id):
     """List all generated thumbnails for a project."""
     safe_id = _safe_id(project_id)
+    if not safe_id:
+        return jsonify({"error": "Invalid project ID"}), 400
     proj_dir = os.path.join(THUMBNAILS_DIR, safe_id)
 
     if not os.path.isdir(proj_dir):
@@ -298,9 +322,11 @@ def serve_thumbnail(project_id, module, filename):
     safe_mod = "".join(c for c in module if c.isalnum() or c in ("_", "-"))
     safe_name = os.path.basename(filename)
 
+    if not safe_id or safe_mod != module or safe_name != filename:
+        return jsonify({"error": "Invalid thumbnail path"}), 400
+
     thumb_path = os.path.join(THUMBNAILS_DIR, safe_id, safe_mod, safe_name)
     if not os.path.isfile(thumb_path):
         return jsonify({"error": "Thumbnail not found"}), 404
 
     return send_file(thumb_path, mimetype="image/jpeg")
-

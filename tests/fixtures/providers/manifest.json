@@ -2,8 +2,8 @@
   "fixture_schema_version": 1,
   "files": {
     "image/wavespeed_webhook/expected_result.json": {
-      "bytes": 1761,
-      "sha256": "aa84194069fdcf06dfdad297a04befb64f1ada1f0f16d7636e33c5a22c891085"
+      "bytes": 1882,
+      "sha256": "f30c54867a29869dc9778fd752a427d029860a0a904907200b8acde4694e3e29"
     },
     "image/wavespeed_webhook/raw_response.json": {
       "bytes": 907,
@@ -14,8 +14,8 @@
       "sha256": "6a7824b4cf8b13773abc183de02d50ce4f1a42f0638d5bf8fcc4a51600f2bcf4"
     },
     "scene_director/n8n/expected_result.json": {
-      "bytes": 3082,
-      "sha256": "3fe6376dfdb03c30d024549bd7e4d71227a59742fed4cf7327875dcdcfc7d7d5"
+      "bytes": 3203,
+      "sha256": "4768c40deb6c897c2280a246efe93596c179acc22b9cdf8a1642515d62705359"
     },
     "scene_director/n8n/raw_response.json": {
       "bytes": 1737,
@@ -26,8 +26,8 @@
       "sha256": "b14bfb82fa561a166274f66faf4171f8bed9a2f73a51b8b10933b25c98690d87"
     },
     "script/gemini/expected_result.json": {
-      "bytes": 2838,
-      "sha256": "9329d5d1c232e531a4fa0b9eaeb6b1914100b3070bc4444c9c4dd8ecf663b36b"
+      "bytes": 2959,
+      "sha256": "ee5fb3b5657a705d09c8a0c2839ceb2a836c60d0cec89c231cc77efc83c321d9"
     },
     "script/gemini/raw_response.json": {
       "bytes": 851,
@@ -38,8 +38,8 @@
       "sha256": "3f9f3cf682eba5e946724281157119d16bb795cc5478c9456653ece8d3e2cf18"
     },
     "script/random_template/expected_result.json": {
-      "bytes": 1779,
-      "sha256": "0e30760788404b9bb028e106b967479d1f5471dc7c6c5913d0429ae9019dc180"
+      "bytes": 1900,
+      "sha256": "0c01e5804c6005f4ddcab7665c3640ce1161d686177c38db4ae116c3c1e8cecd"
     },
     "script/random_template/raw_response.json": {
       "bytes": 736,
@@ -50,8 +50,8 @@
       "sha256": "4b884dc2fc799b49e673f7a8e1cea05cd328f969a84de63e2fe2167ce637bc4c"
     },
     "tts/kokoro/expected_result.json": {
-      "bytes": 1674,
-      "sha256": "8c89e7034f87a9f2cc628703e93e585e7e833896176b1d7a540843a008ce7e6c"
+      "bytes": 1795,
+      "sha256": "ef97b31e40d76b28ab770ba2b8e3dff70bfa6a924aaedd1e6b9951f994c68a43"
     },
     "tts/kokoro/raw_response.json": {
       "bytes": 1094,
@@ -62,8 +62,8 @@
       "sha256": "e8eba44c29667a8a468345faa667504b97ef69f0ad51e4737eee7fc7b508b1e2"
     },
     "video/kie_ai/expected_result.json": {
-      "bytes": 1416,
-      "sha256": "fc9271eec5469033e82e04c1f762e054f5849af3a1c7ca0a01a2604b44175029"
+      "bytes": 1537,
+      "sha256": "f9e99c3c9e5806c6baea959e6b61c44db186ba7b0efa1e969aa55f86caa9dfa2"
     },
     "video/kie_ai/raw_response.json": {
       "bytes": 828,
