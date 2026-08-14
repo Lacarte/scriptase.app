@@ -376,6 +376,8 @@ def project_stages(
     *,
     execution: Mapping[str, Any] | None = None,
     fill_spine_gaps: bool = True,
+    job_id: str | None = None,
+    issue_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Project a workflow graph into a ``StageProjection`` document.
 
@@ -391,6 +393,14 @@ def project_stages(
         *occupied* stage are kept so the Production spine stays complete
         (Review appears between Videos and Composer even before Phase 7
         registers a review node). Side branches never open a new gap.
+    job_id:
+        Optional Job id. When provided, open ReviewIssue ids are attached to
+        stages whose member nodes match each issue's ``target_node_id``
+        (step 7.2). Issues without a target land on the Review stage when
+        present, otherwise they are omitted from stage slots.
+    issue_ids:
+        Optional explicit issue id list (e.g. from ``Job.issues``). When set
+        with ``job_id``, only these ids are considered.
 
     Raises
     ------
@@ -426,6 +436,32 @@ def project_stages(
         if isinstance(raw_nodes, Mapping):
             node_records = raw_nodes
 
+    # Optional ReviewIssue attachment (step 7.2). Failures to load the store
+    # never break projection — stages keep a typed empty list.
+    issues_by_node: dict[str, list[str]] = {}
+    untargeted_issue_ids: list[str] = []
+    if job_id:
+        try:
+            from scriptase.review.store import get_issue, list_issues
+
+            if issue_ids is not None:
+                loaded = []
+                for iid in issue_ids:
+                    try:
+                        loaded.append(get_issue(str(iid)))
+                    except Exception:
+                        continue
+            else:
+                loaded = list_issues(job_id=job_id, open_only=True)
+            for issue in loaded:
+                if issue.target_node_id:
+                    issues_by_node.setdefault(issue.target_node_id, []).append(issue.id)
+                else:
+                    untargeted_issue_ids.append(issue.id)
+        except Exception:
+            issues_by_node = {}
+            untargeted_issue_ids = []
+
     stages: list[dict[str, Any]] = []
     for ordinal_index, key in enumerate(emit_keys):
         meta = STAGE_BY_KEY[key]
@@ -438,6 +474,19 @@ def project_stages(
             node_type_is_provider_capable(t) for t in member_types if t
         )
         statuses = [_node_status(node_records.get(nid)) for nid in member_ids]
+        stage_issue_ids: list[str] = []
+        for nid in member_ids:
+            stage_issue_ids.extend(issues_by_node.get(nid) or [])
+        # Untargeted issues surface on the Review stage when the spine has one.
+        if key == "review" and untargeted_issue_ids:
+            stage_issue_ids.extend(untargeted_issue_ids)
+        # Preserve order, drop duplicates.
+        seen_ids: set[str] = set()
+        deduped_issues: list[str] = []
+        for iid in stage_issue_ids:
+            if iid not in seen_ids:
+                seen_ids.add(iid)
+                deduped_issues.append(iid)
         stage = {
             "key": key,
             "label": meta["label"],
@@ -449,8 +498,7 @@ def project_stages(
                 member_ids, nodes
             ),
             "artifacts": _collect_artifacts(member_ids, node_records),
-            # ReviewIssue ids land at 7.2; keep the slot empty and typed.
-            "issues": [],
+            "issues": deduped_issues,
         }
         stages.append(stage)
 

@@ -8,24 +8,51 @@ structure.
 The Repair Router sends each issue back to the node responsible for fixing it
 via a table-driven policy, and repairs the smallest responsible scope.
 
-Step 1.6 ships a thin :mod:`scriptase.review.open_issues` binding store so
-re-segmentation can re-target or close open issues when scene ids change.
-Step 7.1 adds deterministic technical validators (:mod:`scriptase.review.technical`).
-Step 7.2 expands open-issue bindings into the full ReviewIssue schema.
+Step 1.6 shipped a thin open-issue binding store so re-segmentation can
+re-target or close open issues when scene ids change. Step 7.1 adds
+deterministic technical validators. Step 7.2 expands open-issue bindings into
+the full ReviewIssue schema and durable store.
 """
 
-from scriptase.review.open_issues import (
+from scriptase.review.models import (
     ISSUE_ID_RE,
     ISSUE_SCHEMA_VERSION,
+    ISSUE_STATUSES,
+    ISSUE_TYPES,
     OPEN_STATUSES,
+    SEVERITIES,
+    SUGGESTED_ACTIONS,
+    TERMINAL_ISSUE_STATUSES,
+    IssueStatus,
+    IssueType,
+    ReviewIssue,
+    ReviewIssueDraft,
+    Severity,
+    SuggestedAction,
+    assert_structured_review_result,
+    parse_draft,
+    parse_issue,
+    technical_to_draft,
+    validation_problems,
+)
+from scriptase.review.open_issues import (
     IssueBindingNotFound,
     OpenIssueBinding,
     assert_no_open_issue_on_dead_scenes,
     close_issues_for_scene,
     create_open_issue,
-    get_issue,
-    list_issues,
     retarget_issues,
+)
+from scriptase.review.store import (
+    IssueNotFound,
+    IssueValidationError,
+    create_from_review_result,
+    create_from_technical,
+    create_review_issue,
+    get_issue,
+    issues_for_nodes,
+    list_issues,
+    update_issue,
 )
 from scriptase.review.technical import (
     TECHNICAL_CHECK_IDS,
@@ -48,15 +75,29 @@ from scriptase.review.technical import (
 __all__ = [
     "ISSUE_ID_RE",
     "ISSUE_SCHEMA_VERSION",
+    "ISSUE_STATUSES",
+    "ISSUE_TYPES",
     "OPEN_STATUSES",
+    "SEVERITIES",
+    "SUGGESTED_ACTIONS",
     "TECHNICAL_CHECK_IDS",
+    "TERMINAL_ISSUE_STATUSES",
     "IssueBindingNotFound",
+    "IssueNotFound",
+    "IssueStatus",
+    "IssueType",
+    "IssueValidationError",
     "MediaProbe",
     "OpenIssueBinding",
+    "ReviewIssue",
+    "ReviewIssueDraft",
+    "Severity",
+    "SuggestedAction",
     "TechnicalContext",
     "TechnicalIssue",
     "assert_no_open_issue_on_dead_scenes",
     "assert_structured_issues",
+    "assert_structured_review_result",
     "check_aspect_ratio",
     "check_audio_presence",
     "check_duration",
@@ -66,10 +107,19 @@ __all__ = [
     "check_readable_media",
     "check_resolution",
     "close_issues_for_scene",
+    "create_from_review_result",
+    "create_from_technical",
     "create_open_issue",
+    "create_review_issue",
     "get_issue",
+    "issues_for_nodes",
     "list_issues",
+    "parse_draft",
+    "parse_issue",
     "probe_media",
     "retarget_issues",
     "run_technical_validators",
+    "technical_to_draft",
+    "update_issue",
+    "validation_problems",
 ]

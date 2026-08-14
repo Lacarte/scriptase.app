@@ -15,8 +15,9 @@ Checks covered (§12.4 examples):
 * ``frame_count``
 * ``expected_artifact_count``
 
-Step 7.2 expands these into the full persisted ``ReviewIssue`` store; the
-fields here already align with that schema so the upgrade is additive.
+Step 7.2 persists these as full ``ReviewIssue`` documents via
+:func:`scriptase.review.store.create_from_technical`. The fields here already
+align with that schema so the upgrade is additive.
 """
 
 from __future__ import annotations
@@ -1151,6 +1152,18 @@ def assert_structured_issues(issues: Sequence[Any]) -> list[TechnicalIssue]:
     return out
 
 
+def technical_issues_to_review_drafts(
+    issues: Sequence[Any],
+    *,
+    job_id: str,
+) -> list[Any]:
+    """Map technical findings onto ReviewIssue drafts for persistence (step 7.2)."""
+    from scriptase.review.models import technical_to_draft
+
+    validated = assert_structured_issues(issues)
+    return [technical_to_draft(item, job_id=job_id) for item in validated]
+
+
 __all__ = [
     "TECHNICAL_CHECK_IDS",
     "VALIDATOR_NAMES",
@@ -1170,4 +1183,5 @@ __all__ = [
     "parse_aspect_ratio",
     "probe_media",
     "run_technical_validators",
+    "technical_issues_to_review_drafts",
 ]
