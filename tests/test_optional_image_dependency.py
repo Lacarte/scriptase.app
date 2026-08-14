@@ -198,12 +198,20 @@ class VideoAdapterCapabilityGateTests(unittest.TestCase):
     def test_image_to_video_with_storyboard_still_runs(self):
         """Default path: storyboard connected + grok_automa → image_to_video."""
         import scriptase.engine.adapters.video as mod
+        from config import OUTPUT_DIR
+        from PIL import Image
 
         captured: dict = {}
 
         def fake_run(**kwargs):
             captured.update(kwargs)
             return {"total": 1, "ready": 1, "errors": 0}
+
+        # Step 7.4 image gate requires a real still on disk before video runs.
+        ref = "storyboard/pm_ABC123/0/image.png"
+        abs_path = os.path.join(OUTPUT_DIR, *ref.split("/"))
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        Image.new("RGB", (90, 160), (20, 40, 80)).save(abs_path, format="PNG")
 
         original = mod.run_manifest_job
         mod.run_manifest_job = fake_run
@@ -214,14 +222,18 @@ class VideoAdapterCapabilityGateTests(unittest.TestCase):
                     "storyboard": {
                         "ready": 1,
                         "total": 1,
-                        "artifact_refs": ["storyboard/pm_ABC123/0/image.png"],
+                        "artifact_refs": [ref],
                     },
                 },
-                {"provider_id": "grok_automa"},
+                {"provider_id": "grok_automa", "aspect_ratio": "9:16"},
                 self.ctx,
             )
         finally:
             mod.run_manifest_job = original
+            try:
+                os.remove(abs_path)
+            except OSError:
+                pass
 
         self.assertEqual(result["assets"]["ready"], 1)
         self.assertEqual(result["assets"]["provider"], "grok_automa")

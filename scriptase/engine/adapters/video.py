@@ -10,6 +10,10 @@ connected the run prefers ``image_to_video``; when it is absent the selected
 provider must grant ``text_to_video`` and consumes Scene Director output only.
 Never silently substitute a different provider.
 
+Step 7.4 — early image quality gate: when source stills are present they are
+validated (and optionally repaired) **before** any video provider call. A bad
+still must never be animated.
+
 The node payload is unchanged — `{total, ready, errors, provider}` plus
 artifact refs — so the `assets` port, the cache, and every downstream consumer
 see what they always did. Remote `urls` never cross into the port (D38).
@@ -177,6 +181,27 @@ def generate(inputs, config, context):
     merged["animator_provider_override"] = selected
     merged["animator_provider_options"] = provider_run_options(DOMAIN, selected, merged)
     has_storyboard = storyboard_is_present(inputs)
+
+    # Step 7.4 — image gate before any video generation call.
+    # Technical (and optional semantic) checks run first; a blocking failure
+    # raises before `run_manifest_job` so the video provider is never invoked.
+    from scriptase.review.gates import (
+        QUALITY_GATE_FAILED,
+        enforce_image_gate_for_video,
+    )
+
+    gate_result = enforce_image_gate_for_video(inputs, merged, context)
+    if gate_result is not None and not gate_result.passed:
+        raise AdapterError(
+            QUALITY_GATE_FAILED,
+            (
+                f"Image quality gate blocked video generation "
+                f"({gate_result.blocking_issue_count} blocking issue(s); "
+                f"{gate_result.repairs_attempted} repair attempt(s))"
+            ),
+            details=gate_result.to_details(),
+        )
+
     result = _step_assets(
         inputs["scenes"],
         merged,

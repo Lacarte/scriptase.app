@@ -926,6 +926,7 @@ Platform-owned retryability. Core set includes:
 | `REPAIR_LIMIT_REACHED` | Issue exhausted its repair budget; escalated | no |
 | `SECRET_REF_UNRESOLVED` | Secret reference could not be resolved at call time | no |
 | `STAGE_PROJECTION_INVALID` | Graph could not be projected into stages | no |
+| `QUALITY_GATE_FAILED` | Early image/video quality gate blocked progression | no |
 
 ### 13.4 Domain-rename aliases
 

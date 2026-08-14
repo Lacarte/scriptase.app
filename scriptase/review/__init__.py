@@ -11,9 +11,20 @@ via a table-driven policy, and repairs the smallest responsible scope.
 Step 1.6 shipped a thin open-issue binding store so re-segmentation can
 re-target or close open issues when scene ids change. Step 7.1 adds
 deterministic technical validators. Step 7.2 expands open-issue bindings into
-the full ReviewIssue schema and durable store.
+the full ReviewIssue schema and durable store. Step 7.4 adds early quality
+gates (image before video, video before final review).
 """
 
+from scriptase.review.gates import (
+    QUALITY_GATE_FAILED,
+    GateUnit,
+    QualityGateResult,
+    enforce_image_gate_for_video,
+    run_image_gate,
+    run_video_gate,
+    units_from_storyboard,
+    units_from_video_assets,
+)
 from scriptase.review.models import (
     ISSUE_ID_RE,
     ISSUE_SCHEMA_VERSION,
@@ -78,10 +89,12 @@ __all__ = [
     "ISSUE_STATUSES",
     "ISSUE_TYPES",
     "OPEN_STATUSES",
+    "QUALITY_GATE_FAILED",
     "SEVERITIES",
     "SUGGESTED_ACTIONS",
     "TECHNICAL_CHECK_IDS",
     "TERMINAL_ISSUE_STATUSES",
+    "GateUnit",
     "IssueBindingNotFound",
     "IssueNotFound",
     "IssueStatus",
@@ -89,6 +102,7 @@ __all__ = [
     "IssueValidationError",
     "MediaProbe",
     "OpenIssueBinding",
+    "QualityGateResult",
     "ReviewIssue",
     "ReviewIssueDraft",
     "Severity",
@@ -111,6 +125,7 @@ __all__ = [
     "create_from_technical",
     "create_open_issue",
     "create_review_issue",
+    "enforce_image_gate_for_video",
     "get_issue",
     "issues_for_nodes",
     "list_issues",
@@ -118,8 +133,12 @@ __all__ = [
     "parse_issue",
     "probe_media",
     "retarget_issues",
+    "run_image_gate",
     "run_technical_validators",
+    "run_video_gate",
     "technical_to_draft",
+    "units_from_storyboard",
+    "units_from_video_assets",
     "update_issue",
     "validation_problems",
 ]
