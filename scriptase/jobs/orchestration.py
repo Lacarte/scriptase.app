@@ -206,7 +206,9 @@ def prepare_workflow_for_job(
     extensions["source_mode"] = source_mode
     extensions["script_provider_required"] = source_mode_requires_provider(source_mode)
     if channel_settings:
-        extensions["channel_settings"] = channel_settings
+        # Deep-copy so nested logo/pattern objects are not shared with node
+        # configuration (validation rejects shared refs as "recursive JSON").
+        extensions["channel_settings"] = deepcopy(channel_settings)
     document["extensions"] = extensions
 
     # Step 9.1: Manual / Assisted / Automatic policy stamps approval

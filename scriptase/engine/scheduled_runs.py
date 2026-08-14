@@ -12,7 +12,10 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterable, Mapping
 
+from loguru import logger
+
 from config import OUTPUT_DIR
+from scriptase.providers.validation import sanitize_message
 from scriptase.shared.io_utils import safe_json_read, safe_json_write
 from scriptase.shared.security import safe_join
 
@@ -221,7 +224,17 @@ class ScheduleService:
                     "schedules": {key: value for key, value in schedule_state.items() if key in active_ids},
                 }, indent=2)
                 if due:
-                    result = self.enqueue(workflow, schedule)
+                    try:
+                        result = self.enqueue(workflow, schedule)
+                    except Exception as exc:
+                        # Cursor already advanced — log so a lost fire is visible.
+                        logger.exception(
+                            "[schedules] enqueue failed for workflow {} schedule {}: {}",
+                            workflow_id,
+                            schedule_id,
+                            sanitize_message(exc),
+                        )
+                        continue
                     enqueued.append({
                         "workflow_id": workflow_id,
                         "schedule_id": schedule_id,
@@ -252,10 +265,14 @@ class ScheduleService:
         while not self._stop.is_set():
             try:
                 self.tick()
-            except Exception:
+            except Exception as exc:
                 # A malformed/corrupt individual workflow must not kill the
-                # app-wide trigger thread; validation and API calls report it.
-                pass
+                # app-wide trigger thread; log so the failure is not silent
+                # (step 10.4). Validation and API calls still surface it.
+                logger.exception(
+                    "[schedules] tick failed: {}",
+                    sanitize_message(exc),
+                )
             self._stop.wait(self.poll_seconds)
 
 

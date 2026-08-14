@@ -10,6 +10,10 @@ import time
 from copy import deepcopy
 from typing import Callable, Iterable, Mapping
 
+from loguru import logger
+
+from scriptase.providers.validation import sanitize_message
+
 from .persistence import list_workflows, load_workflow
 
 
@@ -135,8 +139,14 @@ class WatchFolderService:
                         shutil.move(source, destination)
                     try:
                         result = self.enqueue(workflow, content, settings)
-                    except Exception:
+                    except Exception as exc:
                         # Put an unqueued claim back so a later tick can retry it.
+                        logger.warning(
+                            "[watch-folder] enqueue failed for workflow {} file {}: {}",
+                            workflow.get("workflow_id"),
+                            os.path.basename(source),
+                            sanitize_message(exc),
+                        )
                         if not os.path.exists(source):
                             try:
                                 os.replace(destination, source)
@@ -144,7 +154,12 @@ class WatchFolderService:
                                 shutil.move(destination, source)
                         self._observed[key] = (signature, now)
                         continue
-                except (OSError, UnicodeError):
+                except (OSError, UnicodeError) as exc:
+                    logger.debug(
+                        "[watch-folder] skipped unstable file {}: {}",
+                        os.path.basename(source),
+                        sanitize_message(exc),
+                    )
                     continue
                 self._observed.pop(key, None)
                 active_keys.discard(key)
@@ -175,8 +190,13 @@ class WatchFolderService:
         while not self._stop.is_set():
             try:
                 self.tick()
-            except Exception:
-                pass
+            except Exception as exc:
+                # A malformed workflow or I/O fault must not kill the app-wide
+                # trigger thread; log so the failure is not silent (step 10.4).
+                logger.exception(
+                    "[watch-folder] tick failed: {}",
+                    sanitize_message(exc),
+                )
             self._stop.wait(self.poll_seconds)
 
 

@@ -160,7 +160,13 @@ def merge_setup_config_with_channel(
     its own, channel branding (enabled flag, asset, presentation) fills in
     so a V2-era workflow with schema defaults still inherits Channel identity
     when run inside a Job.
+
+    Nested values are deep-copied so node configuration never shares object
+    identity with ``channel_settings`` (workflow validation rejects shared
+    refs as recursive JSON — step 10.4 acceptance).
     """
+    from copy import deepcopy
+
     seed = setup_seed_from_channel_settings(channel_settings)
     config = dict(node_config or {})
 
@@ -171,10 +177,10 @@ def merge_setup_config_with_channel(
         if not config.get("logo_enabled"):
             for key in _LOGO_PACKAGE_KEYS:
                 if key in seed:
-                    config[key] = seed[key]
+                    config[key] = deepcopy(seed[key])
         elif "logo" in seed:
             # Enabled on the node but no asset — take channel asset only.
-            config["logo"] = seed["logo"]
+            config["logo"] = deepcopy(seed["logo"])
 
     return inherited_config(config, seed)
 

@@ -13,6 +13,8 @@ import threading
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Mapping
 
+from loguru import logger
+
 from config import OUTPUT_DIR
 from scriptase.channels.models import ChannelProfile
 from scriptase.channels.store import list_channels
@@ -23,6 +25,7 @@ from scriptase.engine.scheduled_runs import (
     _parse_time,
     _utc,
 )
+from scriptase.providers.validation import sanitize_message
 from scriptase.shared.io_utils import safe_json_read, safe_json_write
 from scriptase.shared.security import safe_join
 
@@ -118,9 +121,15 @@ class ChannelCadenceService:
                 continue
             try:
                 result = self.enqueue(channel)
-            except Exception:
+            except Exception as exc:
                 # Malformed channel / missing workflow must not kill the loop;
                 # cursor already advanced so we do not hammer a broken channel.
+                # Log so the lost fire is not silent (step 10.4).
+                logger.exception(
+                    "[channel-cadence] enqueue failed for channel {}: {}",
+                    channel_id,
+                    sanitize_message(exc),
+                )
                 continue
             enqueued.append({
                 "channel_id": channel_id,
@@ -147,8 +156,14 @@ class ChannelCadenceService:
         while not self._stop.is_set():
             try:
                 self.tick()
-            except Exception:
-                pass
+            except Exception as exc:
+                # A single bad channel or store fault must not kill the
+                # app-wide cadence thread; log so the failure is not silent
+                # (step 10.4).
+                logger.exception(
+                    "[channel-cadence] tick failed: {}",
+                    sanitize_message(exc),
+                )
             self._stop.wait(self.poll_seconds)
 
     @property

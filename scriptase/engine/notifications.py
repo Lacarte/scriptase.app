@@ -11,6 +11,7 @@ from typing import Any, Mapping
 from urllib.parse import urlparse
 
 import requests
+from loguru import logger
 
 from scriptase.shared.io_utils import now_iso, safe_json_read, safe_json_write
 from scriptase.shared.security import safe_join
@@ -84,8 +85,14 @@ def _notification_index(output_dir: str):
 def _index_notification(record: Mapping[str, Any], *, output_dir: str) -> None:
     try:
         _notification_index(output_dir).upsert_notification(record)
-    except Exception:
-        pass
+    except Exception as exc:
+        # Index lag is non-fatal (list falls back to scan); still log it so
+        # a broken index is visible (step 10.4).
+        logger.warning(
+            "[notifications] index upsert failed for {}: {}",
+            record.get("execution_id"),
+            sanitize_message(exc),
+        )
 
 
 def _ensure_notification_index(output_dir: str) -> None:
@@ -143,9 +150,15 @@ def dispatch_run_notification(
             _windows_toast(title, message)
             deliveries["windows_toast"] = {"status": "sent" if os.name == "nt" else "unsupported"}
         except Exception as exc:  # a notification channel must never fail a run
+            safe = sanitize_message(exc)
+            logger.warning(
+                "[notifications] windows_toast delivery failed for {}: {}",
+                execution_id,
+                safe,
+            )
             deliveries["windows_toast"] = {
                 "status": "failed",
-                "error": sanitize_message(exc),
+                "error": safe,
             }
     webhook = settings.get("webhook") or {}
     if webhook.get("enabled"):
@@ -155,10 +168,17 @@ def dispatch_run_notification(
             deliveries["webhook"] = {"status": "sent", "http_status": response.status_code}
         except Exception as exc:
             # Channel errors may embed URLs, response bodies, or paths — never
-            # persist them raw (step 16.4, contracts.md §36).
+            # persist them raw (step 16.4, contracts.md §36). Log the scrubbed
+            # form so delivery failures are not silent (step 10.4).
+            safe = sanitize_message(exc)
+            logger.warning(
+                "[notifications] webhook delivery failed for {}: {}",
+                execution_id,
+                safe,
+            )
             deliveries["webhook"] = {
                 "status": "failed",
-                "error": sanitize_message(exc),
+                "error": safe,
             }
     if deliveries:
         with _LOCK:
@@ -211,7 +231,12 @@ def list_notifications(workflow_id: str, *, output_dir: str, limit: int = 100) -
     try:
         _ensure_notification_index(output_dir)
         return _notification_index(output_dir).list_notifications(workflow_id, limit=limit)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "[notifications] index list failed for workflow {}, falling back to scan: {}",
+            workflow_id,
+            sanitize_message(exc),
+        )
         return _list_notifications_scan(workflow_id, root=root, limit=limit)
 
 
@@ -253,7 +278,13 @@ def mark_notifications_seen(workflow_id: str, *, output_dir: str) -> int:
                     workflow_id, root=root, limit=10_000
                 )
                 items = [item for item in scanned if not item.get("seen", False)]
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "[notifications] index unseen list failed for workflow {}, "
+                "falling back to scan: {}",
+                workflow_id,
+                sanitize_message(exc),
+            )
             scanned, _total, _unseen = _list_notifications_scan(
                 workflow_id, root=root, limit=10_000
             )
