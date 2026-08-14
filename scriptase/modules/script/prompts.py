@@ -549,7 +549,7 @@ def build_story_system_prompt(
     # Resolve story tone (from niche system)
     tone_line = ""
     if story_tone:
-        from scriptase.modules.niches.presets import STORY_TONES
+        from scriptase.channels.presets import STORY_TONES
         tone_desc = STORY_TONES.get(story_tone, "")
         if tone_desc:
             tone_line = f"NARRATION TONE: {story_tone} — {tone_desc}\n"
@@ -675,7 +675,7 @@ def _resolve_niche_topic_context(
     description = ""
 
     if niche_preset:
-        from scriptase.modules.niches.presets import get_presets, normalize_preset_id
+        from scriptase.channels.presets import get_presets, normalize_preset_id
 
         preset = get_presets().get(normalize_preset_id(niche_preset), {}) or {}
         niche = str(preset.get("niche") or "").strip().lower()

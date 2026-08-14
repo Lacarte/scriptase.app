@@ -1,6 +1,6 @@
 """Niche presets — user-facing combinations of visual style + story tone + defaults.
 
-A niche is a marketable content angle. Selecting a niche auto-fills:
+This compatibility data becomes starter Channels in step 1.3. Selecting one currently auto-fills:
   - category (broad topic)
   - visual_style (template ID for scene rendering)
   - story_tone (narration tone keyword)
@@ -17,7 +17,7 @@ from pathlib import Path
 
 from scriptase.modules.scene_director.templates import SCENE_STYLE_TEMPLATES, TEMPLATES_BY_ID
 
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "_data"
+_DATA_DIR = Path(__file__).resolve().parent.parent / "_data"
 _PRESETS_FILE = _DATA_DIR / "niche_presets.json"
 _VALID_TAGS = ("tiktok", "youtube", "shorts", "trending")
 _DEFAULT_VOICE = "af_heart"

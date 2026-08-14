@@ -770,10 +770,15 @@ AUDITED_SURFACES = (
     # `scriptase/modules/tts/routes.py` (local engine features of the TTS page,
     # not shared dispatch).
     #
-    # V2's `pipeline/services.py` was audited here too. Step 0.2 does not port
-    # it — step 0.3 relocates the `_step_*` functions out of the legacy pipeline
-    # orchestrator — so its entry is re-added by 0.3 at whatever path it lands.
+    # V2's `pipeline/services.py` is gone. Its `_step_*` bodies live in the
+    # per-domain service modules below (step 0.3). There is no
+    # `scriptase.modules.pipeline` package and never will be.
     "scriptase/modules/tts/dispatch.py",
+    "scriptase/modules/tts/service.py",
+    "scriptase/modules/timing/service.py",
+    "scriptase/modules/segmenter/service.py",
+    "scriptase/modules/scene_director/service.py",
+    "scriptase/modules/compose/service.py",
     "scriptase/providers/domains.py",
     "scriptase/providers/hub.py",
     "scriptase/providers/registry.py",

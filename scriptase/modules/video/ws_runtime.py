@@ -149,6 +149,7 @@ hub = ExtensionWebSocketHub(
 
 # Compatibility aliases — health checks and tests still patch/read these names.
 _ws_clients = hub.clients
+_ws_lock = hub._clients_lock
 
 
 def _accept_project(project_id: str, *, source: str) -> bool:

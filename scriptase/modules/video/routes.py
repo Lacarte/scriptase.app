@@ -28,6 +28,7 @@ from scriptase.shared.security import sanitize_project_id
 from scriptase.modules.video.ws_runtime import (
     _jobs,
     _jobs_lock,
+    _ws_lock,
     _save_job_state,
     _send_to_extension,
     _ws_clients,

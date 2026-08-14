@@ -69,6 +69,7 @@ def register_blueprints(app: Flask) -> None:
     from scriptase.modules.script import story_bp
     from scriptase.modules.segmenter import segmenter_bp
     from scriptase.modules.timing import timing_bp
+    from scriptase.modules.thumbnails import thumbnails_bp
     from scriptase.modules.tts import tts_bp
     from scriptase.modules.video import animation_bp, animator_bp
     from scriptase.providers.routes import providers_bp
@@ -80,6 +81,7 @@ def register_blueprints(app: Flask) -> None:
         story_bp,
         tts_bp,
         timing_bp,
+        thumbnails_bp,
         segmenter_bp,
         scenes_bp,
         storyboard_bp,

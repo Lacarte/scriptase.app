@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from scriptase.modules.niches.presets import (
+from scriptase.channels.presets import (
     CATEGORIES as NICHE_CATEGORIES,
     is_known_template,
     is_valid_story_tone,

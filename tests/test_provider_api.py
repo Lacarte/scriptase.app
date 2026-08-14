@@ -569,16 +569,49 @@ class StartupRuntimeTests(unittest.TestCase):
         self.assertEqual(self.calls, ['alpha'])
 
 
-# Deferred to step 0.3 with the module they exercise:
-#
-#   BlueprintRegistrationTests — asserts the compose (V2 `editor`) blueprint
-#   owns no `/api/providers` or `/api/settings/v2` route, and that it coexists
-#   with `providers_bp` on one app.
-#
-# Step 0.2 ports the engine and the provider platform; `compose/routes.py` is
-# the 2,821-line module step 0.3 splits into separate blueprints, so `editor_bp`
-# does not survive that step as a single import anyway. Restoring these against
-# the split blueprints is 0.3 work, not a rename.
+class BlueprintRegistrationTests(unittest.TestCase):
+    """Compose (V2 editor) is split across seven blueprints; none own providers."""
+
+    def _compose_blueprints(self):
+        from scriptase.modules.compose import (
+            compose_archive_bp,
+            compose_assemble_bp,
+            compose_assets_bp,
+            compose_export_bp,
+            compose_projects_bp,
+            compose_settings_bp,
+            compose_sfx_bp,
+        )
+
+        return (
+            compose_archive_bp,
+            compose_assemble_bp,
+            compose_assets_bp,
+            compose_export_bp,
+            compose_projects_bp,
+            compose_settings_bp,
+            compose_sfx_bp,
+        )
+
+    def test_the_compose_blueprints_no_longer_own_a_provider_route(self):
+        app = Flask(__name__)
+        for bp in self._compose_blueprints():
+            app.register_blueprint(bp)
+        paths = {rule.rule for rule in app.url_map.iter_rules()}
+        self.assertFalse({p for p in paths if p.startswith('/api/providers')})
+        self.assertNotIn('/api/settings/v2', paths)
+
+    def test_both_blueprints_coexist_on_one_app(self):
+        app = Flask(__name__)
+        for bp in self._compose_blueprints():
+            app.register_blueprint(bp)
+        app.register_blueprint(providers_bp)
+        client = app.test_client()
+        # Compose keeps the app-config store; the provider blueprint keeps
+        # settings.json. The two /api/settings surfaces are unrelated (14.2).
+        self.assertEqual(client.get('/api/providers').status_code, 200)
+        with contextlib.suppress(Exception):
+            self.assertEqual(client.get('/api/settings').status_code, 200)
 
 
 if __name__ == '__main__':

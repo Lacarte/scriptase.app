@@ -23,6 +23,12 @@ from scriptase.engine.adapters import (
 CTX = AdapterContext(project_id="pm_ABC123")
 
 
+def test_retired_pipeline_and_niches_packages_have_no_shipped_python_modules():
+    modules_root = Path(__file__).parents[1] / "scriptase" / "modules"
+    assert list((modules_root / "pipeline").glob("*.py")) == []
+    assert list((modules_root / "niches").glob("*.py")) == []
+
+
 def test_project_setup_emits_validated_managed_logo(monkeypatch, tmp_path):
     logo = tmp_path / "logo.png"
     logo.write_bytes(b"png")
@@ -122,9 +128,9 @@ def test_scenes_explicit_config_beats_project_settings(monkeypatch):
                 "path": "scenes/pm_x/scenes.json",
             }
 
-    monkeypatch.setattr(scenes, "resolve_provider", lambda domain, selected: FakeProvider())
-    monkeypatch.setattr(scenes, "provider_run_options", lambda *a, **k: {})
-    monkeypatch.setattr(scenes, "with_artifacts", lambda payload, *paths: payload)
+    monkeypatch.setattr(scene_director, "resolve_provider", lambda domain, selected: FakeProvider())
+    monkeypatch.setattr(scene_director, "provider_run_options", lambda *a, **k: {})
+    monkeypatch.setattr(scene_director, "with_artifacts", lambda payload, *paths: payload)
     scene_director.blueprint(
         {"segments": {}, "script": "x", "settings": {"style": "inherited", "tone": "dark"}},
         {"style": "explicit"},
@@ -171,9 +177,9 @@ def test_empty_node_config_does_not_mask_inherited_settings(monkeypatch):
                 "path": "scenes/pm_x/scenes.json",
             }
 
-    monkeypatch.setattr(scenes, "resolve_provider", lambda domain, selected: FakeProvider())
-    monkeypatch.setattr(scenes, "provider_run_options", lambda *a, **k: {})
-    monkeypatch.setattr(scenes, "with_artifacts", lambda payload, *paths: payload)
+    monkeypatch.setattr(scene_director, "resolve_provider", lambda domain, selected: FakeProvider())
+    monkeypatch.setattr(scene_director, "provider_run_options", lambda *a, **k: {})
+    monkeypatch.setattr(scene_director, "with_artifacts", lambda payload, *paths: payload)
     scene_director.blueprint(
         {"segments": {}, "script": "x", "settings": {"tone": "educational"}},
         {"story_tone": "", "style_prompt": ""},
@@ -204,9 +210,9 @@ def test_music_specific_rejects_unmanaged_file(tmp_path):
 
 def test_assemble_adapter_calls_service_with_project_only(monkeypatch):
     service = Mock(return_value={"assembled_data": {}, "scene_count": 0})
-    monkeypatch.setattr(editor, "_step_assemble", service)
-    monkeypatch.setattr(editor, "with_artifacts", lambda payload, *paths: payload)
-    monkeypatch.setattr(editor, "safe_json_write", lambda *args, **kwargs: None)
+    monkeypatch.setattr(compose, "_step_assemble", service)
+    monkeypatch.setattr(compose, "with_artifacts", lambda payload, *paths: payload)
+    monkeypatch.setattr(compose, "safe_json_write", lambda *args, **kwargs: None)
     compose.assemble({"assets": {}, "metadata": {}, "scenes": {}}, {}, CTX)
     service.assert_called_once_with("pm_ABC123")
 
@@ -227,3 +233,46 @@ def test_export_adapter_builds_logo_payload_without_http(monkeypatch, tmp_path):
     result = export.video({"project": project_payload, "settings": settings}, {"profile": "square"}, CTX)
     assert result["video"]["resolution"] == "1080x1080"
     assert captured["logo_overlay"]["position"] == "bottom_left"
+
+
+def test_export_port_payload_contains_no_absolute_filesystem_path(monkeypatch, tmp_path):
+    class Processor:
+        def __init__(self, payload, progress_callback=None):
+            self.payload = payload
+
+        def process(self, path):
+            Path(path).write_bytes(b"video")
+
+    monkeypatch.setattr(export, "VideoProcessor", Processor)
+    monkeypatch.setattr(export, "EXPORT_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        export,
+        "with_artifacts",
+        lambda payload, *paths: {**payload, "artifact_refs": [Path(paths[0]).name]},
+    )
+    result = export.video(
+        {
+            "project": {
+                "assembled_data": {
+                    "scenes": [{"id": 1, "duration": 1, "mediaUrl": "image/p/a.png"}],
+                    "total_duration": 1,
+                }
+            },
+            "settings": {},
+        },
+        {},
+        CTX,
+    )
+
+    def values(value):
+        if isinstance(value, dict):
+            for nested in value.values():
+                yield from values(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                yield from values(nested)
+        elif isinstance(value, str):
+            yield value
+
+    assert all(not os.path.isabs(value) for value in values(result))
+    assert "path" not in result["video"]

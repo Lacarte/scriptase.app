@@ -47,7 +47,7 @@ from scriptase.providers.transports import (
 )
 from scriptase.providers.transports.direct_api import submit_and_poll
 from scriptase.modules.image import gemini_ws
-from scriptase.modules.video import routes as animator_routes
+from scriptase.modules.video import ws_runtime as animator_runtime
 
 
 PROJECT = "proj_transport_14_4"
@@ -90,9 +90,9 @@ class FakeWs:
 class ExtensionHubTests(unittest.TestCase):
     def test_frozen_routes_are_unchanged(self):
         self.assertEqual(gemini_ws.WS_ROUTE, "/ws/storyboard-gemini-image-grabber")
-        self.assertEqual(animator_routes.WS_ROUTE, "/ws/animator-grok-video-grabber")
+        self.assertEqual(animator_runtime.WS_ROUTE, "/ws/animator-grok-video-grabber")
         self.assertIsInstance(gemini_ws.hub, ExtensionWebSocketHub)
-        self.assertIsInstance(animator_routes.hub, ExtensionWebSocketHub)
+        self.assertIsInstance(animator_runtime.hub, ExtensionWebSocketHub)
 
     def test_queue_delivers_and_keeps_pending_for_list_mode(self):
         hub = ExtensionWebSocketHub("test", "/ws/test", pending_mode="list")
@@ -122,10 +122,10 @@ class ExtensionHubTests(unittest.TestCase):
     def test_storyboard_and_animator_hubs_do_not_share_client_pools(self):
         # Contaminating one extension must not affect the other.
         gemini_ws.hub.clients.clear()
-        animator_routes.hub.clients.clear()
+        animator_runtime.hub.clients.clear()
         gemini_ws.hub.clients.append(FakeWs())
         self.assertTrue(gemini_ws.is_extension_connected())
-        self.assertFalse(animator_routes.is_extension_connected())
+        self.assertFalse(animator_runtime.is_extension_connected())
         gemini_ws.hub.clients.clear()
 
 
@@ -404,27 +404,27 @@ class CallbackIntakeTests(unittest.TestCase):
 class PreflightAliasTests(unittest.TestCase):
     def test_extension_ops_accept_legacy_and_canonical(self):
         """Step 16.1: resolve returns canonical ids; cloud providers are skipped."""
-        import app as app_module
+        from scriptase.providers.extension_ops import resolve_extension
 
-        gemini = app_module._extension_ops("gemini")
+        gemini = resolve_extension("gemini")
         self.assertIsNotNone(gemini)
         self.assertEqual(gemini.provider_id, "gemini_ws")
 
-        gemini_ws = app_module._extension_ops("gemini_ws")
+        gemini_ws = resolve_extension("gemini_ws")
         self.assertIsNotNone(gemini_ws)
         self.assertEqual(gemini_ws.provider_id, "gemini_ws")
 
-        grok = app_module._extension_ops("grok")
+        grok = resolve_extension("grok")
         self.assertIsNotNone(grok)
         self.assertEqual(grok.provider_id, "grok_automa")
 
-        midjourney = app_module._extension_ops("midjourney")
+        midjourney = resolve_extension("midjourney")
         self.assertIsNotNone(midjourney)
         self.assertEqual(midjourney.provider_id, "grok_automa")
 
         # Cloud / non-extension providers must not be treated as extension targets.
-        self.assertIsNone(app_module._extension_ops("wavespeed_direct"))
-        self.assertIsNone(app_module._extension_ops("kie_ai"))
+        self.assertIsNone(resolve_extension("wavespeed_direct"))
+        self.assertIsNone(resolve_extension("kie_ai"))
 
 
 if __name__ == "__main__":

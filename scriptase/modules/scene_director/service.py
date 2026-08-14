@@ -68,7 +68,7 @@ def generate_scenes(
         ensure_analysis_payload,
         finalize_scene_result,
     )
-    from scriptase.modules.niches.presets import resolve_niche as _resolve_niche
+    from scriptase.channels.presets import resolve_niche as _resolve_niche
     from scriptase.modules.scene_director.hooks import _assign_hook_animations
 
     config = dict(configuration or {})

@@ -57,7 +57,7 @@ def storyboard_request(*, scenes=None, aspect_ratio="9:16", style=""):
 def storyboard_invocation(provider_id, *, settings=None, options=None, output_dir=""):
     return build_invocation(
         None,
-        domain="storyboard",
+        domain="image",
         provider_id=provider_id,
         project_id=PROJECT_ID,
         output_dir=output_dir,
@@ -158,7 +158,7 @@ class AbstractBaseTests(unittest.TestCase):
         provider = Minimal()
         self.assertIsNone(provider.open_url({}))
         inv = build_invocation(
-            None, domain="animator", provider_id="x", project_id="pm_ABC123",
+            None, domain="video", provider_id="x", project_id="pm_ABC123",
         )
         self.assertIsNone(provider.cancel_job("pm_ABC123", inv))
         provider.shutdown()
@@ -167,9 +167,9 @@ class AbstractBaseTests(unittest.TestCase):
         """One assertion that spans all seven providers (§21.1 + §33.1)."""
         shipped = [
             ("tts", "kokoro"), ("tts", "inworld"),
-            ("storyboard", "gemini_ws"), ("storyboard", "wavespeed_direct"),
-            ("storyboard", "wavespeed_webhook"),
-            ("animator", "grok_automa"), ("animator", "kie_ai"),
+            ("image", "gemini_ws"), ("image", "wavespeed_direct"),
+            ("image", "wavespeed_webhook"),
+            ("video", "grok_automa"), ("video", "kie_ai"),
         ]
         for domain, provider_id in shipped:
             with self.subTest(provider=f"{domain}/{provider_id}"):

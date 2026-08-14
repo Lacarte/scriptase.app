@@ -63,23 +63,23 @@ from scriptase.engine.validation import validate_workflow, validation_errors
 
 
 # proposition-final.md: Music and Captions are deliberately out of scope.
-AI_DOMAINS = ("script", "scene_blueprint", "tts", "storyboard", "animator")
+AI_DOMAINS = ("script", "scene_director", "tts", "image", "video")
 OUT_OF_SCOPE = ("music", "captions")
 
 # Node type → domain for the five converted provider nodes.
 PROVIDER_NODES = {
     "story.generate": "script",
-    "scenes.blueprint": "scene_blueprint",
+    "scenes.blueprint": "scene_director",
     "tts.generate": "tts",
-    "storyboard.generate": "storyboard",
-    "animator.generate": "animator",
+    "storyboard.generate": "image",
+    "animator.generate": "video",
 }
 
 # Local-only adapters that must never grow a provider dimension (pinned at 3.2).
 MUSIC_ADAPTER = Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "music.py"
 CAPTIONS_ADAPTER = Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "captions.py"
-MUSIC_ADAPTER_BLOB = "3dcc9282d01483744482a1c274595312bb011c00"
-CAPTIONS_ADAPTER_BLOB = "a0049ddcbc0d04b9b11ce8946c42618697644c23"
+MUSIC_ADAPTER_BLOB = "722f503413ab9e76c98760a32411a53095d6ac13"
+CAPTIONS_ADAPTER_BLOB = "2d0a76deb3fa5c35915b8f399d5c5391fdcd0aaf"
 
 # Surfaces that must resolve providers through the hub, never by package import.
 DISPATCH_SURFACES = (
@@ -114,15 +114,17 @@ FORBIDDEN_PROVIDER_PACKAGES = (
 
 EXPECTED_SHIPPED = {
     "script": {"gemini", "random_template", "scaffold_check"},
-    "scene_blueprint": {"n8n"},
+    "scene_director": {"n8n"},
     "tts": {"kokoro", "inworld"},
-    "storyboard": {"gemini_ws", "wavespeed_webhook", "wavespeed_direct"},
-    "animator": {"grok_automa", "kie_ai"},
+    "image": {"gemini_ws", "wavespeed_webhook", "wavespeed_direct"},
+    "video": {"grok_automa", "kie_ai"},
 }
 
 
 def _git_blob_hash(path: Path) -> str:
-    raw = path.read_bytes()
+    # Git stores these text files with LF; normalize the Windows checkout so
+    # the pin protects behavior instead of the developer's core.autocrlf mode.
+    raw = path.read_bytes().replace(b"\r\n", b"\n")
     header = f"blob {len(raw)}\0".encode("ascii")
     return hashlib.sha1(header + raw).hexdigest()
 
@@ -413,9 +415,9 @@ class CompatibilitySmokeTests(unittest.TestCase):
     def test_default_provider_aliases_still_resolve(self):
         cases = (
             ("script", "builtin", "gemini"),
-            ("scene_blueprint", "builtin", "n8n"),
-            ("storyboard", "gemini", "gemini_ws"),
-            ("animator", "kie-ai", "kie_ai"),
+            ("scene_director", "builtin", "n8n"),
+            ("image", "gemini", "gemini_ws"),
+            ("video", "kie-ai", "kie_ai"),
             ("tts", "kokoro", "kokoro"),
         )
         for domain, alias, canonical in cases:
@@ -454,13 +456,13 @@ class FailureIsolationDiagnosticsTests(unittest.TestCase):
     def test_one_domain_list_survives_when_another_is_empty_reload(self):
         """Catalog reads remain consistent: listing TTS does not depend on animator."""
         tts_before = {p.id for p in hub.list("tts")}
-        anim_before = {p.id for p in hub.list("animator")}
+        anim_before = {p.id for p in hub.list("video")}
         self.assertTrue(tts_before)
         self.assertTrue(anim_before)
         # Re-list after a no-op discover keeps both.
         hub.discover_all()
         self.assertEqual({p.id for p in hub.list("tts")}, tts_before)
-        self.assertEqual({p.id for p in hub.list("animator")}, anim_before)
+        self.assertEqual({p.id for p in hub.list("video")}, anim_before)
 
     def test_scheduler_records_failed_node_when_provider_raises(self):
         """Execution diagnostics surface a provider failure on the node."""

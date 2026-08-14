@@ -116,14 +116,57 @@ class CompatibilityModuleTests(unittest.TestCase):
         self.assertEqual(declared, set(compat.LEGACY_SELECTION_KEYS))
 
 
-# Deferred to step 0.3 with the module it exercises:
-#
-#   AppConfigKeyRetirementTests — GET/PATCH `/api/settings` never reintroduces
-#   the three retired `sts-*-provider` keys.
-#
-# The endpoint lives in the compose (V2 `editor`) blueprint, which step 0.3
-# splits into separate blueprints; `strip_legacy_selection_keys`, the logic
-# under test, is already covered above by `LegacySelectionKeyTests`.
+class AppConfigKeyRetirementTests(unittest.TestCase):
+    """GET/PATCH /api/settings never reintroduces the three retired keys."""
+
+    def setUp(self):
+        from flask import Flask
+        from scriptase.modules.compose.settings_routes import compose_settings_bp
+
+        self.tmp = tempfile.mkdtemp(prefix="sts_16_1_cfg_")
+        self.cfg_path = os.path.join(self.tmp, "app-config.json")
+        seed = {
+            "version": 2,
+            "defaults": {},
+            "localStorage": [],
+            "user": {
+                "sts-tts-provider": "inworld",
+                "sts-storyboard-provider": "gemini",
+                "sts-asset-provider": "grok",
+                "sts-sound-enabled": True,
+            },
+        }
+        with open(self.cfg_path, "w", encoding="utf-8") as handle:
+            json.dump(seed, handle)
+
+        app = Flask(__name__)
+        app.register_blueprint(compose_settings_bp)
+        self.client = app.test_client()
+        self._patcher = mock.patch(
+            "scriptase.modules.compose.settings_service.APP_CONFIG_PATH",
+            self.cfg_path,
+        )
+        self._patcher.start()
+        self.addCleanup(self._patcher.stop)
+
+    def test_get_strips_the_three_keys(self):
+        resp = self.client.get("/api/settings")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        for key in compat.LEGACY_SELECTION_KEYS:
+            self.assertNotIn(key, body)
+        self.assertTrue(body.get("sts-sound-enabled"))
+
+    def test_patch_cannot_reintroduce_them(self):
+        resp = self.client.patch(
+            "/api/settings",
+            json={"sts-tts-provider": "kokoro", "sts-sound-enabled": False},
+        )
+        self.assertEqual(resp.status_code, 200)
+        with open(self.cfg_path, encoding="utf-8") as handle:
+            stored = json.load(handle)["user"]
+        self.assertNotIn("sts-tts-provider", stored)
+        self.assertIs(stored.get("sts-sound-enabled"), False)
 
 
 class CoreImportBoundaryTests(unittest.TestCase):
@@ -138,17 +181,26 @@ class CoreImportBoundaryTests(unittest.TestCase):
         "scriptase.modules.image.providers.wavespeed",
     )
 
+    # V2's `studio/pipeline/services.py` is gone; its `_step_*` bodies live in
+    # the per-domain service modules listed below (step 0.3).
     SURFACES = (
-        Path(ROOT_DIR) / "studio" / "workflows" / "adapters",
-        Path(ROOT_DIR) / "studio" / "workflows" / "registry.py",
-        Path(ROOT_DIR) / "studio" / "providers" / "catalog.py",
-        Path(ROOT_DIR) / "studio" / "pipeline" / "services.py",
-        Path(ROOT_DIR) / "studio" / "shared" / "providers_common" / "extension_ops.py",
+        Path(ROOT_DIR) / "scriptase" / "engine" / "adapters",
+        Path(ROOT_DIR) / "scriptase" / "engine" / "registry.py",
+        Path(ROOT_DIR) / "scriptase" / "providers" / "catalog.py",
+        Path(ROOT_DIR) / "scriptase" / "modules" / "tts" / "service.py",
+        Path(ROOT_DIR) / "scriptase" / "modules" / "tts" / "dispatch.py",
+        Path(ROOT_DIR) / "scriptase" / "modules" / "timing" / "service.py",
+        Path(ROOT_DIR) / "scriptase" / "modules" / "segmenter" / "service.py",
+        Path(ROOT_DIR) / "scriptase" / "modules" / "scene_director" / "service.py",
+        Path(ROOT_DIR) / "scriptase" / "modules" / "compose" / "service.py",
+        Path(ROOT_DIR) / "scriptase" / "providers" / "extension_ops.py",
     )
 
     def test_no_concrete_provider_package_import(self):
         offenders = []
         for surface in self.SURFACES:
+            if not surface.exists():
+                continue
             paths = (
                 [surface]
                 if surface.is_file()
@@ -161,6 +213,62 @@ class CoreImportBoundaryTests(unittest.TestCase):
                         offenders.append(
                             f"{path.relative_to(ROOT_DIR)}: {forbidden}"
                         )
+        self.assertEqual(offenders, [])
+
+
+class RoutesBusinessLogicBoundaryTests(unittest.TestCase):
+    """Step 0.3 done-when: nothing outside a package's own transport imports
+    business logic from a `routes.py` / `*_routes.py`.
+
+    Package `__init__.py` files may re-export their own blueprints; that is the
+    one allowed direction (transport out). Everything else must call a service.
+    """
+
+    TRANSPORT_FILENAMES = frozenset({
+        "routes.py",
+        "settings_routes.py",
+        "sfx_routes.py",
+        "project_routes.py",
+        "assemble_routes.py",
+        "archive_routes.py",
+        "asset_routes.py",
+        "export_routes.py",
+        "animation_routes.py",
+    })
+
+    def test_no_non_transport_module_imports_from_a_routes_module(self):
+        import ast
+
+        root = Path(ROOT_DIR) / "scriptase"
+        offenders = []
+        for path in root.rglob("*.py"):
+            if path.name in self.TRANSPORT_FILENAMES:
+                continue
+            # Package re-export of its own blueprints is the intended pattern.
+            if path.name == "__init__.py":
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    module = node.module
+                    leaf = module.rsplit(".", 1)[-1]
+                    if leaf == "routes" or leaf.endswith("_routes"):
+                        # Relative re-exports inside the same package (e.g.
+                        # `from .routes import X` in a sibling transport) are
+                        # still forbidden outside TRANSPORT_FILENAMES.
+                        offenders.append(
+                            f"{path.relative_to(ROOT_DIR)}: from {module}"
+                        )
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        leaf = alias.name.rsplit(".", 1)[-1]
+                        if leaf == "routes" or leaf.endswith("_routes"):
+                            offenders.append(
+                                f"{path.relative_to(ROOT_DIR)}: import {alias.name}"
+                            )
         self.assertEqual(offenders, [])
 
 

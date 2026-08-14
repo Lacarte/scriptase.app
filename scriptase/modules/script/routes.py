@@ -37,7 +37,7 @@ from scriptase.modules.script.prompts import (
 )
 from scriptase.modules.script.engine import parse_story_sections
 from scriptase.modules.scene_director.templates import SCENE_STYLE_TEMPLATES
-from scriptase.modules.niches.presets import CATEGORIES as NICHE_CATEGORIES
+from scriptase.channels.presets import CATEGORIES as NICHE_CATEGORIES
 
 story_bp = Blueprint("story", __name__)
 
