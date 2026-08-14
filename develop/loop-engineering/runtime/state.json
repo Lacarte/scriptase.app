@@ -630,6 +630,24 @@
       "step": "7.4",
       "event": "done",
       "detail": "d100447"
+    },
+    {
+      "ts": "2026-08-14T15:44:26",
+      "step": "phase-7",
+      "event": "done",
+      "detail": "601c651"
+    },
+    {
+      "ts": "2026-08-14T15:44:26",
+      "step": "phase-8",
+      "event": "start",
+      "detail": "601c651"
+    },
+    {
+      "ts": "2026-08-14T15:44:26",
+      "step": "8.1",
+      "event": "start",
+      "detail": ""
     }
   ]
 }
