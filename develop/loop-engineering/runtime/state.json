@@ -30,6 +30,12 @@
       "step": "0.1",
       "event": "validation_red",
       "detail": "vitest FAILED:\n> scriptase-frontend@0.1.0 test\n> vitest run\n\n'vitest' is not recognized as an internal or external command,\noperable program or batch file."
+    },
+    {
+      "ts": "2026-08-13T23:48:51",
+      "step": "0.1",
+      "event": "halt",
+      "detail": "validation still red after max fix attempts"
     }
   ]
 }

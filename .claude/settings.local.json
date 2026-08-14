@@ -1,0 +1,46 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(python:*)",
+      "Bash(pytest:*)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(venv\\Scripts\\python.exe:*)",
+      "Bash(cd:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(echo:*)",
+      "Bash(true)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(touch:*)",
+      "Bash(diff:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git restore --staged:*)",
+      "Bash(git config core.autocrlf)",
+      "Bash(ffmpeg -version:*)",
+      "Bash(ffprobe:*)",
+      "Bash(curl -s http://127.0.0.1:5050:*)",
+      "Bash(curl -s http://localhost:5050:*)"
+    ],
+    "additionalDirectories": [
+      "d:\\@Workspace\\@Development\\@Scripts\\@Python\\ScriptToScene-Studio-V2"
+    ]
+  }
+}
