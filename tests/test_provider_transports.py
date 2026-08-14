@@ -15,17 +15,17 @@ import json
 import unittest
 from unittest import mock
 
-from studio.shared.providers_common.errors import (
+from scriptase.providers.errors import (
     PROVIDER_AUTH_FAILED,
     PROVIDER_REQUEST_INVALID,
     PROVIDER_TIMEOUT,
     PROVIDER_TRANSPORT_FAILED,
     ProviderError,
 )
-from studio.shared.providers_common.jobs import JobHandle, JobStatus
-from studio.shared.providers_common.media_jobs import MediaJobService, MediaJobStore
-from studio.shared.providers_common.results import UNIT_SUCCEEDED
-from studio.shared.providers_common.transports import (
+from scriptase.providers.jobs import JobHandle, JobStatus
+from scriptase.providers.media_jobs import MediaJobService, MediaJobStore
+from scriptase.providers.results import UNIT_SUCCEEDED
+from scriptase.providers.transports import (
     APPLIED,
     DROPPED_MISMATCH,
     DROPPED_UNKNOWN,
@@ -45,16 +45,16 @@ from studio.shared.providers_common.transports import (
     post_webhook,
     webhook_transport,
 )
-from studio.shared.providers_common.transports.direct_api import submit_and_poll
-from studio.storyboard import gemini_ws
-from studio.animator import routes as animator_routes
+from scriptase.providers.transports.direct_api import submit_and_poll
+from scriptase.modules.image import gemini_ws
+from scriptase.modules.video import routes as animator_routes
 
 
 PROJECT = "proj_transport_14_4"
 
 
 def _unit(index: int = 0, state: str = UNIT_SUCCEEDED):
-    from studio.shared.providers_common.results import UnitResult
+    from scriptase.providers.results import UnitResult
 
     return UnitResult(unit_index=index, state=state)
 
@@ -183,7 +183,7 @@ class WebhookTransportTests(unittest.TestCase):
         self.assertEqual(transport("lighthouse"), "https://cdn.test/a.png")
 
     def test_storyboard_generation_uses_shared_post_webhook(self):
-        from studio.storyboard import generation as gen
+        from scriptase.modules.image import generation as gen
 
         transport = gen.webhook_transport("https://n8n.example/hook")
         with mock.patch.object(
@@ -225,7 +225,7 @@ class DirectApiTransportTests(unittest.TestCase):
         session.request.side_effect = [fail, ok]
 
         client = DirectApiClient(session=session, domain="animator", provider_id="kie_ai")
-        with mock.patch("studio.shared.providers_common.transports.direct_api.time.sleep"):
+        with mock.patch("scriptase.providers.transports.direct_api.time.sleep"):
             data = client.get_json("/status", retries=2)
         self.assertEqual(data["status"], "ok")
         self.assertEqual(session.request.call_count, 2)

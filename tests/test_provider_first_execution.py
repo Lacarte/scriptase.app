@@ -21,9 +21,9 @@ the one the registry actually serves.
 import unittest
 from unittest import mock
 
-from studio.animator.providers.base import AnimatorProvider
-from studio.shared.providers_common.hub import hub
-from studio.shared.providers_common.jobs import (
+from scriptase.modules.video.providers.base import AnimatorProvider
+from scriptase.providers.hub import hub
+from scriptase.providers.jobs import (
     FAILED,
     RUNNING,
     SUBMITTED,
@@ -31,11 +31,11 @@ from studio.shared.providers_common.jobs import (
     JobHandle,
     JobStatus,
 )
-from studio.shared.providers_common.invocation import build_invocation
-from studio.shared.providers_common.results import validate_egress
-from studio.storyboard.providers.base import StoryboardProvider
-from studio.storyboard.providers.contract import StoryboardRequest
-from studio.tts.providers.base import TTSProvider, TTSResult
+from scriptase.providers.invocation import build_invocation
+from scriptase.providers.results import validate_egress
+from scriptase.modules.image.providers.base import StoryboardProvider
+from scriptase.modules.image.providers.contract import StoryboardRequest
+from scriptase.modules.tts.providers.base import TTSProvider, TTSResult
 
 PROJECT_ID = "pm_ABC123"
 
@@ -145,8 +145,8 @@ class AbstractBaseTests(unittest.TestCase):
         provider.shutdown()
 
     def test_animator_open_url_default(self):
-        from studio.animator.providers.contract import AnimatorRequest
-        from studio.shared.providers_common.invocation import build_invocation
+        from scriptase.modules.video.providers.contract import AnimatorRequest
+        from scriptase.providers.invocation import build_invocation
 
         class Minimal(AnimatorProvider):
             def submit(self, request, invocation):

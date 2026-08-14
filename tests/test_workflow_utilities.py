@@ -4,11 +4,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from studio.story import service as story_service
-from studio.workflows.adapters import AdapterContext, AdapterError
-from studio.workflows.adapters import story, utilities
-from studio.workflows.scheduler import WorkflowScheduler
-from studio.workflows.validation import validate_workflow, validation_errors
+from scriptase.modules.script import service as story_service
+from scriptase.engine.adapters import AdapterContext, AdapterError
+from scriptase.engine.adapters import script, utilities
+from scriptase.engine.scheduler import WorkflowScheduler
+from scriptase.engine.validation import validate_workflow, validation_errors
 
 
 CTX = AdapterContext(project_id="pm_ABC123")
@@ -131,7 +131,7 @@ def test_story_adapter_dispatches_to_script_provider_and_emits_script(monkeypatc
     })
     monkeypatch.setattr(story, "resolve_provider", lambda domain, selected: provider)
     monkeypatch.setattr(story, "with_artifacts", lambda payload, *paths: {**payload, "artifact_refs": list(paths)})
-    result = story.generate(
+    result = script.generate(
         {"settings": {"style": "cinematic", "tone": "dramatic"}},
         {"story_category": "motivation", "duration": 45, "language": "english"},
         CTX,

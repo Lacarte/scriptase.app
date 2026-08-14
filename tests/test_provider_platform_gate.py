@@ -20,7 +20,7 @@ Coverage matrix (what this file owns vs what it re-asserts lightly):
   DoD 7  a broken/unavailable provider degrades to a reported health
          state without taking down siblings or the process.
   DoD 8  generated provider docs exist; drift is gated by the docs
-         suite / `python -m studio.workflows.docs --check`.
+         suite / `python -m scriptase.engine.docs --check`.
 
 Live providers stay opt-in (`STS_LIVE=1`); remaining external
 credential/browser limits are recorded in the step review status and
@@ -41,25 +41,25 @@ from pathlib import Path
 from flask import Flask
 
 from config import ROOT_DIR
-from studio.providers import providers_bp
-from studio.providers import catalog as catalog_module
-from studio.shared.providers_common.domains import DOMAINS, SHARED_CAPABILITIES
-from studio.shared.providers_common.errors import (
+from scriptase.providers import providers_bp
+from scriptase.providers import catalog as catalog_module
+from scriptase.providers.domains import DOMAINS, SHARED_CAPABILITIES
+from scriptase.providers.errors import (
     PROVIDER_NOT_FOUND,
     ProviderError,
 )
-from studio.shared.providers_common.hub import hub
-from studio.shared.providers_common.results import (
+from scriptase.providers.hub import hub
+from scriptase.providers.results import (
     RESULT_VERSION,
     SUCCEEDED,
     validate_egress,
 )
-from studio.workflows.adapters import captions as captions_adapter
-from studio.workflows.adapters import music as music_adapter
-from studio.workflows.registry import get_node_type
-from studio.workflows.scheduler import WorkflowScheduler
-from studio.workflows.templates import serialize_templates
-from studio.workflows.validation import validate_workflow, validation_errors
+from scriptase.engine.adapters import captions as captions_adapter
+from scriptase.engine.adapters import music as music_adapter
+from scriptase.engine.registry import get_node_type
+from scriptase.engine.scheduler import WorkflowScheduler
+from scriptase.engine.templates import serialize_templates
+from scriptase.engine.validation import validate_workflow, validation_errors
 
 
 # proposition-final.md: Music and Captions are deliberately out of scope.
@@ -76,19 +76,19 @@ PROVIDER_NODES = {
 }
 
 # Local-only adapters that must never grow a provider dimension (pinned at 3.2).
-MUSIC_ADAPTER = Path(ROOT_DIR) / "studio" / "workflows" / "adapters" / "music.py"
-CAPTIONS_ADAPTER = Path(ROOT_DIR) / "studio" / "workflows" / "adapters" / "captions.py"
+MUSIC_ADAPTER = Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "music.py"
+CAPTIONS_ADAPTER = Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "captions.py"
 MUSIC_ADAPTER_BLOB = "3dcc9282d01483744482a1c274595312bb011c00"
 CAPTIONS_ADAPTER_BLOB = "a0049ddcbc0d04b9b11ce8946c42618697644c23"
 
 # Surfaces that must resolve providers through the hub, never by package import.
 DISPATCH_SURFACES = (
-    Path(ROOT_DIR) / "studio" / "workflows" / "adapters" / "story.py",
-    Path(ROOT_DIR) / "studio" / "workflows" / "adapters" / "scenes.py",
-    Path(ROOT_DIR) / "studio" / "workflows" / "adapters" / "tts.py",
-    Path(ROOT_DIR) / "studio" / "workflows" / "adapters" / "storyboard.py",
-    Path(ROOT_DIR) / "studio" / "workflows" / "adapters" / "animator.py",
-    Path(ROOT_DIR) / "studio" / "tts" / "dispatch.py",
+    Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "script.py",
+    Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "scene_director.py",
+    Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "tts.py",
+    Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "image.py",
+    Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "video.py",
+    Path(ROOT_DIR) / "scriptase" / "modules" / "tts" / "dispatch.py",
 )
 
 # Fixture provider ids from the 12.5 no-node-edit proof — must never ship.
@@ -101,15 +101,15 @@ FIXTURE_IDS = (
 
 # Concrete package paths that generic dispatch must not import.
 FORBIDDEN_PROVIDER_PACKAGES = (
-    "studio.story.providers.gemini",
-    "studio.story.providers.random_template",
-    "studio.build_scene_blueprints.providers.n8n",
-    "studio.tts.providers.kokoro",
-    "studio.tts.providers.inworld",
-    "studio.storyboard.providers.gemini_ws",
-    "studio.storyboard.providers.wavespeed",
-    "studio.animator.providers.grok_automa",
-    "studio.animator.providers.kie_ai",
+    "scriptase.modules.script.providers.gemini",
+    "scriptase.modules.script.providers.random_template",
+    "scriptase.modules.scene_director.providers.n8n",
+    "scriptase.modules.tts.providers.kokoro",
+    "scriptase.modules.tts.providers.inworld",
+    "scriptase.modules.image.providers.gemini_ws",
+    "scriptase.modules.image.providers.wavespeed",
+    "scriptase.modules.video.providers.grok_automa",
+    "scriptase.modules.video.providers.kie_ai",
 )
 
 EXPECTED_SHIPPED = {
@@ -283,7 +283,7 @@ class ZeroTouchAndAgnosticismTests(unittest.TestCase):
 
     def test_fixture_provider_ids_never_appear_outside_tests(self):
         offenders = []
-        for path in _source_tree_files("studio", "frontend/src", "app.py"):
+        for path in _source_tree_files("scriptase", "frontend/src", "app.py"):
             try:
                 source = path.read_text(encoding="utf-8", errors="ignore")
             except OSError:
@@ -299,12 +299,12 @@ class ZeroTouchAndAgnosticismTests(unittest.TestCase):
         instance = hub.get("script", "scaffold_check")
         self.assertIsNotNone(instance)
         package_dir = (
-            Path(ROOT_DIR) / "studio" / "story" / "providers" / "scaffold_check"
+            Path(ROOT_DIR) / "scriptase" / "modules" / "script" / "providers" / "scaffold_check"
         )
         self.assertTrue((package_dir / "manifest.py").is_file())
         # Generic story adapter does not hardcode the demo id.
         story_src = (
-            Path(ROOT_DIR) / "studio" / "workflows" / "adapters" / "story.py"
+            Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "script.py"
         ).read_text(encoding="utf-8")
         self.assertNotIn("scaffold_check", story_src)
 
@@ -438,7 +438,7 @@ class FailureIsolationDiagnosticsTests(unittest.TestCase):
         hub.discover_all()
 
     def test_missing_provider_is_provider_not_found_not_process_crash(self):
-        from studio.workflows.adapters.common import resolve_provider, AdapterError
+        from scriptase.engine.adapters.common import resolve_provider, AdapterError
 
         with self.assertRaises((ProviderError, AdapterError, LookupError, KeyError, ValueError)) as ctx:
             resolve_provider("tts", "definitely_not_a_registered_provider_16_5")
@@ -520,8 +520,8 @@ class GeneratedDocsGateTests(unittest.TestCase):
                     self.assertIn(domain, text)
 
     def test_docs_module_exposes_check_entry(self):
-        from studio.shared.providers_common import docs as provider_docs
-        from studio.workflows import docs as workflow_docs
+        from scriptase.providers import docs as provider_docs
+        from scriptase.engine import docs as workflow_docs
 
         self.assertTrue(callable(getattr(provider_docs, "generate", None)
                                  or getattr(provider_docs, "render", None)

@@ -488,7 +488,11 @@ def phase_review_prompt(phase: int, title: str, steps: list[Step], before: str, 
 def agent_cmd(agent: str, prompt: str) -> str:
     escaped = prompt.replace('"', "'")
     if agent == "codex":
-        return f'codex exec "{escaped}"'
+        # `codex exec` defaults to a read-only sandbox for any project that is not
+        # listed as trusted in ~/.codex/config.toml, and this repo is not. Without an
+        # explicit sandbox mode the agent reasons for 20 minutes and writes nothing,
+        # then the guard halts because no commit landed past the baseline.
+        return f'codex exec --sandbox workspace-write "{escaped}"'
     if agent == "claude":
         return f'claude -p --permission-mode acceptEdits "{escaped}"'
     if agent == "grok":

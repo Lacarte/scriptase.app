@@ -4,8 +4,20 @@ from unittest.mock import Mock
 
 import pytest
 
-from studio.workflows.adapters import AdapterContext, AdapterError
-from studio.workflows.adapters import animator, captions, editor, export, music, project, scenes, segmenter, storyboard, timing, tts
+from scriptase.engine.adapters import AdapterContext, AdapterError
+from scriptase.engine.adapters import (
+    captions,
+    compose,
+    export,
+    image,
+    music,
+    project,
+    scene_director,
+    segmenter,
+    timing,
+    tts,
+    video,
+)
 
 
 CTX = AdapterContext(project_id="pm_ABC123")
@@ -22,7 +34,7 @@ def test_project_setup_emits_validated_managed_logo(monkeypatch, tmp_path):
 
 def test_tts_adapter_translates_ports_and_inherited_defaults(monkeypatch, tmp_path):
     # Absolute paths must live under OUTPUT_DIR so artifact_ref accepts them.
-    import studio.workflows.adapters.common as adapter_common
+    import scriptase.engine.adapters.common as adapter_common
 
     managed = tmp_path / "tts" / "pm_ABC123"
     managed.mkdir(parents=True)
@@ -113,7 +125,7 @@ def test_scenes_explicit_config_beats_project_settings(monkeypatch):
     monkeypatch.setattr(scenes, "resolve_provider", lambda domain, selected: FakeProvider())
     monkeypatch.setattr(scenes, "provider_run_options", lambda *a, **k: {})
     monkeypatch.setattr(scenes, "with_artifacts", lambda payload, *paths: payload)
-    scenes.blueprint(
+    scene_director.blueprint(
         {"segments": {}, "script": "x", "settings": {"style": "inherited", "tone": "dark"}},
         {"style": "explicit"},
         CTX,
@@ -123,8 +135,8 @@ def test_scenes_explicit_config_beats_project_settings(monkeypatch):
 
 
 @pytest.mark.parametrize("module,method,input_port,output_port", [
-    (storyboard, "_step_storyboard", "scenes", "images"),
-    (animator, "_step_assets", "scenes", "assets"),
+    (image, "_step_storyboard", "scenes", "images"),
+    (video, "_step_assets", "scenes", "assets"),
 ])
 def test_provider_adapters_expose_typed_outputs(monkeypatch, module, method, input_port, output_port):
     monkeypatch.setattr(module, method, lambda *args: {"total": 1, "ready": 1, "errors": 0})
@@ -134,8 +146,8 @@ def test_provider_adapters_expose_typed_outputs(monkeypatch, module, method, inp
 
 
 @pytest.mark.parametrize("module,method,input_port,code", [
-    (storyboard, "_step_storyboard", "scenes", "STORYBOARD_FAILED"),
-    (animator, "_step_assets", "scenes", "ANIMATOR_FAILED"),
+    (image, "_step_storyboard", "scenes", "STORYBOARD_FAILED"),
+    (video, "_step_assets", "scenes", "ANIMATOR_FAILED"),
 ])
 def test_provider_adapters_fail_when_no_assets_produced(monkeypatch, module, method, input_port, code):
     # Live finding (step 6.1): a rejected provider key errors every scene but
@@ -162,7 +174,7 @@ def test_empty_node_config_does_not_mask_inherited_settings(monkeypatch):
     monkeypatch.setattr(scenes, "resolve_provider", lambda domain, selected: FakeProvider())
     monkeypatch.setattr(scenes, "provider_run_options", lambda *a, **k: {})
     monkeypatch.setattr(scenes, "with_artifacts", lambda payload, *paths: payload)
-    scenes.blueprint(
+    scene_director.blueprint(
         {"segments": {}, "script": "x", "settings": {"tone": "educational"}},
         {"story_tone": "", "style_prompt": ""},
         CTX,
@@ -195,7 +207,7 @@ def test_assemble_adapter_calls_service_with_project_only(monkeypatch):
     monkeypatch.setattr(editor, "_step_assemble", service)
     monkeypatch.setattr(editor, "with_artifacts", lambda payload, *paths: payload)
     monkeypatch.setattr(editor, "safe_json_write", lambda *args, **kwargs: None)
-    editor.assemble({"assets": {}, "metadata": {}, "scenes": {}}, {}, CTX)
+    compose.assemble({"assets": {}, "metadata": {}, "scenes": {}}, {}, CTX)
     service.assert_called_once_with("pm_ABC123")
 
 
