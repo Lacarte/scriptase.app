@@ -26,6 +26,7 @@ from scriptase.jobs.channel_settings import (
     merge_setup_config_with_channel,
     script_text_from_source,
 )
+from scriptase.jobs.execution_modes import apply_execution_policy_to_workflow
 from scriptase.jobs.models import TERMINAL_STATUSES, Job
 from scriptase.jobs.source_modes import (
     DIRECT_TEXT_SOURCE_MODES,
@@ -208,6 +209,10 @@ def prepare_workflow_for_job(
         extensions["channel_settings"] = channel_settings
     document["extensions"] = extensions
 
+    # Step 9.1: Manual / Assisted / Automatic policy stamps approval
+    # checkpoints and the automatic-policy summary onto extensions.
+    document = apply_execution_policy_to_workflow(document, job)
+
     return document
 
 
@@ -321,6 +326,11 @@ def run_node_test(
 
     source_workflow = workflow if workflow is not None else load_job_workflow(job)
     prepared = prepare_workflow_for_job(job, source_workflow)
+    # Test Node is exploratory (step 4.2): never pause for Manual/Assisted
+    # human checkpoints that prepare_workflow_for_job stamps for production runs.
+    extensions = dict(prepared.get("extensions") or {})
+    extensions["approval_checkpoints"] = []
+    prepared["extensions"] = extensions
 
     active_manager = manager or execution_manager
     try:
@@ -334,6 +344,7 @@ def run_node_test(
             input_bindings=input_bindings,
             input_overrides=input_overrides,
             current_job_id=job.id,
+            checkpoint_after_node_ids=[],
         )
     except ExecutionRequestError as exc:
         raise JobOrchestrationError(exc.code, str(exc), details=exc.details) from exc

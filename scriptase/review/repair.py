@@ -15,8 +15,9 @@ Control surface (all required by §12.5 / contracts.md §12):
 This module is pure policy + durable status updates. Step 8.3 owns fallback
 instance chains; step 8.4 owns ``RepairHistoryEntry`` persistence (recorded
 from :func:`apply_repair_decision` for terminal decisions and from
-:func:`record_repair_attempt` after a provider re-run); step 9.1 wires
-Automatic mode end-to-end. The engine run body built here reuses the ported
+:func:`record_repair_attempt` after a provider re-run). Step 9.1 wires
+Automatic mode end-to-end (defaults for max repairs/scene, safe degradation,
+and pause-only-on-critical). The engine run body built here reuses the ported
 run modes only — no second execution path.
 """
 
@@ -32,6 +33,12 @@ from scriptase.jobs.budget import (
     budget_from_job,
     check_budget_preflight,
     spent_from_job,
+)
+from scriptase.jobs.execution_modes import (
+    AUTOMATIC_MAX_REPAIRS_PER_SCENE,
+    AUTOMATIC_SAFE_DEGRADATION_DEFAULTS,
+    normalize_execution_mode,
+    should_pause_for_escalation,
 )
 from scriptase.jobs.models import BudgetSpent, Job
 from scriptase.review.models import OPEN_STATUSES, ReviewIssue
@@ -220,12 +227,24 @@ def _safe_degradation_map(thresholds: Mapping[str, Any]) -> dict[str, str]:
     return out
 
 
+def _execution_mode_of(job: Job | Mapping[str, Any] | None) -> str:
+    if isinstance(job, Job):
+        return normalize_execution_mode(job.execution_mode)
+    if isinstance(job, Mapping):
+        return normalize_execution_mode(job.get("execution_mode"))
+    return "manual"
+
+
 def resolve_repair_policy(
     job: Job | Mapping[str, Any] | None = None,
     *,
     snapshot: Mapping[str, Any] | None = None,
 ) -> RepairPolicy:
-    """Build a :class:`RepairPolicy` from a Job or raw channel snapshot."""
+    """Build a :class:`RepairPolicy` from a Job or raw channel snapshot.
+
+    Automatic Jobs (step 9.1) receive the §8 automatic policy defaults when
+    the Channel left max-repairs-per-scene or safe degradation unset.
+    """
     if snapshot is None:
         if isinstance(job, Job):
             snapshot = job.channel_snapshot
@@ -238,6 +257,19 @@ def resolve_repair_policy(
     review = _parse_review_policy(snapshot)
     thresholds = dict(review.thresholds or {})
     budget = _parse_budget(snapshot)
+    mode = _execution_mode_of(job)
+
+    scene_cap = _optional_int_threshold(
+        thresholds,
+        "max_repairs_per_scene",
+        "max_repair_cycles_per_scene",
+    )
+    safe_deg = _safe_degradation_map(thresholds)
+    if mode == "automatic":
+        if scene_cap is None:
+            scene_cap = AUTOMATIC_MAX_REPAIRS_PER_SCENE
+        if not safe_deg:
+            safe_deg = dict(AUTOMATIC_SAFE_DEGRADATION_DEFAULTS)
 
     return RepairPolicy(
         max_repairs=max(0, int(review.max_repairs)),
@@ -250,14 +282,11 @@ def resolve_repair_policy(
         escalate_on_low_confidence=_bool_threshold(
             thresholds,
             "escalate_on_low_confidence",
-            default=True,
+            # Automatic: prefer auto-repair / degrade over low-confidence pauses.
+            default=(mode != "automatic"),
         ),
-        safe_degradation=_safe_degradation_map(thresholds),
-        max_repairs_per_scene=_optional_int_threshold(
-            thresholds,
-            "max_repairs_per_scene",
-            "max_repair_cycles_per_scene",
-        ),
+        safe_degradation=safe_deg,
+        max_repairs_per_scene=scene_cap,
         budget=budget,
         escalation_note=str(review.escalation or ""),
     )
@@ -604,6 +633,8 @@ def decide_issue_repair(
     resolved_policy = policy or resolve_repair_policy(job)
     max_repairs = resolved_policy.max_repairs
     attempts_remaining = max(0, max_repairs - attempts)
+    execution_mode = _execution_mode_of(job)
+    severity = str(_field(issue, "severity") or "").strip().lower()
 
     def _base(**kwargs: Any) -> RepairDecision:
         defaults = {
@@ -646,6 +677,7 @@ def decide_issue_repair(
     try:
         routing = route_issue(issue)
     except (UnroutableIssue, ValueError) as exc:
+        # Unroutable is always unrecoverable — pause even in Automatic.
         return _base(
             action="escalate",
             reason=f"Unroutable issue — escalate to human: {exc}",
@@ -673,28 +705,68 @@ def decide_issue_repair(
         payload.update(kwargs)
         return _base(**payload)
 
-    # Explicit escalate from the reviewer.
-    if suggested == "escalate":
+    def _escalate(
+        *,
+        reason: str,
+        code: str,
+        job_status_reason: str = STATUS_REASON_ESCALATION,
+    ) -> RepairDecision:
+        """Escalate — or, in Automatic mode, soft-handle non-critical issues.
+
+        Product §8: Automatic pauses only on critical semantic issues /
+        unrecoverable conditions. Non-critical escalations degrade or accept
+        so the Job can continue to export unattended.
+        """
+        if should_pause_for_escalation(
+            execution_mode=execution_mode,
+            severity=severity,
+            code=code,
+        ):
+            return _with_route(
+                action="escalate",
+                reason=reason,
+                code=code,
+                job_status_reason=job_status_reason,
+            )
+        if can_safely_degrade(routing, resolved_policy):
+            mode = degradation_mode_for(routing, resolved_policy) or "keep_still"
+            return _with_route(
+                action="degrade",
+                reason=(
+                    f"Automatic mode (non-critical): {reason}; "
+                    f"safe degradation mode={mode!r}"
+                ),
+                code=SAFE_DEGRADATION,
+                degradation_mode=mode,
+            )
         return _with_route(
-            action="escalate",
-            reason="Reviewer suggested escalation to human review",
-            code=SUGGESTED_ESCALATE,
-            job_status_reason=STATUS_REASON_ESCALATION,
+            action="accept",
+            reason=(
+                f"Automatic mode (non-critical): {reason}; "
+                "accepting without human pause"
+            ),
+            code=code or SUGGESTED_ACCEPT,
         )
 
-    # Low confidence → human, not blind auto-repair.
+    # Explicit escalate from the reviewer.
+    if suggested == "escalate":
+        return _escalate(
+            reason="Reviewer suggested escalation to human review",
+            code=SUGGESTED_ESCALATE,
+        )
+
+    # Low confidence → human, not blind auto-repair (Manual/Assisted).
+    # Automatic defaults escalate_on_low_confidence=False (step 9.1).
     if (
         resolved_policy.escalate_on_low_confidence
         and confidence < resolved_policy.confidence_floor
     ):
-        return _with_route(
-            action="escalate",
+        return _escalate(
             reason=(
                 f"Confidence {confidence:.2f} is below floor "
                 f"{resolved_policy.confidence_floor:.2f}; escalate to human"
             ),
             code=LOW_CONFIDENCE,
-            job_status_reason=STATUS_REASON_ESCALATION,
         )
 
     # Per-issue attempt budget exhausted.
@@ -710,8 +782,7 @@ def decide_issue_repair(
                 code=SAFE_DEGRADATION,
                 degradation_mode=mode,
             )
-        return _with_route(
-            action="escalate",
+        return _escalate(
             reason=(
                 f"Repair attempts exhausted ({attempts}/{max_repairs}); "
                 "escalate instead of looping"
@@ -742,8 +813,7 @@ def decide_issue_repair(
                     code=SAFE_DEGRADATION,
                     degradation_mode=mode,
                 )
-            return _with_route(
-                action="escalate",
+            return _escalate(
                 reason=(
                     f"Scene repair budget exhausted "
                     f"({scene_total}/{scene_cap} attempts on {scene_id})"

@@ -72,17 +72,20 @@ export const EXECUTION_MODE_CATALOG = Object.freeze([
   {
     mode: 'manual',
     label: 'Manual',
-    description: 'Run stages under explicit operator control.',
+    description:
+      'Operator runs or approves important stages. Default checkpoints pause after each primary stage (export excluded).',
   },
   {
     mode: 'assisted',
     label: 'Assisted',
-    description: 'Run with human approval checkpoints (durable at step 2.6).',
+    description:
+      'Pipeline runs automatically and pauses only at configured human checkpoints (durable awaiting_approval).',
   },
   {
     mode: 'automatic',
     label: 'Automatic',
-    description: 'Run unattended under Channel policy.',
+    description:
+      'Unattended start-to-export under Channel policy: bounded retries, fallback, safe degradation; pause only on critical/unrecoverable issues.',
   },
 ])
 

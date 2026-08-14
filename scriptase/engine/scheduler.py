@@ -948,15 +948,28 @@ class WorkflowScheduler:
                     node_id in self.checkpoint_after_node_ids
                     and node_id not in self._already_approved_nodes
                 ):
+                    stage_key = self._stage_key_hint(node)
+                    try:
+                        from scriptase.jobs.execution_modes import (
+                            checkpoint_reason_for_node,
+                        )
+
+                        approval_reason = checkpoint_reason_for_node(
+                            node, stage_key=stage_key
+                        )
+                    except Exception:
+                        approval_reason = (
+                            "script_approval" if stage_key == "script" else "policy"
+                        )
                     self._status(
                         statuses, node_id, "awaiting_approval", node_record=node_record
                     )
                     return _NodeOutcome(
                         awaiting_approval=True,
-                        approval_reason="policy",
+                        approval_reason=approval_reason,
                         approval_has_outputs=True,
                         approval_job_id=self._job_id_from_workflow(),
-                        approval_stage_key=self._stage_key_hint(node),
+                        approval_stage_key=stage_key,
                     )
                 self._status(statuses, node_id, "succeeded", node_record=node_record)
                 return _NodeOutcome()
