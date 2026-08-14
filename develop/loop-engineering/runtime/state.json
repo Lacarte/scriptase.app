@@ -1,6 +1,7 @@
 {
   "done": [
-    "0.1"
+    "0.1",
+    "0.2"
   ],
   "history": [
     {
@@ -44,6 +45,12 @@
       "step": "0.2",
       "event": "start",
       "detail": ""
+    },
+    {
+      "ts": "2026-08-14T00:56:38",
+      "step": "0.2",
+      "event": "halt",
+      "detail": "builder agent exited with code 1"
     }
   ]
 }

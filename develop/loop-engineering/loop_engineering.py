@@ -1,8 +1,8 @@
-"""Loop-engineering orchestrator for the workflow-builder upgrade.
+"""Loop-engineering orchestrator for the Scriptase build.
 
 Parses plans/implementation-plan.md into
 phases/steps (the markdown stays the single source of truth), tracks
-progress in _dev/loop-engineering/runtime/state.json, and drives an
+progress in develop/loop-engineering/runtime/state.json, and drives an
 execute -> validate -> correct -> review -> commit cycle per step until
 the requested phase (or step) is complete.
 
@@ -11,14 +11,18 @@ invocation it runs pytest, vitest, and the production build itself, and only
 a green board lets a step be marked done.
 
 Usage (from the repo root, or via run.bat in this folder):
-    python _dev/loop-engineering/loop_engineering.py --status
-    python _dev/loop-engineering/loop_engineering.py --phase 2
-    python _dev/loop-engineering/loop_engineering.py --until 2.5
-    python _dev/loop-engineering/loop_engineering.py --steps 1
-    python _dev/loop-engineering/loop_engineering.py --dry-run --phase 2
-    python _dev/loop-engineering/loop_engineering.py --mark-done-through 2.3
-Defaults: Claude builds and fixes, AGY takes over if Claude reaches a usage
-limit, and Codex reviews. Roles remain configurable from the command line.
+    venv/Scripts/python.exe develop/loop-engineering/loop_engineering.py --status
+    venv/Scripts/python.exe develop/loop-engineering/loop_engineering.py --phase 2
+    venv/Scripts/python.exe develop/loop-engineering/loop_engineering.py --until 2.5
+    venv/Scripts/python.exe develop/loop-engineering/loop_engineering.py --steps 1
+    venv/Scripts/python.exe develop/loop-engineering/loop_engineering.py --dry-run --phase 2
+    venv/Scripts/python.exe develop/loop-engineering/loop_engineering.py --sync-git
+
+Roles are configurable from the command line. NOTE: the `agy` agent requires an
+interactive Google OAuth login and CANNOT authenticate in a headless run -- if it
+is used as --coding-fallback while unauthenticated, it prints an auth URL, waits
+60s, and exits 1, halting the loop. Use `--coding-fallback codex` or `none`
+unless `agy` has been logged in beforehand.
 """
 
 from __future__ import annotations

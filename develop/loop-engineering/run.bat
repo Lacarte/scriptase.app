@@ -7,7 +7,7 @@ set "PYTHONIOENCODING=utf-8"
 :: From a terminal:
 ::   run.bat --status
 ::   run.bat --phase 2
-::   run.bat --until 3.3 --builder claude --coding-fallback agy --reviewer codex
+::   run.bat --until 3.3 --builder claude --coding-fallback codex --reviewer codex
 ::   run.bat --steps 1 --no-push
 cd /d "%~dp0..\.."
 title Scriptase - Loop Engineering
@@ -24,11 +24,11 @@ if not "%~1"=="" goto :with_args
 echo ========================================================================
 echo [run.bat] Choose the agents for this run:
 echo.
-echo   [1] Claude codes; AGY takes over at the limit; Codex reviews
+echo   [1] Claude codes; Codex takes over at the limit; Codex reviews
 echo   [2] Codex builds, fixes, and reviews
 echo   [3] Claude builds, fixes, and reviews
 echo   [4] AGY codes; Codex reviews
-echo   [5] Grok 4.5 codes; AGY limit fallback; Codex reviews
+echo   [5] Grok 4.5 codes; Codex limit fallback; Codex reviews
 echo   [Q] Cancel
 echo.
 choice /c 12345Q /n /m "Select 1, 2, 3, 4, 5, or Q: "
@@ -39,8 +39,11 @@ if errorlevel 3 goto :all_claude
 if errorlevel 2 goto :all_codex
 
 :default_profile
-set "PROFILE=Claude codes; AGY limit fallback; Codex reviews"
-set "RUNARGS=--by-phase --builder claude --fixer claude --coding-fallback agy --reviewer codex"
+:: NOTE: agy requires an interactive Google OAuth login and cannot authenticate in a
+:: headless run, so it is not used as the limit fallback. Switch back only after
+:: running `agy` once by hand and completing the sign-in.
+set "PROFILE=Claude codes; Codex limit fallback; Codex reviews"
+set "RUNARGS=--by-phase --builder claude --fixer claude --coding-fallback codex --reviewer codex"
 set "USES_CLAUDE=1"
 goto :launch
 
@@ -63,8 +66,8 @@ set "USES_CLAUDE=0"
 goto :launch
 
 :grok_code_codex_review
-set "PROFILE=Grok 4.5 builds and fixes; AGY limit fallback; Codex reviews"
-set "RUNARGS=--by-phase --builder grok --fixer grok --coding-fallback agy --reviewer codex"
+set "PROFILE=Grok 4.5 builds and fixes; Codex limit fallback; Codex reviews"
+set "RUNARGS=--by-phase --builder grok --fixer grok --coding-fallback codex --reviewer codex"
 set "USES_CLAUDE=0"
 goto :launch
 
