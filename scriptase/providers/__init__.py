@@ -26,6 +26,7 @@ Modules:
   - http_client: retry/backoff wrapped requests
   - file_download: normalized file download to output dirs
   - progress: status.json writer for job progress
+  - selection: capability selector and fallback-chain helpers (step 3.3)
   - transports: extension WebSocket hub, webhook, direct API, callback intake
 """
 
@@ -150,6 +151,21 @@ from scriptase.providers.concurrency import (
     exclusive_lock,
     is_exclusive,
 )
+from scriptase.providers.selection import (
+    RANK_CATALOG,
+    RANK_FALLBACK_CHAIN,
+    RANK_FALLBACK_PRIMARY,
+    RANK_PREFERRED,
+    RANK_SETTINGS,
+    ProviderCandidate,
+    fallback_policy_from_snapshot,
+    has_capabilities,
+    normalize_fallback_policy,
+    ordered_fallback_ids,
+    provider_default_from_snapshot,
+    select_candidates,
+    select_first,
+)
 from scriptase.providers.hub import (
     ProviderHub,
     DomainBinding,
@@ -193,6 +209,19 @@ __all__ = [
     "exclusive_lock",
     "get_domain",
     "is_exclusive",
+    "RANK_CATALOG",
+    "RANK_FALLBACK_CHAIN",
+    "RANK_FALLBACK_PRIMARY",
+    "RANK_PREFERRED",
+    "RANK_SETTINGS",
+    "ProviderCandidate",
+    "fallback_policy_from_snapshot",
+    "has_capabilities",
+    "normalize_fallback_policy",
+    "ordered_fallback_ids",
+    "provider_default_from_snapshot",
+    "select_candidates",
+    "select_first",
     "REDACTION_SENTINEL",
     "SENSITIVE_KEYS_RE",
     "WIDGET_TYPES",
