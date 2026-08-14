@@ -55,7 +55,7 @@ Package renames applied during the port: `studio` → `scriptase`,
 `animator` → `video`, `editor` → `compose`. **Node type keys, port ids, and port types
 did not rename** — saved workflows store them.
 
-### 1.1 Node definition
+### 1.0 Node definition
 
 A node type is a registry entry with:
 
@@ -73,27 +73,31 @@ paths and port colours.
 Adapter signature: `(inputs, config, context) -> dict[port_id, payload]`. Explicit node
 config beats inherited channel/settings config; an **empty string is not explicit**.
 
-### 1.2 Port types & compatibility matrix
+### 1.1 Port types & compatibility matrix
 
-Executable inventory lives in `scriptase/engine/registry.py` (`PORT_TYPES`). Types (v1):
+Adapted from V2 at step 0.2, ahead of the rest of section 1, because the generated node
+author guide reads this prose verbatim and the doc-drift gate depends on it. The type
+inventory is deliberately stated here as prose only — `scriptase/engine/registry.py` is the
+executable source of truth for the list itself.
 
-`control, text, script, project_id, project_settings, audio_file, tts_metadata, alignment, segments, scenes, image_prompts, storyboard_images, animation_assets, captions, music_track, editor_project, export_profile, video_file, generic_json`.
+Types (v1): `control, text, script, project_id, project_settings, audio_file, tts_metadata, alignment, segments, scenes, image_prompts, storyboard_images, animation_assets, captions, music_track, editor_project, export_profile, video_file, generic_json`.
 
-Compatibility rule: **exact type match only.** No wildcard: `generic_json` connects only to
-`generic_json`. `stub.input` / `stub.output` / `workflow.output` resolve their dynamic type
-from configuration at validation time and then obey exact-match. Additional rules: no
-in→in / out→out; single-value inputs reject a second edge; DAG only (cycle rejection);
-control edges distinct from data edges.
-
-Every payload that references files carries `{artifact_refs: [relpaths]}` alongside inline
-JSON; integrity check = existence + nonzero size. **Absolute filesystem paths in a port
-payload are a contract violation.**
+Compatibility rule: **exact type match only.** No wildcard: `generic_json` connects only to `generic_json`. `stub.input`/`stub.output` resolve their dynamic type from configuration at validation time and then obey exact-match. Additional rules: no in→in / out→out; single-value inputs reject a second edge; DAG only (cycle rejection); control edges distinct from data edges. Every payload that references files carries `{artifact_refs: [relpaths]}` alongside inline JSON; integrity check = existence + nonzero size.
 
 Data edges establish both a dependency and a typed value. Control edges establish only a
 dependency and never satisfy a required data input. A node with a connected `trigger` waits
 for that control predecessor as well as all required data. An unconnected optional `trigger`
 does not block a node. A node emits `control` only after successful completion; skipped,
-failed, and cancelled propagation is handled by scheduler policy.
+failed, and cancelled propagation is handled explicitly by scheduler policy rather than by
+fabricating a success token. These rules make Manual Trigger useful without making it
+mandatory for partial or isolated execution.
+
+### 1.2 Node type keys survive the rename
+
+Step 0.2 renamed packages and provider **domain ids**, not the graph contract. Node type
+keys (`story.generate`, `storyboard.generate`, `animator.generate`, `scenes.blueprint`),
+port ids, and port types (`storyboard_images`, `animation_assets`) are unchanged, because a
+saved workflow stores them. What did change is summarized in §1.3.1 below.
 
 ### 1.3 Stable port IDs (core production nodes)
 

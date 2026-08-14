@@ -345,6 +345,12 @@ class ResultEnvelopeTests(RuntimeCase):
         self.assertNotIn("sk-fixture-secret-value", str(result.to_dict()))
         self.assertTrue(provenance["invocation_id"])
         self.assertTrue(provenance["started_at"] and provenance["finished_at"])
+        # Step 0.4: reproducibility fields always present on the envelope
+        # (null/empty when the provider does not surface them).
+        self.assertIn("seed", provenance)
+        self.assertIn("request_id", provenance)
+        self.assertIn("model_revision", provenance)
+        self.assertIn("provider_instance_id", provenance)
 
     def test_unknown_result_keys_are_dropped_not_rejected(self):
         """§31.1: a provider built against a newer build still runs here."""

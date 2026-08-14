@@ -110,7 +110,7 @@ Registry version **4**.
 ### Frozen connection rules
 
 Adapted from V2 at step 0.2, ahead of the rest of section 1, because the generated node
-author guide reads this prose verbatim and the 0.2 doc-drift gate depends on it. The type
+author guide reads this prose verbatim and the doc-drift gate depends on it. The type
 inventory is deliberately stated here as prose only — `scriptase/engine/registry.py` is the
 executable source of truth for the list itself.
 
