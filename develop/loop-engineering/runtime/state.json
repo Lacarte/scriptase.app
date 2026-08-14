@@ -694,6 +694,24 @@
       "step": "8.4",
       "event": "done",
       "detail": "e4e20fc"
+    },
+    {
+      "ts": "2026-08-14T16:25:48",
+      "step": "phase-8",
+      "event": "done",
+      "detail": "4794263"
+    },
+    {
+      "ts": "2026-08-14T16:25:48",
+      "step": "phase-9",
+      "event": "start",
+      "detail": "4794263"
+    },
+    {
+      "ts": "2026-08-14T16:25:48",
+      "step": "9.1",
+      "event": "start",
+      "detail": ""
     }
   ]
 }
