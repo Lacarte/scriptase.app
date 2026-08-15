@@ -973,6 +973,12 @@
       "step": "12.4",
       "event": "start",
       "detail": ""
+    },
+    {
+      "ts": "2026-08-15T11:41:09",
+      "step": "12.4",
+      "event": "halt",
+      "detail": "builder agent blocked: agent timed out"
     }
   ]
 }

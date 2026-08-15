@@ -455,6 +455,42 @@ def upsert_instance(
     return iid
 
 
+def rename_instance(domain: str, instance_id: str, label: str) -> None:
+    """Change an instance's display label without touching its identity or secrets."""
+    if not instance_id:
+        raise ValueError("instance_id must be a non-empty string")
+    if not isinstance(label, str) or not label.strip():
+        raise ValueError("label must be a non-empty string")
+    doc = load_settings()
+    block = _ensure_domain_block(doc, domain)
+    record = block["instances"].get(instance_id)
+    if not isinstance(record, dict):
+        raise KeyError(instance_id)
+    record["label"] = label.strip()
+    save_settings(doc)
+
+
+def delete_instance(domain: str, instance_id: str) -> str | None:
+    """Delete one binding and return the selected replacement, if any.
+
+    Selection moves to the first remaining binding when the deleted instance
+    was selected. Instance ids are stable references, so deleting a binding
+    never silently renames another one into its place.
+    """
+    if not instance_id:
+        raise ValueError("instance_id must be a non-empty string")
+    doc = load_settings()
+    block = _ensure_domain_block(doc, domain)
+    if instance_id not in block["instances"]:
+        raise KeyError(instance_id)
+    del block["instances"][instance_id]
+    if block.get("selected_instance_id") == instance_id:
+        block["selected_instance_id"] = next(iter(block["instances"]), None)
+    replacement = block.get("selected_instance_id")
+    save_settings(doc)
+    return replacement if isinstance(replacement, str) and replacement else None
+
+
 def set_selected_instance(domain: str, instance_id: str) -> None:
     """Set the selected instance for a domain."""
     if not instance_id:

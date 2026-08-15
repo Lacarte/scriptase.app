@@ -15,6 +15,7 @@ describe('scaffold', () => {
         { path: '/production', component: { template: '<div>production</div>' } },
         { path: '/workflow', component: { template: '<div>workflow</div>' } },
         { path: '/channels', component: { template: '<div>channels</div>' } },
+        { path: '/settings/providers', component: { template: '<div>settings</div>' } },
       ],
     })
     router.push('/')
@@ -27,6 +28,7 @@ describe('scaffold', () => {
     expect(wrapper.text()).toContain('Production')
     expect(wrapper.text()).toContain('Workflow')
     expect(wrapper.text()).toContain('Channels')
+    expect(wrapper.text()).toContain('Settings')
   })
 
   it('talks to the backend through a relative API base', () => {

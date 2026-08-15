@@ -6,6 +6,7 @@ import App from './App.vue'
 import ChannelsPage from './features/channels/ChannelsPage.vue'
 import ChannelEditor from './features/channels/ChannelEditor.vue'
 import ProductionPage from './features/production/ProductionPage.vue'
+import ProvidersSettingsPage from './features/providers/ProvidersSettingsPage.vue'
 import { APP_NAME } from './shared/constants.js'
 
 import './styles/theme.css'
@@ -49,6 +50,12 @@ const router = createRouter({
     },
     { path: '/channels', name: 'channels', component: ChannelsPage },
     { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
+    {
+      path: '/settings/providers',
+      name: 'provider-settings',
+      component: ProvidersSettingsPage,
+      meta: { title: 'Provider Settings' },
+    },
   ],
   linkActiveClass: 'router-link-active',
   linkExactActiveClass: 'router-link-active',

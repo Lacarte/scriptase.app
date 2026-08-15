@@ -124,6 +124,27 @@ describe('provider catalog store', () => {
     expect(store.availabilityOf('tts', 'inworld')).toBe('available')
   })
 
+  it('creates, renames, and deletes named instances through instance routes', async () => {
+    serve(BASE)
+    vi.spyOn(api, 'post').mockResolvedValue({ instance_id: 'inworld_2' })
+    vi.spyOn(api, 'patch').mockResolvedValue({ ok: true })
+    vi.spyOn(api, 'delete').mockResolvedValue({ ok: true })
+    const store = useProviderCatalogStore()
+    await store.loadCatalog()
+
+    await store.createInstance('tts', { providerType: 'inworld', label: 'Client' })
+    await store.renameInstance('tts', 'inworld_2', 'Main client')
+    await store.deleteInstance('tts', 'inworld_2')
+
+    expect(api.post).toHaveBeenCalledWith('/api/providers/tts/instances', {
+      body: { provider_type: 'inworld', label: 'Client' },
+    })
+    expect(api.patch).toHaveBeenCalledWith('/api/providers/tts/instances/inworld_2', {
+      body: { label: 'Main client' },
+    })
+    expect(api.delete).toHaveBeenCalledWith('/api/providers/tts/instances/inworld_2')
+  })
+
   // ── Domain grouping and filtering ──────────────────────────────────────
 
   it('groups providers by domain and keeps domains apart', async () => {

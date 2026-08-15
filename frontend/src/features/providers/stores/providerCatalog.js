@@ -43,6 +43,11 @@ function instanceApiBase(domain, instanceId) {
   return `${CATALOG_URL}/${domain}/${encodeURIComponent(instanceId)}`
 }
 
+function instanceResource(domain, instanceId = '') {
+  const collection = `${CATALOG_URL}/${domain}/instances`
+  return instanceId ? `${collection}/${encodeURIComponent(instanceId)}` : collection
+}
+
 /**
  * Project an `excluded[]` entry onto the provider shape.
  *
@@ -450,6 +455,34 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     })
   }
 
+  async function createInstance(domain, { providerType, label, instanceId } = {}) {
+    const body = { provider_type: providerType }
+    if (label) body.label = label
+    if (instanceId) body.instance_id = instanceId
+    const result = await api.post(instanceResource(domain), { body })
+    await refresh()
+    return result
+  }
+
+  async function renameInstance(domain, instanceId, label) {
+    const result = await api.patch(instanceResource(domain, instanceId), {
+      body: { label },
+    })
+    await refresh()
+    return result
+  }
+
+  async function deleteInstance(domain, instanceId) {
+    const result = await api.delete(instanceResource(domain, instanceId))
+    clearDraft(domain, instanceId)
+    const nextHealth = { ...health.value }
+    delete nextHealth[healthKey(domain, instanceId)]
+    health.value = nextHealth
+    invalidateOptionSources({ domain })
+    await refresh()
+    return result
+  }
+
   // ── Unsaved drafts (one per instance, never containing a secret) ────────
 
   /**
@@ -528,6 +561,9 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     loadProviderSchema,
     saveProviderSettings,
     validateProviderSettings,
+    createInstance,
+    renameInstance,
+    deleteInstance,
     drafts,
     draftFor,
     setDraft,

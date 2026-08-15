@@ -335,6 +335,54 @@ def instance_detail(domain, instance_id):
     return jsonify(_instance_payload(domain, provider, iid, stored))
 
 
+@providers_bp.route("/api/providers/<domain>/instances/<instance_id>", methods=["PATCH"])
+def rename_domain_instance(domain, instance_id):
+    """Rename an instance's browser-facing label; its stable id is unchanged."""
+    denied = _require_loopback()
+    if denied:
+        return denied
+    _, err = _resolve_domain(domain)
+    if err is not None:
+        return err
+    body, err = _json_object()
+    if err is not None:
+        return err
+    label = body.get("label")
+    if not isinstance(label, str) or not label.strip():
+        return _error("INVALID_REQUEST", "label must be a non-empty string", 400)
+    if settings_manager.get_instance_record(domain, instance_id) is None:
+        return _error("PROVIDER_NOT_FOUND", f"Instance '{instance_id}' not found", 404)
+    settings_manager.rename_instance(domain, instance_id, label)
+    invalidate_settings_cache(domain)
+    return jsonify({
+        "ok": True,
+        "domain": domain,
+        "instance_id": instance_id,
+        "label": label.strip(),
+    })
+
+
+@providers_bp.route("/api/providers/<domain>/instances/<instance_id>", methods=["DELETE"])
+def delete_domain_instance(domain, instance_id):
+    """Delete a configured binding without ever returning its settings."""
+    denied = _require_loopback()
+    if denied:
+        return denied
+    _, err = _resolve_domain(domain)
+    if err is not None:
+        return err
+    if settings_manager.get_instance_record(domain, instance_id) is None:
+        return _error("PROVIDER_NOT_FOUND", f"Instance '{instance_id}' not found", 404)
+    selected = settings_manager.delete_instance(domain, instance_id)
+    invalidate_settings_cache(domain)
+    return jsonify({
+        "ok": True,
+        "domain": domain,
+        "deleted_instance_id": instance_id,
+        "selected_instance_id": selected,
+    })
+
+
 @providers_bp.route(
     "/api/providers/<domain>/instances/<instance_id>/capabilities", methods=["GET"]
 )
@@ -471,7 +519,9 @@ def put_instance_settings_route(domain, instance_id):
         iid,
         merged,
         provider_type=provider.id,
-        label=provider.label,
+        # A settings save must not undo a user-assigned instance name.
+        label=(settings_manager.get_instance_record(domain, iid) or {}).get("label")
+        or provider.label,
         schema=schema,
     )
     invalidate_settings_cache(domain)

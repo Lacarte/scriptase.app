@@ -16,6 +16,7 @@ const fullHeight = computed(() => Boolean(route.meta?.fullHeight))
         <router-link to="/production">Production</router-link>
         <router-link to="/workflow">Workflow</router-link>
         <router-link to="/channels">Channels</router-link>
+        <router-link to="/settings/providers">Settings</router-link>
       </nav>
     </header>
     <main class="app-main" :class="{ 'app-main--full': fullHeight }">

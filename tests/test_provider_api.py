@@ -146,6 +146,77 @@ class ProviderApiTestCase(unittest.TestCase):
         }
 
 
+class ProviderInstanceCrudTests(ProviderApiTestCase):
+    """Step 12.4: named bindings are manageable without exposing credentials."""
+
+    def setUp(self):
+        super().setUp()
+        write_provider(self.base, 'alpha', domain='demo', provider_body=GOOD_PROVIDER)
+        self.install_hub()
+
+    def test_create_rename_and_delete_a_second_named_instance(self):
+        created = self.client.post('/api/providers/demo/instances', json={
+            'provider_type': 'alpha',
+            'label': 'Client account',
+        })
+        self.assertEqual(created.status_code, 201)
+        instance_id = created.get_json()['instance_id']
+        self.assertEqual(instance_id, 'alpha_2')
+        self.assertEqual(created.get_json()['instance']['label'], 'Client account')
+
+        renamed = self.client.patch(
+            f'/api/providers/demo/instances/{instance_id}',
+            json={'label': 'Main client'},
+        )
+        self.assertEqual(renamed.status_code, 200)
+        self.assertEqual(
+            self.settings['domains']['demo']['instances'][instance_id]['label'],
+            'Main client',
+        )
+
+        saved = self.client.put(
+            f'/api/providers/demo/instances/{instance_id}/settings', json={}
+        )
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(
+            self.settings['domains']['demo']['instances'][instance_id]['label'],
+            'Main client',
+        )
+
+        deleted = self.client.delete(f'/api/providers/demo/instances/{instance_id}')
+        self.assertEqual(deleted.status_code, 200)
+        self.assertNotIn(instance_id, self.settings['domains']['demo']['instances'])
+        self.assertNotIn('settings', deleted.get_json())
+
+    def test_deleting_the_selected_instance_selects_a_remaining_binding(self):
+        self.provider_settings('alpha_2', {})
+        self.settings['domains']['demo']['instances']['alpha_2']['type'] = 'alpha'
+        self.settings['domains']['demo']['selected_instance_id'] = 'alpha_2'
+
+        response = self.client.delete('/api/providers/demo/instances/alpha_2')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['selected_instance_id'], 'alpha')
+        self.assertEqual(
+            self.settings['domains']['demo']['selected_instance_id'], 'alpha'
+        )
+
+    def test_instance_mutations_are_loopback_only_and_validate_labels(self):
+        self.assertEqual(
+            self.client.post(
+                '/api/providers/demo/instances',
+                json={'provider_type': 'alpha'},
+                environ_base=REMOTE,
+            ).status_code,
+            403,
+        )
+        response = self.client.patch(
+            '/api/providers/demo/instances/alpha', json={'label': '   '}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()['error']['code'], 'INVALID_REQUEST')
+
+
 # ---------------------------------------------------------------------------
 # Policy: loopback and the one error envelope
 # ---------------------------------------------------------------------------
