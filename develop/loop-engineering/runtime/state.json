@@ -967,6 +967,12 @@
       "step": "12.4",
       "event": "halt",
       "detail": "builder agent exited with code 1"
+    },
+    {
+      "ts": "2026-08-15T10:41:02",
+      "step": "12.4",
+      "event": "start",
+      "detail": ""
     }
   ]
 }
