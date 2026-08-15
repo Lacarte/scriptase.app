@@ -72,6 +72,7 @@ vi.mock('./api.js', () => ({
   listJobs: vi.fn(),
   getJob: vi.fn(),
   getJobCost: vi.fn(),
+  getJobRepairHistory: vi.fn(),
   createJob: vi.fn(),
   startJob: vi.fn(),
   testJobNode: vi.fn(),
@@ -726,6 +727,111 @@ describe('StepDetailPanel', () => {
     expect(text).toContain('flux-v2')
   })
 
+  it('renders stage.issues and the repair that answered them (step 11.4)', async () => {
+    const stage = {
+      key: 'images',
+      label: 'Image Generator',
+      status: 'succeeded',
+      node_ids: ['n_storyboard'],
+      provider_capable: true,
+      active_provider_instance_id: 'wavespeed_main',
+      artifacts: [],
+      issues: ['iss_AAAAAA'],
+    }
+    const repairHistory = {
+      job_id: 'job_REP001',
+      entry_count: 1,
+      entries: [
+        {
+          id: 'rph_AAAAAA',
+          issue_id: 'iss_AAAAAA',
+          scene_id: 'scene_003',
+          routed_to_node_type: 'storyboard.generate',
+          provider_instance_id: 'wavespeed_main',
+          action: 'regenerate',
+          instruction: 'Regenerate scene 3 with a tighter framing',
+          reason: 'Technical validator flagged a blank frame',
+          prompt_revision: 'flux-v2',
+          input_artifact_ids: ['art_OLD001'],
+          output_artifact_ids: ['art_NEW001'],
+          result: 'resolved',
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      superseded_artifact_versions: [
+        {
+          artifact_id: 'art_OLD001',
+          version: 1,
+          is_superseded: true,
+          superseded_by: 'art_NEW001',
+        },
+      ],
+    }
+    const wrapper = mount(StepDetailPanel, {
+      props: {
+        stage,
+        workflowId: 'wf_ABCDEF',
+        workflow: { nodes: [{ id: 'n_storyboard', type: 'storyboard.generate' }] },
+        nodeRecords: { n_storyboard: { status: 'succeeded', attempts: 2 } },
+        jobId: 'job_REP001',
+        repairHistory,
+      },
+    })
+
+    // The projection's issue ids render without opening any pane.
+    expect(wrapper.find('[data-testid="stage-issues"]').text()).toContain('iss_AAAAAA')
+
+    await wrapper.find('.action-history').trigger('click')
+    await flushPromises()
+
+    const pane = wrapper.find('[data-testid="repair-history"]')
+    expect(pane.exists()).toBe(true)
+    const text = pane.text()
+    // The issue, the node it was routed to, and what was retried.
+    expect(text).toContain('iss_AAAAAA')
+    expect(text).toContain('storyboard.generate')
+    expect(text).toContain('regenerate')
+    expect(text).toContain('Technical validator flagged a blank frame')
+    expect(text).toContain('Regenerate scene 3 with a tighter framing')
+    // Superseded evidence is never erased.
+    expect(wrapper.find('[data-testid="superseded-versions"]').text()).toContain('art_OLD001')
+    expect(wrapper.find('[data-testid="superseded-versions"]').text()).toContain('art_NEW001')
+  })
+
+  it('loads repair history from the read-only Job endpoint when not preloaded', async () => {
+    api.getJobRepairHistory.mockResolvedValue({
+      job_id: 'job_REP002',
+      entry_count: 0,
+      entries: [],
+      superseded_artifact_versions: [],
+    })
+    const stage = {
+      key: 'videos',
+      label: 'Video Generator',
+      status: 'succeeded',
+      node_ids: ['n_animator'],
+      provider_capable: true,
+      artifacts: [],
+      issues: [],
+    }
+    const wrapper = mount(StepDetailPanel, {
+      props: {
+        stage,
+        workflowId: 'wf_ABCDEF',
+        workflow: { nodes: [{ id: 'n_animator', type: 'animator.generate' }] },
+        nodeRecords: {},
+        jobId: 'job_REP002',
+      },
+    })
+    await wrapper.find('.action-history').trigger('click')
+    await flushPromises()
+
+    expect(api.getJobRepairHistory).toHaveBeenCalledWith('job_REP002')
+    expect(wrapper.find('[data-testid="repair-history"]').text()).toContain(
+      'No repair has run for this Job',
+    )
+  })
+
   it('hides Provider on Script stage for Paste mode even if graph is provider-capable', () => {
     const stage = {
       key: 'script',
@@ -1045,6 +1151,38 @@ describe('ProductionPage', () => {
     expect(wrapper.text()).toContain('View Input')
     expect(wrapper.find('.action-run').exists()).toBe(true)
     expect(wrapper.find('.action-provider').exists()).toBe(true)
+  })
+
+  it('surfaces the projection issue count on the stage row (step 11.4)', async () => {
+    api.getWorkflowStages.mockResolvedValue({
+      projection: {
+        ...projection(),
+        stages: DEFAULT_STAGES.map((s) => ({
+          ...s,
+          node_ids: [...s.node_ids],
+          issues: s.key === 'voice' ? ['iss_AAAAAA'] : [],
+        })),
+      },
+    })
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/production', name: 'production', component: ProductionPage },
+        { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
+      ],
+    })
+    await router.push({ name: 'production', query: { workflow_id: 'wf_ABCDEF' } })
+    await router.isReady()
+
+    const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const voiceRow = wrapper.findAll('.stage-row').find((r) => r.text().includes('Voice'))
+    expect(voiceRow.find('.issue-count').text()).toBe('1 issue')
+
+    await voiceRow.trigger('click')
+    await nextTick()
+    expect(wrapper.find('[data-testid="stage-issues"]').text()).toContain('iss_AAAAAA')
   })
 })
 

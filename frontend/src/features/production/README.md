@@ -42,6 +42,13 @@ unchanged. Sample-fed results keep the `from_sample_data` marker.
 View Input / View Output / Provider / History / Approve are inspect or
 checkpoint actions — not new run modes. Approve becomes durable at 2.6.
 
+Review issues and repairs (step 11.4) are read-only surfaces:
+`stage.issues` from the projection renders in the detail panel, and the History
+pane hosts `components/RepairHistoryPane.vue`, which reads
+`GET /api/jobs/<id>/repair-history` for the node each issue was routed to, what
+was retried, and every superseded artifact version. Neither surface mutates a
+Job or starts a run.
+
 The default full-video spine is Script → Voice → Timing → Segments → Scenes →
 Images → Videos → Review → Composer → Export. Side branches (captions, music)
 collapse into Composer — adding a parallel caption branch must not add a step.
@@ -58,6 +65,8 @@ composables/useProductionStages.js
 components/JobCreatePanel.vue  Step 0: Channel, source, workflow, execution mode
 components/StepDetailPanel.vue §18 action toolbar + inspect panes + script mode
 components/TestNodePanel.vue   §9 Test Node panel (input picker → node_isolated)
+components/RepairHistoryPane.vue
+                               issues + repair history (read-only, step 11.4)
 ProductionPage.vue             §3.1 step list + Job create + detail panel host
 ```
 
@@ -70,6 +79,7 @@ Job API (step 2.5 + 4.2):
 | `POST /api/jobs/<id>/start` | Run through the ported engine |
 | `POST /api/jobs/<id>/test-node` | Isolated Test Node; Job progress frozen |
 | `GET /api/jobs` / `GET /api/jobs/<id>` | List / load |
+| `GET /api/jobs/<id>/repair-history` | Repair sequence for the History pane (11.4) |
 
 Script source modes: Automatic, Topic→Script, Idea→Script, Paste Script,
 Manual/Edit. Paste and Manual never require a script provider.

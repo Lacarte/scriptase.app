@@ -63,7 +63,7 @@ export const ACTION_HINTS = Object.freeze({
   view_input: 'Inspect resolved inputs recorded for the primary node.',
   view_output: 'Inspect outputs and artifact refs for the primary node.',
   provider: 'Active provider instance for this provider-capable stage.',
-  history: 'Attempt history and side-by-side artifact version comparison (provider instance, seed, prompt revision).',
+  history: 'Attempt history, side-by-side artifact version comparison (provider instance, seed, prompt revision), and the repairs the correction loop ran for this Job.',
   approve: 'Mark the stage accepted at a human checkpoint (durable at 2.6).',
 })
 

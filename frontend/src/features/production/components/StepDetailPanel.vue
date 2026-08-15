@@ -7,6 +7,10 @@
  * the Test Node panel (input picker → node_isolated) instead of firing
  * immediately. Inspect actions read the current execution's node records.
  * Approve is durable at 2.6.
+ *
+ * Step 11.4: the projection's `stage.issues` render here, and the History pane
+ * carries the Job's repair history (routed node, what was retried, superseded
+ * versions) from the read-only repair-history endpoint.
  */
 import { computed, ref, watch } from 'vue'
 
@@ -23,6 +27,7 @@ import {
 } from '../stageActions.js'
 import { sourceModeLabel, sourceModeRequiresProvider } from '../sourceModes.js'
 import { statusLabel } from '../stageStatus.js'
+import RepairHistoryPane from './RepairHistoryPane.vue'
 import TestNodePanel from './TestNodePanel.vue'
 
 /** Stage key → primary artifact kind for history (step 4.3). */
@@ -90,6 +95,11 @@ const props = defineProps({
   /** Focus artifact id for history (optional; chain lookup uses job + kind). */
   historyArtifactId: { type: String, default: '' },
   historySceneId: { type: String, default: '' },
+  /**
+   * Optional preloaded repair history (tests / parent-owned fetch). When
+   * absent, RepairHistoryPane loads it from the Job API (step 11.4).
+   */
+  repairHistory: { type: Object, default: null },
 })
 
 const emit = defineEmits(['run', 'inspect', 'test-run'])
@@ -197,6 +207,15 @@ const stageProviderCapabilities = computed(() => {
 const historyKind = computed(() => {
   const key = props.stage?.key
   return (key && STAGE_KIND[key]) || 'image'
+})
+
+/**
+ * Open ReviewIssue ids the projection attached to this stage (step 11.4).
+ * The list is structured data from the backend — never free text.
+ */
+const stageIssues = computed(() => {
+  const ids = props.stage?.issues
+  return Array.isArray(ids) ? ids.filter((id) => typeof id === 'string' && id) : []
 })
 
 // Load the catalog once so step provider badges resolve without a second path.
@@ -373,6 +392,20 @@ function pretty(value) {
             </ul>
           </dd>
         </div>
+        <div v-if="stageIssues.length">
+          <dt>Open issues</dt>
+          <dd>
+            <ul class="node-ids issue-ids" data-testid="stage-issues">
+              <li v-for="issueId in stageIssues" :key="issueId">
+                <code>{{ issueId }}</code>
+              </li>
+            </ul>
+            <p class="muted small issue-hint">
+              Raised by review. Open History for the node each was routed to
+              and the versions the repair superseded.
+            </p>
+          </dd>
+        </div>
       </dl>
 
       <div class="action-toolbar" role="toolbar" aria-label="Stage actions">
@@ -501,6 +534,13 @@ function pretty(value) {
           Bind a Job to load artifact version history for this stage
           (<code>{{ historyKind }}</code>).
         </p>
+
+        <RepairHistoryPane
+          class="repair-pane"
+          :job-id="jobId"
+          :issue-ids="stageIssues"
+          :history="repairHistory"
+        />
       </section>
 
       <section v-if="inspectPane === 'provider'" class="inspect-pane" aria-label="Provider">
@@ -640,6 +680,21 @@ function pretty(value) {
   background: var(--bg-dark, #0f1520);
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
+}
+
+.issue-ids code {
+  color: var(--accent-active, #ff9f43);
+  border: 1px solid rgba(255, 159, 67, 0.35);
+}
+
+.issue-hint {
+  margin: 0.35rem 0 0;
+}
+
+.repair-pane {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border, #1e2a3a);
 }
 
 .node-ids code.primary {

@@ -688,6 +688,13 @@ onMounted(async () => {
               >
                 {{ stage.node_ids.length }} node{{ stage.node_ids.length === 1 ? '' : 's' }}
               </span>
+              <span
+                v-if="(stage.issues || []).length"
+                class="issue-count"
+                :title="(stage.issues || []).join(', ')"
+              >
+                {{ stage.issues.length }} issue{{ stage.issues.length === 1 ? '' : 's' }}
+              </span>
             </span>
           </div>
           <span class="status-badge" :data-status="stage.status || 'idle'">
@@ -957,6 +964,12 @@ button.ghost {
 
 .node-count {
   opacity: 0.8;
+}
+
+/* Step 11.4: open ReviewIssues attached to the stage by the projection. */
+.issue-count {
+  color: var(--accent-active, #ff9f43);
+  font-weight: 600;
 }
 
 .status-badge {

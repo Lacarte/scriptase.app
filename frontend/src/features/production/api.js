@@ -97,6 +97,20 @@ export function getJobCost(jobId) {
 }
 
 /**
+ * Full repair sequence for a Job (step 11.4 reads the 8.4 endpoint).
+ *
+ * Read-only. Entries arrive in attempt order and carry the issue they
+ * answered, the node type the Repair Router chose, what was retried, and
+ * every superseded artifact version.
+ *
+ * @param {string} jobId
+ * @returns {Promise<object>}
+ */
+export function getJobRepairHistory(jobId) {
+  return apiGet(`/jobs/${encodeURIComponent(jobId)}/repair-history`)
+}
+
+/**
  * Create a Job from Channel + source + workflow + execution mode.
  * @param {object} draft
  */
