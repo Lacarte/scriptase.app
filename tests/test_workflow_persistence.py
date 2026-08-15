@@ -421,6 +421,57 @@ class PersistenceTests(WorkflowTestBase):
         self.assertEqual(len(os.listdir(trash)), 1)
 
 
+class DefaultWorkflowSeedTests(WorkflowTestBase):
+    """Step 12.2 — a fresh install opens on a runnable Full Video graph."""
+
+    def _marker(self):
+        return os.path.join(
+            persistence.WORKFLOWS_DIR, persistence.DEFAULT_WORKFLOW_MARKER
+        )
+
+    def test_fresh_install_is_seeded_with_a_complete_full_video_workflow(self):
+        seeded = persistence.ensure_default_workflow()
+        self.assertIsNotNone(seeded)
+        self.assertEqual(seeded["name"], "Full Video")
+        self.assertNotIn("template_id", seeded)
+
+        template = next(
+            item["workflow"] for item in serialize_templates()
+            if item["template_id"] == persistence.DEFAULT_WORKFLOW_TEMPLATE_ID
+        )
+        self.assertEqual(
+            [node["type"] for node in seeded["nodes"]],
+            [node["type"] for node in template["nodes"]],
+        )
+
+        # Production's dropdown reads the same list the builder does.
+        items, total = persistence.list_workflows()
+        self.assertEqual(total, 1)
+        self.assertEqual(items[0]["workflow_id"], seeded["workflow_id"])
+        # Runnability of the template itself is covered by
+        # test_built_in_templates_are_typed_valid_and_schedulable; here the
+        # point is that the seeded copy survives the persistence round trip.
+        self.assertEqual(persistence.load_workflow(seeded["workflow_id"]), seeded)
+
+    def test_seeding_is_a_once_per_installation_event(self):
+        seeded = persistence.ensure_default_workflow()
+        self.assertTrue(os.path.exists(self._marker()))
+        self.assertIsNone(persistence.ensure_default_workflow())
+        self.assertEqual(persistence.list_workflows()[1], 1)
+
+        # A user who deletes every workflow must not have one resurrected.
+        persistence.delete_workflow(seeded["workflow_id"])
+        self.assertIsNone(persistence.ensure_default_workflow())
+        self.assertEqual(persistence.list_workflows()[1], 0)
+
+    def test_an_existing_store_is_never_seeded(self):
+        created = persistence.create_workflow(draft())
+        self.assertIsNone(persistence.ensure_default_workflow())
+        items, total = persistence.list_workflows()
+        self.assertEqual(total, 1)
+        self.assertEqual(items[0]["workflow_id"], created["workflow_id"])
+
+
 class RouteTests(WorkflowTestBase):
     def setUp(self):
         super().setUp()

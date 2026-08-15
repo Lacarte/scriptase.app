@@ -253,4 +253,75 @@ describe('workflow store', () => {
     expect(store.workflowName).toBe('Full Video')
     expect(store.dirty).toBe(true)
   })
+
+  // ── Default canvas (step 12.2) ─────────────────────────────────────────
+  const FULL_VIDEO_TEMPLATE = {
+    template_id: 'full_video',
+    workflow: {
+      schema_version: 1,
+      name: 'Full Video',
+      nodes: [{
+        id: 'n_script', type: 'script.input', type_version: 1, name: 'Script',
+        position: { x: 0, y: 0 }, configuration: { text: '' }, disabled: false,
+      }],
+      edges: [], variables: {},
+      viewport: { x: 0, y: 0, zoom: 1 },
+      settings: { on_error: 'stop' }, extensions: {},
+    },
+  }
+
+  function savedFullVideo() {
+    return { ...FULL_VIDEO_TEMPLATE.workflow, workflow_id: 'wf_SEED01' }
+  }
+
+  it('opens the seeded workflow instead of an empty canvas', async () => {
+    const store = seededStore()
+    store.templates = [FULL_VIDEO_TEMPLATE]
+    store.workflowList = [{ workflow_id: 'wf_SEED01', name: 'Full Video' }]
+    vi.spyOn(api, 'get').mockResolvedValue({ workflow: savedFullVideo(), migration_trail: [] })
+
+    expect(await store.openDefaultWorkflow()).toBe(true)
+    expect(api.get).toHaveBeenCalledWith('/api/workflows/wf_SEED01')
+    expect(store.workflowId).toBe('wf_SEED01')
+    expect(store.nodes).toHaveLength(1)
+    expect(store.dirty).toBe(false)
+  })
+
+  it('falls back to the Full Video template when nothing is saved', async () => {
+    const store = seededStore()
+    store.templates = [FULL_VIDEO_TEMPLATE]
+    store.workflowList = []
+    const getSpy = vi.spyOn(api, 'get')
+
+    expect(await store.openDefaultWorkflow()).toBe(true)
+    expect(getSpy).not.toHaveBeenCalled()
+    expect(store.workflowName).toBe('Full Video')
+    expect(store.workflowId).toBeNull()
+    // The user asked for nothing, so leaving must not prompt about changes.
+    expect(store.dirty).toBe(false)
+  })
+
+  it('still fills the canvas when the newest saved workflow will not open', async () => {
+    const store = seededStore()
+    store.templates = [FULL_VIDEO_TEMPLATE]
+    store.workflowList = [{ workflow_id: 'wf_BROKEN', name: 'Broken' }]
+    vi.spyOn(api, 'get').mockRejectedValue(new Error('boom'))
+
+    expect(await store.openDefaultWorkflow()).toBe(true)
+    expect(store.nodes).toHaveLength(1)
+    expect(store.workflowId).toBeNull()
+  })
+
+  it('never replaces work that is already on the canvas', async () => {
+    const store = seededStore()
+    store.templates = [FULL_VIDEO_TEMPLATE]
+    store.workflowList = [{ workflow_id: 'wf_SEED01', name: 'Full Video' }]
+    store.addNode('tts.generate', { x: 10, y: 10 })
+    const getSpy = vi.spyOn(api, 'get')
+
+    expect(await store.openDefaultWorkflow()).toBe(false)
+    expect(getSpy).not.toHaveBeenCalled()
+    expect(store.nodes).toHaveLength(1)
+    expect(store.nodes[0].type).toBe('tts.generate')
+  })
 })

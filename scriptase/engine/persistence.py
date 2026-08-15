@@ -20,6 +20,7 @@ from scriptase.shared.security import safe_join
 from .models import summary
 from .migrations import MigrationResult, NodeMigrationError, migrate_workflow
 from .redaction import redact
+from .templates import full_video_template
 from .validation import WORKFLOW_ID_RE, validate_workflow, validation_errors
 
 if os.name == "nt":
@@ -215,6 +216,36 @@ def list_workflows(*, limit: int = 100) -> tuple[list[dict], int]:
             continue
     items.sort(key=lambda item: (item.get("updated_at") or "", item["workflow_id"]), reverse=True)
     return items[:limit], len(items)
+
+
+DEFAULT_WORKFLOW_TEMPLATE_ID = "full_video"
+DEFAULT_WORKFLOW_MARKER = ".default-workflow-seeded"
+
+
+def ensure_default_workflow() -> dict | None:
+    """Materialise the Full Video template on a fresh install (step 12.2).
+
+    A brand-new installation has no saved workflows, so the builder opens on a
+    blank canvas and Production's workflow dropdown has nothing to offer.
+    Seeding the Full Video template as a real, editable workflow gives both a
+    complete, runnable starting point.
+
+    Seeding is a once-per-installation event, recorded by a marker file: a user
+    who deliberately deletes every workflow must not find one resurrected on the
+    next boot. Returns the created document, or ``None`` when nothing was done.
+    """
+    os.makedirs(WORKFLOWS_DIR, exist_ok=True)
+    marker = os.path.join(WORKFLOWS_DIR, DEFAULT_WORKFLOW_MARKER)
+    if os.path.exists(marker):
+        return None
+    document = None
+    if not list_workflows(limit=1)[0]:
+        draft = full_video_template()
+        draft.pop("template_id", None)  # Presentation-only key, never persisted.
+        document = create_workflow(draft)
+    with open(marker, "w", encoding="utf-8") as handle:
+        handle.write(now_iso())
+    return document
 
 
 def update_workflow(workflow_id: str, draft: dict, *, expected_updated_at: str) -> dict:

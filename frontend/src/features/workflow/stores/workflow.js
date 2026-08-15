@@ -24,6 +24,9 @@ export const RECENT_NODE_TYPES_LIMIT = 5
 // Palette visibility (step 12.1). The registry decides which nodes are hidden;
 // this only remembers whether the user asked to see them anyway.
 export const SHOW_ALL_NODES_KEY = 'sts-workflow-show-all-nodes'
+// The canvas the builder falls back to when there is nothing else to show
+// (step 12.2). Matches the template the backend seeds on a fresh install.
+export const DEFAULT_TEMPLATE_ID = 'full_video'
 
 export const useWorkflowStore = defineStore('workflow', () => {
   // ── Registry (served by the backend, loaded once) ─────────────────────
@@ -1376,11 +1379,38 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
 
-  function applyTemplate(templateId) {
+  function applyTemplate(templateId, { markDirty = true } = {}) {
     const template = templates.value.find((item) => item.template_id === templateId)
     if (!template) return false
-    applyDocument(template.workflow, { markDirty: true })
+    applyDocument(template.workflow, { markDirty })
     return true
+  }
+
+  /**
+   * Open the default canvas when the builder would otherwise show nothing
+   * (step 12.2). The most recently updated saved workflow wins; on a fresh
+   * install that is the Full Video graph the backend seeds on first boot. The
+   * template itself is the fallback for a store the user has emptied, so the
+   * builder never opens on "drag a node to start building".
+   *
+   * Returns true when a document was applied. Requires refreshWorkflowList()
+   * and loadTemplates() to have run.
+   */
+  async function openDefaultWorkflow() {
+    if (nodes.value.length || workflowId.value || dirty.value) return false
+    const candidate = workflowList.value[0]
+    if (candidate?.workflow_id) {
+      try {
+        await openWorkflow(candidate.workflow_id)
+        return true
+      } catch {
+        // An unreadable workflow must still not leave the user on a blank
+        // canvas — fall through to the template.
+      }
+    }
+    // Clean, not dirty: the user asked for nothing, so leaving must not prompt
+    // about "unsaved changes" they never made.
+    return applyTemplate(DEFAULT_TEMPLATE_ID, { markDirty: false })
   }
 
   function nodeById(nodeId) {
@@ -1655,7 +1685,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
     replaceNode, replacementPlan, insertNodeAndConnect,
     setViewport, nodeById, defaultsFor, toDocument, applyDocument, newWorkflow,
     refreshWorkflowList, loadTemplates, openWorkflow, saveWorkflow, saveAs,
-    importDocument, applyTemplate,
+    importDocument, applyTemplate, openDefaultWorkflow,
     // draft autosave (step 2.4)
     draftSavedAt, markDocumentDirty, flushDraft, peekDraft, clearDraft, recoverDraft,
     // selection + inspector

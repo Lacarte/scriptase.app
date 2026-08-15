@@ -26,6 +26,7 @@ def create_app(
     discover_providers: bool = True,
     start_triggers: bool | None = None,
     reconcile: bool | None = None,
+    seed_default_workflow: bool | None = None,
 ) -> Flask:
     """Application factory.
 
@@ -39,6 +40,10 @@ def create_app(
     executions/jobs, reclaim dead project locks, and purge orphaned staging.
     Default is on for real servers; off under pytest so unit tests do not
     mutate a developer's ``output/``. Pass ``reconcile=True/False`` to override.
+
+    ``seed_default_workflow`` materialises the Full Video template as a saved
+    workflow on a fresh install (step 12.2), so the builder and Production both
+    open on a complete graph rather than on nothing. Gated like ``reconcile``.
     """
     config.ensure_runtime_dirs()
 
@@ -65,6 +70,12 @@ def create_app(
     app.config["STARTUP_RECONCILE"] = bool(reconcile)
     if reconcile:
         run_startup_reconciliation()
+
+    if seed_default_workflow is None:
+        seed_default_workflow = _default_seed_workflow()
+    app.config["SEED_DEFAULT_WORKFLOW"] = bool(seed_default_workflow)
+    if seed_default_workflow:
+        seed_default_workflow_once()
 
     if start_triggers is None:
         start_triggers = _default_start_triggers()
@@ -116,6 +127,43 @@ def _default_reconcile() -> bool:
     }:
         return False
     return True
+
+
+def _default_seed_workflow() -> bool:
+    """First-run seeding on for real servers; off under pytest.
+
+    ``SCRIPTASE_DISABLE_DEFAULT_WORKFLOW=1`` always skips, for an installation
+    that wants to start from a genuinely empty store.
+    """
+    if os.environ.get("SCRIPTASE_DISABLE_DEFAULT_WORKFLOW", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        return False
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return False
+    if os.environ.get("SCRIPTASE_TESTING", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        return False
+    return True
+
+
+def seed_default_workflow_once() -> dict | None:
+    """Seed the Full Video workflow on a fresh install (step 12.2).
+
+    Safe to call more than once. Failures are logged and never abort boot — an
+    unwritable workflow store is a problem the user must be able to see in the
+    UI, not one that keeps the server from starting.
+    """
+    from loguru import logger
+
+    from scriptase.engine.persistence import ensure_default_workflow
+
+    try:
+        return ensure_default_workflow()
+    except Exception as exc:
+        logger.exception("[startup] could not seed the default workflow: {}", exc)
+        return None
 
 
 def run_startup_reconciliation() -> dict:

@@ -104,6 +104,7 @@ onMounted(async () => {
   }
   store.watchNodeTypeReloads()
   await maybeRecoverDraft()
+  await openDefaultCanvas()
   window.addEventListener('beforeunload', onBeforeUnload)
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('keydown', onKeydown)
@@ -205,6 +206,17 @@ async function maybeRecoverDraft() {
   } else {
     store.clearDraft()
   }
+}
+
+// ── Default canvas (step 12.2) ─────────────────────────────────────────
+// Nothing recovered and nothing open means there is nothing to show, so open
+// the default Full Video graph instead of an empty canvas.
+async function openDefaultCanvas() {
+  if (!await store.openDefaultWorkflow()) return
+  // A saved workflow keeps its own viewport; the template has none worth
+  // restoring and is far wider than the canvas, so frame it instead.
+  if (store.workflowId) await restoreViewport()
+  else requestAnimationFrame(() => fitView({ padding: 0.1 }))
 }
 
 function onBeforeUnload(event) {
