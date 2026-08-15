@@ -1025,10 +1025,14 @@ class WorkflowScheduler:
             )
             extensions = self.workflow.get("extensions")
             channel_settings = None
+            job_id = ""
             if isinstance(extensions, dict):
                 raw_channel = extensions.get("channel_settings")
                 if isinstance(raw_channel, dict):
                     channel_settings = raw_channel
+                raw_job = extensions.get("job_id")
+                if isinstance(raw_job, str):
+                    job_id = raw_job.strip()
             context = AdapterContext(
                 project_id=self.project_id,
                 execution_id=self.execution_id,
@@ -1036,6 +1040,7 @@ class WorkflowScheduler:
                 stage_artifact=promoter.stage_path,
                 stop_requested=self.stop_requested,
                 channel_settings=channel_settings,
+                job_id=job_id,
             )
             failure = None
             cancelled = False

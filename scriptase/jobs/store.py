@@ -420,6 +420,36 @@ def add_artifact_ids(
         return _write(document)
 
 
+def add_issue_ids(
+    job_id: str,
+    issue_ids: Iterable[str],
+    *,
+    allow_terminal: bool = False,
+) -> Job:
+    """Append unique ReviewIssue ids to the Job (order-preserving).
+
+    Used by step 11.2 when the Review node persists findings. Terminal jobs
+    still accept the link when ``allow_terminal=True``: a run that failed on a
+    blocking issue must keep the evidence of why.
+    """
+    lock = _thread_lock(job_id)
+    with lock:
+        current = get_job(job_id)
+        if not allow_terminal:
+            _require_mutable(current)
+        merged = list(current.issues)
+        seen = set(merged)
+        for issue_id in issue_ids:
+            text = str(issue_id or "").strip()
+            if not text or text in seen:
+                continue
+            merged.append(text)
+            seen.add(text)
+        payload = {**current.to_document(), "issues": merged}
+        document = _validate_document(payload)
+        return _write(document)
+
+
 def add_repair_history_ids(
     job_id: str,
     entry_ids: Iterable[str],
@@ -540,6 +570,7 @@ __all__ = [
     "list_jobs",
     "update_job",
     "add_artifact_ids",
+    "add_issue_ids",
     "add_repair_history_ids",
     "delete_job",
     "job_summary",

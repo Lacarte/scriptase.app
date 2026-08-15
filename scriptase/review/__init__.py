@@ -17,9 +17,17 @@ gates (image before video, video before final review). Step 8.1 freezes the
 repair with per-issue attempt budgets, Job generation/cost ceilings, escalation,
 and safe degradation (``scriptase.review.repair``). Step 8.4 persists every
 repair outcome as a ``RepairHistoryEntry`` tied to superseded artifact versions
-(``scriptase.review.history``).
+(``scriptase.review.history``). Step 11.2 connects the two halves: the Review
+node's findings are persisted and linked to their Job by
+``scriptase.review.emission``, so a real run finally produces ReviewIssues for
+the Repair Router to act on.
 """
 
+from scriptase.review.emission import (
+    attach_issues_to_job,
+    emit_review_issues,
+    issue_identity,
+)
 from scriptase.review.gates import (
     QUALITY_GATE_FAILED,
     GateUnit,
@@ -198,6 +206,7 @@ __all__ = [
     "assert_no_open_issue_on_dead_scenes",
     "assert_structured_issues",
     "assert_structured_review_result",
+    "attach_issues_to_job",
     "build_repair_run_request",
     "check_aspect_ratio",
     "check_audio_presence",
@@ -214,9 +223,11 @@ __all__ = [
     "create_repair_history_entry",
     "create_review_issue",
     "decide_issue_repair",
+    "emit_review_issues",
     "enforce_image_gate_for_video",
     "get_issue",
     "get_repair_history_entry",
+    "issue_identity",
     "issues_for_nodes",
     "list_issues",
     "list_repair_history",

@@ -1,4 +1,4 @@
-"""Workflow adapter for the Review node (`review.run`) — step 11.1.
+"""Workflow adapter for the Review node (`review.run`) — steps 11.1 / 11.2.
 
 Phases 7 and 8 built the Reviewer and the Repair Router and never connected
 them: the `review` domain was the only one of six with no node consuming it, so
@@ -13,11 +13,16 @@ does) so the node honours the instance the operator actually selected. That is
 the whole point of the `provider_id` field: an AI reviewer dropped in beside
 `semantic` must become selectable without an edit here (contracts §26).
 
-Scope boundary for this step: the node **reports**. It emits structured
-findings on its `issues` port and nothing else. Persisting them through
-`scriptase/review/store.py` is step 11.2; routing them to the responsible node
-is step 11.3. `fail_on_blocking` lets a graph refuse to continue today, and
-defaults off so adding Review to a working workflow cannot start failing runs.
+Step 11.2 added the write path. Findings no longer live and die on the `issues`
+port: when a Job owns the run they are persisted as durable ReviewIssues through
+`scriptase.review.emission` and their ids are linked onto the Job, which is what
+the stage projection and (next) the Repair Router read. Persistence needs that
+Job because ReviewIssues are Job-keyed — a canvas run without one still reports
+on the port and simply writes nothing.
+
+Routing issues to the responsible node is still step 11.3, so `fail_on_blocking`
+remains the only way a graph refuses to continue today, and it defaults off so
+adding Review to a working workflow cannot start failing runs.
 """
 
 from __future__ import annotations
@@ -142,12 +147,13 @@ def run(inputs, config, context):
     inputs = inputs or {}
     merged = inherited_config(config, inputs.get("settings"))
 
-    # The id every ReviewIssue is keyed by (contracts §9). `job_REVIEW` only
-    # appears in isolated adapter tests that construct a bare context.
-    job_id = str(
-        context_value(context, "job_id", "")
-        or context_value(context, "project_id", "")
-        or ""
+    # The id every ReviewIssue is keyed by (contracts §9). Only a real Job id
+    # can be persisted against; the project fallback keeps the reported payload
+    # self-describing on a canvas run, and `job_REVIEW` only appears in isolated
+    # adapter tests that construct a bare context.
+    owning_job_id = str(context_value(context, "job_id", "") or "").strip()
+    job_id = owning_job_id or str(
+        context_value(context, "project_id", "") or ""
     ).strip() or "job_REVIEW"
     node_id = str(context_value(context, "node_id", "") or "") or None
 
@@ -186,7 +192,11 @@ def run(inputs, config, context):
         semantic = _SemanticPass(provider_id(DOMAIN, merged), merged, context)
 
     progress = context_value(context, "progress")
-    findings: list[dict[str, Any]] = []
+    # Technical findings stay in their original form until persistence:
+    # `technical_to_draft` reads the TechnicalIssue fields, and re-parsing a
+    # summarized dict would be a lossy round trip for no reason.
+    technical_findings: list[Any] = []
+    semantic_findings: list[dict[str, Any]] = []
     total = len(image_units) + len(video_units)
     done = 0
 
@@ -197,15 +207,34 @@ def run(inputs, config, context):
         for unit in units:
             # `run_semantic=False`: the gate's semantic path hardcodes the
             # `semantic` package, so the selected instance runs here instead.
-            findings.extend(
-                _as_dict(issue)
-                for issue in evaluate(unit, run_semantic=False, job_id=job_id)
+            technical_findings.extend(
+                evaluate(unit, run_semantic=False, job_id=job_id)
             )
             if semantic is not None:
-                findings.extend(semantic(unit, subject_kind=kind, job_id=job_id))
+                semantic_findings.extend(
+                    semantic(unit, subject_kind=kind, job_id=job_id)
+                )
             done += 1
             if callable(progress):
                 progress(f"Reviewed {done}/{total}")
+
+    findings: list[dict[str, Any]] = [
+        _as_dict(issue) for issue in technical_findings
+    ]
+    findings.extend(_as_dict(issue) for issue in semantic_findings)
+
+    issue_ids: list[str] = []
+    if owning_job_id and findings:
+        from scriptase.review.emission import emit_review_issues
+
+        issue_ids = [
+            issue.id
+            for issue in emit_review_issues(
+                owning_job_id,
+                technical=technical_findings,
+                semantic=semantic_findings,
+            )
+        ]
 
     blocking_severities = _blocking_severities()
     blocking = [
@@ -224,6 +253,10 @@ def run(inputs, config, context):
         "blocking_issue_count": len(blocking),
         "clean": not findings,
         "issues": findings,
+        # Durable ids, empty when no Job owns the run. The repair path (11.3)
+        # reads issues from the store by id, never from this payload — the
+        # execution record only keeps a summarized copy of node outputs.
+        "issue_ids": issue_ids,
     }
 
     if blocking and merged.get("fail_on_blocking"):

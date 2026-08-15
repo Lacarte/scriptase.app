@@ -37,6 +37,11 @@ class AdapterContext:
     # project.setup reads these at runtime; other adapters keep using the
     # settings port. Never carries credentials.
     channel_settings: Mapping[str, Any] | None = None
+    # The owning Job (extensions.job_id, stamped by prepare_workflow_for_job).
+    # Empty for a canvas run that no Job started. `project_id` is not a
+    # substitute: ReviewIssues and Jobs are keyed by this id, so writing a
+    # project id here would persist findings no Job could ever find.
+    job_id: str = ""
 
 
 def context_value(context: AdapterContext | Mapping[str, Any], name: str, default=None):

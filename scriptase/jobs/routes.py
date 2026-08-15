@@ -165,9 +165,27 @@ def _draft_from_body(body: dict) -> dict:
     }
 
 
+def _owning_job_id(workflow) -> str | None:
+    """The Job that stamped this snapshot, from ``extensions.job_id`` (2.5).
+
+    Step 11.2: this is how a projection reaches the Job's ReviewIssues without
+    a second lookup — ``prepare_workflow_for_job`` already writes the id into
+    the snapshot the execution record carries.
+    """
+    extensions = workflow.get("extensions") if isinstance(workflow, dict) else None
+    if not isinstance(extensions, dict):
+        return None
+    job_id = extensions.get("job_id")
+    if not isinstance(job_id, str) or not JOB_ID_RE.fullmatch(job_id.strip()):
+        return None
+    return job_id.strip()
+
+
 def _project_or_error(workflow, *, execution=None):
     try:
-        projection = project_stages(workflow, execution=execution)
+        projection = project_stages(
+            workflow, execution=execution, job_id=_owning_job_id(workflow)
+        )
     except StageProjectionError as exc:
         return None, _error(
             exc.code,
