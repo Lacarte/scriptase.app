@@ -60,12 +60,27 @@ def elapsed(since: float) -> str:
 
 
 def _completion_beep() -> None:
+    """Make a finish sound, degrading quietly when the machine cannot.
+
+    `winsound.Beep` drives the legacy PC-speaker API and raises
+    `RuntimeError: Failed to beep` on machines with no beep device — common on
+    modern hardware, over RDP, and wherever the Beep driver is disabled. That
+    made every completed run end on a red error line for a purely cosmetic
+    feature. MessageBeep uses the sound scheme instead and works there.
+    """
     if sys.platform == "win32":
         import winsound
-        winsound.Beep(1100, 220)
-    else:
-        sys.stdout.write("\a")
-        sys.stdout.flush()
+        try:
+            winsound.Beep(1100, 220)
+            return
+        except RuntimeError:
+            try:
+                winsound.MessageBeep(winsound.MB_OK)
+                return
+            except Exception:
+                pass
+    sys.stdout.write("\a")
+    sys.stdout.flush()
 
 
 def _show_completion_dialog(title: str, message: str) -> None:
@@ -86,8 +101,11 @@ def notify_loop_finished(title: str, message: str, *, enabled: bool = True) -> N
             _completion_beep()
             if index < 2:
                 time.sleep(0.12)
-    except Exception as exc:
-        say(f"finish notification sound failed: {exc}", icon="!")
+    except Exception:
+        # A missing finish chime is not worth a warning line on an otherwise
+        # successful run; _completion_beep already degrades through every
+        # available option before giving up.
+        pass
     try:
         _show_completion_dialog(title, message)
     except Exception as exc:
