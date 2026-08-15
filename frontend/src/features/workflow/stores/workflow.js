@@ -21,6 +21,9 @@ export const DRAFT_STORAGE_KEY = 'sts-workflow-draft'
 export const DRAFT_DEBOUNCE_MS = 1000
 export const RECENT_NODE_TYPES_KEY = 'sts-workflow-recent-node-types'
 export const RECENT_NODE_TYPES_LIMIT = 5
+// Palette visibility (step 12.1). The registry decides which nodes are hidden;
+// this only remembers whether the user asked to see them anyway.
+export const SHOW_ALL_NODES_KEY = 'sts-workflow-show-all-nodes'
 
 export const useWorkflowStore = defineStore('workflow', () => {
   // ── Registry (served by the backend, loaded once) ─────────────────────
@@ -105,6 +108,26 @@ export const useWorkflowStore = defineStore('workflow', () => {
       /* storage unavailable: the session-local list still works */
     }
     return true
+  }
+
+  const showAllNodes = ref(loadShowAllNodes())
+
+  function loadShowAllNodes() {
+    try {
+      return globalThis.localStorage?.getItem(SHOW_ALL_NODES_KEY) === '1'
+    } catch {
+      return false
+    }
+  }
+
+  function setShowAllNodes(value) {
+    showAllNodes.value = value === true
+    try {
+      if (showAllNodes.value) globalThis.localStorage?.setItem(SHOW_ALL_NODES_KEY, '1')
+      else globalThis.localStorage?.removeItem(SHOW_ALL_NODES_KEY)
+    } catch {
+      /* storage unavailable: the session-local preference still works */
+    }
   }
 
   function clearRecentNodeTypes() {
@@ -1624,6 +1647,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
     readOnly, loadWarnings, migrationTrail,
     notes, addNote, updateNote, moveNotes, removeNotes, noteById,
     recentNodeTypes, recordNodeUse, clearRecentNodeTypes,
+    showAllNodes, setShowAllNodes,
     workflowList, templates, persistenceLoading, persistenceError,
     // invalid editor fields (step 6.4)
     invalidConfigFields, reportInvalidField, clearInvalidFields, saveBlockedReason,

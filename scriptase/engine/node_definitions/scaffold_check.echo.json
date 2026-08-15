@@ -6,6 +6,7 @@
     "description": "Echo a JSON value for node-author verification.",
     "category": "testing",
     "icon": "box",
+    "hidden": true,
     "inputs": [
       {
         "id": "trigger",

@@ -9,19 +9,32 @@ const query = ref('')
 
 onMounted(() => store.loadNodeTypes())
 
+// A sort hint, not a filter: a category missing from this array used to drop
+// its nodes out of the palette silently. Visibility is the registry's `hidden`
+// flag alone (step 12.1); an unlisted category now simply sorts last.
 const CATEGORY_ORDER = ['input', 'audio', 'timing', 'ai', 'assets', 'video', 'output', 'utility', 'testing']
+
+function categoryRank(category) {
+  const index = CATEGORY_ORDER.indexOf(category)
+  return index === -1 ? CATEGORY_ORDER.length : index
+}
+
+const hiddenCount = computed(
+  () => Object.values(store.nodeTypes).filter((node) => node.hidden).length,
+)
 
 const groups = computed(() => {
   const q = query.value.trim().toLowerCase()
   const byCategory = {}
   for (const node of Object.values(store.nodeTypes)) {
+    if (node.hidden && !store.showAllNodes) continue
     if (q && !`${node.display_name} ${node.description} ${node.type}`.toLowerCase().includes(q)) {
       continue
     }
     ;(byCategory[node.category] ??= []).push(node)
   }
-  return CATEGORY_ORDER
-    .filter((cat) => byCategory[cat]?.length)
+  return Object.keys(byCategory)
+    .sort((a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b))
     .map((cat) => ({
       key: cat,
       label: store.categories[cat]?.label || cat,
@@ -53,6 +66,16 @@ function onDragStart(event, node) {
         placeholder="Search nodes…"
         class="library-search-input"
       />
+      <label v-if="hiddenCount" class="library-toggle">
+        <input
+          type="checkbox"
+          class="library-toggle-input"
+          :checked="store.showAllNodes"
+          @change="store.setShowAllNodes($event.target.checked)"
+        />
+        <span>Show all nodes</span>
+        <span v-if="!store.showAllNodes" class="library-toggle-count">{{ hiddenCount }} hidden</span>
+      </label>
     </div>
 
     <div v-if="store.registryLoading" class="library-note">Loading node types…</div>
@@ -142,6 +165,30 @@ function onDragStart(event, node) {
 
 .library-search-input:focus {
   border-color: var(--accent);
+}
+
+.library-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.library-toggle-input {
+  accent-color: var(--accent, #8b5cf6);
+  margin: 0;
+  cursor: pointer;
+}
+
+.library-toggle-count {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
 }
 
 .library-note {

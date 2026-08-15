@@ -1,7 +1,9 @@
 """Step 1.2 tests: workflow node-type registry + /api/workflow/node-types."""
 
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from flask import Flask
 
@@ -15,8 +17,10 @@ from scriptase.engine.registry import (
     all_node_types,
     get_node_type,
     is_supported,
+    load_generated_node_types,
     serialize_registry,
 )
+from scriptase.engine.templates import full_video_template
 
 EXPECTED_TYPES = {
     "trigger.manual", "project.setup", "script.input", "story.generate", "project.existing",
@@ -107,6 +111,62 @@ class RegistryContractTests(unittest.TestCase):
     def test_dynamic_port_types_exclude_control(self):
         self.assertNotIn("control", DYNAMIC_PORT_TYPES)
         self.assertTrue(set(DYNAMIC_PORT_TYPES) < set(PORT_TYPES))
+
+
+class NodeVisibilityTests(unittest.TestCase):
+    """Step 12.1: `hidden` keeps a node out of the palette and does nothing else."""
+
+    HIDDEN = {
+        "story.generate", "project.existing", "review.run",
+        "utility.set_value", "utility.condition", "utility.merge", "utility.wait",
+        "stub.input", "stub.output",
+    }
+
+    def test_visibility_is_always_explicit(self):
+        for key, node in all_node_types().items():
+            self.assertIsInstance(node.get("hidden"), bool, key)
+        for key, node in serialize_registry()["node_types"].items():
+            self.assertIsInstance(node.get("hidden"), bool, key)
+
+    def test_full_video_stages_are_visible(self):
+        catalog = all_node_types()
+        for node in full_video_template()["nodes"]:
+            self.assertFalse(catalog[node["type"]]["hidden"], node["type"])
+
+    def test_nodes_outside_the_full_video_path_are_hidden(self):
+        catalog = all_node_types()
+        for key in self.HIDDEN:
+            self.assertTrue(catalog[key]["hidden"], key)
+        # Testing nodes are outside the path by definition, generated ones included.
+        for key, node in catalog.items():
+            if node["category"] == "testing":
+                self.assertTrue(node["hidden"], key)
+        # Shares the `utility` category with four hidden nodes yet is a Full
+        # Video stage: visibility is per node, never per category.
+        self.assertFalse(catalog["workflow.output"]["hidden"])
+
+    def test_hidden_nodes_stay_registered_and_executable(self):
+        catalog = all_node_types()
+        for key in self.HIDDEN:
+            node = catalog[key]
+            self.assertTrue(is_supported(key, node["type_version"]), key)
+            self.assertIn(":", get_node_type(key)["executor"], key)
+
+    def test_generated_definition_rejects_a_non_boolean_hidden_flag(self):
+        definition = {
+            "type_version": 1, "display_name": "Hidden Check", "description": "…",
+            "category": "testing", "icon": "flask", "inputs": [],
+            "outputs": [{"id": "value", "type": "generic_json"}],
+            "config_schema": [], "capabilities": {}, "hidden": "yes",
+            "executor": "tests.fake:execute",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "check.hidden.json"
+            path.write_text(
+                json.dumps({"key": "check.hidden", "definition": definition}), encoding="utf-8"
+            )
+            with self.assertRaises(RuntimeError):
+                load_generated_node_types(directory)
 
 
 class SerializationTests(unittest.TestCase):

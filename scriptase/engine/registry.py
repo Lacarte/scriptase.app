@@ -15,7 +15,8 @@ from pathlib import Path
 from scriptase.providers.domains import DOMAINS
 
 # 4 adds the `provider` / `provider_options` config widgets (step 12.3).
-REGISTRY_VERSION = 4
+# 5 adds the presentation-only `hidden` flag (step 12.1).
+REGISTRY_VERSION = 5
 
 # contracts.md §3 — frozen v1 port vocabulary.
 PORT_TYPES = [
@@ -209,6 +210,13 @@ def _provider_options_field(domain):
 # Node catalog — port IDs frozen per contracts.md §3.1.
 # ---------------------------------------------------------------------------
 
+# `hidden` (step 12.1) is presentation only: it keeps a node out of the palette
+# by default and nothing else. Hidden nodes stay registered, validated, saved,
+# and executable, so a workflow that already uses one keeps loading and running.
+# It defaults to False and is normalized onto every definition in
+# `reload_generated_node_types`, so the served payload always states visibility
+# explicitly rather than leaving the client to infer it from the category.
+
 _NODE_TYPES = {
     "trigger.manual": {
         "type_version": 1,
@@ -280,6 +288,8 @@ _NODE_TYPES = {
         "description": "Generate a structured narration script with the selected script provider.",
         "category": "ai",
         "icon": "sparkles",
+        # An alternative to Script Input rather than a Full Video stage.
+        "hidden": True,
         "inputs": [_TRIGGER_IN, _in("settings", "project_settings")],
         # `script` carries the narration text for TTS/scenes edges. `story`
         # (step 13.3) is the full document + managed artifact ref that the
@@ -322,6 +332,8 @@ _NODE_TYPES = {
         "description": "Select an existing project (WIP preferred over initial) without rewriting it.",
         "category": "input",
         "icon": "folder-open",
+        # Only used by the Re-export Existing Project template.
+        "hidden": True,
         "inputs": [_TRIGGER_IN],
         "outputs": [_CONTROL_OUT, _out("project_id", "project_id"), _out("project", "editor_project")],
         "config_schema": [
@@ -477,6 +489,9 @@ _NODE_TYPES = {
         ),
         "category": "ai",
         "icon": "shield-check",
+        # Job review and the image quality gate run without a canvas node, so
+        # this is an opt-in stage rather than part of the Full Video graph.
+        "hidden": True,
         # Every media input is optional so one node can review stills, clips, or
         # both, and a graph that only produced one of them still validates.
         "inputs": [_TRIGGER_IN,
@@ -618,6 +633,7 @@ _NODE_TYPES = {
         "description": "Emit a configured JSON value, optionally sequenced by an incoming value.",
         "category": "utility",
         "icon": "edit-3",
+        "hidden": True,
         "inputs": [_TRIGGER_IN, _in("value", "generic_json")],
         "outputs": [_CONTROL_OUT, _out("value", "generic_json")],
         "config_schema": [
@@ -632,6 +648,7 @@ _NODE_TYPES = {
         "description": "Route one JSON value to exactly one of two explicit branches.",
         "category": "utility",
         "icon": "git-branch",
+        "hidden": True,
         "inputs": [_TRIGGER_IN, _in("value", "generic_json", required=True)],
         "outputs": [
             {**_out("true", "generic_json"), "conditional": True},
@@ -652,6 +669,7 @@ _NODE_TYPES = {
         "description": "Join active branch values after all connected branches resolve.",
         "category": "utility",
         "icon": "git-merge",
+        "hidden": True,
         "inputs": [{"id": "values", "type": "generic_json", "required": True, "multiple": True}],
         "outputs": [_CONTROL_OUT, _out("value", "generic_json")],
         "config_schema": [
@@ -667,6 +685,7 @@ _NODE_TYPES = {
         "description": "Delay a branch and pass its JSON value through unchanged.",
         "category": "utility",
         "icon": "clock",
+        "hidden": True,
         "inputs": [_TRIGGER_IN, _in("value", "generic_json")],
         "outputs": [_CONTROL_OUT, _out("value", "generic_json")],
         "config_schema": [
@@ -698,6 +717,7 @@ _NODE_TYPES = {
         "description": "Editable sample data feeding an unconnected input (testing).",
         "category": "testing",
         "icon": "flask",
+        "hidden": True,
         "inputs": [],
         "outputs": [{"id": "value", "type": "dynamic"}],
         "config_schema": [
@@ -714,6 +734,7 @@ _NODE_TYPES = {
         "description": "Captures a node's output for inspection (testing; pinning in Phase 4).",
         "category": "testing",
         "icon": "eye",
+        "hidden": True,
         "inputs": [{"id": "value", "type": "dynamic", "required": True, "multiple": False}],
         "outputs": [{"id": "value", "type": "dynamic"}],
         "config_schema": [
@@ -765,6 +786,8 @@ def load_generated_node_types(directory=None):
             raise RuntimeError(f"Generated node {key!r} is missing: {', '.join(missing)}")
         if definition["category"] not in CATEGORIES:
             raise RuntimeError(f"Generated node {key!r} has unknown category {definition['category']!r}")
+        if not isinstance(definition.get("hidden", False), bool):
+            raise RuntimeError(f"Generated node {key!r} hidden flag must be a boolean")
         for port in definition["inputs"] + definition["outputs"]:
             if port.get("type") not in PORT_TYPES:
                 raise RuntimeError(
@@ -821,6 +844,8 @@ def reload_generated_node_types(directory=None):
     refreshed = deepcopy(_BUILTIN_NODE_TYPES)
     refreshed.update(load_generated_node_types(directory))
     refreshed = _with_resilience_capabilities(refreshed)
+    for definition in refreshed.values():
+        definition.setdefault("hidden", False)
     _NODE_TYPES = refreshed
     return len(refreshed)
 

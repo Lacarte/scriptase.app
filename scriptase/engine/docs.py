@@ -180,6 +180,11 @@ def generate_node_reference() -> str:
                 f"- **Type version:** {definition['type_version']}"
             )
             lines.append(f"- **Capabilities:** {_capability_summary(definition.get('capabilities', {}))}")
+            if definition.get("hidden"):
+                lines.append(
+                    "- **Palette:** hidden by default — enable *Show all nodes* in the "
+                    "node library. Executes normally wherever it is already used."
+                )
             lines.append("")
             inputs = definition.get("inputs", [])
             if inputs:

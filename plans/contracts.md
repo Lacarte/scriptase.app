@@ -65,6 +65,8 @@ A node type is a registry entry with:
 - ports (`inputs[]` / `outputs[]` with stable `id`, `type`, `required`, `multiple`)
 - `config_schema` (JSON Schema + widget hints)
 - capabilities (e.g. `provider_capable`, cache, cancel)
+- `hidden` (boolean, defaults to false) — **presentation only**: keeps the node out of the
+  palette by default and changes nothing about validation, persistence, or execution
 - dotted `module:function` executor string — **internal only; never serialized to the browser**
 
 The backend registry (`scriptase/engine/registry.py`) is authoritative. The frontend

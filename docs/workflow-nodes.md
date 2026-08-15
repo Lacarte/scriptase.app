@@ -4,7 +4,7 @@
 
 # Workflow Node Reference
 
-Registry version **4** — 25 node types across 9 categories.
+Registry version **5** — 25 node types across 9 categories.
 
 Connections require the source and target port to have the **same** type; there are no implicit conversions. `control` ports carry execution order only and never data. Dynamic ports (`stub.input`, `stub.output`, `workflow.output`) take the type chosen in the node's `port_type` setting.
 
@@ -135,6 +135,7 @@ Select an existing project (WIP preferred over initial) without rewriting it.
 
 - **Type version:** 1
 - **Capabilities:** supports error output, skip-optional; no retry, cancel
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs**
 
@@ -292,6 +293,7 @@ Generate a structured narration script with the selected script provider.
 
 - **Type version:** 1
 - **Capabilities:** supports retry, error output, skip-optional; no cancel
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs**
 
@@ -366,6 +368,7 @@ Quality review of the generated stills and clips. Deterministic technical valida
 
 - **Type version:** 1
 - **Capabilities:** supports retry, error output, skip-optional; no cancel
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs**
 
@@ -595,6 +598,7 @@ Emit a configured JSON value, optionally sequenced by an incoming value.
 
 - **Type version:** 1
 - **Capabilities:** supports error output, skip-optional; no retry, cancel
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs**
 
@@ -623,6 +627,7 @@ Route one JSON value to exactly one of two explicit branches.
 
 - **Type version:** 1
 - **Capabilities:** no retry, cancel, error output, skip-optional
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs**
 
@@ -651,6 +656,7 @@ Join active branch values after all connected branches resolve.
 
 - **Type version:** 1
 - **Capabilities:** supports error output, skip-optional; no retry, cancel
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs**
 
@@ -678,6 +684,7 @@ Delay a branch and pass its JSON value through unchanged.
 
 - **Type version:** 1
 - **Capabilities:** supports cancel, error output, skip-optional; no retry, cacheable
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs**
 
@@ -731,6 +738,7 @@ Editable sample data feeding an unconnected input (testing).
 
 - **Type version:** 1
 - **Capabilities:** no retry, cancel, error output, skip-optional
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs:** none
 
@@ -753,6 +761,7 @@ Captures a node's output for inspection (testing; pinning in Phase 4).
 
 - **Type version:** 1
 - **Capabilities:** no retry, cancel, error output, skip-optional
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs**
 
@@ -780,6 +789,7 @@ Echo a JSON value for node-author verification.
 
 - **Type version:** 1
 - **Capabilities:** supports error output, skip-optional; no retry, cancel
+- **Palette:** hidden by default — enable *Show all nodes* in the node library. Executes normally wherever it is already used.
 
 **Inputs**
 
