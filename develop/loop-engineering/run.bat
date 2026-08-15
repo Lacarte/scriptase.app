@@ -27,7 +27,7 @@ echo.
 echo   [1] Claude codes; Codex takes over at the limit; Codex reviews
 echo   [2] Codex builds, fixes, and reviews
 echo   [3] Claude builds, fixes, and reviews
-echo   [4] AGY codes; Codex reviews
+echo   [4] AGY codes; Codex limit fallback; Codex reviews
 echo   [5] Grok 4.5 codes; Codex limit fallback; Codex reviews
 echo   [Q] Cancel
 echo.
@@ -60,8 +60,11 @@ set "USES_CLAUDE=1"
 goto :launch
 
 :agy_code_codex_review
-set "PROFILE=AGY builds and fixes; Codex reviews"
-set "RUNARGS=--by-phase --builder agy --fixer agy --coding-fallback none --reviewer codex"
+:: agy is quota-limited per-account; with no fallback a quota hit halts the run
+:: with zero steps completed. Codex takes over instead, and the handoff is sticky
+:: for the rest of the run.
+set "PROFILE=AGY builds and fixes; Codex limit fallback; Codex reviews"
+set "RUNARGS=--by-phase --builder agy --fixer agy --coding-fallback codex --reviewer codex"
 set "USES_CLAUDE=0"
 goto :launch
 

@@ -231,6 +231,12 @@ AGENT_BLOCKERS = (
     "usage limit reached",
     "rate limit exceeded",
     "quota exceeded",
+    # agy says "Individual quota reached. Please upgrade your subscription" —
+    # none of the phrases above match it, so a quota-limited agy was reported as
+    # a generic non-zero exit and halted the run instead of handing off to the
+    # configured fallback.
+    "quota reached",
+    "upgrade your subscription",
     "insufficient credits",
     "credit balance is too low",
 )
