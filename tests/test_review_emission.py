@@ -331,6 +331,10 @@ class JobRunEmitsIssuesTests(IsolatedStoresMixin):
             wait=True,
             timeout=30.0,
             workflow=self.workflow,
+            # These tests are about emission. Step 11.3 would take the findings
+            # from here and escalate them (the graph has no Export node to
+            # repair a codec defect at), which is its own done-when.
+            repair=False,
             input_overrides={"n_review": {"images": {
                 "total": 1, "ready": 1, "errors": 0,
                 "scene_statuses": {"0": {

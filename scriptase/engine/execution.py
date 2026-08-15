@@ -212,6 +212,10 @@ class ExecutionManager:
         target_node_ids: list[str],
         project_id: str | None = None,
         force: bool = False,
+        # Step 11.3: per-node forced regeneration for targeted repair. Global
+        # ``force`` re-runs the whole scope; this re-runs only the responsible
+        # node(s) and lets the rest of the scope hit the cache.
+        force_node_ids: list[str] | None = None,
         source: str = "manual",
         input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
         input_bindings: Mapping[str, Mapping[str, Any]] | None = None,
@@ -328,6 +332,9 @@ class ExecutionManager:
             on_event=emit,
             executor_resolver=self.executor_resolver,
             force=force,
+            force_node_ids=[
+                node_id for node_id in (force_node_ids or []) if node_id in scope
+            ],
             input_overrides=overrides,
             source_artifact_ids=recorded_sources,
             sample_fed_node_ids=sample_fed_nodes,

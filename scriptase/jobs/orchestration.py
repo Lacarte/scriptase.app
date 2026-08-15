@@ -6,6 +6,13 @@ reach node configuration through the ported ``inherited_config()`` precedence
 — explicit node config beats inherited channel config, and an empty string is
 not explicit. Job status is always derived from the linked execution record so
 the two cannot disagree.
+
+Step 11.3 added the repair cycle. Phase 8 built the Repair Router and nothing
+ever called it: this module carried no reference to review or repair at all, so
+a ReviewIssue persisted by step 11.2 simply sat there and the run ended. A
+finished run now drives ``plan_job_repairs`` → ``apply_repair_plan`` →
+``process_job_repairs``, routes every issue through the frozen §12.2 ownership
+table, and re-executes the responsible node.
 """
 
 from __future__ import annotations
@@ -80,6 +87,12 @@ _KIND_BY_PREFIX: tuple[tuple[str, str], ...] = (
 _SETUP_NODE_TYPE = "project.setup"
 _SCRIPT_INPUT_TYPE = "script.input"
 _STORY_GENERATE_TYPE = "story.generate"
+_REVIEW_NODE_TYPE = "review.run"
+
+# Hard ceiling on repair cycles regardless of Channel policy. ``max_repairs``
+# is the real bound; this only guarantees that a misconfigured Channel with an
+# absurd value still cannot spin forever.
+REPAIR_CYCLE_CEILING = 10
 
 
 class JobOrchestrationError(RuntimeError):
@@ -420,6 +433,7 @@ def start_job(
     workflow: Mapping[str, Any] | None = None,
     source: str = "manual",
     input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
+    repair: bool = True,
 ) -> Job:
     """Start the Job's workflow through the ported execution manager.
 
@@ -430,6 +444,9 @@ def start_job(
     ``source`` is the queue/execution trigger source (``manual``, ``schedule``,
     ``watch``, ``webhook``). Triggered Jobs (step 9.2) pass the firing source
     so queue records show how the run was started.
+
+    When ``repair`` is True (step 11.3) a finished run that left open
+    ReviewIssues behind drives the Repair Router before the Job is returned.
     """
     if source not in {"manual", "schedule", "watch", "webhook"}:
         raise JobOrchestrationError(
@@ -492,12 +509,21 @@ def start_job(
 
     if wait:
         _wait_for_execution(active_manager, execution_id, timeout=timeout)
-        return sync_job_from_execution(job.id, manager=active_manager)
+        finished = sync_job_from_execution(job.id, manager=active_manager)
+        if not repair:
+            return finished
+        return _maybe_run_repairs(
+            finished,
+            manager=active_manager,
+            workflow=prepared,
+            timeout=timeout,
+        )
 
     # Async path: finalize status + artifacts when the project worker finishes.
     thread = threading.Thread(
         target=_finalize_job_async,
         args=(job.id, execution_id, active_manager),
+        kwargs={"workflow": prepared if repair else None, "repair": repair},
         name=f"job-finalize-{job.id}",
         daemon=True,
     )
@@ -729,6 +755,408 @@ def collect_execution_artifact_refs(execution: Mapping[str, Any]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Repair cycles (step 11.3 / product §12.5 / contracts.md §12)
+# ---------------------------------------------------------------------------
+
+
+def review_node_ids(workflow: Mapping[str, Any] | None) -> list[str]:
+    """Enabled ``review.run`` node ids in saved order."""
+    if not isinstance(workflow, Mapping):
+        return []
+    return [
+        str(node.get("id"))
+        for node in workflow.get("nodes") or []
+        if isinstance(node, Mapping)
+        and str(node.get("type") or "") == _REVIEW_NODE_TYPE
+        and not node.get("disabled")
+        and node.get("id")
+    ]
+
+
+def workflow_for_repair(workflow: Mapping[str, Any]) -> dict[str, Any]:
+    """Repair-run copy of a prepared workflow, without approval checkpoints.
+
+    A repair is remediation of work the operator already approved. Re-pausing
+    on the same checkpoint would strand the cycle waiting for a decision that
+    was made before the defect was even found.
+    """
+    document = deepcopy(dict(workflow))
+    extensions = dict(document.get("extensions") or {})
+    extensions["approval_checkpoints"] = []
+    document["extensions"] = extensions
+    return document
+
+
+def _repair_update_job(job_id: str, **kwargs: Any) -> Job:
+    """``update_job`` for Repair Router stamps, which land after a terminal run.
+
+    The cycle fires once the execution has finished, so ``status_reason=budget``
+    and the escalation pause both arrive at a Job the store already considers
+    terminal. Without ``allow_terminal`` every stamp would be silently dropped
+    by :func:`~scriptase.review.repair._stop_job`'s exception guard.
+    """
+    kwargs["allow_terminal"] = True
+    return update_job(job_id, **kwargs)
+
+
+def _issue_repair_key(issue: Any) -> tuple[str, str, str]:
+    """Identity of a *defect* across regenerations of its artifact.
+
+    ``ReviewIssue`` identity (step 11.2) includes ``target_artifact_id``, which
+    necessarily changes when the responsible node regenerates. That is correct
+    for emission — the finding is about a different file — but it would reset
+    ``attempt_count`` every cycle and make ``max_repairs`` unenforceable. This
+    coarser key is what the repair budget is counted against.
+    """
+    return (
+        str(_read(issue, "issue_type") or ""),
+        str(_read(issue, "scene_id") or ""),
+        str(_read(issue, "target_node_id") or ""),
+    )
+
+
+def _read(obj: Any, name: str) -> Any:
+    if isinstance(obj, Mapping):
+        return obj.get(name)
+    return getattr(obj, name, None)
+
+
+def run_job_repair_cycles(
+    job_id: str,
+    *,
+    manager: ExecutionManager | None = None,
+    workflow: Mapping[str, Any] | None = None,
+    project_id: str | None = None,
+    timeout: float = 600.0,
+    max_cycles: int | None = None,
+) -> dict[str, Any]:
+    """Drive the Repair Router until the Job is clean, bounded, or escalated.
+
+    One cycle is: pre-flight the budget, plan every open issue through the
+    §12.2 ownership table, apply the plan, re-run each responsible node, then
+    re-run Review so the next cycle decides on fresh evidence. The number of
+    cycles is capped by the Channel's ``review_policy.max_repairs`` — the same
+    ceiling ``decide_issue_repair`` enforces per issue — so an issue that keeps
+    coming back escalates rather than looping.
+
+    Returns ``job``, the per-cycle ``cycles`` log, and a ``stop_reason``:
+    ``no_issues``, ``clean``, ``budget``, ``escalated``, ``no_repairable_issues``,
+    or ``cycle_limit``.
+    """
+    from scriptase.review.repair import process_job_repairs, resolve_repair_policy
+    from scriptase.review.store import list_issues
+
+    job = get_job(job_id)
+    if not job.issues:
+        return {"job": job, "cycles": [], "stop_reason": "no_issues"}
+
+    prepared = workflow_for_repair(
+        workflow if workflow is not None else prepare_workflow_for_job(
+            job, load_job_workflow(job)
+        )
+    )
+    active_manager = manager or execution_manager
+    resolved_project = project_id or _project_id_for_job(job, active_manager)
+    policy = resolve_repair_policy(job)
+    # ``max_repairs`` attempts need one more planning pass to reach a verdict:
+    # the pass that finds the per-issue budget exhausted is the pass that
+    # escalates. Without it a Job could end with an issue still open and no
+    # decision recorded against it.
+    limit = policy.max_repairs + 1 if max_cycles is None else int(max_cycles)
+    limit = max(1, min(limit, REPAIR_CYCLE_CEILING))
+    reviewers = review_node_ids(prepared)
+
+    cycles: list[dict[str, Any]] = []
+    stop_reason = "cycle_limit"
+
+    for index in range(limit):
+        job = get_job(job_id)
+        open_issues = list_issues(job_id=job_id, open_only=True)
+        if not open_issues:
+            stop_reason = "clean"
+            break
+
+        cycle: dict[str, Any] = {"cycle": index + 1, "attempts": []}
+
+        # Pre-flight the Job ceiling before any provider is called (§12).
+        try:
+            check_job_next_stage_budget(job, prepared)
+        except BudgetExceededError as exc:
+            try:
+                update_job(job_id, status_reason="budget", allow_terminal=True)
+            except Exception:
+                pass
+            cycle["budget_error"] = exc.message
+            cycles.append(cycle)
+            stop_reason = "budget"
+            break
+
+        plan = process_job_repairs(
+            job,
+            issues=open_issues,
+            workflow=prepared,
+            policy=policy,
+            update_job_fn=_repair_update_job,
+        )
+        cycle["plan"] = plan.to_dict()
+        admitted = plan.repairs
+        if not admitted:
+            cycles.append(cycle)
+            stop_reason = (
+                "budget"
+                if plan.stopped
+                else "escalated"
+                if plan.escalations
+                else "no_repairable_issues"
+            )
+            break
+
+        originals = {
+            str(_read(issue, "id") or ""): issue for issue in open_issues
+        }
+        for decision in admitted:
+            cycle["attempts"].append(
+                _run_one_repair(
+                    decision,
+                    original=originals.get(decision.issue_id),
+                    workflow=prepared,
+                    manager=active_manager,
+                    project_id=resolved_project,
+                    timeout=timeout,
+                )
+            )
+
+        cycle["review_execution_id"] = _rerun_review(
+            job_id,
+            workflow=prepared,
+            reviewers=reviewers,
+            manager=active_manager,
+            project_id=resolved_project,
+            timeout=timeout,
+        )
+        # A defect that survived is re-emitted against the *new* artifact, so
+        # it arrives as a fresh issue with attempt_count 0. Carry the spend
+        # forward or max_repairs never bites and the cycle never terminates.
+        _carry_repair_attempts(job_id, admitted, originals)
+        cycles.append(cycle)
+
+    return {"job": get_job(job_id), "cycles": cycles, "stop_reason": stop_reason}
+
+
+def _run_one_repair(
+    decision: Any,
+    *,
+    original: Any,
+    workflow: Mapping[str, Any],
+    manager: ExecutionManager,
+    project_id: str | None,
+    timeout: float,
+) -> dict[str, Any]:
+    """Re-execute the one node the §12.2 table holds responsible.
+
+    ``node_with_deps`` keeps the node's real inputs resolvable while
+    ``force_node_ids`` limits regeneration to the target — global ``force``
+    would re-run every upstream stage, which is exactly the "regenerate
+    everything because one scene failed" the spec forbids.
+    """
+    from scriptase.review.repair import record_repair_attempt
+
+    target = decision.target_node_id
+    attempt: dict[str, Any] = {
+        "issue_id": decision.issue_id,
+        "scene_id": decision.scene_id,
+        "target_node_id": target,
+        "target_node_type": decision.target_node_type,
+        "execution_id": None,
+        "result": "failed",
+    }
+
+    if not target:
+        record_repair_attempt(
+            decision,
+            result="failed",
+            issue=original,
+            reason="No enabled graph node matched the routed owner",
+        )
+        return attempt
+
+    execution_id: str | None = None
+    try:
+        execution_id, _project = manager.start(
+            workflow,
+            run_mode="node_with_deps",
+            target_node_ids=[target],
+            project_id=project_id,
+            force=False,
+            force_node_ids=[target],
+            source="manual",
+            current_job_id=decision.job_id,
+            checkpoint_after_node_ids=[],
+        )
+        _wait_for_execution(manager, execution_id, timeout=timeout)
+        record = _load_execution_record(execution_id, manager=manager)
+        status = str((record or {}).get("status") or "")
+        attempt["result"] = (
+            "resolved" if status in {"succeeded", "partial"} else "failed"
+        )
+        if record is not None:
+            _absorb_repair_execution(decision.job_id, record)
+    except (ExecutionRequestError, JobOrchestrationError) as exc:
+        attempt["error"] = str(exc)
+
+    attempt["execution_id"] = execution_id
+    _credit_repair_generations(decision)
+    record_repair_attempt(
+        decision,
+        result=attempt["result"],
+        issue=original,
+        provenance_ref=execution_id,
+    )
+    return attempt
+
+
+def _rerun_review(
+    job_id: str,
+    *,
+    workflow: Mapping[str, Any],
+    reviewers: list[str],
+    manager: ExecutionManager,
+    project_id: str | None,
+    timeout: float,
+) -> str | None:
+    """Re-run Review so the next cycle judges the repaired artifact.
+
+    Without this the loop would keep deciding on the findings that triggered
+    it. Only the Review node is forced; its dependencies — including the node
+    just repaired — resolve from the cache, so re-review costs one node run.
+    """
+    if not reviewers:
+        return None
+    try:
+        execution_id, _project = manager.start(
+            workflow,
+            run_mode="node_with_deps",
+            target_node_ids=[reviewers[0]],
+            project_id=project_id,
+            force=False,
+            force_node_ids=list(reviewers),
+            source="manual",
+            current_job_id=job_id,
+            checkpoint_after_node_ids=[],
+        )
+    except ExecutionRequestError:
+        return None
+    try:
+        _wait_for_execution(manager, execution_id, timeout=timeout)
+    except JobOrchestrationError:
+        pass
+    return execution_id
+
+
+def _carry_repair_attempts(
+    job_id: str,
+    decisions: list[Any],
+    originals: Mapping[str, Any],
+) -> None:
+    """Advance ``attempt_count`` onto re-emitted issues for the same defect."""
+    from scriptase.review.store import list_issues, update_issue
+
+    floors: dict[tuple[str, str, str], int] = {}
+    for decision in decisions:
+        original = originals.get(decision.issue_id)
+        if original is None:
+            continue
+        key = _issue_repair_key(original)
+        floors[key] = max(floors.get(key, 0), int(decision.attempt_count))
+    if not floors:
+        return
+
+    for issue in list_issues(job_id=job_id, open_only=True):
+        if issue.id in originals:
+            continue
+        floor = floors.get(_issue_repair_key(issue))
+        if floor is None or int(issue.attempt_count) >= floor:
+            continue
+        try:
+            update_issue(issue.id, attempt_count=floor)
+        except Exception:
+            continue
+
+
+def _credit_repair_generations(decision: Any) -> None:
+    """Charge an admitted repair to the Job's running spend.
+
+    Repairs run outside the Job's linked execution, so the step-9.3 recompute
+    in :func:`sync_job_from_execution` never sees them. Without this the cost
+    ceiling could only ever refuse the first cycle.
+    """
+    estimate = int(getattr(decision, "estimated_generations", 0) or 0)
+    cost = float(getattr(decision, "estimated_cost", 0.0) or 0.0)
+    if estimate <= 0 and cost <= 0:
+        return
+    try:
+        job = get_job(decision.job_id)
+        update_job(
+            job.id,
+            budget_spent={
+                "generations": int(job.budget_spent.generations) + estimate,
+                "cost": float(job.budget_spent.cost) + cost,
+            },
+            allow_terminal=True,
+        )
+    except Exception:
+        pass
+
+
+def _absorb_repair_execution(job_id: str, execution: Mapping[str, Any]) -> None:
+    """Register artifacts a repair run produced, without touching Job status.
+
+    Status stays derived from the Job's own execution record; a repair is
+    remediation inside that run, not a new one.
+    """
+    try:
+        job = get_job(job_id)
+        artifact_ids = _harvest_artifacts(job, execution)
+        if artifact_ids:
+            add_artifact_ids(job.id, artifact_ids, allow_terminal=True)
+    except Exception:
+        pass
+
+
+def _project_id_for_job(job: Job, manager: ExecutionManager) -> str | None:
+    """The project the Job already ran in, so repair runs hit its node cache."""
+    if not job.execution_id:
+        return None
+    record = _load_execution_record(job.execution_id, manager=manager)
+    if not isinstance(record, Mapping):
+        return None
+    return str(record.get("project_id") or "") or None
+
+
+def _maybe_run_repairs(
+    job: Job,
+    *,
+    manager: ExecutionManager,
+    workflow: Mapping[str, Any] | None,
+    timeout: float,
+) -> Job:
+    """Fire the Repair Router for a finished Job that carries open issues."""
+    if job.status not in TERMINAL_STATUSES or not job.issues:
+        return job
+    try:
+        outcome = run_job_repair_cycles(
+            job.id,
+            manager=manager,
+            workflow=workflow,
+            timeout=timeout,
+        )
+    except Exception:
+        # A repair cycle must never lose the completed run behind it.
+        return get_job(job.id)
+    return outcome.get("job") or get_job(job.id)
+
+
+# ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
 
@@ -782,10 +1210,17 @@ def _finalize_job_async(
     job_id: str,
     execution_id: str,
     manager: ExecutionManager,
+    *,
+    workflow: Mapping[str, Any] | None = None,
+    repair: bool = True,
 ) -> None:
     try:
         _wait_for_execution(manager, execution_id, timeout=3600.0)
-        sync_job_from_execution(job_id, manager=manager)
+        job = sync_job_from_execution(job_id, manager=manager)
+        if repair:
+            _maybe_run_repairs(
+                job, manager=manager, workflow=workflow, timeout=3600.0
+            )
     except Exception:
         # Finalization is best-effort; a failed sync must not crash the worker.
         # The Job remains linked to the execution and can be re-synced later.
@@ -884,6 +1319,7 @@ def assert_job_is_not_a_node() -> None:
 
 
 __all__ = [
+    "REPAIR_CYCLE_CEILING",
     "JobOrchestrationError",
     "approve_job",
     "assert_job_is_not_a_node",
@@ -893,8 +1329,11 @@ __all__ = [
     "load_job_workflow",
     "prepare_workflow_for_job",
     "reject_job",
+    "review_node_ids",
+    "run_job_repair_cycles",
     "start_job",
     "sync_job_from_execution",
     "run_node_test",
     "wait_for_job",
+    "workflow_for_repair",
 ]

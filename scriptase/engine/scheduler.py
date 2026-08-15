@@ -575,6 +575,12 @@ class WorkflowScheduler:
         stop_requested: Callable[[], bool] | None = None,
         force: bool = False,
         sleeper: Callable[[float], None] = time.sleep,
+        # Step 11.3: regenerate only these nodes, leaving the rest of the scope
+        # free to hit the cache. A targeted repair needs the responsible node to
+        # re-run while its upstream stays reused; global ``force`` would
+        # regenerate the whole scope, which is the opposite of repairing the
+        # smallest responsible scope.
+        force_node_ids: list[str] | None = None,
         input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
         source_artifact_ids: Mapping[str, list[str]] | None = None,
         # Step 4.2: nodes whose inputs came from sample bindings (not graph stubs).
@@ -626,6 +632,7 @@ class WorkflowScheduler:
         self.scope_node_ids = list(scope_node_ids or [node["id"] for node in workflow.get("nodes", [])])
         self.stop_requested = stop_requested or (lambda: False)
         self.force = force
+        self.force_node_ids = set(force_node_ids or [])
         self.sleeper = sleeper
         self.max_workers = max_workers
         self._state_lock = threading.RLock()
@@ -983,7 +990,7 @@ class WorkflowScheduler:
             node_id=node_id,
             fingerprint=fingerprint,
             components=components,
-            force=self.force,
+            force=self.force or node_id in self.force_node_ids,
         ) if cacheable else CacheLookup(False, "cache_disabled")
         node_record.cache = {"hit": lookup.hit, "reason": lookup.reason}
         if lookup.hit:

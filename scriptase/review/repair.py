@@ -435,6 +435,13 @@ def resolve_target_node_id(
 
     Prefers ``preferred_node_id`` when it still matches a routed type; otherwise
     the first enabled workflow node whose type is in ``routing.node_types``.
+
+    Returns None when a graph was supplied but holds no node of a routed type.
+    The §12.2 table names the class of node responsible for the fix, so
+    re-running anything else cannot repair the defect — and ``target_node_id``
+    on a ReviewIssue points at the node that *reported* it, which is usually
+    Review. Step 11.3 escalates that case instead of burning a provider call
+    on an unrelated node.
     """
     if not isinstance(workflow, Mapping):
         return preferred_node_id
@@ -459,7 +466,7 @@ def resolve_target_node_id(
                 node_id = node.get("id")
                 if isinstance(node_id, str) and node_id:
                     return node_id
-    return preferred
+    return None
 
 
 def estimate_repair_generations(
@@ -753,6 +760,18 @@ def decide_issue_repair(
         return _escalate(
             reason="Reviewer suggested escalation to human review",
             code=SUGGESTED_ESCALATE,
+        )
+
+    # Routed to an owner this graph does not contain — nothing to re-run.
+    # Unrecoverable by the same logic as UNROUTABLE: no amount of retrying
+    # makes a missing node appear.
+    if workflow is not None and not target_node_id:
+        return _escalate(
+            reason=(
+                f"No enabled {routing.label} node "
+                f"({', '.join(routing.node_types)}) in this workflow to repair at"
+            ),
+            code=UNROUTABLE,
         )
 
     # Low confidence → human, not blind auto-repair (Manual/Assisted).
