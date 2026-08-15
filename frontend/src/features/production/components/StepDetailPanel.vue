@@ -175,6 +175,13 @@ const primaryNodeType = computed(() => {
   return node?.type || ''
 })
 
+/** Registry display name for a member node, e.g. "Scene Director". */
+function nodeDisplayName(nodeId) {
+  const node = (props.workflow?.nodes || []).find((n) => n.id === nodeId)
+  const typeKey = node?.type || ''
+  return props.nodeTypes?.[typeKey]?.display_name || typeKey || ''
+}
+
 const primaryPorts = computed(() => {
   const typeKey = primaryNodeType.value
   const def = typeKey ? props.nodeTypes?.[typeKey] : null
@@ -355,6 +362,7 @@ function pretty(value) {
             <ul v-if="(stage.node_ids || []).length" class="node-ids">
               <li v-for="nid in stage.node_ids" :key="nid">
                 <code :class="{ primary: nid === primaryNodeId }">{{ nid }}</code>
+                <span v-if="nodeDisplayName(nid)" class="node-name">{{ nodeDisplayName(nid) }}</span>
               </li>
             </ul>
             <span v-else class="muted">None in this workflow</span>
@@ -709,6 +717,12 @@ function pretty(value) {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.node-name {
+  margin-left: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-muted, #8899aa);
 }
 
 .provider-capabilities {

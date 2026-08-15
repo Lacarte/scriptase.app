@@ -96,6 +96,14 @@ class RegistryContractTests(unittest.TestCase):
         self.assertFalse(is_supported("nope.missing", 1))
         self.assertIsNone(get_node_type("nope.missing"))
 
+    def test_scene_director_display_name_with_frozen_type_key(self):
+        """Step 11.5: renamed for the UI only — `scenes.blueprint` is frozen (contracts §1.2)."""
+        node = get_node_type("scenes.blueprint")
+        self.assertIsNotNone(node)
+        self.assertEqual(node["display_name"], "Scene Director")
+        self.assertEqual(node["type_version"], 1)
+        self.assertNotIn("Blueprint", node["description"])
+
     def test_dynamic_port_types_exclude_control(self):
         self.assertNotIn("control", DYNAMIC_PORT_TYPES)
         self.assertTrue(set(DYNAMIC_PORT_TYPES) < set(PORT_TYPES))

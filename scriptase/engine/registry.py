@@ -389,8 +389,8 @@ _NODE_TYPES = {
     },
     "scenes.blueprint": {
         "type_version": 1,
-        "display_name": "Scene Blueprint",
-        "description": "AI scene descriptions and image prompts for each segment.",
+        "display_name": "Scene Director",
+        "description": "Directs each segment into a scene: visual direction, scene description, and image prompt.",
         "category": "ai",
         "icon": "film",
         "inputs": [_TRIGGER_IN, _in("segments", "segments", required=True),

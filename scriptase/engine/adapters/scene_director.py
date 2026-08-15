@@ -1,4 +1,4 @@
-"""Workflow adapter for the Scene Blueprint node (`scenes.blueprint`).
+"""Workflow adapter for the Scene Director node (`scenes.blueprint`).
 
 Dispatches generically through the `scene_director` provider hub (step 13.4).
 The adapter never imports a concrete scene service; adding another scene-

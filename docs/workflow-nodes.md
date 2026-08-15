@@ -324,9 +324,9 @@ Generate a structured narration script with the selected script provider.
 | `webhook_url` | Webhook URL | `string` | `""` | no | max length 2048 |
 | `provider_options` | Provider options | `provider_options` | `{}` | no | — |
 
-### Scene Blueprint (`scenes.blueprint`)
+### Scene Director (`scenes.blueprint`)
 
-AI scene descriptions and image prompts for each segment.
+Directs each segment into a scene: visual direction, scene description, and image prompt.
 
 - **Type version:** 1
 - **Capabilities:** supports retry, error output, skip-optional; no cancel
