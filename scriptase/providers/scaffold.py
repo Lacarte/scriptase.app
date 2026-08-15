@@ -4,17 +4,26 @@ Creates a complete provider package from the live domain catalog, emits a
 generated contract-test file, and refuses unsafe inputs without leaving
 partial files on disk.
 
+Step 12.5 made this the whole add-a-provider path rather than only its first
+move: the CLI also runs the contract tests it just generated and regenerates
+the docs the new provider changes, because a scaffold that is neither proven
+nor documented is a file drop. `bin/new-provider.bat` is the one-command
+front end; it resolves the venv interpreter and forwards here, so the logic
+stays in Python where the test suite can reach it.
+
 Usage:
     python -m scriptase.providers.scaffold script scaffold_check
     python -m scriptase.providers.scaffold tts my_provider --kind cloud
-    python -m scriptase.providers.scaffold storyboard render_ext --kind extension
+    python -m scriptase.providers.scaffold image render_ext --kind extension
 """
 
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from scriptase.providers.domains import DOMAINS, DOMAIN_IDS, get_domain
 from scriptase.providers.validation import ID_RE, KINDS
@@ -949,8 +958,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="provider lifecycle class (default: local)",
     )
     parser.add_argument("--label", help="display label (default: title-cased provider_id)")
+    parser.add_argument(
+        "--no-tests",
+        action="store_true",
+        help="do not run the generated contract tests after scaffolding",
+    )
+    parser.add_argument(
+        "--no-docs",
+        action="store_true",
+        help="do not regenerate docs/providers.md and docs/provider-author-guide.md",
+    )
     parser.add_argument("--project-root", help=argparse.SUPPRESS)
     return parser
+
+
+def _run(argv: Sequence[str], *, cwd: Path) -> int:
+    """Run a follow-up step in this interpreter. Seam for the tests."""
+    # The child writes straight to the same console, so an unflushed parent
+    # buffer would print this script's narration *after* the output it
+    # introduces. Flush before handing the terminal over.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    return subprocess.call([sys.executable, *argv], cwd=str(cwd))
+
+
+def generated_test_path(paths: Sequence[Path]) -> Path | None:
+    """The contract-test file `scaffold_provider` wrote, if it wrote one."""
+    for path in paths:
+        if path.name.startswith("test_") and path.suffix == ".py":
+            return path
+    return None
 
 
 def main(argv: Iterable[str] | None = None) -> int:
@@ -969,7 +1006,32 @@ def main(argv: Iterable[str] | None = None) -> int:
     print(f"Scaffolded {args.domain}/{args.provider_id}:")
     for path in paths:
         print(f"  {path}")
+
+    root = Path(args.project_root) if args.project_root else Path(__file__).resolve().parents[2]
+
+    # Prove it. The generated tests are what make the new package trustworthy,
+    # so running them belongs to the scaffold rather than to the author's memory.
+    test_path = generated_test_path(paths)
+    if args.no_tests:
+        print("Skipped the generated contract tests (--no-tests).")
+    elif test_path is not None:
+        print(f"Running {test_path.name} ...")
+        if _run(["-m", "pytest", str(test_path), "-q"], cwd=root) != 0:
+            print(f"The generated contract tests failed: {test_path}", file=sys.stderr)
+            return 1
+
+    # Document it. A new provider joins the live catalog, so the generated docs
+    # are stale from the moment the package lands and `--check` would fail.
+    if args.no_docs:
+        print("Skipped the documentation refresh (--no-docs).")
+    else:
+        print("Regenerating provider documentation ...")
+        if _run(["-m", "scriptase.engine.docs"], cwd=root) != 0:
+            print("Documentation regeneration failed.", file=sys.stderr)
+            return 1
+
     print("Restart the app (or enable STS_WORKFLOW_DEV_RELOAD) to discover it.")
+    print("Enter credentials at /settings/providers — never in a file.")
     return 0
 
 

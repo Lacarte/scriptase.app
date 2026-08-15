@@ -753,9 +753,17 @@ class TemplateCompatibilityTests(SharedCatalogCase):
 # The diff guard (§26) — both directions
 # ---------------------------------------------------------------------------
 
-SOURCE_ROOTS = ("studio", "frontend/src", "docs")
-SOURCE_FILES = ("app.py", "config.py")
-SOURCE_SUFFIXES = (".py", ".js", ".vue", ".json", ".md", ".bat", ".html", ".css")
+# Step 12.5: this named V2's `studio` package until the rename to `scriptase`
+# left it pointing at a directory that does not exist. `os.walk` on a missing
+# base yields nothing silently, so the guard below scanned zero backend files
+# and would have passed no matter what the backend said. `tools` carries the
+# one-command scaffold path and is a source surface too (`bin/` is not: it is
+# gitignored for fetched binaries).
+SOURCE_ROOTS = ("scriptase", "frontend/src", "docs", "tools")
+SOURCE_FILES = ("app.py", "config.py", "new-provider.bat")
+SOURCE_SUFFIXES = (
+    ".py", ".js", ".vue", ".json", ".md", ".bat", ".ps1", ".html", ".css",
+)
 
 # Every id the shipped providers answer to, canonical and legacy (§40.3).
 SHIPPED_PROVIDER_IDS = (
@@ -877,6 +885,20 @@ def source_files():
 
 class ZeroTouchDiffTests(unittest.TestCase):
     """The mechanical form of "adding a provider touched only its folder"."""
+
+    def test_every_scanned_root_exists_and_the_backend_is_covered(self):
+        """The guard that keeps the guard honest (step 12.5).
+
+        A `SOURCE_ROOTS` entry naming a directory that no longer exists walks
+        nothing and reports success, which is exactly how the rename from
+        `studio` to `scriptase` disarmed the scan below without failing a test.
+        """
+        for root_name in SOURCE_ROOTS:
+            base = os.path.join(ROOT_DIR, *root_name.split("/"))
+            self.assertTrue(os.path.isdir(base), f"scanned root is missing: {root_name}")
+        scanned = source_files()
+        backend = [p for p in scanned if os.sep + "scriptase" + os.sep in p]
+        self.assertGreater(len(backend), 100, "the backend package is not being scanned")
 
     def test_no_shipped_file_mentions_a_fixture_provider(self):
         """Direction 1: the three additions are folder-plus-tests, and nothing else.

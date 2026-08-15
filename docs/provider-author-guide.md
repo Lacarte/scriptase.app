@@ -26,20 +26,22 @@ python -m scriptase.engine.docs --check
 
 ## 1. Scaffold
 
-Choose a stable lowercase id matching `^[a-z][a-z0-9_]{0,31}$`. It is the folder name, the manifest `id`, and the settings key — do not rename it after shipping. Pick one of the five catalog domains and a kind (`cloud`, `extension`, `local`, `webhook`).
+Choose a stable lowercase id matching `^[a-z][a-z0-9_]{0,31}$`. It is the folder name, the manifest `id`, and the settings key — do not rename it after shipping. Pick one of the 6 catalog domains and a kind (`cloud`, `extension`, `local`, `webhook`).
 
-The step 16.2 offline demo is reproducible with:
+One command does the whole path. From the repository root:
 
 ```powershell
-python -m scriptase.providers.scaffold script scaffold_check
+new-provider.bat tts my_provider --kind cloud
 ```
+
+It scaffolds the package, runs the contract tests it generates, and regenerates this guide and the Provider Reference from the live hub — the three things that always belong together. Run it with no arguments to see the domains, kinds, and options. It needs no activated venv: it resolves `venv/Scripts/python.exe` itself, and stops with `start.bat -Mode setup` if that interpreter is missing.
 
 Other shapes:
 
 ```powershell
-python -m scriptase.providers.scaffold tts my_provider --kind cloud
-python -m scriptase.providers.scaffold image my_renderer --kind extension
-python -m scriptase.providers.scaffold scene_director my_planner --kind webhook
+new-provider.bat image my_renderer --kind extension
+new-provider.bat scene_director my_planner --kind webhook
+new-provider.bat script scaffold_check          # the offline demo
 ```
 
 This creates:
@@ -50,7 +52,15 @@ This creates:
 - `…/runtime.py` — only when `--kind extension`.
 - `tests/test_provider_<domain>_<provider_id>.py` — generated contract tests.
 
-The command refuses unknown domains, invalid ids, existing packages, and colliding test files. Failure is atomic — no partial provider folder is left behind. Use `python -m scriptase.providers.scaffold --help` for options.
+Nothing else changes. That is the extensibility rule above, and `tests/test_provider_extensibility.py` fails if any other shipped file starts naming a provider.
+
+The command refuses unknown domains, invalid ids, existing packages, and colliding test files. Failure is atomic — no partial provider folder is left behind. Pass `--no-tests` or `--no-docs` to skip a follow-up step, for example while scripting a batch of packages.
+
+On a non-Windows shell, or to drive it from another script, call the same CLI directly — the `.bat` only resolves the interpreter:
+
+```powershell
+venv/Scripts/python.exe -m scriptase.providers.scaffold tts my_provider --kind cloud
+```
 
 ## 2. Manifest
 
@@ -60,7 +70,7 @@ Edit `manifest.py`. Keep `id` equal to the folder name and `domain` equal to the
 |---|---|
 | `id` | Folder name; `^[a-z][a-z0-9_]{0,31}$` |
 | `label` | Browser-safe display name |
-| `domain` | One of the five catalog domains |
+| `domain` | One of the 6 catalog domains |
 | `kind` | One of `cloud`, `extension`, `local`, `webhook` |
 | `version` | Semver string |
 | `contract_version` | `2` for the invocation/result envelope |
@@ -139,7 +149,7 @@ Write under the domain/project output roots already used by the pipeline. Use `s
 
 ## 7. Tests
 
-Run the generated contract tests first, then add domain-specific cases. Reusable suites and offline fakes live in `scriptase.providers.contract_tests`.
+Step 1 already ran the generated contract tests once. Re-run them as you implement, then add domain-specific cases. Reusable suites and offline fakes live in `scriptase.providers.contract_tests`.
 
 ```powershell
 venv/Scripts/python.exe -m pytest tests/test_provider_script_scaffold_check.py -q
@@ -158,7 +168,7 @@ One provider's import, health, execution, or shutdown failure must not hide heal
 ## 9. Ship
 
 1. Keep `create()`, manifest `id`, and folder name aligned.
-2. Run generated + domain tests; regenerate docs (`python -m scriptase.engine.docs`).
+2. Run generated + domain tests; regenerate docs (`new-provider.bat` did both for the initial scaffold — repeat with `venv/Scripts/python.exe -m scriptase.engine.docs` after later edits).
 3. Restart the app (or rely on dev reload).
 4. Confirm the provider appears in the catalog, accepts settings, reports health, and runs on the generic domain node — without editing that node.
 5. Commit the provider package, tests, and generated docs together.
@@ -401,6 +411,6 @@ Snapshot of providers discovered when this guide was generated.
 | `PROVIDER_ARTIFACT_UNMANAGED` | Absolute path in result | Use `normalize_ref` and managed output roots only |
 | Contract test fails on capabilities | Declared key outside domain vocabulary | Remove the key or add it to `DomainSpec.capability_vocabulary` (platform change, not a plugin) |
 | Docs check fails | Manifest/domain change without regen | `python -m scriptase.engine.docs` then commit `docs/providers.md` and `docs/provider-author-guide.md` |
-| Wanted a sixth domain | Out of scope for a provider package | Add a `DomainSpec` entry and providers folder as a platform change; Music/Captions stay non-provider by design |
+| Wanted a new domain | Out of scope for a provider package | Add a `DomainSpec` entry and providers folder as a platform change; Music/Captions stay non-provider by design |
 
 Provider API routes are **loopback-only**. Errors use `{"error": {"code", "message", "details?"}}`.

@@ -8,12 +8,16 @@ from pathlib import Path
 import pytest
 
 from scriptase.providers.domains import DOMAIN_IDS
+from scriptase.providers import scaffold as scaffold_module
 from scriptase.providers.scaffold import (
     ScaffoldError,
     build_parser,
+    generated_test_path,
     scaffold_provider,
 )
 from scriptase.providers.validation import ID_RE, KINDS
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load(path: Path, name: str):
@@ -199,3 +203,112 @@ def test_committed_scaffold_check_runs_on_generic_story_node(tmp_path, monkeypat
     )
     assert outputs["script"].startswith("Node:")
     assert (stories / "pm_SCFF01" / "story.json").is_file()
+
+
+# ---------------------------------------------------------------------------
+# Step 12.5 — the one-command add-a-provider path
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def recorded_runs(monkeypatch):
+    """Capture the follow-up steps `main` delegates to, without running them."""
+    calls: list[list[str]] = []
+
+    def fake_run(argv, *, cwd):
+        calls.append(list(argv))
+        return 0
+
+    monkeypatch.setattr(scaffold_module, "_run", fake_run)
+    return calls
+
+
+def test_one_command_scaffolds_then_tests_then_documents(tmp_path, recorded_runs):
+    """The three steps that always belong together, in that order."""
+    code = scaffold_module.main(
+        ["tts", "one_cmd", "--kind", "cloud", "--project-root", str(tmp_path)]
+    )
+    assert code == 0
+    package = tmp_path / "scriptase" / "modules" / "tts" / "providers" / "one_cmd"
+    assert (package / "manifest.py").is_file()
+
+    assert len(recorded_runs) == 2, recorded_runs
+    pytest_call, docs_call = recorded_runs
+    assert pytest_call[:2] == ["-m", "pytest"]
+    assert pytest_call[2].endswith("test_provider_tts_one_cmd.py")
+    assert docs_call == ["-m", "scriptase.engine.docs"]
+
+
+def test_one_command_steps_can_be_skipped_individually(tmp_path, recorded_runs):
+    scaffold_module.main(
+        ["tts", "skip_both", "--no-tests", "--no-docs", "--project-root", str(tmp_path)]
+    )
+    assert recorded_runs == []
+
+    scaffold_module.main(["tts", "skip_docs", "--no-docs", "--project-root", str(tmp_path)])
+    assert len(recorded_runs) == 1
+    assert recorded_runs[0][:2] == ["-m", "pytest"]
+
+
+def test_failing_contract_tests_fail_the_command_and_stop_before_docs(tmp_path, monkeypatch):
+    """A scaffold whose own generated tests fail must not be reported as success."""
+    calls: list[list[str]] = []
+
+    def fake_run(argv, *, cwd):
+        calls.append(list(argv))
+        return 1
+
+    monkeypatch.setattr(scaffold_module, "_run", fake_run)
+    code = scaffold_module.main(["tts", "bad_tests", "--project-root", str(tmp_path)])
+    assert code == 1
+    assert len(calls) == 1, "docs regeneration ran despite failing contract tests"
+
+
+def test_failing_docs_regeneration_fails_the_command(tmp_path, monkeypatch):
+    def fake_run(argv, *, cwd):
+        return 0 if argv[1] == "pytest" else 1
+
+    monkeypatch.setattr(scaffold_module, "_run", fake_run)
+    code = scaffold_module.main(["tts", "bad_docs", "--project-root", str(tmp_path)])
+    assert code == 1
+
+
+def test_generated_test_path_picks_the_generated_test(tmp_path):
+    paths = scaffold_provider("tts", "find_test", project_root=tmp_path)
+    found = generated_test_path(paths)
+    assert found is not None
+    assert found.name == "test_provider_tts_find_test.py"
+    assert generated_test_path([p for p in paths if not p.name.startswith("test_")]) is None
+
+
+def test_the_one_command_entry_point_is_committed_and_only_transports():
+    """`bin/` is gitignored, so the entry point lives beside `start.bat`.
+
+    It must also stay transport: the logic belongs in `scaffold.py`, where the
+    headless loop — which can run pytest but not PowerShell — can verify it.
+    """
+    entry = REPO_ROOT / "new-provider.bat"
+    driver = REPO_ROOT / "tools" / "new-provider.ps1"
+    assert entry.is_file(), "the documented one-command entry point is missing"
+    assert driver.is_file()
+
+    entry_text = entry.read_text(encoding="utf-8")
+    assert "tools\\new-provider.ps1" in entry_text
+    assert "%*" in entry_text, "arguments must be forwarded verbatim"
+
+    driver_text = driver.read_text(encoding="utf-8")
+    assert "scriptase.providers.scaffold" in driver_text
+    assert "venv\\Scripts\\python.exe" in driver_text, "python is not on PATH here"
+    # No second copy of the scaffolder's vocabulary to rot.
+    for domain in DOMAIN_IDS:
+        assert f"'{domain}'" not in driver_text
+
+
+def test_the_author_guide_documents_the_one_command_path():
+    """The guide is generated; this is what keeps the prose pointing at reality."""
+    guide = (REPO_ROOT / "docs" / "provider-author-guide.md").read_text(encoding="utf-8")
+    assert "new-provider.bat" in guide
+    assert "--no-tests" in guide and "--no-docs" in guide
+    # The counted claim must track the live catalog, not a frozen number.
+    assert f"{len(DOMAIN_IDS)} catalog domains" in guide
+    assert "five catalog domains" not in guide
