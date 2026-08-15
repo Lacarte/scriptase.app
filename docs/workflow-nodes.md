@@ -4,7 +4,7 @@
 
 # Workflow Node Reference
 
-Registry version **4** — 24 node types across 9 categories.
+Registry version **4** — 25 node types across 9 categories.
 
 Connections require the source and target port to have the **same** type; there are no implicit conversions. `control` ports carry execution order only and never data. Dynamic ports (`stub.input`, `stub.output`, `workflow.output`) take the type chosen in the node's `port_type` setting.
 
@@ -360,6 +360,43 @@ AI scene descriptions and image prompts for each segment.
 | `story_tone` | Story tone | `options` | `""` | no | options from `story_tones` |
 | `provider_options` | Provider options | `provider_options` | `{}` | no | — |
 
+### Review (`review.run`)
+
+Quality review of the generated stills and clips. Deterministic technical validators always run; the selected review provider adds semantic findings when enabled. Emits structured issues only.
+
+- **Type version:** 1
+- **Capabilities:** supports retry, error output, skip-optional; no cancel
+
+**Inputs**
+
+| Port | Type | Notes |
+|---|---|---|
+| `trigger` | `control` | optional |
+| `images` | `storyboard_images` | optional |
+| `assets` | `animation_assets` | optional |
+| `scenes` | `scenes` | optional |
+| `settings` | `project_settings` | optional |
+
+**Outputs**
+
+| Port | Type | Notes |
+|---|---|---|
+| `control` | `control` | — |
+| `issues` | `generic_json` | — |
+| `error` | `control` | — |
+
+**Configuration**
+
+| Field | Label | Widget | Default | Required | Constraints |
+|---|---|---|---|---|---|
+| `provider_id` | Provider | `provider` | `"semantic"` | yes | options from `review_providers` |
+| `subject` | Review subject | `options` | `"auto"` | no | one of `auto`, `images`, `videos` |
+| `semantic` | Run semantic review | `boolean` | `false` | no | — |
+| `aspect_ratio` | Expected aspect ratio | `options` | `"9:16"` | no | one of `9:16`, `16:9`, `1:1` |
+| `require_audio` | Clips must carry audio | `boolean` | `false` | no | hidden when `subject` is `"images"` |
+| `fail_on_blocking` | Fail this node on blocking issues | `boolean` | `false` | no | — |
+| `provider_options` | Provider options | `provider_options` | `{}` | no | — |
+
 ## Assets nodes
 
 ### Storyboard (`storyboard.generate`)
@@ -426,6 +463,9 @@ Timeline media (video/image) per scene via the asset grabber.
 | `provider_id` | Provider | `provider` | `"grok_automa"` | yes | options from `video_providers` |
 | `aspect_ratio` | Aspect ratio | `options` | `"9:16"` | no | one of `9:16`, `16:9`, `1:1` |
 | `arguments` | Extra arguments | `string` | `""` | no | — |
+| `skip_quality_gate` | Skip the image quality gate | `boolean` | `false` | no | — |
+| `image_gate_max_repairs` | Image gate repair attempts | `number` | `1` | no | range 0–5; integer; hidden when `skip_quality_gate` is `true` |
+| `image_gate_semantic` | Add semantic review to the image gate | `boolean` | `false` | no | hidden when `skip_quality_gate` is `true` |
 | `provider_options` | Provider options | `provider_options` | `{}` | no | — |
 
 ## Video nodes

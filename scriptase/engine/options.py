@@ -10,9 +10,10 @@ project) rather than nothing at all, which is what lets one dropdown depend on
 the selected provider. Two consequences follow directly:
 
   - `_provider_options` stops hardcoding image and video (P32). One
-    resolver serves all five `*_providers` sources, reading the domain off the
+    resolver serves every `*_providers` source, reading the domain off the
     source's `OptionSourceSpec`, so a sixth domain is a spec entry and nothing
-    else.
+    else. Step 11.1 collected on that promise: `review_providers` is a spec
+    entry plus one line in `_RESOLVERS`.
   - the cache key is `(source, normalized_context)` rather than the bare source
     (§23.4). A per-source cache was already wrong the moment options depend on
     settings: changing an API key has to make the voice list refetch.
@@ -375,7 +376,7 @@ def _style_templates(_ctx: OptionContext):
 def _provider_options(ctx: OptionContext):
     """Configured instances for the source's domain (step 3.2).
 
-    Reads the domain off the spec, so all five `*_providers` sources share one
+    Reads the domain off the spec, so every `*_providers` source shares one
     resolver. Values are **instance** ids so a node can select two bindings of
     the same type. Types with no stored instance still appear as their default
     binding (`instance_id == type`). A provider that failed discovery is
@@ -490,6 +491,7 @@ _RESOLVERS = {
     "tts_providers": _provider_options,
     "image_providers": _provider_options,
     "video_providers": _provider_options,
+    "review_providers": _provider_options,
     "image_models": _image_models,
     "story_tones": _story_tones,
     "style_templates": _style_templates,

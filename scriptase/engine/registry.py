@@ -68,6 +68,10 @@ ASYNC_OPTION_SOURCES = {
     "tts_providers": OptionSourceSpec(cache="settings", domain="tts"),
     "image_providers": OptionSourceSpec(cache="settings", domain="image"),
     "video_providers": OptionSourceSpec(cache="settings", domain="video"),
+    # Step 11.1: the sixth domain finally gets a node. Adding it is exactly what
+    # P32 promised — one spec entry plus one `_RESOLVERS` line, no new resolver
+    # and no frontend edit.
+    "review_providers": OptionSourceSpec(cache="settings", domain="review"),
     # Read by an image provider's own `image_model` setting (§22.4). The
     # Storyboard page used to fetch this list itself and render a bespoke
     # `<select>` beside its webhook fields; step 12.4 moved the field into the
@@ -103,6 +107,43 @@ CATEGORIES = {
 }
 
 _ASPECT_RATIOS = ["9:16", "16:9", "1:1"]
+
+
+def _quality_gate_fields():
+    """The early-quality-gate keys the gate has always read (step 11.1).
+
+    `enforce_image_gate_for_video` has read all three off the node
+    configuration since step 7.4 (`review/gates.py:712, 751, 757`) while no node
+    declared them. Because save-time validation rejects an undeclared key
+    (`validation.py:325-327`), setting one was impossible and the gate ran on
+    its hardcoded fallbacks forever. Declaring them is the whole fix — the
+    reading code is untouched.
+
+    These are additive optional keys with defaults, which contracts §41.2
+    states explicitly does **not** bump `type_version`: nothing is renamed,
+    removed, or re-typed, so every saved workflow keeps loading and its
+    configuration fingerprint (and therefore its cache) stays valid. A bump
+    would demand a migration whose only job is to write the defaults.
+    """
+    return [
+        {"name": "skip_quality_gate", "label": "Skip the image quality gate",
+         "type": "boolean", "default": False,
+         "description": (
+             "Animate without checking the source stills first. The gate is what "
+             "stops an expensive generation starting from a broken image."
+         )},
+        {"name": "image_gate_max_repairs", "label": "Image gate repair attempts",
+         "type": "number", "default": 1, "min": 0, "max": 5, "step": 1, "integer": True,
+         "description": "How many times a failing still may be regenerated before the gate blocks.",
+         "display_options": {"hide": {"skip_quality_gate": [True]}}},
+        {"name": "image_gate_semantic", "label": "Add semantic review to the image gate",
+         "type": "boolean", "default": False,
+         "description": (
+             "Run the semantic reviewer alongside the always-on technical "
+             "validators. Slower, and it may cost a provider call."
+         ),
+         "display_options": {"hide": {"skip_quality_gate": [True]}}},
+    ]
 
 
 def _in(port_id, port_type, *, required=False):
@@ -409,10 +450,74 @@ _NODE_TYPES = {
             {"name": "aspect_ratio", "label": "Aspect ratio", "type": "options",
              "options": _ASPECT_RATIOS, "default": "9:16"},
             {"name": "arguments", "label": "Extra arguments", "type": "string", "default": ""},
+            # Step 11.1. The image gate guards *this* node: `video.py:213` calls
+            # `enforce_image_gate_for_video(inputs, merged, context)` where
+            # `merged` is this node's configuration, so this is the only place
+            # the three keys are read. Declaring them on `storyboard.generate`
+            # as well would render three controls that nothing consumes — the
+            # Storyboard adapter has no gate call, and `inherited_config` here
+            # merges the `project_settings` port, never another node's config.
+            *_quality_gate_fields(),
             _provider_options_field("video"),
         ],
         "capabilities": {"retry": True, "cancel": False},
         "executor": "scriptase.engine.adapters.video:generate",
+    },
+    "review.run": {
+        # Step 11.1 — the `review` domain finally gets a node. It was the only
+        # one of six with no consumer, so `plan_job_repairs` and friends had
+        # nothing to plan against. `PRIMARY_STAGE_BY_TYPE` already reserved this
+        # key for the Review stage (`jobs/stage_projection.py:64`).
+        "type_version": 1,
+        "display_name": "Review",
+        "description": (
+            "Quality review of the generated stills and clips. Deterministic "
+            "technical validators always run; the selected review provider adds "
+            "semantic findings when enabled. Emits structured issues only."
+        ),
+        "category": "ai",
+        "icon": "shield-check",
+        # Every media input is optional so one node can review stills, clips, or
+        # both, and a graph that only produced one of them still validates.
+        "inputs": [_TRIGGER_IN,
+                   _in("images", "storyboard_images"),
+                   _in("assets", "animation_assets"),
+                   _in("scenes", "scenes"),
+                   _in("settings", "project_settings")],
+        "outputs": [_CONTROL_OUT, _out("issues", "generic_json")],
+        "config_schema": [
+            _provider_field("review"),
+            {"name": "subject", "label": "Review subject", "type": "options",
+             "options": ["auto", "images", "videos"], "default": "auto",
+             "description": "AUTO reviews whichever media ports are connected."},
+            # Provider selection and "am I willing to pay for it" are separate
+            # decisions: the technical validators are free and always run, so
+            # semantic review is opt-in rather than implied by having a provider
+            # bound. Mirrors `image_gate_semantic` on the Animator.
+            {"name": "semantic", "label": "Run semantic review",
+             "type": "boolean", "default": False,
+             "description": (
+                 "Ask the review provider for semantic findings on top of the "
+                 "technical checks. Slower, and it may cost a provider call."
+             )},
+            {"name": "aspect_ratio", "label": "Expected aspect ratio", "type": "options",
+             "options": _ASPECT_RATIOS, "default": "9:16"},
+            {"name": "require_audio", "label": "Clips must carry audio",
+             "type": "boolean", "default": False,
+             "display_options": {"hide": {"subject": ["images"]}}},
+            # Phase 11.3 owns escalation and repair. Until then this node
+            # reports; it does not decide. Default off so adding Review to a
+            # working graph cannot start failing runs.
+            {"name": "fail_on_blocking", "label": "Fail this node on blocking issues",
+             "type": "boolean", "default": False,
+             "description": (
+                 "Raise QUALITY_GATE_FAILED instead of passing the issues "
+                 "downstream. Leave off to let the Repair Router handle them."
+             )},
+            _provider_options_field("review"),
+        ],
+        "capabilities": {"retry": True, "cancel": False},
+        "executor": "scriptase.engine.adapters.review:run",
     },
     "captions.generate": {
         "type_version": 1,
