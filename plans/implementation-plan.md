@@ -566,6 +566,275 @@ with drift checks. Run the full end-to-end acceptance from proposition-final.md.
 
 ---
 
+## Phase 11 — Wire the correction loop
+
+Phases 7 and 8 built the Reviewer and the Repair Router and never connected them. In a real
+run **no ReviewIssue is created and no repair fires**: `plan_job_repairs`,
+`process_job_repairs`, and `apply_repair_plan` (`scriptase/review/repair.py:900, 1221, 1268`)
+have zero callers outside tests, no `review.*` node is registered, and the `review` provider
+domain is the only one of six with no node consuming it. This phase writes almost no new
+logic — it wires up roughly 6,500 existing, tested lines.
+
+### 11.1 Register the review node and expose gate configuration
+
+Add a provider-capable `review.run` node against the orphaned `review` domain, built from the
+existing `_provider_field` / `_provider_options_field` helpers
+(`scriptase/engine/registry.py:133-164`). Its executor wraps `run_technical_validators()`
+(`scriptase/review/technical.py:986`) and, when an instance is selected, the `semantic`
+reviewer. Declare the quality-gate keys `skip_quality_gate`, `image_gate_max_repairs`, and
+`image_gate_semantic` in the Image and Video `config_schema` — they are read at
+`scriptase/review/gates.py:712-797` but declared nowhere, so no user can reach them. Write the
+`type_version` migrations in this same step; the runner refuses to skip a hop.
+
+**Done when:** `review.run` appears in the node catalogue with its config rendering in the inspector, the three gate keys are settable from the UI, and saved workflows migrate without manual edits.
+
+### 11.2 Emit ReviewIssues during a real run
+
+Call `create_from_technical` and `create_from_review_result` from the review adapter and
+persist through `scriptase/review/store.py:69-90`. Attach the issue ids to the Job through the
+projection path that already reads them (`scriptase/jobs/stage_projection.py:439-501`).
+
+**Done when:** a Job run against a deliberately broken artifact ends with persisted ReviewIssues carrying target node, target artifact, severity, and confidence.
+
+### 11.3 Fire the Repair Router from job orchestration
+
+Wire `plan_job_repairs` → `apply_repair_plan` → `process_job_repairs` into
+`scriptase/jobs/orchestration.py`, which today contains no reference to review or repair at
+all. Route through the frozen §12.2 ownership table (`scriptase/review/policy.py:34-76`, entry
+point `route_issue()` at `:367`). Bound every cycle by the Channel's
+`review_policy.max_repairs` and the pre-flight budget check
+(`scriptase/jobs/budget.py:247`). Prove escalation before proving repair: this step introduces
+re-execution into a path that has never re-executed.
+
+**Done when:** a bad scene image is repaired at the responsible node only, re-reviewed, and the Job continues; and an issue that exceeds `max_repairs` escalates instead of looping.
+
+### 11.4 Surface issues and repair history in Production
+
+Render `stage.issues` in `StepDetailPanel.vue` — the projection already carries them and no
+frontend code reads them. Add a repair-history pane backed by the existing read-only endpoint
+`GET /api/jobs/<job_id>/repair-history` (`scriptase/jobs/routes.py:302`), which nothing
+currently calls.
+
+**Done when:** a repaired Job shows each issue, the node it was routed to, what was retried, and the superseded artifact versions.
+
+### 11.5 Rename Scene Blueprint to Scene Director
+
+The node still carries V2's display name "Scene Blueprint" (`scriptase/engine/registry.py:349`),
+which is why the stage is hard to find in the library. Change the display name and description
+only — the type key `scenes.blueprint` must not change, per contracts §1.2.
+
+**Done when:** the node library and Production both show "Scene Director", and a saved V2-era workflow still loads and runs unchanged.
+
+---
+
+## Phase 12 — Simplify the canvas and make providers usable
+
+### 12.1 Node visibility
+
+Add a `hidden` flag to registry definitions and honour it in the `groups` computed at
+`frontend/src/features/workflow/components/NodeLibrary.vue:14-31`. Hide the utility and
+testing nodes and anything outside the Full Video path. Nodes stay registered and executable,
+so saved workflows and the test suite are unaffected. Add a "Show all nodes" toggle so the
+palette is recoverable. Make visibility explicit rather than relying on `CATEGORY_ORDER`
+(`:12`), which silently drops any category missing from the array.
+
+**Done when:** the library shows only the Full Video stages by default, the toggle reveals the rest, and every hidden node still runs.
+
+### 12.2 Full Video as the default canvas
+
+Opening `/workflow` with nothing saved currently shows an empty canvas reading "Drag a node
+from the library to start building". Load the Full Video template instead
+(`scriptase/engine/templates.py:39`).
+
+**Done when:** a fresh install opens a complete, runnable Full Video graph and Production's workflow dropdown is populated on first use.
+
+### 12.3 Mount the real provider selector on nodes
+
+`frontend/src/features/providers/components/ProviderSelector.vue` already implements
+availability states, disabled-with-reason entries, a health probe, capability badges, and a
+settings gear — and is mounted by nothing. Give it a controlled `modelValue` mode (props in,
+emit out) beside its current catalog-bound mode, then use it in place of the bare `<select>`
+at `ConfigField.vue:242-256` for `type === 'provider'`. The option source already returns
+configured instances, so instance selection is preserved.
+
+**Done when:** the node inspector shows per-instance health and availability, and an unconfigured instance is visibly unusable instead of failing at run time.
+
+### 12.4 A Settings route for provider instances
+
+There is no Settings page, so credentials cannot be entered from the browser at all. Add
+`/settings/providers` mounting the finished-but-unmounted `ProviderConfigurator.vue` and
+`ProviderSettingsModal.vue` (which already has Test Connection and Save), plus create, rename,
+and delete of named instances against the existing `/api/providers/*` routes. Secrets stay
+write-only.
+
+**Done when:** a user can add a second named instance, enter its key, test the connection, and select it on a node without editing a file, and no credential is ever echoed back.
+
+### 12.5 Document and script the add-a-provider path
+
+`scriptase/providers/scaffold.py` already generates a conforming provider package per domain.
+Wire it to a documented one-command path and regenerate the provider author guide from the
+live hub.
+
+**Done when:** adding a provider requires creating and registering its package alone, proven by the existing extensibility test that fails if any other file changes.
+
+---
+
+## Phase 13 — Serial queue and real node testing
+
+### 13.1 Run Jobs strictly in queue
+
+`GLOBAL_WORK_POOL_SIZE` (`config.py:138`) defaults to 4, so Jobs run four at a time. Default it
+to 1 for strict submission-order execution, keeping `SCRIPTASE_GLOBAL_WORKERS` as the
+override, and surface queue position in the Production and Run Queue views. The per-project
+FIFO and fair rotation in `scriptase/engine/execution.py:175-200` already provide the
+ordering.
+
+**Done when:** three Jobs started together execute strictly one after another, each showing its queue position, and raising the override restores concurrency.
+
+### 13.2 Accept a provider override on a test run
+
+Add a one-shot `provider_instance_id` to `POST /api/jobs/<job_id>/test-node`
+(`scriptase/jobs/routes.py:373`) and the workflow run path, resolved for that execution only
+and recorded in provenance's `selection_reason`. It must never mutate the node's stored
+configuration.
+
+**Done when:** one node can be tested against two instances back to back, each result recording which instance produced it, with the saved node config unchanged.
+
+### 13.3 Test any node from the canvas, with a provider picker
+
+`TestNodePanel.vue` already handles per-port input binding, run-mode derivation, and Job
+safety, but is reachable only from Production stage rows and shows the provider as read-only
+text (`:157-162`). Add a provider picker wired to 13.2 and open the panel from the canvas node
+context menu, replacing the three blind isolation items at `WorkflowPage.vue:1044-1046` that
+fire immediately with no inputs and no provider choice.
+
+**Done when:** right-clicking any node opens the test panel with input pickers and a provider choice, and a test run never advances the bound Job.
+
+---
+
+## Phase 14 — Video editor and export library
+
+The backend is already ported: `scriptase/modules/compose/` is a refactored split of V2's
+editor routes, and all 33 endpoints the editor calls plus the seven export-library routes in
+`compose/export_routes.py` are live. This phase is a frontend port.
+
+### 14.1 Shared prerequisites
+
+Port `frontend/src/shared/utils/format.js` from V2 (missing here, used by both features) and
+add the three CSS custom properties `editor.css` expects and the current theme lacks:
+`--bg-darker`, `--border-subtle`, `--text-dim`.
+
+**Done when:** both exist and the frontend suite stays green.
+
+### 14.2 Port the timeline editor
+
+Copy `frontend/public/js/editor/*` verbatim — `video-editor.js` (12,106 lines), `preview.js`,
+`export-api.js`, `utils.js` — they are self-contained ES modules using only `fetch`, DOM ids,
+and `window.*`. Then port the Vue host `frontend/src/features/editor/*`: `EditorPage.vue`,
+`useEditor.js`, `editor-shell-html.js`, `editor-inline-scripts.js`, eight dialog components,
+and `editor.css`. Replace the Pinia `stagingStore` import in `useEditor.js` with
+`sessionStorage` plus route query, since this app has no Pinia. Add the `/editor` route, which
+fixes the dead "Open in Timeline Editor" button at `ExecutionPanel.vue:175-179` that currently
+navigates to a blank page. Port it as-is; it has no test suite to catch a rewrite going wrong.
+
+**Done when:** an assembled project opens in the editor, scenes reorder, audio tracks play, edits persist to `work@in@progress.json`, and an export starts.
+
+### 14.3 Port the export library
+
+Copy `frontend/src/features/export-library/*` — idiomatic Vue 3 with no legacy bridge, whose
+only missing dependency is `format.js` from 14.1 — and add the `/exports` route.
+
+**Done when:** every exported video is listed with thumbnail, duration, resolution, and aspect ratio, and download, ZIP, delete, and folder-sync all work.
+
+### 14.4 Open both in their own windows
+
+Open `/editor` and `/exports` through `window.open` with sized features, from Production, the
+workflow execution panel, and the nav, so Production keeps running while you edit.
+
+**Done when:** both open as separate windows, survive a reload, and remain directly linkable by URL.
+
+---
+
+## Phase 15 — Bundled Chromium and the extensions
+
+Two production providers are extension transports: a real logged-in browser is mandatory
+because Grok and Gemini have no usable API for this. The WebSocket hubs already exist
+(`scriptase/modules/video/ws_runtime.py:35`, `scriptase/modules/image/gemini_ws.py:40`).
+Nothing about Chromium exists in V2's Python, so there is no app code to untangle.
+
+### 15.1 Chromium bootstrap in PowerShell
+
+Rewrite V2's 253-line `launch-chromium.bat` as a PowerShell module beside `tools/launch.ps1`:
+download ungoogled-Chromium from the GitHub releases API when `bin/chromium/` is empty rather
+than vendoring the 183 MB zip, extract it, and maintain `data/chromium-profile/`. The
+persistent profile is the entire point — it holds the Google and Grok logins.
+
+**Done when:** a clean checkout downloads and launches Chromium once, and later launches reuse it in about a second.
+
+### 15.2 Port the four extensions
+
+Bring `STS-grok-sync`, `STS-gemini-sync`, `STS-devtools-extension`, and
+`ai-web-auto-extension` into `tools/extensions/`, and pin them by their existing hardcoded
+ids, which survive a copy. Port blocker: the extensions hardcode `ws://localhost:5050` while
+Scriptase serves on 5000 — make the endpoint configurable and inject the real port at launch
+rather than hardcoding either value, or the sockets silently never connect and it looks like a
+provider bug.
+
+**Done when:** all four load pinned in the profile and both provider hubs report a connected socket.
+
+### 15.3 Launcher sequencing
+
+Follow V2's proven order: Flask first because the extensions need the WebSocket, then
+Chromium, then Vite. Open the app through CDP `json/new` against the existing window instead
+of spawning a second browser. A Chromium failure must be non-fatal; a Vite failure stays
+fatal.
+
+**Done when:** `start.bat` yields a Chromium window with the app and provider tabs loaded, and a Chromium failure still leaves a working app in the default browser.
+
+### 15.4 The ai-web-auto backend
+
+A separate repository with its own venv and a `:8765` server — the most tangled dependency
+carried over from V2. Vendor it under `tools/automation/ai-web-auto/`, provision its venv from
+the main launcher, and start it only when its port is free.
+
+**Done when:** the launcher starts it when absent, skips it when already listening, and its absence degrades to a warning rather than blocking startup.
+
+---
+
+## Phase 16 — Script virality analyzer
+
+Greenfield. V2's `resources/niche-analyzer/` is four sample media files its own notes marked
+for deletion, and no scoring logic has ever existed. What is reusable is the taxonomy.
+
+### 16.1 Deterministic scoring module
+
+New `scriptase/modules/viral/` scoring measurable signals, reusing V2's structure: the
+mandated Hook / Build / Climax / CTA sections, the fifteen hook archetypes from
+`_ANGLE_STARTERS`, and the `narrative_role` enum already flowing through Scene Director. Score
+hook presence and position, opening-line strength against the archetypes, pacing and word rate
+against the target duration, open loops, CTA presence, and section balance. Offline,
+deterministic, unit-testable, and free to run.
+
+**Done when:** a known-strong and a known-weak script produce clearly separated scores with per-dimension reasons, and identical input always scores identically.
+
+### 16.2 The script.analyze node
+
+Provider-capable against a new optional `viral` domain that defaults to the deterministic
+scorer, so an LLM judge can be added later without changing the node contract. Sits after
+Script and emits a typed score plus dimension breakdown.
+
+**Done when:** the node runs inside the Full Video graph and emits a typed result that the Composer path ignores and Review can read.
+
+### 16.3 Script-stage panel and Review integration
+
+Show the score and its dimension breakdown on the Script stage in Production, before the
+expensive stages run. Emit a ReviewIssue when the score falls below the Channel threshold so
+the Repair Router — live as of 11.3 — routes a weak hook back to Script.
+
+**Done when:** a weak script surfaces a low score before TTS runs, and an Assisted-mode Job pauses at the script checkpoint.
+
+---
+
 ## Step count and sequencing
 
 | Phase | Steps | Notes |
@@ -581,12 +850,25 @@ with drift checks. Run the full end-to-end acceptance from proposition-final.md.
 | 8 — Repair Router | 8.1–8.4 (4) | 8.3 needs the per-unit provenance decision first. |
 | 9 — Automation | 9.1–9.3 (3) | 9.1 consumes 2.6; 9.3 consumes 3.5. |
 | 10 — Migration and hardening | 10.1–10.4 (4) | 10.2 must not change engine behaviour. |
+| **11 — Wire the correction loop** | 11.1–11.5 (5) | Sequential. **11.3 changes run behaviour** — land it alone. |
+| **12 — Canvas and provider UX** | 12.1–12.5 (5) | 12.3 before 12.4; 12.1/12.2 independent. |
+| **13 — Serial queue and testing** | 13.1–13.3 (3) | 13.2 gates 13.3. |
+| **14 — Editor and export library** | 14.1–14.4 (4) | 14.1 first; 14.2/14.3 parallel after it. |
+| **15 — Chromium and extensions** | 15.1–15.4 (4) | 15.2 is the port blocker; 15.4 is optional-degrading. |
+| **16 — Virality analyzer** | 16.1–16.3 (3) | 16.3 depends on 11.3 being live. |
 
-**46 steps across 11 phases.** Critical path:
+**70 steps across 17 phases** — 46 delivered (Phases 0–10), 24 remaining (Phases 11–16).
+
+Phase 0–10 critical path (complete):
 0.1 → 0.2 → 0.3 → 0.4 → 1.1 → 1.2 → 1.4 → 1.5 → 2.2 → 2.3 → 3.1 → 1.6 → 5.1 → 7.2 → 8.1 → 8.3 → 9.1.
 
-Treat these four with the most care — mistakes there corrupt artifacts, strand issues, or
-report failed provider work as successful:
+Phase 11–16 critical path: **11.1 → 11.2 → 11.3 → 12.3 → 12.4 → 13.2 → 13.3 → 16.2 → 16.3**.
+Phases 14 and 15 are independent of that chain and can run in any order — 14 is a frontend
+port over an already-finished backend, 15 is launcher and extension work that touches no app
+code.
+
+Treat these four from the delivered phases with the most care — mistakes there corrupt
+artifacts, strand issues, or report failed provider work as successful:
 
 - **3.1** (provider instance identity) — touches the catalog key space, settings shape, every
   provider route, and the exclusivity lock key. Channels, fallback, and per-instance health
@@ -598,11 +880,21 @@ report failed provider work as successful:
 - **10.2** (indexed storage) — must be behind the existing interfaces with the engine suite
   passing unchanged, or cache correctness is at risk.
 
-Three constraints that are easy to underestimate:
+And one from the remaining phases:
+
+- **11.3** (repair from orchestration) — introduces re-execution into a path that has never
+  re-executed. Bound it with `review_policy.max_repairs` and the pre-flight budget from the
+  first commit, and prove escalation before proving repair.
+
+Four constraints that are easy to underestimate:
 
 - **`type_version` migrations are unforgiving by design.** The ported runner refuses to skip a
   hop and marks future-version documents read-only. Every node configuration change in
-  Phases 5–7 needs its migration written in the same step, or saved workflows break.
+  Phases 5–7, 11.1, and 12.1 needs its migration written in the same step, or saved workflows
+  break.
+- **Hiding nodes must never become deleting them.** 12.1 keeps every node registered and
+  executable; only its visibility changes. Deleting node types would break saved workflows and
+  the tests that prove the engine works.
 - **Music and Captions stay out of the provider platform.** They are local, single-implementation
   services with no provider dimension; their mode, tone, and preset fields look like provider
   selection and are not. The requirement on them is no regression, not migration.
