@@ -23,12 +23,4 @@ title Scriptase - new provider
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\new-provider.ps1" %*
 set "EXITCODE=%ERRORLEVEL%"
 
-:: Keep the window open when launched from Explorer; exit quietly in a terminal
-:: so this stays scriptable.
-echo %cmdcmdline% | find /i "%~f0" >nul && (
-    echo.
-    echo [new-provider.bat] Exited with code %EXITCODE%.
-    pause >nul
-)
-
 endlocal & exit /b %EXITCODE%

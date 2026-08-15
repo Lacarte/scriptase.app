@@ -153,6 +153,23 @@ def test_scaffolder_extension_emits_runtime_hook(tmp_path):
     assert "register_runtime" in runtime.read_text(encoding="utf-8")
 
 
+def test_scaffolder_treats_label_as_data_not_python_source(tmp_path):
+    label = 'ACME "quoted" \\ triple """ label'
+    paths = scaffold_provider(
+        "image",
+        "safe_label",
+        kind="extension",
+        label=label,
+        project_root=tmp_path,
+        check_live_collision=False,
+    )
+    for path in paths:
+        if path.suffix == ".py":
+            compile(path.read_text(encoding="utf-8"), str(path), "exec")
+    manifest_path = next(path for path in paths if path.name == "manifest.py")
+    assert _load(manifest_path, "safe_label_manifest").manifest().label == label
+
+
 def test_scaffolder_cli_help_lists_catalog_domains():
     parser = build_parser()
     help_text = parser.format_help()
@@ -223,7 +240,7 @@ def recorded_runs(monkeypatch):
     return calls
 
 
-def test_one_command_scaffolds_then_tests_then_documents(tmp_path, recorded_runs):
+def test_one_command_scaffolds_then_tests_then_documents(tmp_path, recorded_runs, capsys):
     """The three steps that always belong together, in that order."""
     code = scaffold_module.main(
         ["tts", "one_cmd", "--kind", "cloud", "--project-root", str(tmp_path)]
@@ -237,6 +254,7 @@ def test_one_command_scaffolds_then_tests_then_documents(tmp_path, recorded_runs
     assert pytest_call[:2] == ["-m", "pytest"]
     assert pytest_call[2].endswith("test_provider_tts_one_cmd.py")
     assert docs_call == ["-m", "scriptase.engine.docs"]
+    assert "Guide: docs/provider-author-guide.md" in capsys.readouterr().out
 
 
 def test_one_command_steps_can_be_skipped_individually(tmp_path, recorded_runs):
@@ -295,10 +313,12 @@ def test_the_one_command_entry_point_is_committed_and_only_transports():
     entry_text = entry.read_text(encoding="utf-8")
     assert "tools\\new-provider.ps1" in entry_text
     assert "%*" in entry_text, "arguments must be forwarded verbatim"
+    assert "pause" not in entry_text.lower(), "the scriptable entry point must never block"
 
     driver_text = driver.read_text(encoding="utf-8")
     assert "scriptase.providers.scaffold" in driver_text
     assert "venv\\Scripts\\python.exe" in driver_text, "python is not on PATH here"
+    assert "Guide:" not in driver_text, "only the Python CLI knows whether docs ran"
     # No second copy of the scaffolder's vocabulary to rot.
     for domain in DOMAIN_IDS:
         assert f"'{domain}'" not in driver_text

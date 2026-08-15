@@ -12,10 +12,10 @@
     pytest but not PowerShell, so anything decided here would be untestable.
 
 .EXAMPLE
-    bin\new-provider.bat tts my_provider --kind cloud
+    new-provider.bat tts my_provider --kind cloud
 
 .EXAMPLE
-    bin\new-provider.bat image my_renderer --kind extension --no-docs
+    new-provider.bat image my_renderer --kind extension --no-docs
 #>
 [CmdletBinding()]
 param(
@@ -57,9 +57,4 @@ finally {
     Pop-Location
 }
 
-Write-Host ''
-if ($code -eq 0) {
-    Write-Host '  Guide: docs/provider-author-guide.md' -ForegroundColor DarkGray
-    Write-Host ''
-}
 exit $code
