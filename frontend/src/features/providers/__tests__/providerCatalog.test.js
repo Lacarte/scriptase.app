@@ -433,7 +433,9 @@ describe('ProviderSelector reads the catalog', () => {
   it('renders a catalog change — added, removed, and relabeled — with no code change', async () => {
     serve(BASE)
     const wrapper = await mountSelector()
-    expect(optionText(wrapper)).toEqual(['KOKORO', 'INWORLD'])
+    // Step 12.3: an entry that is not ready says so in the list itself, rather
+    // than reading like a working one until the run fails on it.
+    expect(optionText(wrapper)).toEqual(['KOKORO', 'INWORLD — Needs configuration'])
 
     serve(catalog('v2', {
       providers: [

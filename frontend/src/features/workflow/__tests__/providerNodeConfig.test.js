@@ -63,6 +63,48 @@ const PROVIDER_OPTIONS = [
   { value: 'beta_scribe', label: 'Beta Scribe' },
 ]
 
+/**
+ * Step 12.3 — the node mounts the real selector, so the catalog is what tells
+ * it which of those instances is actually usable. Nobody configured
+ * `beta_scribe`.
+ */
+const CATALOG = {
+  catalog_version: 'v1',
+  dev_reload_enabled: false,
+  domains: {
+    [DOMAIN]: {
+      domain: DOMAIN,
+      label: 'Script',
+      default_provider: 'alpha_writer',
+      selected: 'alpha_writer',
+      capability_vocabulary: ['batch', 'streaming'],
+      excluded: [],
+      providers: [
+        {
+          id: 'alpha_writer',
+          label: 'Alpha Writer',
+          domain: DOMAIN,
+          aliases: [],
+          capabilities: { batch: true, streaming: false },
+          has_settings: true,
+          availability: 'available',
+          warnings: [],
+        },
+        {
+          id: 'beta_scribe',
+          label: 'Beta Scribe',
+          domain: DOMAIN,
+          aliases: [],
+          capabilities: {},
+          has_settings: true,
+          availability: 'needs_configuration',
+          warnings: [],
+        },
+      ],
+    },
+  },
+}
+
 const SCHEMAS = {
   alpha_writer: {
     type: 'object',
@@ -107,6 +149,13 @@ function mockApi() {
     if (url.startsWith(`/api/workflow/options/${DOMAIN}_providers`)) {
       return Promise.resolve({ source: `${DOMAIN}_providers`, options: PROVIDER_OPTIONS })
     }
+    if (url === '/api/providers') return Promise.resolve(structuredClone(CATALOG))
+    const health = url.match(/^\/api\/providers\/([^/]+)\/([^/]+)\/health$/)
+    if (health) {
+      return Promise.resolve({
+        health: { status: 'fail', message: `${health[2]} has no credentials` },
+      })
+    }
     const settings = url.match(/^\/api\/providers\/([^/]+)\/([^/]+)\/settings$/)
     if (settings) {
       const [, domain, providerId] = settings
@@ -147,9 +196,52 @@ describe('provider-backed node configuration', () => {
   it('renders the provider field as a dropdown over the domain option source', async () => {
     const { wrapper } = await mountInspector()
     expect(api.get).toHaveBeenCalledWith(`/api/workflow/options/${DOMAIN}_providers`)
-    const select = wrapper.get('.cfg-select')
-    const labels = select.findAll('option').map((option) => option.text())
-    expect(labels).toEqual(['Alpha Writer', 'Beta Scribe'])
+    // Step 12.3: the real selector, whose list is still the allowlisted source —
+    // so an instance id remains the stored value.
+    const select = wrapper.get('.provider-selector .selector-select')
+    const values = select.findAll('option').map((option) => option.element.value)
+    expect(values).toEqual(['alpha_writer', 'beta_scribe'])
+  })
+
+  it('names the availability of an instance nobody configured', async () => {
+    // The whole point of the step: the failure used to arrive at run time.
+    const { wrapper } = await mountInspector()
+    const labels = wrapper
+      .findAll('.provider-selector .selector-select option')
+      .map((option) => option.text())
+    expect(labels).toEqual(['Alpha Writer', 'Beta Scribe — Needs configuration'])
+  })
+
+  it('shows the resting availability of the instance the node selected', async () => {
+    const { wrapper } = await mountInspector({ provider_id: 'beta_scribe' })
+    expect(wrapper.get('.provider-selector .health-text').text()).toBe('Needs configuration')
+  })
+
+  it('probes the health of the node’s instance, not the domain selection', async () => {
+    const { wrapper } = await mountInspector({ provider_id: 'beta_scribe' })
+    // Rendering costs no I/O — availability already answered "can this be used?"
+    expect(api.get.mock.calls.every(([url]) => !url.endsWith('/health'))).toBe(true)
+
+    await wrapper.get('.provider-selector .health-btn').trigger('click')
+    await flushPromises()
+
+    expect(api.get).toHaveBeenCalledWith('/api/providers/script/beta_scribe/health')
+    expect(wrapper.get('.provider-selector .selector-status').text()).toBe(
+      'Beta Scribe: beta_scribe has no credentials',
+    )
+  })
+
+  it('writes the node’s own field and never the domain-wide selection', async () => {
+    const put = vi.spyOn(api, 'put')
+    const { store, node, wrapper } = await mountInspector({ provider_id: 'alpha_writer' })
+
+    await wrapper.get('.provider-selector .selector-select').setValue('beta_scribe')
+    await flushPromises()
+
+    expect(store.nodeById(node.id).configuration.provider_id).toBe('beta_scribe')
+    // Switching a node's provider must not reconfigure every other workflow
+    // that runs on the domain default (§24.1 rule 2).
+    expect(put).not.toHaveBeenCalled()
   })
 
   it('no longer reports the widget as unsupported', async () => {

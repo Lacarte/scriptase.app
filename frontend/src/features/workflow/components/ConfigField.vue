@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useOptionSource } from '@/shared/composables/useOptionSources.js'
+import ProviderSelector from '@/features/providers/components/ProviderSelector.vue'
 import MediaAssetField from './MediaAssetField.vue'
 import ProviderOptionsField from './ProviderOptionsField.vue'
 import { isExpressionValue } from '../expressions.js'
@@ -137,6 +138,14 @@ const optionsLoading = computed(() => Boolean(asyncOptions.value?.loading))
 const optionsError = computed(() => asyncOptions.value?.error || '')
 const expressionActive = computed(() => isExpressionValue(props.value))
 
+// The current literal, for the controlled provider selector. The schema default
+// counts: a workflow saved before the provider fields existed carries no stored
+// value and must still show the instance it will actually run on.
+const providerValue = computed(() => String(props.value ?? props.field.default ?? ''))
+// A provider field carries its own domain; `providerDomain` is the same value
+// resolved by the inspector, and is the fallback for a field that omits it.
+const providerFieldDomain = computed(() => props.field.provider_domain || props.providerDomain)
+
 function restoreLiteral() {
   emit('update', props.field.default ?? (props.field.type === 'json' ? {} : ''))
 }
@@ -155,6 +164,39 @@ function restoreLiteral() {
     :provider-id="providerId"
     @update="(next) => emit('update', next)"
   />
+
+  <!--
+    provider: the real selector, not a bare `<select>` (step 12.3). It adds the
+    resting availability of every instance, a per-instance health probe, and the
+    capability badges — so an instance nobody configured is visibly unusable in
+    the inspector instead of only at run time. Outside the `<label>` for the same
+    reason `provider_options` is: it is a control group, and nesting several
+    controls in one label makes every click focus the first of them.
+
+    An expression already stored in this field keeps the generic editor below,
+    so a mapped provider id from an older document stays editable.
+
+    The gear is off: the inspector mounts no settings editor, and a button that
+    does nothing is worse than no button. Step 12.4 adds the surface it opens.
+  -->
+  <div
+    v-else-if="field.type === 'provider' && !expressionActive"
+    class="cfg-field cfg-provider"
+  >
+    <ProviderSelector
+      variant="inline"
+      :domain="providerFieldDomain"
+      :label="field.label || field.name"
+      :description="field.description || ''"
+      :model-value="providerValue"
+      :options="selectOptions"
+      :loading="optionsLoading"
+      :error="optionsError"
+      :configurable="false"
+      data-testid="provider-selector"
+      @update:model-value="(id) => emit('update', id)"
+    />
+  </div>
 
   <label v-else class="cfg-field">
     <span class="cfg-label">
@@ -359,6 +401,40 @@ function restoreLiteral() {
 
 .cfg-select {
   cursor: pointer;
+}
+
+/* The selector ships the Settings page's scale; the inspector is a narrow
+   column, so the control group wraps and takes the panel's own type sizes. */
+.cfg-provider :deep(.selector-label) {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-secondary);
+  margin-bottom: 5px;
+}
+
+.cfg-provider :deep(.selector-controls) {
+  flex-wrap: wrap;
+}
+
+.cfg-provider :deep(.selector-select) {
+  flex: 1;
+  min-width: 120px;
+  background-color: var(--bg-dark);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.cfg-provider :deep(.health-btn) {
+  background: var(--bg-dark);
+  border-color: var(--border);
+}
+
+.cfg-provider :deep(.selector-desc),
+.cfg-provider :deep(.selector-status),
+.cfg-provider :deep(.selector-error) {
+  font-size: 10.5px;
 }
 
 .cfg-json {

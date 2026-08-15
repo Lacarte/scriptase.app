@@ -12,6 +12,10 @@ function mountField(field, value) {
 }
 
 describe('ConfigField widgets', () => {
+  // The `provider` widget is the real selector now (step 12.3), and it reads
+  // availability from the catalog store.
+  beforeEach(() => setActivePinia(createPinia()))
+
   it('renders string input and emits updates', async () => {
     const wrapper = mountField({ name: 'channel_name', label: 'Channel', type: 'string', default: '' }, 'Acme')
     const input = wrapper.get('input[type="text"]')

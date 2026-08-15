@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useProviderCatalogStore } from '../stores/providerCatalog.js'
-import { availabilityInfo, healthInfo, isSelectable, toneColor } from '../availability.js'
+import { AVAILABLE, availabilityInfo, healthInfo, isSelectable, toneColor } from '../availability.js'
 
 const props = defineProps({
   domain: { type: String, required: true },
@@ -12,9 +12,26 @@ const props = defineProps({
   // component, same behavior, their spacing. A second selector component is how
   // the two surfaces would start to drift.
   variant: { type: String, default: 'panel' },
+  // ── Controlled mode (step 12.3) ──────────────────────────────────────────
+  // A non-null `modelValue` hands ownership of the selection to the parent: the
+  // node's own `provider_id` field, which is *not* the domain-wide selection. A
+  // saved workflow must keep running the instance it was saved with, so the
+  // node editor may never write the domain default (§24.1 rule 2). `null` keeps
+  // the catalog-bound mode the Settings surfaces use.
+  modelValue: { type: String, default: null },
+  // An entry list the parent already resolved — the node editor's allowlisted
+  // `<domain>_providers` source, which is authoritative about *which* instances
+  // are legal values. Availability is still read off the catalog, so both modes
+  // render the same states. `null` means read the list from the catalog too.
+  options: { type: Array, default: null },
+  loading: { type: Boolean, default: false },
+  error: { type: String, default: '' },
+  // The gear needs somewhere to go. Surfaces that mount no settings editor turn
+  // it off rather than render a button that does nothing.
+  configurable: { type: Boolean, default: true },
 })
 
-const emit = defineEmits(['select', 'configure'])
+const emit = defineEmits(['update:modelValue', 'select', 'configure'])
 
 // Everything rendered here comes from the catalog: the list, the labels, the
 // state, the capabilities, and the selection. No provider id appears in this
@@ -23,13 +40,32 @@ const catalog = useProviderCatalogStore()
 
 const probing = ref(false)
 
-const providerList = computed(() => catalog.catalogEntriesFor(props.domain))
-const selected = computed(() => catalog.selectedProvider(props.domain))
-const selectedId = computed(() => selected.value?.id || '')
-const selectedName = computed(() => selected.value?.label || selectedId.value)
-const availability = computed(
-  () => catalog.resolveProvider(props.domain, selectedId.value)?.availability,
+const controlled = computed(() => props.modelValue !== null)
+const busy = computed(() => catalog.loading || props.loading)
+const errorText = computed(() => props.error || catalog.error)
+
+const providerList = computed(() => {
+  if (!props.options) return catalog.catalogEntriesFor(props.domain)
+  return props.options.map((opt) => {
+    const id = String(opt.value ?? '')
+    return { id, label: opt.label ?? id, availability: catalog.availabilityOf(props.domain, id) }
+  })
+})
+
+const selectedId = computed(() =>
+  controlled.value ? props.modelValue : catalog.selectedProvider(props.domain)?.id || '',
 )
+const selected = computed(
+  () =>
+    providerList.value.find((p) => p.id === selectedId.value) ||
+    catalog.resolveInstance(props.domain, selectedId.value) ||
+    null,
+)
+const selectedName = computed(() => selected.value?.label || selectedId.value)
+// `availabilityOf` resolves an instance id, then a type id, then an excluded
+// package — so a second named binding reports its own state rather than the
+// state of the type it was cloned from.
+const availability = computed(() => catalog.availabilityOf(props.domain, selectedId.value))
 // Availability is the resting state. A health probe costs I/O and runs only on
 // an explicit user action, so it shows here once one has happened and never
 // gates the selection (contracts.md §21.5).
@@ -53,8 +89,25 @@ const statusText = computed(() =>
   `${selectedName.value}: ${probed.value?.message || status.value.label}`,
 )
 
+/**
+ * The dropdown label: the entry name, plus its resting availability whenever
+ * that is anything other than "ready". An instance nobody has given credentials
+ * to used to read exactly like a working one and only announced itself when the
+ * run failed.
+ */
+function entryLabel(entry) {
+  const state = entry.availability
+  if (!state || state === AVAILABLE) return entry.label
+  return `${entry.label} — ${availabilityInfo(state).label}`
+}
+
 async function onSelect(event) {
   const instanceId = event.target.value
+  if (controlled.value) {
+    emit('update:modelValue', instanceId)
+    emit('select', { domain: props.domain, providerId: instanceId, instanceId })
+    return
+  }
   const result = await catalog.selectProvider(props.domain, instanceId)
   if (!result.switched) return
   if (result.needsConfiguration) {
@@ -95,22 +148,24 @@ watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })
         <select
           class="selector-select"
           :value="selectedId"
-          :disabled="catalog.loading"
+          :disabled="busy"
           @change="onSelect"
         >
+          <option v-if="busy && !providerList.length" :value="selectedId">Loading…</option>
           <option
             v-for="p in providerList"
             :key="p.id"
             :value="p.id"
             :disabled="!isSelectable(p)"
           >
-            {{ p.label }}{{ isSelectable(p) ? '' : ` — ${availabilityInfo(p.availability).label}` }}
+            {{ entryLabel(p) }}
           </option>
         </select>
         <button
+          v-if="configurable"
           class="gear-btn"
           :class="{ 'has-warning': needsAttention }"
-          :disabled="!selectedId || catalog.loading"
+          :disabled="!selectedId || busy"
           title="Configure provider"
           @click="openSettings"
         >
@@ -136,7 +191,7 @@ watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })
     <p v-if="probed" class="selector-status" :style="{ color: toneColor(status.tone) }">
       {{ statusText }}
     </p>
-    <p v-if="catalog.error" class="selector-error">{{ catalog.error }}</p>
+    <p v-if="errorText" class="selector-error">{{ errorText }}</p>
   </div>
 </template>
 
