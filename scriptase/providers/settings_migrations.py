@@ -35,7 +35,8 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 #      → selected_instance_id + instances.
 # v7 = secret references (step 3.4): plaintext credentials → {"$secret": ref}.
 # v8 = backfill domains added to the catalog after v6 (step 7.3 `review`).
-SETTINGS_VERSION = 8
+# v9 = the same backfill for `viral` (step 16.2). See `migrate_to_v9`.
+SETTINGS_VERSION = 9
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -274,9 +275,13 @@ def migrate_to_v7(data: dict, legacy_user: dict) -> dict:
 def migrate_to_v8(data: dict, legacy_user: dict) -> dict:
     """Backfill domain blocks for catalog entries added after the v6 split.
 
-    Step 7.3 adds ``review``. Future domains get the same treatment: any
-    ``DomainSpec`` missing from ``settings.json`` receives a default instance
-    of its catalog default provider. Existing blocks are never rewritten.
+    Step 7.3 adds ``review``. Any ``DomainSpec`` missing from ``settings.json``
+    receives a default instance of its catalog default provider; existing
+    blocks are never rewritten.
+
+    This body is generic, but the version stamp is not: a document already at
+    v8 never re-runs it, so a domain added *later* needs its own version to
+    reach files written in between. That is what ``migrate_to_v9`` is.
     """
     domains = data.setdefault("domains", {})
     for domain_id, spec in DOMAINS.items():
@@ -298,6 +303,22 @@ def migrate_to_v8(data: dict, legacy_user: dict) -> dict:
             "instances": instances,
         }
     return data
+
+
+@_register(9)
+def migrate_to_v9(data: dict, legacy_user: dict) -> dict:
+    """Backfill the `viral` domain block (step 16.2).
+
+    Byte-for-byte the same work as v8 and deliberately so: every settings file
+    written between 7.3 and 16.2 is stamped v8, so v8 will never run on it
+    again and `viral` would stay missing — the domain would exist in the
+    catalog while `settings.json` had no block, and the provider API would
+    serve it with a null selection.
+
+    Every future domain addition ships one of these one-line versions. Sharing
+    the body is what keeps that cheap.
+    """
+    return migrate_to_v8(data, legacy_user)
 
 
 def apply_migrations(data: dict, legacy_user: dict | None = None) -> tuple[dict, bool]:
@@ -347,4 +368,5 @@ __all__ = [
     "migrate_to_v5",
     "migrate_to_v6",
     "migrate_to_v8",
+    "migrate_to_v9",
 ]

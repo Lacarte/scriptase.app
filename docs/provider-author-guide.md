@@ -26,7 +26,7 @@ python -m scriptase.engine.docs --check
 
 ## 1. Scaffold
 
-Choose a stable lowercase id matching `^[a-z][a-z0-9_]{0,31}$`. It is the folder name, the manifest `id`, and the settings key — do not rename it after shipping. Pick one of the 6 catalog domains and a kind (`cloud`, `extension`, `local`, `webhook`).
+Choose a stable lowercase id matching `^[a-z][a-z0-9_]{0,31}$`. It is the folder name, the manifest `id`, and the settings key — do not rename it after shipping. Pick one of the 7 catalog domains and a kind (`cloud`, `extension`, `local`, `webhook`).
 
 One command does the whole path. From the repository root:
 
@@ -70,7 +70,7 @@ Edit `manifest.py`. Keep `id` equal to the folder name and `domain` equal to the
 |---|---|
 | `id` | Folder name; `^[a-z][a-z0-9_]{0,31}$` |
 | `label` | Browser-safe display name |
-| `domain` | One of the 6 catalog domains |
+| `domain` | One of the 7 catalog domains |
 | `kind` | One of `cloud`, `extension`, `local`, `webhook` |
 | `version` | Semver string |
 | `contract_version` | `2` for the invocation/result envelope |
@@ -109,6 +109,7 @@ Every package exports `create()` — a zero-arg factory returning the provider i
 | `image` | async multi-asset | `submit` / `poll` (media-job service) |
 | `video` | async multi-asset | `submit` / `poll` (media-job service) |
 | `review` | sync document | `review(request)` → `invoke(request, invocation)` |
+| `viral` | sync document | — |
 
 ### Sync document example (script / scene_director)
 
@@ -387,6 +388,39 @@ Field tables are loaded from each domain's request/result models at generation t
 | `issue_count` | `int` | no | `0` |
 | `clean` | `bool` | no | `true` |
 
+### Virality (`viral`)
+
+- **Default provider:** `deterministic`
+- **Package:** `scriptase.modules.viral.providers`
+- **Providers folder:** `scriptase/modules/viral/providers`
+- **Execution shape:** sync document
+- **Concrete seam:** —
+
+#### Capability vocabulary
+
+`async_job`, `batch`, `cancel`, `dimension_breakdown`, `exclusive_execution`, `offline`, `progress`, `push_callbacks`, `script_scoring`, `single_scene`, `test_connection`
+
+#### Request model (`scriptase.modules.viral.providers.contract:ViralRequest`)
+
+| Field | Type | Required | Default |
+|---|---|---|---|
+| `job_id` | `str` | yes | — |
+| `sections` | `dict[str, str]` | no | factory |
+| `story_text` | `str` | no | `""` |
+| `target_duration` | `int` | no | `45` |
+| `narrative_roles` | `list[str]` | no | factory |
+
+#### Result payload (`scriptase.modules.viral.providers.contract:ViralResultPayload`)
+
+| Field | Type | Required | Default |
+|---|---|---|---|
+| `scorer` | `str` | no | `"deterministic"` |
+| `scorer_version` | `int` | no | `1` |
+| `score` | `int` | yes | — |
+| `band` | `Literal` | yes | — |
+| `dimensions` | `list[DimensionScore]` | no | factory |
+| `metrics` | `dict[str, Any]` | no | factory |
+
 ## Current catalog
 
 Snapshot of providers discovered when this guide was generated.
@@ -399,6 +433,7 @@ Snapshot of providers discovered when this guide was generated.
 | `image` | `gemini_ws`, `wavespeed_direct`, `wavespeed_webhook` |
 | `video` | `grok_automa`, `kie_ai` |
 | `review` | `semantic` |
+| `viral` | `deterministic` |
 
 ## Troubleshooting
 

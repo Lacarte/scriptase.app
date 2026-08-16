@@ -175,6 +175,32 @@ DOMAINS: dict[str, DomainSpec] = {
             request_model="scriptase.review.providers.contract:ReviewRequest",
             result_model="scriptase.review.providers.contract:ReviewResultPayload",
         ),
+        # Step 16.2 — seventh domain, and the only *optional* one: no stage
+        # depends on a virality score, so a graph without `script.analyze`
+        # never resolves a provider here at all. The shipped default is the
+        # offline deterministic scorer from 16.1, which costs nothing and
+        # always answers; the domain exists so an LLM judge can replace the
+        # arithmetic later without touching the node contract.
+        DomainSpec(
+            id="viral",
+            label="Virality",
+            package="scriptase.modules.viral.providers",
+            providers_base=_base("scriptase", "modules", "viral", "providers"),
+            default_provider="deterministic",
+            capability_vocabulary=_caps(
+                # Scores a whole script into a 0-100 number and a band.
+                "script_scoring",
+                # Returns the per-dimension breakdown the Script stage panel
+                # renders (16.3). A judge that only answers with a total
+                # declares this False and the panel shows the total alone.
+                "dimension_breakdown",
+                # No network and no credentials — the property that lets this
+                # run on every script before a paid stage does.
+                "offline",
+            ),
+            request_model="scriptase.modules.viral.providers.contract:ViralRequest",
+            result_model="scriptase.modules.viral.providers.contract:ViralResultPayload",
+        ),
     )
 }
 

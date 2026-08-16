@@ -7,14 +7,23 @@ from .registry import get_node_type
 from .validation import validate_workflow, validation_errors
 
 
-def _node(node_id: str, type_key: str, x: int, y: int, *, name: str | None = None, config: dict | None = None) -> dict:
+def _node(
+    node_id: str,
+    type_key: str,
+    x: int,
+    y: int,
+    *,
+    name: str | None = None,
+    config: dict | None = None,
+    on_error: dict | None = None,
+) -> dict:
     definition = get_node_type(type_key)
     configuration = {
         field["name"]: field.get("default") for field in definition["config_schema"]
     }
     if config:
         configuration.update(config)
-    return {
+    node = {
         "id": node_id,
         "type": type_key,
         "type_version": definition["type_version"],
@@ -23,6 +32,11 @@ def _node(node_id: str, type_key: str, x: int, y: int, *, name: str | None = Non
         "configuration": configuration,
         "disabled": False,
     }
+    # Omitted entirely rather than defaulted, so every node that does not opt
+    # out keeps the engine's `stop` policy without the template restating it.
+    if on_error:
+        node["on_error"] = on_error
+    return node
 
 
 def _edge(edge_id: str, source: str, source_port: str, target: str, target_port: str, edge_type: str = "data") -> dict:
@@ -43,6 +57,16 @@ def full_video_template() -> dict:
         _node("n_trigger", "trigger.manual", 0, 220),
         _node("n_setup", "project.setup", 220, 80),
         _node("n_script", "script.input", 220, 340),
+        # Step 16.2. A terminal branch off Script: it reads the narration and
+        # nothing reads it back, so the Composer path is untouched. The graph's
+        # default policy is `stop`, which would let an advisory score take a
+        # working production run down with it — `continue_error` is what makes
+        # "the Composer path ignores it" true when the scorer fails, not only
+        # when it succeeds.
+        _node(
+            "n_analyze", "script.analyze", 500, 560,
+            on_error={"policy": "continue_error"},
+        ),
         _node("n_tts", "tts.generate", 500, 340),
         _node("n_align", "timing.align", 760, 340),
         _node("n_segment", "segment.run", 1020, 340),
@@ -60,6 +84,7 @@ def full_video_template() -> dict:
         _edge("e_trigger_setup", "n_trigger", "control", "n_setup", "trigger", "control"),
         _edge("e_trigger_script", "n_trigger", "control", "n_script", "trigger", "control"),
         _edge("e_script_tts", "n_script", "script", "n_tts", "script"),
+        _edge("e_script_analyze", "n_script", "script", "n_analyze", "script"),
         _edge("e_setup_tts", "n_setup", "settings", "n_tts", "settings"),
         _edge("e_tts_align_audio", "n_tts", "audio", "n_align", "audio"),
         _edge("e_script_align", "n_script", "script", "n_align", "script"),

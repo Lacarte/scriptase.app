@@ -492,6 +492,7 @@ _RESOLVERS = {
     "image_providers": _provider_options,
     "video_providers": _provider_options,
     "review_providers": _provider_options,
+    "viral_providers": _provider_options,
     "image_models": _image_models,
     "story_tones": _story_tones,
     "style_templates": _style_templates,

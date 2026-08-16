@@ -167,7 +167,9 @@ class DefaultWorkflowProjectionTests(unittest.TestCase):
 
     def test_primary_nodes_land_in_expected_stages(self):
         assignment = assign_nodes_to_stages(full_video_template())
-        self.assertEqual(assignment["script"], ["n_script"])
+        # Step 16.2 put the virality analyzer on the Script stage rather than a
+        # stage of its own — a verdict about the script, not a step after it.
+        self.assertEqual(assignment["script"], ["n_script", "n_analyze"])
         self.assertEqual(assignment["voice"], ["n_tts"])
         self.assertEqual(assignment["timing"], ["n_align"])
         self.assertEqual(assignment["segments"], ["n_segment"])
@@ -272,8 +274,13 @@ class ProviderCapabilityTests(unittest.TestCase):
         self.assertTrue(stages["scenes"]["provider_capable"])
         self.assertTrue(stages["images"]["provider_capable"])
         self.assertTrue(stages["videos"]["provider_capable"])
-        # Script uses script.input (paste) — not provider-capable.
-        self.assertFalse(stages["script"]["provider_capable"])
+        # Script pastes text (script.input, no provider), but step 16.2 put
+        # the provider-capable analyzer on the same stage, so the stage as a
+        # whole is capable and reports the analyzer's binding.
+        self.assertTrue(stages["script"]["provider_capable"])
+        self.assertEqual(
+            stages["script"]["active_provider_instance_id"], "deterministic"
+        )
         self.assertFalse(stages["timing"]["provider_capable"])
         self.assertFalse(stages["segments"]["provider_capable"])
         self.assertFalse(stages["composer"]["provider_capable"])

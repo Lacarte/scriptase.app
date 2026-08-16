@@ -54,6 +54,11 @@ STAGE_KEYS: tuple[str, ...] = tuple(s["key"] for s in STAGE_CATALOG)
 PRIMARY_STAGE_BY_TYPE: dict[str, str] = {
     "script.input": "script",
     "story.generate": "script",
+    # Step 16.2 — the virality score belongs to the Script stage, not a stage
+    # of its own. It is a verdict *about* the script, and putting it anywhere
+    # later would surface a weak hook after the expensive stages had already
+    # run, which is the failure this phase exists to prevent.
+    "script.analyze": "script",
     "tts.generate": "voice",
     "timing.align": "timing",
     "segment.run": "segments",

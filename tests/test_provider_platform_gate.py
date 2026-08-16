@@ -63,8 +63,11 @@ from scriptase.engine.validation import validate_workflow, validation_errors
 
 
 # proposition-final.md: Music and Captions are deliberately out of scope.
-# Step 7.3 added `review` (semantic quality analysis) as a sixth domain.
-AI_DOMAINS = ("script", "scene_director", "tts", "image", "video", "review")
+# Step 7.3 added `review` (semantic quality analysis) as a sixth domain, and
+# step 16.2 added `viral` (script virality scoring) as a seventh.
+AI_DOMAINS = (
+    "script", "scene_director", "tts", "image", "video", "review", "viral",
+)
 OUT_OF_SCOPE = ("music", "captions")
 
 # Node type → domain for the converted provider nodes.
@@ -120,6 +123,7 @@ EXPECTED_SHIPPED = {
     "image": {"gemini_ws", "wavespeed_webhook", "wavespeed_direct"},
     "video": {"grok_automa", "kie_ai"},
     "review": {"semantic"},
+    "viral": {"deterministic"},
 }
 
 

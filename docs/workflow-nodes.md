@@ -4,7 +4,7 @@
 
 # Workflow Node Reference
 
-Registry version **5** — 25 node types across 9 categories.
+Registry version **5** — 26 node types across 9 categories.
 
 Connections require the source and target port to have the **same** type; there are no implicit conversions. `control` ports carry execution order only and never data. Dynamic ports (`stub.input`, `stub.output`, `workflow.output`) take the type chosen in the node's `port_type` setting.
 
@@ -398,6 +398,38 @@ Quality review of the generated stills and clips. Deterministic technical valida
 | `aspect_ratio` | Expected aspect ratio | `options` | `"9:16"` | no | one of `9:16`, `16:9`, `1:1` |
 | `require_audio` | Clips must carry audio | `boolean` | `false` | no | hidden when `subject` is `"images"` |
 | `fail_on_blocking` | Fail this node on blocking issues | `boolean` | `false` | no | — |
+| `provider_options` | Provider options | `provider_options` | `{}` | no | — |
+
+### Script Analyzer (`script.analyze`)
+
+Score the script for virality before an expensive stage runs. The default provider is offline, deterministic, and free; it reports a 0-100 score with a per-dimension breakdown and never blocks the run.
+
+- **Type version:** 1
+- **Capabilities:** supports retry, error output, skip-optional; no cancel
+
+**Inputs**
+
+| Port | Type | Notes |
+|---|---|---|
+| `trigger` | `control` | optional |
+| `script` | `script` | required |
+| `story` | `generic_json` | optional |
+| `scenes` | `scenes` | optional |
+
+**Outputs**
+
+| Port | Type | Notes |
+|---|---|---|
+| `control` | `control` | — |
+| `score` | `generic_json` | — |
+| `error` | `control` | — |
+
+**Configuration**
+
+| Field | Label | Widget | Default | Required | Constraints |
+|---|---|---|---|---|---|
+| `provider_id` | Provider | `provider` | `"deterministic"` | yes | options from `viral_providers` |
+| `target_duration` | Target duration (seconds) | `number` | `0` | no | range 0–600; integer |
 | `provider_options` | Provider options | `provider_options` | `{}` | no | — |
 
 ## Assets nodes
@@ -816,7 +848,7 @@ Echo a JSON value for node-author verification.
 
 | Template | Name | Nodes | Description |
 |---|---|---|---|
-| `full_video` | Full Video | `trigger.manual`, `project.setup`, `script.input`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `storyboard.generate`, `animator.generate`, `captions.generate`, `music.select`, `assemble.project`, `timeline.project`, `export.video`, `workflow.output` | Complete ScriptToScene production workflow |
+| `full_video` | Full Video | `trigger.manual`, `project.setup`, `script.input`, `script.analyze`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `storyboard.generate`, `animator.generate`, `captions.generate`, `music.select`, `assemble.project`, `timeline.project`, `export.video`, `workflow.output` | Complete ScriptToScene production workflow |
 | `text_to_video` | Text to Video | `trigger.manual`, `project.setup`, `script.input`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `animator.generate`, `captions.generate`, `music.select`, `assemble.project`, `timeline.project`, `export.video`, `workflow.output` | Complete production without storyboard images — Scene Director prompts drive a text_to_video provider |
 | `narration_only` | Narration Only | `trigger.manual`, `script.input`, `tts.generate`, `workflow.output` | Turn a script into narration audio |
 | `storyboard_only` | Storyboard Only | `trigger.manual`, `script.input`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `storyboard.generate`, `workflow.output` | Generate storyboard images from a script |

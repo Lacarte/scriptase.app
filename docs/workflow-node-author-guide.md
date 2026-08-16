@@ -142,6 +142,7 @@ mandatory for partial or isolated execution.
 | `storyboard.generate` | `trigger:control?`, `scenes:scenes`, `settings:project_settings?` | `control:control`, `images:storyboard_images`, `error:control` |
 | `animator.generate` | `trigger:control?`, `scenes:scenes`, `storyboard:storyboard_images?`, `settings:project_settings?` | `control:control`, `assets:animation_assets`, `error:control` |
 | `review.run` | `trigger:control?`, `images:storyboard_images?`, `assets:animation_assets?`, `scenes:scenes?`, `settings:project_settings?` | `control:control`, `issues:generic_json`, `error:control` |
+| `script.analyze` | `trigger:control?`, `script:script`, `story:generic_json?`, `scenes:scenes?` | `control:control`, `score:generic_json`, `error:control` |
 | `captions.generate` | `trigger:control?`, `alignment:alignment` | `control:control`, `captions:captions`, `error:control` |
 | `music.select` | `trigger:control?`, `settings:project_settings?`, `project_id:project_id?` | `control:control`, `track:music_track`, `error:control` |
 | `assemble.project` | `trigger:control?`, `assets:animation_assets`, `metadata:tts_metadata`, `scenes:scenes`, `captions:captions?`, `music:music_track?`, `settings:project_settings?` | `control:control`, `project:editor_project`, `error:control` |

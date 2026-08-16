@@ -73,6 +73,9 @@ ASYNC_OPTION_SOURCES = {
     # P32 promised — one spec entry plus one `_RESOLVERS` line, no new resolver
     # and no frontend edit.
     "review_providers": OptionSourceSpec(cache="settings", domain="review"),
+    # Step 16.2: the seventh domain, and the second time that promise held —
+    # one spec entry plus one `_RESOLVERS` line.
+    "viral_providers": OptionSourceSpec(cache="settings", domain="viral"),
     # Read by an image provider's own `image_model` setting (§22.4). The
     # Storyboard page used to fetch this list itself and render a bespoke
     # `<select>` beside its webhook fields; step 12.4 moved the field into the
@@ -533,6 +536,49 @@ _NODE_TYPES = {
         ],
         "capabilities": {"retry": True, "cancel": False},
         "executor": "scriptase.engine.adapters.review:run",
+    },
+    "script.analyze": {
+        # Step 16.2 — the `viral` domain's only node. Sits after Script and
+        # before everything expensive, which is the whole point: the score is
+        # the cheapest signal in the graph and it is worthless once TTS,
+        # Storyboard, and Animator have already been paid for.
+        "type_version": 1,
+        "display_name": "Script Analyzer",
+        "description": (
+            "Score the script for virality before an expensive stage runs. "
+            "The default provider is offline, deterministic, and free; it "
+            "reports a 0-100 score with a per-dimension breakdown and never "
+            "blocks the run."
+        ),
+        "category": "ai",
+        "icon": "gauge",
+        # `script` is the only required input — the analyzer must be usable on
+        # nothing but pasted text. `story` and `scenes` sharpen the score when
+        # the graph happens to have them and are unwired in the Full Video
+        # template on purpose: wiring `scenes` would drag the analyzer behind
+        # Segments and Scenes, which is exactly what it exists to precede.
+        "inputs": [_TRIGGER_IN,
+                   _in("script", "script", required=True),
+                   _in("story", "generic_json"),
+                   _in("scenes", "scenes")],
+        "outputs": [_CONTROL_OUT, _out("score", "generic_json")],
+        "config_schema": [
+            _provider_field("viral"),
+            {"name": "target_duration",
+             "label": "Target duration (seconds)", "type": "number",
+             "default": 0, "min": 0, "max": 600, "step": 1, "integer": True,
+             "description": (
+                 "What the script was written to reach, which is what pacing "
+                 "is judged against. Leave at 0 to take it from the story "
+                 "document, or from the 45-second default when there is none."
+             )},
+            _provider_options_field("viral"),
+        ],
+        # Free and side-effect-free, so a retry is always safe. Nothing
+        # downstream consumes the `score` port in a shipped template, so a
+        # failure here is reported and never strands the run.
+        "capabilities": {"retry": True, "cancel": False},
+        "executor": "scriptase.engine.adapters.viral:analyze",
     },
     "captions.generate": {
         "type_version": 1,

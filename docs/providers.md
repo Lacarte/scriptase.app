@@ -5,7 +5,7 @@
 
 # Provider Reference
 
-Live catalog: **6 domains**, **12 registered providers**.
+Live catalog: **7 domains**, **13 registered providers**.
 
 This document is generated from the domain catalog (`scriptase.providers.domains`) and the process-wide hub (`scriptase.providers.hub`). It is the same discovery surface served by `GET /api/providers`. Music and Captions are deliberately **not** provider domains — they remain local services without a provider dimension.
 
@@ -26,6 +26,7 @@ python -m scriptase.engine.docs --check
 | `image` | Image | `gemini_ws` | `scriptase.modules.image.providers` | async multi-asset |
 | `video` | Video | `grok_automa` | `scriptase.modules.video.providers` | async multi-asset |
 | `review` | Review | `semantic` | `scriptase.review.providers` | sync document |
+| `viral` | Virality | `deterministic` | `scriptase.modules.viral.providers` | sync document |
 
 ## Shared capabilities
 
@@ -253,6 +254,39 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 | `issue_count` | `int` | no | `0` |
 | `clean` | `bool` | no | `true` |
 
+### Virality (`viral`)
+
+- **Default provider:** `deterministic`
+- **Package:** `scriptase.modules.viral.providers`
+- **Providers folder:** `scriptase/modules/viral/providers`
+- **Execution shape:** sync document
+- **Concrete seam:** —
+
+#### Capability vocabulary
+
+`async_job`, `batch`, `cancel`, `dimension_breakdown`, `exclusive_execution`, `offline`, `progress`, `push_callbacks`, `script_scoring`, `single_scene`, `test_connection`
+
+#### Request model (`scriptase.modules.viral.providers.contract:ViralRequest`)
+
+| Field | Type | Required | Default |
+|---|---|---|---|
+| `job_id` | `str` | yes | — |
+| `sections` | `dict[str, str]` | no | factory |
+| `story_text` | `str` | no | `""` |
+| `target_duration` | `int` | no | `45` |
+| `narrative_roles` | `list[str]` | no | factory |
+
+#### Result payload (`scriptase.modules.viral.providers.contract:ViralResultPayload`)
+
+| Field | Type | Required | Default |
+|---|---|---|---|
+| `scorer` | `str` | no | `"deterministic"` |
+| `scorer_version` | `int` | no | `1` |
+| `score` | `int` | yes | — |
+| `band` | `Literal` | yes | — |
+| `dimensions` | `list[DimensionScore]` | no | factory |
+| `metrics` | `dict[str, Any]` | no | factory |
+
 ## Registered providers
 
 Providers are discovered by scanning each domain's `providers/` folder. There is no central registration table.
@@ -407,6 +441,20 @@ Offline semantic reviewer that emits structured ReviewIssue findings for text, i
 - **Kind:** `local`
 - **Version:** `1.0.0` (contract v2)
 - **Capabilities:** `batch`, `image_review`, `single_scene`, `structured_output`, `test_connection`, `text_review`, `video_review`
+
+### `viral` providers
+
+| Id | Label | Kind | Version | Contract | Capabilities |
+|---|---|---|---|---|---|
+| `deterministic` | Deterministic scorer | `local` | `1.0.0` | v2 | `batch`, `dimension_breakdown`, `offline`, `script_scoring`, `single_scene`, `test_connection` |
+
+#### `deterministic` — Deterministic scorer
+
+Offline, deterministic virality scorer. Measures hook presence and position, opening-line strength against fifteen archetypes, pacing against the target duration, open loops, CTA presence, and section balance. Identical input always scores identically, and it costs nothing to run. LLM judges ship as sibling packages.
+
+- **Kind:** `local`
+- **Version:** `1.0.0` (contract v2)
+- **Capabilities:** `batch`, `dimension_breakdown`, `offline`, `script_scoring`, `single_scene`, `test_connection`
 
 ## Stable provider error codes
 

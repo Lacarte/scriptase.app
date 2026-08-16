@@ -45,10 +45,11 @@ def _write_provider(base, provider_id, domain='tts', label=None, body=None):
 
 class DomainCatalogTests(unittest.TestCase):
     def test_catalog_declares_domains_in_order(self):
-        # Step 7.3 added `review` as a sixth domain via DomainSpec data only.
+        # Step 7.3 added `review` as a sixth domain and step 16.2 `viral` as a
+        # seventh — both via DomainSpec data only.
         self.assertEqual(
             list(DOMAINS),
-            ['script', 'scene_director', 'tts', 'image', 'video', 'review'],
+            ['script', 'scene_director', 'tts', 'image', 'video', 'review', 'viral'],
         )
 
     def test_every_spec_is_complete(self):
