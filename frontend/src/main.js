@@ -48,6 +48,15 @@ const router = createRouter({
       component: () => import('./features/workflow/views/WorkflowPage.vue'),
       meta: { title: 'Workflow Builder', fullHeight: true },
     },
+    {
+      // Lazy on purpose. The ported editor pulls in a 139 KB global
+      // stylesheet whose generic class names (.modal-*, .btn-secondary,
+      // .toggle-slider) would otherwise bleed into every other view.
+      path: '/editor',
+      name: 'editor',
+      component: () => import('./features/editor/views/EditorPage.vue'),
+      meta: { title: 'Timeline Editor', fullHeight: true },
+    },
     { path: '/channels', name: 'channels', component: ChannelsPage },
     { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
     {

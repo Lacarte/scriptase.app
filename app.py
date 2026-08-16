@@ -332,6 +332,7 @@ def _register_spa_fallback(app: Flask) -> None:
     @app.get("/workflow/<path:_rest>")
     @app.get("/channels")
     @app.get("/channels/<path:_rest>")
+    @app.get("/editor")
     def spa_client_routes(_rest=None):
         if index.is_file():
             return send_from_directory(dist, "index.html")
