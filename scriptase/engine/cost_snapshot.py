@@ -14,6 +14,8 @@ from typing import Any, Mapping
 
 from scriptase.providers.results import extract_cost
 
+from .adapters.common import PROVIDER_OVERRIDE_KEY
+
 # Mirrors scriptase.jobs.budget.PROVIDER_NODE_TYPES so the engine never imports
 # the jobs package. Keep both sets in sync when adding provider-capable nodes.
 PROVIDER_NODE_TYPES: frozenset[str] = frozenset({
@@ -60,6 +62,9 @@ def _provider_instance_from_config(configuration: Mapping[str, Any] | None) -> s
     if not isinstance(configuration, Mapping):
         return ""
     for key in (
+        # Step 13.2: a request-pinned instance outranks the saved one here for
+        # the same reason it does at dispatch — it is what actually ran.
+        PROVIDER_OVERRIDE_KEY,
         "provider_instance_id",
         "provider_id",
         "tts_provider_override",
@@ -91,6 +96,7 @@ def cost_snapshot_from_result(
     provider_instance_id = ""
     provider_id = ""
     invocation_id = ""
+    selection_reason = ""
     cost_block: dict[str, Any] | None = None
 
     if isinstance(provenance, Mapping):
@@ -99,6 +105,7 @@ def cost_snapshot_from_result(
         ).strip()
         provider_id = str(provenance.get("provider_id") or "").strip()
         invocation_id = str(provenance.get("invocation_id") or "").strip()
+        selection_reason = str(provenance.get("selection_reason") or "").strip()
         raw_cost = provenance.get("cost")
         if isinstance(raw_cost, Mapping):
             cost_block = extract_cost(cost=raw_cost)
@@ -108,6 +115,13 @@ def cost_snapshot_from_result(
 
     if not provider_instance_id:
         provider_instance_id = _provider_instance_from_config(configuration)
+    # Step 13.2: a provider that stamped no provenance still has to say which
+    # instance produced the result and why, or two back-to-back test runs are
+    # indistinguishable in the record.
+    if not selection_reason and isinstance(configuration, Mapping):
+        override = configuration.get(PROVIDER_OVERRIDE_KEY)
+        if isinstance(override, str) and override.strip():
+            selection_reason = "request"
 
     # Top-level cost on the result (adapters that surface it without provenance).
     if cost_block is None and isinstance(result, Mapping):
@@ -132,6 +146,8 @@ def cost_snapshot_from_result(
         snapshot["provider_id"] = provider_id
     if invocation_id:
         snapshot["invocation_id"] = invocation_id
+    if selection_reason:
+        snapshot["selection_reason"] = selection_reason
     if cost_block is not None:
         snapshot["amount"] = cost_block["amount"]
         snapshot["currency"] = cost_block["currency"]

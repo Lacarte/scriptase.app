@@ -43,6 +43,8 @@ from .common import (
     project_id,
     provider_id,
     provider_run_options,
+    provider_selection_reason,
+    request_provider_override,
     resolve_provider,
     with_artifacts,
 )
@@ -136,7 +138,11 @@ def _step_assets(
             "SCENES_EMPTY", "No scenes have prompts for animation"
         ) from exc
 
-    selected = config.get("animator_provider_override") or provider_id(DOMAIN, config)
+    selected = (
+        request_provider_override(config)
+        or config.get("animator_provider_override")
+        or provider_id(DOMAIN, config)
+    )
     type_id = _canonical_provider_id(selected)
     motion_mode = _resolve_motion_mode_for_run(
         has_storyboard=has_storyboard,
@@ -183,8 +189,8 @@ def _step_assets(
         resolve_settings=_resolved_settings if len(chain) > 1 else None,
         resolve_type=_resolve_type if len(chain) > 1 else None,
         provider_instance_id=selected,
-        primary_selection_reason="node_config",
-        selection_reason="node_config",
+        primary_selection_reason=provider_selection_reason(config),
+        selection_reason=provider_selection_reason(config),
     )
     # The animator node has never exposed the raw per-scene map on its port,
     # and those entries still carry remote URLs for redownload (D38).

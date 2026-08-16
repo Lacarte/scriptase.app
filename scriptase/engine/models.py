@@ -34,7 +34,8 @@ class NodeExecutionRecord:
     # Step 9.3: compact accounting snapshot lifted from result provenance.
     # Stored outside outputs_summary so string decimals survive _summarize.
     # Shape: {amount?, currency?, unit_count?, unit?, provider_instance_id?,
-    #         provider_id?, generations, cache_hit, invocation_id?}.
+    #         provider_id?, generations, cache_hit, invocation_id?,
+    #         selection_reason?}.
     cost: dict[str, Any] | None = None
 
 

@@ -28,6 +28,8 @@ from .common import (
     project_id,
     provider_id,
     provider_run_options,
+    provider_selection_reason,
+    request_provider_override,
     resolve_provider,
     with_artifacts,
 )
@@ -77,7 +79,11 @@ def _step_storyboard(scenes_result, config, pid, context):
             "SCENES_EMPTY", "No scenes have image prompts for storyboard"
         ) from exc
 
-    selected = config.get("storyboard_provider_override") or provider_id(DOMAIN, config)
+    selected = (
+        request_provider_override(config)
+        or config.get("storyboard_provider_override")
+        or provider_id(DOMAIN, config)
+    )
     type_id = _canonical_provider_id(selected)
     provider = resolve_provider(DOMAIN, selected)
     options = dict(config.get("storyboard_provider_options") or {})
@@ -116,8 +122,8 @@ def _step_storyboard(scenes_result, config, pid, context):
         resolve_settings=_resolved_settings if len(chain) > 1 else None,
         resolve_type=_resolve_type if len(chain) > 1 else None,
         provider_instance_id=selected,
-        primary_selection_reason="node_config",
-        selection_reason="node_config",
+        primary_selection_reason=provider_selection_reason(config),
+        selection_reason=provider_selection_reason(config),
     )
 
 

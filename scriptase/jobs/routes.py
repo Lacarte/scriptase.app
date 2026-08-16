@@ -422,6 +422,7 @@ def jobs_test_node(job_id: str):
       target_node_ids   list[str] — required; primary node to test
       input_bindings?   {node_id: {port_id: binding}} from the input picker
       input_overrides?  pre-resolved payloads (optional alternative)
+      provider_instance_id? str — one-shot provider for this run only (13.2)
       force?            bool
       wait?             bool — block until terminal (tests / short runs)
       timeout?          float seconds when wait is true (default 120)
@@ -430,6 +431,10 @@ def jobs_test_node(job_id: str):
     keep the engine ``from_sample_data`` marker when sample bindings feed the
     node. The returned ``execution_id`` is exploratory and is **not** written
     onto the Job.
+
+    ``provider_instance_id`` is resolved for this execution only and recorded
+    in provenance as ``selection_reason: request``. The node's stored
+    configuration is never touched.
     """
     if not JOB_ID_RE.fullmatch(job_id or ""):
         return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
@@ -449,6 +454,9 @@ def jobs_test_node(job_id: str):
     input_overrides = body.get("input_overrides")
     if input_overrides is not None and not isinstance(input_overrides, dict):
         return _error("BAD_REQUEST", "input_overrides must be an object", 400)
+    provider_instance_id = body.get("provider_instance_id")
+    if provider_instance_id is not None and not isinstance(provider_instance_id, str):
+        return _error("BAD_REQUEST", "provider_instance_id must be a string", 400)
 
     force = bool(body.get("force", False))
     wait = bool(body.get("wait", False))
@@ -465,6 +473,7 @@ def jobs_test_node(job_id: str):
             target_node_ids=targets,
             input_bindings=input_bindings,
             input_overrides=input_overrides,
+            provider_instance_id=provider_instance_id or "",
             force=force,
             wait=wait,
             timeout=timeout,
@@ -484,6 +493,7 @@ def jobs_test_node(job_id: str):
         "status": result["status"],
         "run_mode": result["run_mode"],
         "target_node_ids": result["target_node_ids"],
+        "provider_instance_id": result["provider_instance_id"],
     }
     if result.get("execution") is not None:
         payload["execution"] = result["execution"]

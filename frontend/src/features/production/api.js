@@ -139,6 +139,8 @@ export function startJob(jobId, opts = {}) {
  * @param {string[]} body.target_node_ids
  * @param {object} [body.input_bindings]
  * @param {object} [body.input_overrides]
+ * @param {string} [body.provider_instance_id] One-shot provider for this run
+ *   only (step 13.2). Never written to the node's saved configuration.
  * @param {boolean} [body.force]
  * @param {boolean} [body.wait]
  * @param {number} [body.timeout]

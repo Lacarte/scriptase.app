@@ -5,6 +5,6 @@ The scheduler may pass either an :class:`AdapterContext` or a mapping as the
 context.  Output dictionaries are keyed by the stable registry port IDs.
 """
 
-from .common import AdapterContext, AdapterError
+from .common import PROVIDER_OVERRIDE_KEY, AdapterContext, AdapterError
 
-__all__ = ["AdapterContext", "AdapterError"]
+__all__ = ["PROVIDER_OVERRIDE_KEY", "AdapterContext", "AdapterError"]

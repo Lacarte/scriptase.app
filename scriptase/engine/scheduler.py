@@ -29,7 +29,7 @@ from scriptase.shared.security import safe_join
 from scriptase.providers.errors import ProviderError
 from scriptase.providers.validation import sanitize_message
 
-from .adapters import AdapterContext, AdapterError
+from .adapters import PROVIDER_OVERRIDE_KEY, AdapterContext, AdapterError
 from .adapters.common import PROJECT_ID_RE
 from .approval import (
     ApprovalRequired,
@@ -585,6 +585,9 @@ class WorkflowScheduler:
         source_artifact_ids: Mapping[str, list[str]] | None = None,
         # Step 4.2: nodes whose inputs came from sample bindings (not graph stubs).
         sample_fed_node_ids: list[str] | None = None,
+        # Step 13.2: {node_id: provider_instance_id} pinned for this execution
+        # only. Injected into the resolved configuration, never written back.
+        provider_overrides: Mapping[str, str] | None = None,
         max_workers: int = 4,
         # Durable approval (step 2.6): pause after these node ids succeed.
         checkpoint_after_node_ids: list[str] | None = None,
@@ -604,6 +607,11 @@ class WorkflowScheduler:
         }
         self.sample_fed_node_ids = {
             str(node_id) for node_id in (sample_fed_node_ids or []) if node_id
+        }
+        self.provider_overrides = {
+            str(node_id): str(instance_id).strip()
+            for node_id, instance_id in (provider_overrides or {}).items()
+            if node_id and str(instance_id).strip()
         }
         provided_inputs = {
             (node_id, port_id)
@@ -949,6 +957,13 @@ class WorkflowScheduler:
                 f"Resolved configuration is invalid for node {node_id}",
                 details={"node_id": node_id, "problems": resolved_problems},
             )
+        # Step 13.2: a request-pinned provider instance joins the configuration
+        # *after* schema validation (it is not a node field) and *before* the
+        # fingerprint, so testing the same node against two instances back to
+        # back produces two cache entries instead of replaying the first result.
+        provider_override = self.provider_overrides.get(node_id)
+        if provider_override:
+            configuration = {**configuration, PROVIDER_OVERRIDE_KEY: provider_override}
         incoming_fingerprints = {
             ":".join((
                 edge["id"], edge["source_node"], edge["source_port"], edge["target_port"],

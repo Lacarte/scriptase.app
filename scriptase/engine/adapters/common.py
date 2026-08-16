@@ -10,6 +10,14 @@ from config import OUTPUT_DIR
 PROJECT_ID_RE = re.compile(r"^p[pm]_[A-Za-z0-9]{6}$")
 CONTROL = {"ok": True}
 
+# Step 13.2: the one-shot provider instance a *request* pinned for this
+# execution only. The scheduler injects it into the resolved configuration
+# after validation; it is not a `config_schema` field, so `validate_workflow`
+# rejects it as an unknown configuration field and it can never be saved onto
+# a node. That is the structural guarantee behind "never mutates the node's
+# stored configuration" — not a convention anyone has to remember.
+PROVIDER_OVERRIDE_KEY = "provider_instance_override"
+
 
 class AdapterError(RuntimeError):
     """Structured node failure consumed by the workflow scheduler."""
@@ -80,6 +88,24 @@ def inherited_config(config: Mapping[str, Any] | None, settings: Any, aliases=No
     return inherited
 
 
+def request_provider_override(config: Mapping[str, Any] | None) -> str:
+    """The one-shot instance id a test run pinned, or `""` (step 13.2)."""
+    value = (config or {}).get(PROVIDER_OVERRIDE_KEY)
+    return value.strip() if isinstance(value, str) else ""
+
+
+def provider_selection_reason(
+    config: Mapping[str, Any] | None, default: str = "node_config"
+) -> str:
+    """Which rung of the selection chain chose this run's provider.
+
+    `"request"` whenever a one-shot override is in play, so provenance records
+    *why* an instance ran and a test result is never mistaken for the node's
+    configured behaviour.
+    """
+    return "request" if request_provider_override(config) else default
+
+
 def provider_id(domain: str, config: Mapping[str, Any] | None) -> str:
     """The provider instance this node runs on: its saved `provider_id`, else default.
 
@@ -89,9 +115,16 @@ def provider_id(domain: str, config: Mapping[str, Any] | None) -> str:
     configuration and invalidate the cache the fallback exists to preserve. It
     is what keeps a `story.generate` or `scenes.blueprint` saved before step
     12.3 running the same service it always did.
+
+    Step 13.2: a request-scoped override outranks the saved value. It is the
+    single resolution point every adapter already funnels through, so pinning
+    an instance for one execution needs no per-domain edit.
     """
     from scriptase.providers.domains import DOMAINS
 
+    override = request_provider_override(config)
+    if override:
+        return override
     value = (config or {}).get("provider_id")
     if isinstance(value, str) and value:
         return value

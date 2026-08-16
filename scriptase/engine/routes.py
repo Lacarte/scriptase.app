@@ -687,6 +687,10 @@ def workflow_run():
     current_job_id = body.get("current_job_id")
     if current_job_id is not None and not isinstance(current_job_id, str):
         return _error("BAD_REQUEST", "current_job_id must be a string", 400)
+    # Step 13.2: one-shot provider instance for the targeted nodes of this run.
+    provider_instance_id = body.get("provider_instance_id")
+    if provider_instance_id is not None and not isinstance(provider_instance_id, str):
+        return _error("BAD_REQUEST", "provider_instance_id must be a string", 400)
     try:
         if has_id:
             workflow = load_workflow(body.get("workflow_id"))
@@ -703,6 +707,7 @@ def workflow_run():
             input_overrides=input_overrides,
             input_bindings=input_bindings,
             current_job_id=current_job_id,
+            provider_instance_id=provider_instance_id or "",
         )
     except WorkflowNotFound:
         return _error("NOT_FOUND", "Workflow not found", 404)

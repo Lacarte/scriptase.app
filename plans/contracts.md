@@ -232,10 +232,26 @@ Binding `source` is one of: `current_job`, `job`, `library`, `upload`, `manual`,
 
 **Test Node (step 4.2 / §9).** `POST /api/jobs/<job_id>/test-node` runs
 `node_isolated` for the given `target_node_ids` with optional `input_bindings`.
-It returns `202 {job, execution_id, project_id, status, run_mode, target_node_ids}`
+It returns
+`202 {job, execution_id, project_id, status, run_mode, target_node_ids, provider_instance_id}`
 and **never** rewrites the Job's `status`, `current_stage`, `artifacts`, or
 `execution_id`. Sample bindings stamp `from_sample_data` on the node record so
 stub-derived output is never mistaken for real output.
+
+**One-shot provider override (step 13.2).** `POST /api/jobs/<job_id>/test-node`
+and `POST /api/workflow/run` accept an optional `provider_instance_id` string.
+It applies to the requested `target_node_ids` only and is refused
+(`BAD_REQUEST`) without them — a full run has no node under test, so a
+graph-wide repoint would be a silent reconfiguration, not an override. The
+engine injects it into the **resolved** configuration as
+`provider_instance_override` after schema validation and before the cache
+fingerprint, so testing one node against two instances back to back produces
+two cache entries instead of replaying the first result.
+`provider_instance_override` is not a `config_schema` field, so
+`validate_workflow` rejects it as an unknown configuration field and it can
+never be saved onto a node. Provenance records `selection_reason: request`, and
+the node execution record's `cost` block carries `provider_instance_id` and
+`selection_reason` so a result always says which instance produced it and why.
 
 **Cache fingerprint** inputs: node type, type version, configuration, inputs, upstream
 artifact fingerprints, adapter cache schema version. Artifact integrity is re-verified on

@@ -303,6 +303,7 @@ def run_node_test(
     wait: bool = False,
     timeout: float = 120.0,
     workflow: Mapping[str, Any] | None = None,
+    provider_instance_id: str = "",
 ) -> dict[str, Any]:
     """Run one node in isolation for a Job **without advancing the Job**.
 
@@ -310,6 +311,11 @@ def run_node_test(
     picker bindings from 4.1. The Job's ``status``, ``current_stage``,
     ``artifacts``, and ``execution_id`` are left unchanged — a test run is
     exploratory and must never be mistaken for Job progress.
+
+    Step 13.2: ``provider_instance_id`` pins one provider instance for this
+    execution only. The saved workflow is never rewritten, so the same node can
+    be tried against two instances back to back and still run what it always
+    ran on the next production pass.
 
     Named ``run_node_test`` (not ``test_*``) so pytest does not collect it.
 
@@ -360,6 +366,7 @@ def run_node_test(
             input_overrides=input_overrides,
             current_job_id=job.id,
             checkpoint_after_node_ids=[],
+            provider_instance_id=str(provider_instance_id or "").strip(),
         )
     except ExecutionRequestError as exc:
         raise JobOrchestrationError(exc.code, str(exc), details=exc.details) from exc
@@ -371,6 +378,7 @@ def run_node_test(
         "status": "queued",
         "run_mode": "node_isolated",
         "target_node_ids": cleaned_targets,
+        "provider_instance_id": str(provider_instance_id or "").strip(),
     }
 
     if wait:

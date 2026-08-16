@@ -224,9 +224,16 @@ class ExecutionManager:
         source_artifact_ids: Mapping[str, list[str]] | None = None,
         current_job_id: str | None = None,
         checkpoint_after_node_ids: list[str] | None = None,
+        # Step 13.2: pin one provider instance for this execution only. It
+        # applies to the requested target nodes — the nodes the operator is
+        # actually testing — never to the upstream the scope pulled in.
+        provider_instance_id: str = "",
     ) -> tuple[str, str]:
         if source not in {"manual", "schedule", "watch", "webhook"}:
             raise ExecutionRequestError("BAD_REQUEST", "Unsupported run source")
+        provider_overrides = self._resolve_provider_overrides(
+            workflow, provider_instance_id, target_node_ids
+        )
         overrides = dict(input_overrides or {})
         recorded_sources: dict[str, list[str]] = {
             str(node_id): list(ids)
@@ -341,6 +348,7 @@ class ExecutionManager:
             source_artifact_ids=recorded_sources,
             sample_fed_node_ids=sample_fed_nodes,
             checkpoint_after_node_ids=checkpoint_after_node_ids,
+            provider_overrides=provider_overrides,
         )
         scheduler.record.status = "queued"
         save_execution(scheduler.record, root=self.execution_root, secrets=scheduler.redactor.secrets)
@@ -352,6 +360,46 @@ class ExecutionManager:
         self.active.set(execution_id, handle)
         self._enqueue(resolved_project, handle)
         return execution_id, resolved_project
+
+    @staticmethod
+    def _resolve_provider_overrides(
+        workflow: Mapping[str, Any],
+        provider_instance_id: str,
+        target_node_ids: list[str],
+    ) -> dict[str, str]:
+        """Map the one-shot instance id onto the requested target nodes (13.2).
+
+        Rejected without targets: a full run has no "the node being tested", so
+        an override would silently repoint every provider node in the graph.
+        """
+        if not provider_instance_id:
+            return {}
+        if not isinstance(provider_instance_id, str):
+            raise ExecutionRequestError(
+                "BAD_REQUEST", "provider_instance_id must be a string"
+            )
+        instance_id = provider_instance_id.strip()
+        if not instance_id:
+            return {}
+        targets = [str(node_id) for node_id in (target_node_ids or []) if node_id]
+        if not targets:
+            raise ExecutionRequestError(
+                "BAD_REQUEST",
+                "provider_instance_id requires target_node_ids",
+            )
+        nodes = {
+            node.get("id"): node
+            for node in workflow.get("nodes", [])
+            if isinstance(node, Mapping)
+        }
+        for node_id in targets:
+            node = nodes.get(node_id)
+            if node is None or node.get("disabled"):
+                raise ExecutionRequestError(
+                    "BAD_REQUEST",
+                    f"Provider override node is unavailable: {node_id}",
+                )
+        return {node_id: instance_id for node_id in targets}
 
     @staticmethod
     def _validate_input_overrides(
