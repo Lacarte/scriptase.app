@@ -1,0 +1,22 @@
+# What the launcher installs into tools/automation/ai-web-auto/venv.
+#
+# This is a strict subset of the vendored ai-web-auto/requirements.txt, and the
+# difference is deliberate. `serve.py` runs `ai_web_auto_backend.core.server` and
+# nothing else -- a WebSocket relay between the browser extension and whoever is
+# driving it -- and that reaches exactly three packages. The rest of upstream's
+# list belongs to the AI task API (`ai/agent.py`, `tasks/imagefx_auto.py`):
+# anthropic, opencv-python, pytesseract, pillow, aiofiles. That is roughly 400 MB
+# and several minutes of pip on a first run, charged to every start.bat, for code
+# nothing in Scriptase calls today. pytesseract additionally needs a Tesseract
+# binary that pip cannot install, so that path is half-provisioned regardless.
+#
+# If you do import BrowserAgent, the ImportError is one command from fixed:
+#
+#     tools\automation\ai-web-auto\venv\Scripts\pip install -r tools\automation\ai-web-auto\requirements.txt
+#
+# Bounds are upstream's, because this file must not silently resolve to a
+# version the vendored code does not run on.
+
+websockets>=11.0
+loguru>=0.7
+pydantic>=2.0

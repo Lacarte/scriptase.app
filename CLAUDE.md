@@ -56,6 +56,7 @@ start.bat                 # dev: Flask :5000 + Vite :5173 with HMR
 start.bat -Mode prod      # build the frontend, serve it from Flask alone
 start.bat -Mode setup     # provision only, do not launch
 start.bat -NoChromium     # skip the bundled browser, use the default one
+start.bat -NoAutomation   # skip the vendored ai-web-auto server and its venv
 start.bat -NoPull         # skip the fast-forward pull from origin
 start.bat -Reinstall      # force a dependency reinstall
 ```
@@ -63,22 +64,31 @@ start.bat -Reinstall      # force a dependency reinstall
 What it does before launching: fast-forward pull from origin, verify Python
 3.10+/Node 18+, create or repair `venv/`, reinstall Python deps when
 `requirements.txt` changes and Node deps when `package-lock.json` changes
-(SHA-256 stamps beside each artifact), and load `.env`.
+(SHA-256 stamps beside each artifact), provision `tools/automation/ai-web-auto`'s
+separate venv the same way, and load `.env`.
 
-Four things worth knowing:
+Five things worth knowing:
 
 - **`.env` is read by the launcher, not by Python.** `config.py` uses
   `os.environ` only, so the backend carries no dotenv dependency and tests stay
   hermetic. Setting a real environment variable overrides `.env`.
-- **Children die with the launcher.** Flask and Vite are placed in a Windows Job
-  Object with `KILL_ON_JOB_CLOSE`, so closing the window cannot orphan a process
-  holding port 5000. Don't add port-killing or window-title-killing back.
+- **Children die with the launcher.** Flask, ai-web-auto and Vite are placed in a
+  Windows Job Object with `KILL_ON_JOB_CLOSE`, so closing the window cannot
+  orphan a process holding port 5000. Don't add port-killing or
+  window-title-killing back.
 - **The pull never blocks startup.** It is `--ff-only`, skipped when the tree is
   dirty, and every failure warns and launches on local code.
-- **The order is Flask, then Chromium, then Vite.** The extensions dial the
-  backend WebSocket as they load. Chromium is the one child deliberately outside
-  the Job Object — it holds the Grok and Google logins and is reused across runs
-  — and the one whose failure is a warning, degrading to the default browser.
+- **The order is Flask, ai-web-auto, Chromium, Vite.** The extensions dial the
+  backend WebSocket and the automation socket as they load. Chromium is the one
+  child deliberately outside the Job Object — it holds the Grok and Google logins
+  and is reused across runs — and the one whose failure is a warning, degrading
+  to the default browser.
+- **ai-web-auto is vendored, not integrated.** `tools/automation/ai-web-auto/` is
+  a pinned copy of a separate project with its own venv and its own `:8765`
+  WebSocket server, driven by one browser extension and by nothing in
+  `scriptase/`. `tools/automation.ps1` provisions and runs it; every failure
+  there is a warning. Edit `tools/automation/serve.py`, never the vendored tree —
+  see its `VENDOR.md`.
 
 ## Layout
 

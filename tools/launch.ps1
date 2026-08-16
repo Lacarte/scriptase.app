@@ -10,17 +10,19 @@
       2. Create venv/ if missing or broken
       3. Install Python deps when requirements.txt changes (SHA-256 stamp)
       4. Install Node deps when package-lock.json changes (SHA-256 stamp)
-      5. Load .env into the child environment
-      6. Launch, and guarantee every child dies with this process
+      5. Provision the ai-web-auto venv (separate, and never fatal)
+      6. Load .env into the child environment
+      7. Launch, and guarantee every child dies with this process
 
-    Launch order is Flask, then Chromium, then Vite, and it is load-bearing.
-    The browser extensions dial the backend WebSocket as they load, so a
-    Chromium that starts first spends its first seconds failing to connect;
-    Vite goes last because nothing else waits on it.
+    Launch order is Flask, then ai-web-auto, then Chromium, then Vite, and it is
+    load-bearing. The browser extensions dial the app's WebSocket hubs and the
+    automation server as they load, so a Chromium that starts first spends its
+    first seconds failing to connect; Vite goes last because nothing else waits
+    on it.
 
-    Child processes (Flask, Vite) are placed in a Windows Job Object with
-    KILL_ON_JOB_CLOSE. When this process ends by ANY route -- clean exit,
-    Ctrl+C, closing the console, crash, Task Manager -- the kernel terminates
+    Child processes (Flask, ai-web-auto, Vite) are placed in a Windows Job
+    Object with KILL_ON_JOB_CLOSE. When this process ends by ANY route -- clean
+    exit, Ctrl+C, closing the console, crash, Task Manager -- the kernel terminates
     the whole job atomically. There is no polling watchdog, no killing by
     window title, and no killing by port number: those can all fire late or
     hit an unrelated process that happens to hold the port.
@@ -37,6 +39,10 @@
 .PARAMETER NoChromium
     Skip the bundled Chromium and open the app in the default browser instead.
     The two extension-transport providers (Grok, Gemini) will not work.
+
+.PARAMETER NoAutomation
+    Skip the vendored ai-web-auto server, and its venv with it. Only the
+    ai-web-auto browser extension talks to it; nothing else in the app does.
 
 .PARAMETER NoPull
     Skip the fast-forward pull from origin.
@@ -55,6 +61,7 @@ param(
     [string]$Mode = 'dev',
     [switch]$NoBrowser,
     [switch]$NoChromium,
+    [switch]$NoAutomation,
     [switch]$NoPull,
     [switch]$Reinstall
 )
@@ -524,13 +531,14 @@ function Wait-ForPort {
 }
 
 # ---------------------------------------------------------------------------
-# The browser
+# The browser and the automation server
 # ---------------------------------------------------------------------------
 
-# Dot-sourced for its functions only; chromium.ps1 returns early rather than
-# launching anything when it is loaded this way. It reuses the Write-* helpers
-# above, so it has to be loaded after them.
+# Dot-sourced for their functions only; both return early rather than launching
+# anything when they are loaded this way. They reuse the Write-* helpers above,
+# so they have to be loaded after them.
 . (Join-Path $PSScriptRoot 'chromium.ps1')
+. (Join-Path $PSScriptRoot 'automation.ps1')
 
 function Start-ChromiumOrWarn {
     <#
@@ -582,6 +590,10 @@ $python = Test-Toolchain
 Initialize-Venv -Python $python
 Sync-PythonDeps
 Sync-NodeDeps
+# Its own venv, and warn-only. ai-web-auto pins its dependencies against its own
+# bounds, and nothing the backend imports comes from it -- so it neither shares
+# the app's environment nor gets to stop the app from starting.
+if (-not $NoAutomation) { Initialize-AutomationVenv -Reinstall:$Reinstall | Out-Null }
 Import-DotEnv
 
 if ($Mode -eq 'setup') {
@@ -596,6 +608,10 @@ $backendPort = if ($env:SCRIPTASE_PORT) { [int]$env:SCRIPTASE_PORT } else { 5000
 $backendHost = if ($env:SCRIPTASE_HOST) { $env:SCRIPTASE_HOST } else { '127.0.0.1' }
 $healthUrl   = "http://${backendHost}:${backendPort}/api/health"
 $vitePort    = 5173
+# Resolved after Import-DotEnv, so SCRIPTASE_AUTOMATION_PORT in .env counts --
+# and by the same call the extension staging reads, so the injected port and the
+# bound port cannot drift apart.
+$automationPort = Get-ScriptaseAutomationPort
 
 if ($Mode -eq 'prod') {
     Write-Step 'Building the frontend...'
@@ -626,14 +642,24 @@ try {
 
     $appUrl = "http://${backendHost}:${backendPort}/"
 
-    # --- 2. Chromium -------------------------------------------------------
-    # Second, and never fatal. It also overlaps usefully with Vite's startup:
-    # the provider tabs are loading while npm gets going.
+    # --- 2. ai-web-auto ----------------------------------------------------
+    # Before the browser, for the same reason Flask is: the ai-web-auto
+    # extension dials the automation socket as its service worker loads. A job
+    # member unlike Chromium -- it holds a port and no session, so it should go
+    # when this window does. Warn-only throughout, including "already
+    # listening", which is the normal answer when one is running by hand.
+    if (-not $NoAutomation) {
+        Start-AutomationServer -Port $automationPort -Job $job | Out-Null
+    }
+
+    # --- 3. Chromium -------------------------------------------------------
+    # Never fatal. It also overlaps usefully with Vite's startup: the provider
+    # tabs are loading while npm gets going.
     if (-not $NoBrowser -and -not $NoChromium) {
         $chromiumReady = Start-ChromiumOrWarn -Url (Get-ChromiumProviderTabs)
     }
 
-    # --- 3. Vite -----------------------------------------------------------
+    # --- 4. Vite -----------------------------------------------------------
     # Last, and fatal. In dev mode it serves the UI, so there is no app to open
     # without it -- unlike the browser, there is nothing to degrade to.
     if ($Mode -eq 'dev') {
@@ -656,7 +682,7 @@ try {
     Write-Host '  Press Ctrl+C or close this window to stop everything.' -ForegroundColor DarkGray
     Write-Host ''
 
-    # --- 4. The app tab ----------------------------------------------------
+    # --- 5. The app tab ----------------------------------------------------
     # Only now is $appUrl real: in dev it points at Vite, which did not exist
     # until a moment ago. Into the window already holding the provider tabs and
     # the logged-in profile, not a second browser beside it.
@@ -667,7 +693,8 @@ try {
         Start-Process $appUrl | Out-Null
     }
 
-    # Block until the backend exits. Vite is a job member, so it dies with us.
+    # Block until the backend exits. Vite and ai-web-auto are job members, so
+    # they die with us.
     $flask.WaitForExit()
     $exitCode = $flask.ExitCode
 }

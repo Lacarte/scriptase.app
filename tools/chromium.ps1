@@ -373,7 +373,7 @@ function Sync-ScriptaseExtensions {
     param(
         [int]$AppPort = 0,
         [int]$VitePort = 5173,
-        [int]$AutomationPort = 8765,
+        [int]$AutomationPort = 0,
         [string]$HostName = 'localhost',
         # Only the tests pass this. Restaging the live tree underneath a running
         # browser is a real way to break a session, so they stage elsewhere.
@@ -381,6 +381,13 @@ function Sync-ScriptaseExtensions {
     )
 
     if (-not $AppPort) { $AppPort = Get-ScriptaseAppPort }
+    # The automation port belongs to tools\automation.ps1, but this file cannot
+    # dot-source that one for Get-ScriptaseAutomationPort: its param block would
+    # land in this scope and reset -InstallOnly to $false halfway through a run.
+    # tests/test_automation_backend.py runs both readings and compares them.
+    if (-not $AutomationPort) {
+        $AutomationPort = if ($env:SCRIPTASE_AUTOMATION_PORT) { [int]$env:SCRIPTASE_AUTOMATION_PORT } else { 8765 }
+    }
     if (-not $StageDir) { $StageDir = $script:ExtensionStage }
 
     $extensions = Get-ScriptaseExtensions
