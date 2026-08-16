@@ -1310,6 +1310,64 @@ describe('ProductionPage', () => {
     )
     wrapper.unmount()
   })
+
+  it('opens the editor and exports in their own windows, keeping the run bound (step 14.4)', async () => {
+    // Production owns a live SSE stream; a route change would tear it down.
+    // The bound execution's project travels in the URL so the popup survives
+    // its own reload and stays pasteable.
+    api.getExecutionStages.mockResolvedValue({
+      projection: {
+        ...projection(),
+        execution_id: 'ex_WIN001',
+        execution_status: 'succeeded',
+      },
+    })
+    api.getExecution.mockResolvedValue({
+      execution: {
+        execution_id: 'ex_WIN001',
+        project_id: 'pm_ABC123',
+        status: 'succeeded',
+        nodes: { n_script: { status: 'succeeded' } },
+      },
+    })
+    api.listExecutions.mockResolvedValue({
+      executions: [{ execution_id: 'ex_WIN001', status: 'succeeded' }],
+      total: 1,
+    })
+    const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/production', name: 'production', component: ProductionPage },
+        { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
+      ],
+    })
+    await router.push({
+      name: 'production',
+      query: { workflow_id: 'wf_ABCDEF', execution_id: 'ex_WIN001' },
+    })
+    await router.isReady()
+
+    const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const buttons = wrapper.findAll('.page-header .actions button')
+    const editorButton = buttons.find((b) => b.text().includes('Timeline Editor'))
+    const exportsButton = buttons.find((b) => b.text().includes('Exports'))
+    await editorButton.trigger('click')
+    await exportsButton.trigger('click')
+
+    expect(open.mock.calls.map((call) => call.slice(0, 2))).toEqual([
+      ['/editor?project=pm_ABC123', 'scriptase-editor-pm_ABC123'],
+      ['/exports?project=pm_ABC123', 'scriptase-exports-pm_ABC123'],
+    ])
+    expect(open.mock.calls[0][2]).toContain('popup=yes')
+    // Production is still on Production, still bound to the same run.
+    expect(router.currentRoute.value.path).toBe('/production')
+    expect(router.currentRoute.value.query.execution_id).toBe('ex_WIN001')
+    wrapper.unmount()
+  })
 })
 
 describe('nodeRecords helpers', () => {

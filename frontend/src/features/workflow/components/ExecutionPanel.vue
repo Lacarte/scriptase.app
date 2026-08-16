@@ -1,10 +1,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { useWorkflowStore } from '../stores/workflow.js'
+import { openAppWindow } from '@/shared/utils/openWindow.js'
 
 const store = useWorkflowStore()
-const router = useRouter()
 const expanded = ref({})
 const retrying = ref(false)
 const actionMessage = ref('')
@@ -183,10 +182,18 @@ async function retry(mode) {
   }
 }
 
+/**
+ * Both open in their own window (step 14.4). Routing away would drop the
+ * execution SSE stream this panel is reading, and a run is usually still going
+ * when the assembled project first becomes editable.
+ */
 function openEditor() {
-  if (store.editorProjectId) {
-    router.push({ path: '/editor', query: { project: store.editorProjectId } })
-  }
+  if (!store.editorProjectId) return
+  openAppWindow('editor', { query: { project: store.editorProjectId } })
+}
+
+function openExports() {
+  openAppWindow('exports', { query: { project: store.editorProjectId || '' } })
 }
 </script>
 
@@ -210,7 +217,11 @@ function openEditor() {
           v-if="store.editorProjectId"
           class="execution-open"
           @click="openEditor"
-        >Open in Timeline Editor</button>
+        >Open in Timeline Editor ↗</button>
+        <button
+          class="execution-open"
+          @click="openExports"
+        >Export Library ↗</button>
         <button
           type="button"
           class="execution-collapse-toggle"

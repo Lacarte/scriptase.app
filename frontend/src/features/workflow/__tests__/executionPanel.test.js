@@ -146,6 +146,45 @@ describe('ExecutionPanel deep inspection', () => {
     expect(store.runQueueWaiting).toBe(2)
   })
 
+  it('opens the editor and the export library in their own windows (step 14.4)', async () => {
+    // A run is usually still streaming into this panel when the assembled
+    // project first becomes editable — routing away would drop that stream.
+    const store = useWorkflowStore()
+    store.workflowId = 'wf_ABC123'
+    store.nodeTypes = {
+      'compose.assemble': {
+        type_version: 1, inputs: [], config_schema: [],
+        outputs: [{ id: 'project', type: 'editor_project' }],
+      },
+    }
+    store.currentExecution = {
+      execution_id: 'ex_DONE01', workflow_id: 'wf_ABC123', project_id: 'pm_ABC123',
+      status: 'succeeded',
+      workflow_snapshot: { nodes: [{ id: 'assemble', type: 'compose.assemble', name: 'Assemble' }] },
+      nodes: { assemble: { status: 'succeeded', outputs_summary: { project: { chars: 9 } } } },
+    }
+    vi.spyOn(api, 'get').mockResolvedValue({ executions: [], total: 0 })
+    const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
+    const push = vi.spyOn(router, 'push')
+    const wrapper = mount(ExecutionPanel, { global: { plugins: [router] } })
+
+    const buttons = wrapper.findAll('.execution-open')
+    expect(buttons.map((b) => b.text())).toEqual([
+      'Open in Timeline Editor ↗', 'Export Library ↗',
+    ])
+
+    await buttons[0].trigger('click')
+    await buttons[1].trigger('click')
+
+    expect(open.mock.calls.map((call) => call.slice(0, 2))).toEqual([
+      ['/editor?project=pm_ABC123', 'scriptase-editor-pm_ABC123'],
+      ['/exports?project=pm_ABC123', 'scriptase-exports-pm_ABC123'],
+    ])
+    expect(open.mock.calls[0][2]).toContain('popup=yes')
+    expect(push).not.toHaveBeenCalled()
+  })
+
   it('collapses without unmounting diagnostics and remembers the preference', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
     const wrapper = mount(ExecutionPanel, { global: { plugins: [router] } })

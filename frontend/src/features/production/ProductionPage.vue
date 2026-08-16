@@ -28,6 +28,7 @@ import { useProductionStages } from './composables/useProductionStages.js'
 import { ACTION_LABELS } from './stageActions.js'
 import { sourceModeLabel, sourceModeRequiresProvider } from './sourceModes.js'
 import { statusLabel } from './stageStatus.js'
+import { openAppWindow } from '@/shared/utils/openWindow.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,6 +39,7 @@ const {
   workflowDocument,
   executionId,
   executionStatus,
+  projectId,
   loading,
   error,
   streamError,
@@ -332,6 +334,19 @@ function selectStage(stage) {
   selectedStageKey.value = stage?.key ?? null
 }
 
+/**
+ * Editor and Exports open beside Production, never over it (step 14.4). A Job
+ * keeps running while you cut the timeline, and the SSE stream this page owns
+ * would be torn down by a route change.
+ */
+function openTimelineEditor() {
+  openAppWindow('editor', { query: { project: projectId.value || '' } })
+}
+
+function openExportLibrary() {
+  openAppWindow('exports', { query: { project: projectId.value || '' } })
+}
+
 function openWorkflowCanvas() {
   const query = {}
   if (workflowId.value || selectedWorkflowId.value) {
@@ -529,6 +544,22 @@ onMounted(async () => {
           @click="openWorkflowCanvas"
         >
           Open Workflow
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          title="Open the Timeline Editor in its own window"
+          @click="openTimelineEditor"
+        >
+          Timeline Editor ↗
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          title="Open the Export Library in its own window"
+          @click="openExportLibrary"
+        >
+          Exports ↗
         </button>
       </div>
     </header>

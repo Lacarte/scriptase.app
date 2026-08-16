@@ -2,10 +2,29 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { APP_NAME } from './shared/constants.js'
+import { APP_WINDOW_TARGETS, openAppWindow } from './shared/utils/openWindow.js'
 import ToastContainer from './shared/components/ToastContainer.vue'
 
 const route = useRoute()
 const fullHeight = computed(() => Boolean(route.meta?.fullHeight))
+
+/**
+ * Editor and Exports leave the app running (step 14.4). They keep a real
+ * `href` so middle-click, "copy link", and a pasted URL all still work — the
+ * click handler only upgrades a plain click to a sized window.
+ */
+const windowLinks = [
+  { target: 'editor', label: 'Editor' },
+  { target: 'exports', label: 'Exports' },
+]
+
+function pathFor(target) {
+  return APP_WINDOW_TARGETS[target].path
+}
+
+function openInWindow(target) {
+  openAppWindow(target)
+}
 </script>
 
 <template>
@@ -17,6 +36,14 @@ const fullHeight = computed(() => Boolean(route.meta?.fullHeight))
         <router-link to="/workflow">Workflow</router-link>
         <router-link to="/channels">Channels</router-link>
         <router-link to="/settings/providers">Settings</router-link>
+        <a
+          v-for="link in windowLinks"
+          :key="link.target"
+          class="window-link"
+          :href="pathFor(link.target)"
+          :title="`Open ${link.label} in its own window`"
+          @click.exact.prevent="openInWindow(link.target)"
+        >{{ link.label }} ↗</a>
       </nav>
     </header>
     <main class="app-main" :class="{ 'app-main--full': fullHeight }">
@@ -100,6 +127,15 @@ nav a {
 }
 
 nav a.router-link-active {
+  color: var(--accent, #8ab4f8);
+}
+
+/* Reads as "leaves this page" — it opens its own window, never navigates. */
+.window-link {
+  color: var(--text-dim, #6b7280);
+}
+
+.window-link:hover {
   color: var(--accent, #8ab4f8);
 }
 

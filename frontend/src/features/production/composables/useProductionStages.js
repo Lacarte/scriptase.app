@@ -38,6 +38,12 @@ export function useProductionStages(options = {}) {
   const workflowDocument = shallowRef(null)
   const executionId = ref(null)
   const executionStatus = ref(null)
+  /**
+   * Project this run writes into. The Timeline Editor and Export Library are
+   * addressed by project, not by execution, so the header links need it
+   * (step 14.4).
+   */
+  const projectId = ref(null)
   const loading = ref(false)
   const error = ref('')
   const streamError = ref('')
@@ -83,6 +89,7 @@ export function useProductionStages(options = {}) {
     if (projection.workflow_version != null) workflowVersion.value = projection.workflow_version
     if (projection.execution_id != null) executionId.value = projection.execution_id
     if (projection.execution_status != null) executionStatus.value = projection.execution_status
+    if (projection.project_id != null) projectId.value = projection.project_id
     queuePosition.value = Number.isFinite(projection.queue_position)
       ? projection.queue_position
       : null
@@ -177,6 +184,7 @@ export function useProductionStages(options = {}) {
     nodeRecords.value = {}
     executionId.value = null
     executionStatus.value = null
+    projectId.value = null
     lastSequence.value = 0
     actionError.value = ''
     actionMessage.value = ''
@@ -235,6 +243,7 @@ export function useProductionStages(options = {}) {
       const data = await runWorkflow(body)
       executionStatus.value = data.status || 'queued'
       executionId.value = data.execution_id
+      if (data.project_id) projectId.value = data.project_id
       actionMessage.value = `Started ${action} → ${body.run_mode} on ${body.target_node_ids?.[0] || 'node'}`
       if (data.execution_id) {
         watchExecution(data.execution_id, {
@@ -274,6 +283,7 @@ export function useProductionStages(options = {}) {
       if (execution) {
         nodeRecords.value = nodeRecordsFromExecution(execution)
         if (execution.status) executionStatus.value = execution.status
+        if (execution.project_id) projectId.value = execution.project_id
         // Snapshot on the execution is enough for primary-node targeting when
         // the saved workflow is not loaded yet.
         if (execution.workflow_snapshot && !workflowDocument.value) {
@@ -333,6 +343,7 @@ export function useProductionStages(options = {}) {
     workflowDocument,
     executionId,
     executionStatus,
+    projectId,
     loading,
     error,
     streamError,
