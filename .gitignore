@@ -38,9 +38,15 @@ tmp/
 !.env.example
 settings/settings.json
 **/secrets.json
+# The bundled browser profile holds live Google and Grok sessions -- cookies,
+# tokens, and saved passwords for real accounts. It is ignored as a credential,
+# not as a build artefact.
+data/chromium-profile/
 
 # --- Large local assets ------------------------------------------------------
 # ffmpeg/ffprobe binaries and Whisper weights are fetched locally, not committed.
+# bin/ also takes the ~180 MB ungoogled-Chromium that tools/chromium.ps1 fetches
+# on first run, which is exactly why it is downloaded and never vendored.
 models/*
 !models/.gitkeep
 bin/*
