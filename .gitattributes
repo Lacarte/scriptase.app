@@ -1,0 +1,33 @@
+# Normalize text in the repository, and check out platform-correct endings.
+* text=auto
+
+# Windows shells REQUIRE CRLF. A .bat file saved with bare LF endings parses
+# erratically: `goto :label` silently fails and cmd.exe exits mid-script, which
+# looks exactly like "the console closes when I press a key". This bit us after
+# a sed edit rewrote run.bat with LF endings.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Keep POSIX tooling working regardless of platform.
+*.sh    text eol=lf
+
+# Binary assets git must never touch.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.mp3   binary
+*.mp4   binary
+*.wav   binary
+*.onnx  binary
+*.bin   binary
+*.zip   binary
+*.exe   binary
+*.dll   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
