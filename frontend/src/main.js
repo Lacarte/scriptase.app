@@ -57,6 +57,12 @@ const router = createRouter({
       component: () => import('./features/editor/views/EditorPage.vue'),
       meta: { title: 'Timeline Editor', fullHeight: true },
     },
+    {
+      path: '/exports',
+      name: 'export-library',
+      component: () => import('./features/export-library/views/ExportLibraryPage.vue'),
+      meta: { title: 'Export Library' },
+    },
     { path: '/channels', name: 'channels', component: ChannelsPage },
     { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
     {
