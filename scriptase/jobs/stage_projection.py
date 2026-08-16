@@ -361,6 +361,33 @@ def _collect_artifacts(
     return refs
 
 
+def _collect_score(
+    node_ids: list[str],
+    node_records: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """The script-score snapshot a member node recorded, or None (step 16.3).
+
+    Only ``script.analyze`` writes one and it sits on the Script stage, so the
+    first non-empty snapshot among the members is that stage's verdict. Read
+    from the dedicated record field rather than ``outputs_summary``, which the
+    scheduler's summarizer has already stripped of the band and the dimension
+    breakdown.
+    """
+    for node_id in node_ids:
+        record = node_records.get(node_id)
+        if record is None:
+            continue
+        if hasattr(record, "score"):
+            candidate = getattr(record, "score")
+        elif isinstance(record, Mapping):
+            candidate = record.get("score")
+        else:
+            continue
+        if isinstance(candidate, Mapping) and candidate:
+            return dict(candidate)
+    return None
+
+
 def _node_status(record: Any) -> str:
     if record is None:
         return "idle"
@@ -504,6 +531,10 @@ def project_stages(
             ),
             "artifacts": _collect_artifacts(member_ids, node_records),
             "issues": deduped_issues,
+            # Step 16.3 — the script virality verdict, or None on every stage
+            # that never ran an analyzer. Typed and always present so the
+            # Production panel branches on a value rather than a missing key.
+            "score": _collect_score(member_ids, node_records),
         }
         stages.append(stage)
 

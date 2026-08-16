@@ -526,6 +526,11 @@ ChannelProfile
 - cadence           { enabled, cron, execution_mode, source }             # step 9.2
 ```
 
+`review_policy.thresholds` is an **open map**, read by whoever enforces the key. Known
+keys: `safe_degradation`, `max_repairs_per_scene`, and `viral_score_min` (16.3 — the
+minimum acceptable script virality score, 0-100). Unset means the check is off; there
+are no default bars.
+
 `cadence` is the Channel content schedule (UTC five-field cron). When enabled, the
 channel cadence service creates Jobs (not raw executions) using `default_workflow_id`
 and `cadence.source` / `cadence.execution_mode`. Runtime cursors live outside the Channel
@@ -862,13 +867,28 @@ diverging.
 StageProjection
 - workflow_id / workflow_version
 - stages[]  { key, label, ordinal, node_ids[], status, provider_capable,
-              active_provider_instance_id?, artifacts[], issues[] }
+              active_provider_instance_id?, artifacts[], issues[], score }
+
+StageScore                 # 16.3; null on every stage with no script.analyze
+- score                    # 0-100, the frozen 16.1 ViralScore value
+- band                     # poor | weak | solid | strong
+- scorer / scorer_version / provider_id / target_duration
+- dimensions[]  { id, score, weight, points,
+                  reasons[{ code, impact, detail }] }
+- threshold?               # Channel review_policy.thresholds.viral_score_min
+- passed?                  # absent together with threshold = never measured
+- issue_ids[]?             # ReviewIssues this score raised
 ```
 
 Rules:
 
 - The projection is **computed from the graph on the backend**. A hardcoded step array in
   the frontend is a contract violation.
+- `score` reads a dedicated `NodeExecutionRecord.score` field, never
+  `outputs_summary` — the execution summarizer reduces the band to a character count and
+  drops the dimension breakdown, exactly as it does to `cost`.
+- `threshold` and `passed` are present together or not at all. Absent means no Channel
+  threshold was configured, which is **not** the same claim as passing.
 - Default production projection order: Script, Voice, Timing, Segments, Scenes, Images,
   Videos, Review, Composer, Export.
 - Side branches (captions, music, branding, validators) collapse into the stage where they

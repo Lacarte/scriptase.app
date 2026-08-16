@@ -44,6 +44,7 @@ from .approval import (
 )
 from .cache import CacheLookup, NodeCache, canonical_fingerprint, fingerprint_components, output_fingerprint
 from .cost_snapshot import cost_snapshot_from_result, is_provider_node_type
+from .score_snapshot import score_snapshot_from_result
 from .expressions import ExpressionError, resolve_configuration, validate_expressions
 from .registry import get_node_type
 from .models import ExecutionLog, ExecutionRecord, NodeExecutionRecord
@@ -1030,6 +1031,11 @@ class WorkflowScheduler:
                     configuration=configuration,
                     is_provider_node=is_provider_node_type(node.get("type")),
                 )
+                # Step 16.3: a replayed score is still the script's verdict, so
+                # the Script panel must not go blank on a cache hit.
+                node_record.score = score_snapshot_from_result(
+                    result, node_type=node.get("type")
+                )
                 self._status(statuses, node_id, "succeeded", node_record=node_record)
                 return _NodeOutcome()
 
@@ -1092,6 +1098,10 @@ class WorkflowScheduler:
                     cache_hit=False,
                     configuration=configuration,
                     is_provider_node=is_provider_node_type(node.get("type")),
+                )
+                # Step 16.3: durable script-score snapshot (script.analyze only).
+                node_record.score = score_snapshot_from_result(
+                    result, node_type=node.get("type")
                 )
                 if self.redactor(result) != result:
                     output_fp, cache_failure = None, "sensitive_output"

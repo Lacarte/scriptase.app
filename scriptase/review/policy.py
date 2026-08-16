@@ -206,6 +206,11 @@ CHECK_ID_PROBLEM: dict[str, str] = {
     # Missing audio track on a deliverable is often Export remux, but voice
     # defects are TTS; audio_presence on a final render is Export.
     "audio_presence": PROBLEM_RENDER_CODEC,
+    # Step 16.3 — a script under the Channel's virality threshold is a weak
+    # hook, which the §12.2 table hands to Script. Mapped explicitly rather
+    # than leaning on the script_defect default so the analyzer's ownership
+    # survives any future re-reading of that issue type.
+    "viral_score": PROBLEM_SCRIPT_CONTENT,
 }
 
 # Preferred node type → owner (for reverse lookup / graph matching in 8.2).

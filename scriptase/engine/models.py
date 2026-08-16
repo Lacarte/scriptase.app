@@ -37,6 +37,13 @@ class NodeExecutionRecord:
     #         provider_id?, generations, cache_hit, invocation_id?,
     #         selection_reason?}.
     cost: dict[str, Any] | None = None
+    # Step 16.3: the script.analyze verdict, stored outside outputs_summary for
+    # the same reason as cost — _summarize turns the band into a char count and
+    # drops the dimension breakdown entirely. Shape:
+    # {score, band, scorer, scorer_version, provider_id, target_duration,
+    #  dimensions[{id, score, weight, points, reasons[{code, impact, detail}]}],
+    #  threshold?, passed?, issue_ids?}.
+    score: dict[str, Any] | None = None
 
 
 @dataclass

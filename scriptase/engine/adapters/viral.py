@@ -7,11 +7,13 @@ and dispatches it through the provider hub. Everything that decides a number
 lives behind the `viral` domain, so replacing the deterministic scorer with an
 LLM judge is a package drop rather than an edit here (contracts §26).
 
-The node never fails a run on a low score. Reporting and deciding are separate
-concerns: step 16.3 reads this output against the Channel threshold and raises
-the ReviewIssue that the Repair Router acts on. Until then — and after, for a
-canvas run that no Job owns — the score rides the `score` port and nothing
-downstream is obliged to read it.
+The node never fails a run on a low score. Reporting and deciding stay separate:
+step 16.3 hands the score to `scriptase.review.viral_gate`, which owns the
+comparison against the Channel threshold and the ReviewIssue the Repair Router
+acts on. This adapter still holds no policy — it does not know what a good score
+is, only who to ask. For a canvas run that no Job owns, or a Channel that set no
+threshold, the gate is inert and the score simply rides the `score` port with
+nothing downstream obliged to read it.
 """
 
 from __future__ import annotations
@@ -110,12 +112,15 @@ def analyze(inputs, config, context):
     # Scores belong to a Job the same way ReviewIssues do (contracts §9). The
     # project fallback keeps a canvas run's payload self-describing, and
     # `job_ANALYZE` only appears in isolated adapter tests that construct a
-    # bare context.
+    # bare context. Only the real id can be gated against: a ReviewIssue keyed
+    # by a project id would be a finding no Job could ever find (step 11.2).
+    owning_job_id = str(context_value(context, "job_id", "") or "").strip()
     job_id = (
-        str(context_value(context, "job_id", "") or "").strip()
+        owning_job_id
         or str(context_value(context, "project_id", "") or "").strip()
         or "job_ANALYZE"
     )
+    node_id = str(context_value(context, "node_id", "") or "") or None
 
     story = _story_document(inputs.get("story"))
     request = ViralRequest(
@@ -158,6 +163,18 @@ def analyze(inputs, config, context):
     )
 
     score_document = dict(result.payload or {})
+
+    # Step 16.3. Gating is the review package's call, not this adapter's, and
+    # it is deliberately the last thing that happens: a threshold lookup or an
+    # issue write that fails must not cost the run the score it just computed.
+    verdict: dict[str, Any] = {"threshold": None, "passed": None, "issue_ids": []}
+    if owning_job_id:
+        from scriptase.review.viral_gate import gate_script_score
+
+        verdict = gate_script_score(
+            score_document, job_id=owning_job_id, target_node_id=node_id
+        )
+
     return outputs(
         score={
             "job_id": job_id,
@@ -168,6 +185,15 @@ def analyze(inputs, config, context):
             # summarized execution record still carries the verdict.
             "score": score_document.get("score"),
             "band": score_document.get("band"),
+            # The Channel bar this score was measured against, or None when no
+            # Channel set one. `passed` is tri-state for that reason: None is
+            # "not measured", which is not the same claim as "passed".
+            "threshold": verdict.get("threshold"),
+            "passed": verdict.get("passed"),
+            # Durable ReviewIssue ids. The Repair Router reads issues from the
+            # store by id, never from this payload — the execution record only
+            # keeps a summarized copy of node outputs.
+            "issue_ids": verdict.get("issue_ids") or [],
             # The frozen 16.1 contract, unmodified. `ViralScore.model_validate`
             # accepts this key exactly, and that round trip is how Review reads
             # the breakdown without this adapter owning a second schema.

@@ -953,6 +953,171 @@ describe('StepDetailPanel', () => {
   })
 })
 
+describe('StepDetailPanel virality score (step 16.3)', () => {
+  /** The `stage.score` shape the projection attaches to the Script stage. */
+  function scriptStage(score) {
+    return {
+      key: 'script',
+      label: 'Script',
+      status: 'succeeded',
+      node_ids: ['n_script', 'n_analyze'],
+      provider_capable: false,
+      artifacts: [],
+      issues: [],
+      score,
+    }
+  }
+
+  const WEAK_SCORE = {
+    score: 31,
+    band: 'weak',
+    scorer: 'deterministic',
+    scorer_version: 1,
+    threshold: 60,
+    passed: false,
+    issue_ids: ['iss_VIR001'],
+    dimensions: [
+      {
+        id: 'hook',
+        score: 0.1,
+        weight: 0.22,
+        points: 2.2,
+        reasons: [{ code: 'hook_missing', impact: 'negative', detail: {} }],
+      },
+      {
+        id: 'opening_line',
+        score: 0.8,
+        weight: 0.22,
+        points: 17.6,
+        reasons: [{ code: 'archetype_matched', impact: 'positive', detail: {} }],
+      },
+    ],
+  }
+
+  function mountScript(score, extra = {}) {
+    return mount(StepDetailPanel, {
+      props: {
+        stage: scriptStage(score),
+        workflowId: 'wf_ABCDEF',
+        workflow: {
+          nodes: [
+            { id: 'n_script', type: 'script.input' },
+            { id: 'n_analyze', type: 'script.analyze' },
+          ],
+        },
+        nodeRecords: {},
+        scriptSourceMode: 'paste',
+        ...extra,
+      },
+    })
+  }
+
+  it('surfaces the score and its dimension breakdown on the Script stage', () => {
+    const wrapper = mountScript(WEAK_SCORE)
+    const pane = wrapper.find('[data-testid="stage-score"]')
+    expect(pane.exists()).toBe(true)
+    expect(wrapper.find('[data-testid="score-value"]').text()).toBe('31')
+    expect(pane.text()).toContain('weak')
+
+    // Every scored dimension, humanized from its frozen id.
+    const dimensions = wrapper.find('[data-testid="score-dimensions"]').text()
+    expect(dimensions).toContain('Hook')
+    expect(dimensions).toContain('Opening line')
+    expect(dimensions).toContain('10%')
+    expect(dimensions).toContain('80%')
+  })
+
+  it('renders reason codes as readable text without a translation table', () => {
+    const wrapper = mountScript(WEAK_SCORE)
+    const dimensions = wrapper.find('[data-testid="score-dimensions"]')
+    expect(dimensions.text()).toContain('Hook missing')
+    expect(dimensions.text()).toContain('Archetype matched')
+    // Impact is styled, so a positive reason never reads as a fault.
+    expect(dimensions.find('.impact-negative').text()).toBe('Hook missing')
+    expect(dimensions.find('.impact-positive').text()).toBe('Archetype matched')
+  })
+
+  it('shows one chip per distinct reason code', () => {
+    // `balance` really does emit `section_missing` once per missing section,
+    // so repeated codes are the normal case, not a malformed payload.
+    const wrapper = mountScript({
+      ...WEAK_SCORE,
+      dimensions: [
+        {
+          id: 'balance',
+          score: 0,
+          weight: 0.1,
+          points: 0,
+          reasons: [
+            { code: 'section_missing', impact: 'negative', detail: { section: 'hook' } },
+            { code: 'section_missing', impact: 'negative', detail: { section: 'climax' } },
+            { code: 'section_missing', impact: 'negative', detail: { section: 'cta' } },
+          ],
+        },
+      ],
+    })
+    const chips = wrapper.findAll('[data-testid="score-dimensions"] .dimension-reasons li')
+    expect(chips).toHaveLength(1)
+    expect(chips[0].text()).toBe('Section missing')
+  })
+
+  it('says a score is below the Channel minimum and was routed to Review', () => {
+    const wrapper = mountScript(WEAK_SCORE)
+    const gate = wrapper.find('[data-testid="score-gate"]')
+    expect(gate.text()).toContain('Below')
+    expect(gate.text()).toContain('60')
+    expect(gate.text()).toContain('routed back to Script')
+    expect(gate.find('.gate-fail').exists()).toBe(true)
+  })
+
+  it('distinguishes meeting the bar from never being measured against one', () => {
+    const passing = mountScript({ ...WEAK_SCORE, score: 82, band: 'strong', passed: true })
+    expect(passing.find('[data-testid="score-gate"]').text()).toContain('Meets')
+    expect(passing.find('.gate-pass').exists()).toBe(true)
+
+    // No threshold at all is advisory — not a pass.
+    const ungated = mountScript({
+      score: 31,
+      band: 'weak',
+      dimensions: WEAK_SCORE.dimensions,
+    })
+    const gate = ungated.find('[data-testid="score-gate"]').text()
+    expect(gate).toContain('no virality threshold')
+    expect(gate).not.toContain('Meets')
+    expect(ungated.find('.gate-pass').exists()).toBe(false)
+  })
+
+  it('shows nothing when the analyzer has not run or the stage has no score', () => {
+    expect(mountScript(null).find('[data-testid="stage-score"]').exists()).toBe(false)
+    expect(mountScript(undefined).find('[data-testid="stage-score"]').exists()).toBe(false)
+    // A malformed snapshot is not rendered as a verdict of zero.
+    expect(mountScript({ band: 'weak' }).find('[data-testid="stage-score"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it('never renders a score on a stage the projection left empty', () => {
+    const wrapper = mount(StepDetailPanel, {
+      props: {
+        stage: {
+          key: 'voice',
+          label: 'Voice',
+          status: 'idle',
+          node_ids: ['n_tts'],
+          provider_capable: true,
+          artifacts: [],
+          issues: [],
+          score: null,
+        },
+        workflowId: 'wf_ABCDEF',
+        workflow: { nodes: [{ id: 'n_tts', type: 'tts.generate' }] },
+        nodeRecords: {},
+      },
+    })
+    expect(wrapper.find('[data-testid="stage-score"]').exists()).toBe(false)
+  })
+})
+
 describe('JobCreatePanel (step 2.5)', () => {
   beforeEach(() => {
     vi.clearAllMocks()

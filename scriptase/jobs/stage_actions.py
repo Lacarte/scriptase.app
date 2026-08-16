@@ -234,6 +234,7 @@ def stage_for_key(
         "active_provider_instance_id": None,
         "artifacts": [],
         "issues": [],
+        "score": None,
     }
 
 

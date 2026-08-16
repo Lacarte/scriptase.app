@@ -146,6 +146,14 @@ from scriptase.review.technical import (
     probe_media,
     run_technical_validators,
 )
+from scriptase.review.viral_gate import (
+    VIRAL_CHECK_ID,
+    draft_for_score,
+    gate_script_score,
+    threshold_for_job,
+    threshold_from_snapshot,
+    viral_threshold,
+)
 
 __all__ = [
     "BUDGET_EXCEEDED",
@@ -253,4 +261,10 @@ __all__ = [
     "units_from_video_assets",
     "update_issue",
     "validation_problems",
+    "VIRAL_CHECK_ID",
+    "draft_for_score",
+    "gate_script_score",
+    "threshold_for_job",
+    "threshold_from_snapshot",
+    "viral_threshold",
 ]

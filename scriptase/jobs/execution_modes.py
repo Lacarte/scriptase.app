@@ -181,6 +181,21 @@ def _safe_degradation_from_thresholds(
     return {}
 
 
+def _has_viral_threshold(thresholds: Mapping[str, Any]) -> bool:
+    """True when the Channel set a script virality minimum (step 16.3).
+
+    The parsing rules live in the review package with the gate that enforces
+    them, so "configured" means exactly the same thing to the checkpoint policy
+    and to the issue that gets raised.
+    """
+    try:
+        from scriptase.review.viral_gate import viral_threshold
+
+        return viral_threshold(thresholds) is not None
+    except Exception:
+        return False
+
+
 def _optional_int(thresholds: Mapping[str, Any], *keys: str) -> int | None:
     for key in keys:
         if key not in thresholds or thresholds[key] is None:
@@ -199,6 +214,7 @@ def configured_checkpoint_refs(
     *,
     human_checkpoints: Sequence[str] | None = None,
     workflow_checkpoints: Sequence[str] | None = None,
+    script_gate: bool = False,
 ) -> list[str]:
     """Stage/node refs that this mode should pause on (before graph resolve).
 
@@ -206,6 +222,13 @@ def configured_checkpoint_refs(
     * assisted — Channel ``human_checkpoints``; fall back to graph-authored
       ``extensions.approval_checkpoints`` when the Channel list is empty
     * manual — Channel list when non-empty, else the default important stages
+
+    ``script_gate`` is set when the Channel configured a virality threshold
+    (step 16.3). Assisted mode then pauses after Script whether or not the
+    checkpoint list names it: a Channel that asked for its scripts to be
+    measured against a bar has asked to see the ones that miss it, and scoring
+    before TTS buys nothing if the run walks straight past the verdict. Manual
+    already stops there by default, and Automatic is unattended by definition.
     """
     mode = normalize_execution_mode(mode)
     configured = [str(item).strip() for item in (human_checkpoints or []) if str(item).strip()]
@@ -215,11 +238,34 @@ def configured_checkpoint_refs(
     if mode == "automatic":
         return []
     if mode == "assisted":
-        return configured if configured else authored
+        refs = configured if configured else authored
+        if script_gate and not _covers_script(refs):
+            # Front of the list: refs resolve in order and Script is the
+            # earliest stage, so prepending keeps the resolved node ids in
+            # pipeline order.
+            refs = ["script", *refs]
+        return refs
     # manual
     if configured:
         return configured
     return list(MANUAL_DEFAULT_CHECKPOINT_STAGES)
+
+
+def _covers_script(refs: Sequence[str]) -> bool:
+    """True when a ref list already names the Script stage.
+
+    Only stage keys, their aliases, and script node *types* are recognised. A
+    raw graph node id cannot be matched here because the graph has not been
+    resolved yet; that case simply gains a duplicate ``script`` ref, which
+    ``resolve_checkpoint_node_ids`` collapses back to one node id.
+    """
+    for raw in refs:
+        ref = str(raw or "").strip()
+        if _CHECKPOINT_ALIASES.get(ref, ref) == "script":
+            return True
+        if PRIMARY_STAGE_BY_TYPE.get(ref) == "script":
+            return True
+    return False
 
 
 def workflow_authored_checkpoints(workflow: Mapping[str, Any] | None) -> list[str]:
@@ -346,18 +392,20 @@ def resolve_execution_policy(
         snap = getattr(job, "channel_snapshot", None)
         snapshot = snap if isinstance(snap, Mapping) else {}
 
+    thresholds = _thresholds_from_snapshot(snapshot)
+
     human = human_checkpoints_from_snapshot(snapshot)
     authored = workflow_authored_checkpoints(workflow)
     refs = configured_checkpoint_refs(
         mode,
         human_checkpoints=human,
         workflow_checkpoints=authored,
+        script_gate=_has_viral_threshold(thresholds),
     )
     node_ids: list[str] = []
     if workflow is not None:
         node_ids = resolve_checkpoint_node_ids(workflow, refs)
 
-    thresholds = _thresholds_from_snapshot(snapshot)
     channel_scene_cap = _optional_int(
         thresholds, "max_repairs_per_scene", "max_repair_cycles_per_scene"
     )

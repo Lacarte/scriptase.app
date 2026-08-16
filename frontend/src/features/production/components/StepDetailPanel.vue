@@ -11,6 +11,10 @@
  * Step 11.4: the projection's `stage.issues` render here, and the History pane
  * carries the Job's repair history (routed node, what was retried, superseded
  * versions) from the read-only repair-history endpoint.
+ *
+ * Step 16.3: `stage.score` renders the script virality verdict on the Script
+ * stage, above the actions, so a weak hook is visible before anyone spends a
+ * TTS or image call on it.
  */
 import { computed, ref, watch } from 'vue'
 
@@ -56,6 +60,49 @@ const STAGE_PROVIDER_DOMAIN = {
   images: 'image',
   videos: 'video',
   review: 'review',
+}
+
+/**
+ * Scored dimension id → display name (step 16.3). The six ids are a frozen
+ * part of the 16.1 contract, so this map is bounded and cannot silently grow;
+ * an unknown id still renders via the humanizing fallback rather than blank.
+ */
+const DIMENSION_LABELS = {
+  hook: 'Hook',
+  opening_line: 'Opening line',
+  pacing: 'Pacing',
+  open_loops: 'Open loops',
+  cta: 'Call to action',
+  balance: 'Section balance',
+}
+
+/**
+ * Reason codes are structured machine strings by contract — the scorer states
+ * what it measured and never writes prose. Turning `hook_missing` into
+ * "Hook missing" here keeps the panel readable without shipping a forty-entry
+ * translation table that would drift the moment a scorer version added a code.
+ */
+function humanizeCode(code) {
+  const text = String(code || '').replace(/_/g, ' ').trim()
+  if (!text) return ''
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/** One chip per distinct reason code, in the order the scorer emitted them. */
+function dedupeReasons(reasons) {
+  const seen = new Set()
+  const out = []
+  for (const reason of Array.isArray(reasons) ? reasons : []) {
+    const code = reason?.code
+    if (!code || seen.has(code)) continue
+    seen.add(code)
+    out.push({
+      code,
+      label: humanizeCode(code),
+      impact: reason.impact === 'positive' ? 'positive' : 'negative',
+    })
+  }
+  return out
 }
 
 const providerCatalog = useProviderCatalogStore()
@@ -232,6 +279,54 @@ const historyKind = computed(() => {
 const stageIssues = computed(() => {
   const ids = props.stage?.issues
   return Array.isArray(ids) ? ids.filter((id) => typeof id === 'string' && id) : []
+})
+
+/**
+ * The script virality verdict the projection attached to this stage (16.3).
+ * Only `script.analyze` produces one, so this is null on every other stage
+ * and on a Script stage whose analyzer has not run yet.
+ */
+const stageScore = computed(() => {
+  const score = props.stage?.score
+  if (!score || typeof score !== 'object') return null
+  return typeof score.score === 'number' ? score : null
+})
+
+/**
+ * Tri-state, and the three states say different things: below the Channel
+ * bar, above it, or never measured because no Channel set one. Collapsing the
+ * last into "passed" would claim a check that never happened.
+ */
+const scoreGate = computed(() => {
+  const score = stageScore.value
+  if (!score || typeof score.threshold !== 'number') return null
+  return {
+    threshold: score.threshold,
+    passed: score.passed === true,
+  }
+})
+
+const scoreDimensions = computed(() => {
+  const dimensions = stageScore.value?.dimensions
+  if (!Array.isArray(dimensions)) return []
+  return dimensions
+    .filter((d) => d && typeof d === 'object' && d.id)
+    .map((d) => {
+      const value = typeof d.score === 'number' ? d.score : 0
+      return {
+        id: d.id,
+        label: DIMENSION_LABELS[d.id] || humanizeCode(d.id),
+        // The scorer normalizes every dimension to 0..1; the panel shows the
+        // percentage rather than the weighted points so a strong dimension
+        // with a small weight does not read as a failure.
+        percent: Math.round(Math.min(1, Math.max(0, value)) * 100),
+        // Deduped by code. A dimension can report the same fault once per
+        // section — `balance` emits `section_missing` for each missing one —
+        // and repeating the chip says nothing the first one did not, besides
+        // colliding on the render key.
+        reasons: dedupeReasons(d.reasons),
+      }
+    })
 })
 
 // Load the catalog once so step provider badges resolve without a second path.
@@ -425,6 +520,63 @@ function pretty(value) {
           </dd>
         </div>
       </dl>
+
+      <section
+        v-if="stageScore"
+        class="score-pane"
+        data-testid="stage-score"
+        aria-label="Script virality score"
+      >
+        <header class="score-head">
+          <h3>Virality score</h3>
+          <span
+            class="score-value"
+            :data-band="stageScore.band || 'unknown'"
+            data-testid="score-value"
+          >
+            {{ stageScore.score }}
+          </span>
+          <span v-if="stageScore.band" class="score-band">{{ stageScore.band }}</span>
+        </header>
+
+        <p v-if="scoreGate" class="score-gate muted small" data-testid="score-gate">
+          <span :class="scoreGate.passed ? 'gate-pass' : 'gate-fail'">
+            {{ scoreGate.passed ? 'Meets' : 'Below' }}
+          </span>
+          the Channel minimum of {{ scoreGate.threshold }}.
+          <template v-if="!scoreGate.passed">
+            Review raised an issue routed back to Script.
+          </template>
+        </p>
+        <p v-else class="score-gate muted small" data-testid="score-gate">
+          Advisory only — this Channel sets no virality threshold.
+        </p>
+
+        <ul v-if="scoreDimensions.length" class="score-dimensions" data-testid="score-dimensions">
+          <li v-for="dimension in scoreDimensions" :key="dimension.id" class="score-dimension">
+            <div class="dimension-head">
+              <span class="dimension-label">{{ dimension.label }}</span>
+              <span class="dimension-percent">{{ dimension.percent }}%</span>
+            </div>
+            <div
+              class="dimension-bar"
+              role="img"
+              :aria-label="`${dimension.label} scored ${dimension.percent} percent`"
+            >
+              <span class="dimension-fill" :style="{ width: `${dimension.percent}%` }" />
+            </div>
+            <ul v-if="dimension.reasons.length" class="dimension-reasons">
+              <li
+                v-for="reason in dimension.reasons"
+                :key="reason.code"
+                :class="`impact-${reason.impact}`"
+              >
+                {{ reason.label }}
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </section>
 
       <div class="action-toolbar" role="toolbar" aria-label="Stage actions">
         <div class="action-group">
@@ -714,6 +866,130 @@ function pretty(value) {
   margin-top: 0.85rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border, #1e2a3a);
+}
+
+/* Step 16.3 — script virality verdict. */
+.score-pane {
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border, #1e2a3a);
+}
+
+.score-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.score-head h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #6b7f93);
+}
+
+.score-value {
+  margin-left: auto;
+  font-family: var(--font-display, system-ui, sans-serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text, #e8edf3);
+}
+
+.score-value[data-band='strong'] {
+  color: var(--accent-ready, #26de81);
+}
+
+.score-value[data-band='solid'] {
+  color: var(--accent, #4ecdc4);
+}
+
+.score-value[data-band='weak'] {
+  color: var(--accent-active, #ff9f43);
+}
+
+.score-value[data-band='poor'] {
+  color: var(--coral, #ff6b6b);
+}
+
+.score-band {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #8899aa);
+}
+
+.score-gate {
+  margin: 0.4rem 0 0;
+}
+
+.gate-pass {
+  color: var(--accent-ready, #26de81);
+}
+
+.gate-fail {
+  color: var(--coral, #ff6b6b);
+}
+
+.score-dimensions {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.dimension-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #8899aa);
+}
+
+.dimension-percent {
+  font-family: var(--font-mono, monospace);
+}
+
+.dimension-bar {
+  margin-top: 0.2rem;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-dark, #0f1520);
+  overflow: hidden;
+}
+
+.dimension-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent, #4ecdc4);
+}
+
+.dimension-reasons {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.dimension-reasons li {
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--bg-dark, #0f1520);
+  color: var(--text-muted, #6b7f93);
+}
+
+.dimension-reasons li.impact-negative {
+  color: var(--accent-active, #ff9f43);
+}
+
+.dimension-reasons li.impact-positive {
+  color: var(--accent-ready, #26de81);
 }
 
 .node-ids code.primary {
