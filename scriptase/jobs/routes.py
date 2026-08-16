@@ -147,6 +147,28 @@ def _job_public(document) -> dict:
     return payload
 
 
+def _queue_view(execution_id: str | None) -> dict:
+    """Place in the serial global pool for *execution_id* (step 13.1).
+
+    Runtime state, never persisted onto the Job — a restart has no queue.
+    ``queue_position`` is ``0`` while the run holds a pool slot, ``1..N``
+    while it waits, and absent once the run is terminal.
+    """
+    if not execution_id:
+        return {}
+    from scriptase.engine.execution import execution_manager
+
+    status = execution_manager.queue_status()
+    position = status["positions"].get(execution_id)
+    if position is None:
+        return {}
+    return {
+        "queue_position": position,
+        "queue_waiting": status["waiting"],
+        "max_global_workers": status["max_global_workers"],
+    }
+
+
 def _draft_from_body(body: dict) -> dict:
     """Accept either a bare draft or ``{job: draft}``."""
     if isinstance(body.get("job"), dict):
@@ -279,7 +301,10 @@ def jobs_get(job_id: str):
                 pass
     except (JobNotFound, JobValidationError, ValueError) as exc:
         return _store_error(exc)
-    return jsonify({"job": _job_public(document)})
+    return jsonify({
+        "job": _job_public(document),
+        **_queue_view(document.execution_id),
+    })
 
 
 @jobs_bp.route("/api/jobs/<job_id>/cost", methods=["GET"])
@@ -385,6 +410,7 @@ def jobs_start(job_id: str):
         "job": _job_public(document),
         "execution_id": document.execution_id,
         "status": document.status,
+        **_queue_view(document.execution_id),
     })
 
 
@@ -509,6 +535,7 @@ def jobs_approve(job_id: str):
         "job": _job_public(document),
         "execution_id": document.execution_id,
         "status": document.status,
+        **_queue_view(document.execution_id),
     })
 
 
@@ -642,6 +669,9 @@ def execution_stages(execution_id: str):
         **projection,
         "execution_id": execution.get("execution_id") or execution_id,
         "execution_status": execution.get("status"),
+        # Step 13.1: hydration value only — live movement arrives as
+        # ``queue_position`` frames on the run's own SSE stream.
+        **_queue_view(execution.get("execution_id") or execution_id),
     }
     return jsonify({"projection": projection})
 

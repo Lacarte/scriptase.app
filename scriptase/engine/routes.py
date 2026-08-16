@@ -823,7 +823,18 @@ def workflow_queue_list():
         items, total = execution_manager.list_queue(workflow_id, limit=limit)
     except ValueError as exc:
         return _error("BAD_REQUEST", str(exc), 400)
-    return jsonify({"queue": items, "total": total})
+    # Step 13.1: place in the global pool. 0 = holding a slot, 1..N = waiting.
+    status = execution_manager.queue_status()
+    positions = status["positions"]
+    for item in items:
+        item["queue_position"] = positions.get(item.get("execution_id"))
+    return jsonify({
+        "queue": items,
+        "total": total,
+        "waiting": status["waiting"],
+        "running": status["running"],
+        "max_global_workers": status["max_global_workers"],
+    })
 
 
 @workflows_bp.route("/api/workflow/queue/<execution_id>/cancel", methods=["POST"])

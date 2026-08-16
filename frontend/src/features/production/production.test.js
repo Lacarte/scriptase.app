@@ -246,6 +246,46 @@ describe('useProductionStages', () => {
     expect(stageList(host).find((s) => s.key === 'voice').status).toBe('succeeded')
   })
 
+  it('shows its queue position and moves up when the run ahead finishes', async () => {
+    // Step 13.1: Jobs run one at a time, so a queued run is waiting on a
+    // known number of runs ahead of it.
+    api.getExecutionStages.mockResolvedValue({
+      projection: {
+        ...projection(),
+        execution_id: 'ex_WAIT01',
+        execution_status: 'queued',
+        queue_position: 2,
+        queue_waiting: 2,
+      },
+    })
+    api.getExecution.mockResolvedValue({
+      execution: { execution_id: 'ex_WAIT01', status: 'queued', nodes: {} },
+    })
+
+    const host = mountHarness()
+    await host.vm.api.hydrateFromExecution('ex_WAIT01', {
+      EventSourceImpl: FakeEventSource,
+    })
+    expect(unref(host.vm.api.queuePosition)).toBe(2)
+    expect(unref(host.vm.api.queueWaiting)).toBe(2)
+
+    // The run ahead finished — this run moves up without acting itself.
+    FakeEventSource.latest().send({
+      sequence: 1,
+      type: 'queue_position',
+      node_id: null,
+      status: 'queued',
+      queue_position: 1,
+      queue_waiting: 1,
+    })
+    expect(unref(host.vm.api.queuePosition)).toBe(1)
+
+    // Admitted to the pool: no longer behind anyone.
+    FakeEventSource.latest().send({ sequence: 2, node_id: null, status: 'running' })
+    expect(unref(host.vm.api.queuePosition)).toBe(null)
+    expect(unref(host.vm.api.executionStatus)).toBe('running')
+  })
+
   it('applies ring-buffer reset snapshots the same way the canvas does', async () => {
     api.getExecutionStages.mockResolvedValue({
       projection: {

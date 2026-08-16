@@ -93,7 +93,11 @@ def test_same_project_serializes_while_different_projects_run_concurrently(tmp_p
             return {"control": {"ok": True}}
         return execute
 
-    manager = ExecutionManager(output_dir=str(tmp_path), executor_resolver=resolver)
+    # Cross-project concurrency needs a ceiling above the shipped serial
+    # default (step 13.1); the per-project FIFO under test is independent of it.
+    manager = ExecutionManager(
+        output_dir=str(tmp_path), executor_resolver=resolver, max_global_workers=4
+    )
     first, _ = manager.start(
         _workflow(), run_mode="full", target_node_ids=[], project_id="pm_ABC123"
     )
@@ -144,7 +148,11 @@ def test_concurrent_projects_isolate_events_records_history_and_artifacts(tmp_pa
             }}
         return execute
 
-    manager = ExecutionManager(output_dir=str(tmp_path), executor_resolver=resolver)
+    # The rendezvous barrier only clears with both projects executing at once,
+    # which needs a ceiling above the shipped serial default (step 13.1).
+    manager = ExecutionManager(
+        output_dir=str(tmp_path), executor_resolver=resolver, max_global_workers=2
+    )
     projects = ("pm_ABC123", "pm_DEF456")
     execution_ids = [
         manager.start(
@@ -267,7 +275,17 @@ def test_queue_endpoints_list_and_cancel_pending(tmp_path, monkeypatch):
 
     response = http.get("/api/workflow/queue", query_string={"workflow_id": workflow_id})
     assert response.status_code == 200
-    assert response.get_json()["queue"][0]["status"] == "pending"
+    payload = response.get_json()
+    assert payload["queue"][0]["status"] == "pending"
+    # Step 13.1: the listing carries each run's place in the global pool.
+    # Each start() minted its own transient workflow id, so this listing holds
+    # the pending run alone.
+    by_id = {item["execution_id"]: item for item in payload["queue"]}
+    assert by_id[pending]["queue_position"] == 1
+    assert manager.queue_position(first) == 0
+    assert payload["waiting"] == 1
+    assert payload["max_global_workers"] == manager.max_global_workers
+
     response = http.post(f"/api/workflow/queue/{pending}/cancel", json={})
     assert response.status_code == 202
     assert response.get_json()["status"] == "cancelled"

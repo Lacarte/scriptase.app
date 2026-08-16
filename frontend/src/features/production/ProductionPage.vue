@@ -45,6 +45,8 @@ const {
   actionRunning,
   actionError,
   actionMessage,
+  queuePosition,
+  queueWaiting,
   hasStages,
   active,
   loadWorkflow,
@@ -77,6 +79,18 @@ const selectedStage = computed(() =>
   stages.value.find((s) => s.key === selectedStageKey.value) || null,
 )
 
+/**
+ * Jobs run strictly one at a time (step 13.1), so a queued Job is waiting on
+ * a specific number of Jobs ahead of it — say so instead of a bare "Queued".
+ */
+const queueLabel = computed(() => {
+  const position = queuePosition.value
+  if (!Number.isFinite(position) || position < 1) return ''
+  return queueWaiting.value > 1
+    ? `Queued ${position} of ${queueWaiting.value}`
+    : `Queued ${position}`
+})
+
 const headerMeta = computed(() => {
   const bits = []
   if (activeJobId.value) bits.push(`Job ${activeJobId.value}`)
@@ -85,7 +99,8 @@ const headerMeta = computed(() => {
   }
   if (workflowId.value) bits.push(`Workflow ${workflowId.value}`)
   if (executionId.value) bits.push(`Run ${executionId.value}`)
-  if (executionStatus.value) bits.push(statusLabel(executionStatus.value))
+  if (queueLabel.value) bits.push(queueLabel.value)
+  else if (executionStatus.value) bits.push(statusLabel(executionStatus.value))
   return bits.join(' · ')
 })
 

@@ -45,6 +45,14 @@ export function useProductionStages(options = {}) {
   const actionRunning = ref(false)
   const actionError = ref('')
   const actionMessage = ref('')
+  /**
+   * Place in the serial global pool (step 13.1): 0 while this run holds the
+   * worker, 1..N while it waits, null once it is terminal. Hydrated from the
+   * stages projection and moved live by `queue_position` SSE frames, so it
+   * needs no polling loop of its own.
+   */
+  const queuePosition = ref(null)
+  const queueWaiting = ref(0)
 
   /** node_id → { status, artifact_refs, ... } — local mirror for aggregation */
   const nodeRecords = shallowRef({})
@@ -75,6 +83,10 @@ export function useProductionStages(options = {}) {
     if (projection.workflow_version != null) workflowVersion.value = projection.workflow_version
     if (projection.execution_id != null) executionId.value = projection.execution_id
     if (projection.execution_status != null) executionStatus.value = projection.execution_status
+    queuePosition.value = Number.isFinite(projection.queue_position)
+      ? projection.queue_position
+      : null
+    queueWaiting.value = Number.isFinite(projection.queue_waiting) ? projection.queue_waiting : 0
   }
 
   function recompute() {
@@ -104,6 +116,18 @@ export function useProductionStages(options = {}) {
       recompute()
     } else if (event.status && event.status !== 'reset') {
       executionStatus.value = event.status
+    }
+
+    // Queue movement (step 13.1) arrives on this same stream: the run ahead
+    // finished, so everything behind it shifts up one place.
+    if (!event.node_id) {
+      if (Number.isFinite(event.queue_position)) {
+        queuePosition.value = event.queue_position
+        queueWaiting.value = Number.isFinite(event.queue_waiting) ? event.queue_waiting : 0
+      } else if (event.status && !['queued', 'reset'].includes(event.status)) {
+        // Admitted to the pool, or finished — no longer waiting on anyone.
+        queuePosition.value = null
+      }
     }
 
     // Terminal execution: close the stream. Artifact refs on the final
@@ -156,6 +180,8 @@ export function useProductionStages(options = {}) {
     lastSequence.value = 0
     actionError.value = ''
     actionMessage.value = ''
+    queuePosition.value = null
+    queueWaiting.value = 0
     try {
       const [stagesData, workflowData] = await Promise.all([
         getWorkflowStages(id),
@@ -315,6 +341,8 @@ export function useProductionStages(options = {}) {
     actionRunning,
     actionError,
     actionMessage,
+    queuePosition,
+    queueWaiting,
     hasStages,
     active,
     loadWorkflow,

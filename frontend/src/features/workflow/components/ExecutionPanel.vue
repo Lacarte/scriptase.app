@@ -32,6 +32,17 @@ const queueItems = computed(() => {
   return [...active, ...recent].slice(0, Math.max(8, active.length))
 })
 
+/**
+ * Runs are admitted to the global pool strictly in submission order (step
+ * 13.1), so a pending run's useful label is its place in line, not "pending".
+ */
+function queueLabel(item) {
+  if (item.status !== 'pending' || !Number.isFinite(item.queue_position)) return item.status
+  return store.runQueueWaiting > 1
+    ? `#${item.queue_position} of ${store.runQueueWaiting}`
+    : `#${item.queue_position}`
+}
+
 const history = computed(() => {
   const items = [...store.executionHistory]
   const current = store.currentExecution
@@ -231,7 +242,7 @@ function openEditor() {
         <span class="execution-dot" />
         <code>{{ item.execution_id }}</code>
         <span>{{ item.source }} · {{ item.requested_run_mode }}</span>
-        <strong>{{ item.status }}</strong>
+        <strong>{{ queueLabel(item) }}</strong>
         <button
           v-if="item.status === 'pending'"
           :disabled="cancellingQueueId === item.execution_id"

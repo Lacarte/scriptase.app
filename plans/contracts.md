@@ -280,6 +280,12 @@ SSE frame:
 
 Monotonic `sequence` per execution; terminal event has `node_id: null`.
 
+A waiting run also receives `type: "queue_position"` frames (`node_id: null`,
+`status: "queued"`) carrying `queue_position` (1-based place in line) and
+`queue_waiting` (total waiting), emitted whenever its place changes. Position
+is the only run state that moves without the run acting, so it is pushed here
+rather than polled.
+
 ### 1.7 Provider result envelope
 
 `result_version: 1`. One envelope for all domains (`scriptase/providers/results.py`):
@@ -893,7 +899,8 @@ escalation (step 8.2) reuse the same pre-flight gate via
 - Budget is checked **pre-flight**: work that would exceed a Channel's or Job's ceiling is
   refused before the provider is called. Post-hoc reporting is not enforcement.
 - A single bounded global work pool replaces per-project drain threads, preserving
-  per-project FIFO ordering.
+  per-project FIFO ordering. `SCRIPTASE_GLOBAL_WORKERS` sets the ceiling and
+  defaults to **1** (step 13.1), so Jobs run strictly in submission order.
 - Repair budgets are enforced through the same path: maximum attempts per issue
   (`review_policy.max_repairs`), maximum generations and cost per Job (`budget` +
   `budget_spent`), escalation on low confidence or repeated failure

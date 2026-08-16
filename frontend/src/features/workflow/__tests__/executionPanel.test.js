@@ -110,6 +110,42 @@ describe('ExecutionPanel deep inspection', () => {
     expect(store.runQueue[0].status).toBe('cancelled')
   })
 
+  it('labels pending runs with their place in the serial queue', async () => {
+    // Step 13.1: with one global worker, "pending" is uninformative — the
+    // useful fact is how many runs are ahead of this one.
+    const store = useWorkflowStore()
+    store.workflowId = 'wf_ABC123'
+    const queue = [
+      {
+        execution_id: 'ex_QUEUE1', workflow_id: 'wf_ABC123', project_id: 'pm_ABC123',
+        status: 'running', source: 'manual', requested_run_mode: 'full',
+        requested_at: '2026-08-05T12:00:00Z', queue_position: 0,
+      },
+      {
+        execution_id: 'ex_QUEUE2', workflow_id: 'wf_ABC123', project_id: 'pm_ABC123',
+        status: 'pending', source: 'manual', requested_run_mode: 'full',
+        requested_at: '2026-08-05T12:00:01Z', queue_position: 1,
+      },
+      {
+        execution_id: 'ex_QUEUE3', workflow_id: 'wf_ABC123', project_id: 'pm_ABC123',
+        status: 'pending', source: 'manual', requested_run_mode: 'full',
+        requested_at: '2026-08-05T12:00:02Z', queue_position: 2,
+      },
+    ]
+    vi.spyOn(api, 'get').mockImplementation((path) => Promise.resolve(
+      path === '/api/workflow/queue'
+        ? { queue, total: 3, waiting: 2, running: 1, max_global_workers: 1 }
+        : { executions: [], total: 0 },
+    ))
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
+    const wrapper = mount(ExecutionPanel, { global: { plugins: [router] } })
+
+    await vi.waitFor(() => expect(wrapper.findAll('.queue-item').length).toBe(3))
+    expect(wrapper.findAll('.queue-item strong').map((el) => el.text()))
+      .toEqual(['running', '#1 of 2', '#2 of 2'])
+    expect(store.runQueueWaiting).toBe(2)
+  })
+
   it('collapses without unmounting diagnostics and remembers the preference', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
     const wrapper = mount(ExecutionPanel, { global: { plugins: [router] } })

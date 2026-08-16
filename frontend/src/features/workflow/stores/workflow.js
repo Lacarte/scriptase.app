@@ -239,6 +239,8 @@ export const useWorkflowStore = defineStore('workflow', () => {
   const runQueueTotal = ref(0)
   const runQueueLoading = ref(false)
   const runQueueError = ref('')
+  /** Runs waiting for the global pool right now, across all workflows (13.1). */
+  const runQueueWaiting = ref(0)
   const selectedExecutionNodeId = ref(null)
   const staleNodeIds = ref([])
   let executionStream = null
@@ -337,6 +339,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
     runQueue.value = []
     runQueueTotal.value = 0
     runQueueError.value = ''
+    runQueueWaiting.value = 0
   }
 
   async function refreshRunQueue(id = workflowId.value, { limit = 100 } = {}) {
@@ -352,6 +355,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
       })
       runQueue.value = plain(data.queue || [])
       runQueueTotal.value = Number.isInteger(data.total) ? data.total : runQueue.value.length
+      runQueueWaiting.value = Number.isInteger(data.waiting) ? data.waiting : 0
       return runQueue.value
     } catch (err) {
       runQueueError.value = apiErrorText(err, 'Failed to load run queue')
@@ -460,6 +464,15 @@ export const useWorkflowStore = defineStore('workflow', () => {
       }
     } else if (event.status && event.status !== 'reset') {
       execution.status = event.status
+    }
+
+    // Queue movement (step 13.1). The frame only carries this run's own place,
+    // so re-read the queue to move everything else in the panel with it.
+    if (!event.node_id && Number.isFinite(event.queue_position)) {
+      const item = runQueue.value.find((entry) => entry.execution_id === event.execution_id)
+      if (item) item.queue_position = event.queue_position
+      if (Number.isFinite(event.queue_waiting)) runQueueWaiting.value = event.queue_waiting
+      void refreshRunQueue(execution.workflow_id).catch(() => {})
     }
 
     if (['succeeded', 'failed', 'cancelled', 'partial'].includes(event.status) && !event.node_id) {
@@ -1703,7 +1716,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
     // live execution (step 3.6)
     currentExecution, executionLoading, executionError, executionActive,
     executionHistory, executionHistoryTotal, executionHistoryLoading, executionHistoryError,
-    runQueue, runQueueTotal, runQueueLoading, runQueueError,
+    runQueue, runQueueTotal, runQueueLoading, runQueueError, runQueueWaiting,
     staleNodeIds, markNodesStale,
     selectedExecutionNodeId, selectedExecutionNode, editorProjectId,
     nodeExecution, runWorkflow, stopExecution, refreshExecution,

@@ -135,7 +135,12 @@ DEBUG = os.environ.get("SCRIPTASE_DEBUG", "0") == "1"
 # Bounded global work pool (step 3.5). Replaces V2's unbounded per-project
 # drain threads. Per-project FIFO ordering is preserved; only the *global*
 # concurrent-execution ceiling is configured here.
-GLOBAL_WORK_POOL_SIZE = max(1, int(os.environ.get("SCRIPTASE_GLOBAL_WORKERS", "4")))
+#
+# Step 13.1 defaults it to 1: Jobs then run strictly one after another in
+# submission order, which is what a single machine sharing one GPU, one
+# ffmpeg, and one set of provider rate limits actually wants. Raise
+# SCRIPTASE_GLOBAL_WORKERS to restore concurrency.
+GLOBAL_WORK_POOL_SIZE = max(1, int(os.environ.get("SCRIPTASE_GLOBAL_WORKERS", "1")))
 
 # Tests that call a real provider are gated behind this flag and the
 # ``live`` pytest marker.

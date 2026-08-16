@@ -197,6 +197,8 @@ class ExecutionManager:
         # Fair rotation of projects waiting for a free pool slot.
         self._ready_projects: deque[str] = deque()
         self._running_count = 0
+        # execution_id → (position, waiting_total) last broadcast (step 13.1).
+        self._queue_positions: dict[str, tuple[int, int]] = {}
 
     @property
     def running_count(self) -> int:
@@ -396,6 +398,7 @@ class ExecutionManager:
             queue.append(handle)
             self._mark_ready_locked(project_id)
             self._dispatch_locked()
+            self._broadcast_positions_locked()
 
     def _mark_ready_locked(self, project_id: str) -> None:
         """Queue *project_id* for a pool slot if it has pending work and is idle."""
@@ -455,8 +458,98 @@ class ExecutionManager:
                 name=f"workflow-pool-{handle.scheduler.execution_id}",
                 daemon=True,
             )
-            handle.thread = worker
+            # Publish the thread only once it is started: an observer that
+            # joins a not-yet-started Thread gets a RuntimeError, and
+            # ``handle.thread is None`` already means "not running yet".
             worker.start()
+            handle.thread = worker
+
+    # ------------------------------------------------------------------
+    # Queue position (step 13.1)
+    # ------------------------------------------------------------------
+
+    def _waiting_order_locked(self) -> list[ActiveExecution]:
+        """Pending handles in the order ``_dispatch_locked`` will admit them.
+
+        Replays the same fair rotation the dispatcher uses: one run per ready
+        project per pass, projects with more work re-entering at the tail. A
+        project that already holds a pool slot is not in ``_ready_projects``,
+        but re-enters at the tail when its current run finishes, so its
+        pending work sorts behind every project already waiting.
+        """
+        rotation = deque(self._ready_projects)
+        for project_id in self._project_queues:
+            if project_id in self._running_projects and project_id not in rotation:
+                rotation.append(project_id)
+        remaining = {
+            project_id: [
+                handle for handle in queue if handle.queue_record.status == "pending"
+            ]
+            for project_id, queue in self._project_queues.items()
+        }
+        order: list[ActiveExecution] = []
+        while rotation:
+            project_id = rotation.popleft()
+            queue = remaining.get(project_id)
+            if not queue:
+                continue
+            order.append(queue.pop(0))
+            if queue:
+                rotation.append(project_id)
+        return order
+
+    def _broadcast_positions_locked(self) -> None:
+        """Emit ``queue_position`` for every waiting run whose place moved.
+
+        Position is the only run state that changes without the run itself
+        doing anything, so it is pushed down the run's own SSE stream rather
+        than polled — the Production view has no second polling loop.
+        """
+        current: dict[str, tuple[int, int]] = {}
+        order = self._waiting_order_locked()
+        waiting = len(order)
+        for index, handle in enumerate(order, start=1):
+            current[handle.scheduler.execution_id] = (index, waiting)
+        for execution_id, place in current.items():
+            if self._queue_positions.get(execution_id) == place:
+                continue
+            self.events.create(execution_id).emit({
+                "type": "queue_position",
+                "node_id": None,
+                "status": "queued",
+                "queue_position": place[0],
+                "queue_waiting": place[1],
+            })
+        self._queue_positions = current
+
+    def queue_status(self) -> dict[str, Any]:
+        """Live pool state: who holds a slot, who waits, and in what order.
+
+        ``positions`` maps execution_id → ``0`` for a run occupying a pool
+        slot and ``1..N`` for waiting runs in projected dispatch order.
+        """
+        with self._queue_lock:
+            positions = {
+                handle.scheduler.execution_id: index
+                for index, handle in enumerate(self._waiting_order_locked(), start=1)
+            }
+            waiting = len(positions)
+            running = self._running_count
+        # Outside the queue lock: ``active`` carries its own lock.
+        for execution_id, handle in self.active.items():
+            record = getattr(handle, "queue_record", None)
+            if record is not None and record.status == "running":
+                positions.setdefault(execution_id, 0)
+        return {
+            "positions": positions,
+            "waiting": waiting,
+            "running": running,
+            "max_global_workers": self.max_global_workers,
+        }
+
+    def queue_position(self, execution_id: str) -> int | None:
+        """``0`` while running, ``1..N`` while waiting, ``None`` otherwise."""
+        return self.queue_status()["positions"].get(execution_id)
 
     def _pool_worker(self, project_id: str, handle: ActiveExecution) -> None:
         """Run one admitted execution, then free the slot and dispatch more."""
@@ -470,6 +563,7 @@ class ExecutionManager:
                 # Re-arm this project if more pending work remains, then fill slots.
                 self._mark_ready_locked(project_id)
                 self._dispatch_locked()
+                self._broadcast_positions_locked()
 
     def _run(self, handle: ActiveExecution, stream: ExecutionEventBuffer) -> None:
         try:
@@ -917,6 +1011,8 @@ class ExecutionManager:
         self.events.create(handle.scheduler.execution_id).emit({
             "type": "execution_finished", "node_id": None, "status": "cancelled"
         })
+        # Everything behind the cancelled run moves up one place.
+        self._broadcast_positions_locked()
 
     def cancel_pending(self, execution_id: str) -> str:
         handle = self.active.get(execution_id)
