@@ -200,6 +200,15 @@ const stageProviderDomain = computed(() => {
 })
 
 /**
+ * Domain the Test Node picker offers instances from (step 13.3). A stage that
+ * shows no provider UI — Paste-mode Script, a local service — offers no
+ * override either, or the picker would imply a choice the run cannot honour.
+ */
+const testProviderDomain = computed(() =>
+  showProviderUi.value ? stageProviderDomain.value || '' : '',
+)
+
+/**
  * Granted capabilities of the active instance, filtered by domain vocabulary
  * so an undeclared key is never offered in the step UI (step 6.1).
  */
@@ -316,6 +325,7 @@ function onTestRun(payload) {
     nodeId: payload.nodeId,
     runMode: payload.runMode,
     inputBindings: payload.inputBindings,
+    providerInstanceId: payload.providerInstanceId || undefined,
     currentJobId: payload.currentJobId || props.jobId || undefined,
     workflowId: props.workflowId || undefined,
     workflow: props.workflowId ? undefined : props.workflow || undefined,
@@ -471,6 +481,7 @@ function pretty(value) {
         :ports="primaryPorts"
         :current-job-id="jobId"
         :provider-label="providerLabel"
+        :provider-domain="testProviderDomain"
         :running="running"
         :last-result="testResult"
         @run="onTestRun"

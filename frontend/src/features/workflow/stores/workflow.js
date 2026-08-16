@@ -509,6 +509,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
     inputBindings = null,
     inputOverrides = null,
     currentJobId = null,
+    providerInstanceId = '',
   } = {}) {
     executionLoading.value = true
     executionError.value = ''
@@ -533,6 +534,12 @@ export const useWorkflowStore = defineStore('workflow', () => {
       }
       if (currentJobId) {
         body.current_job_id = currentJobId
+      }
+      // Step 13.2 one-shot provider for the targeted nodes. Sent only when the
+      // caller pinned one, so an ordinary run carries no override at all and
+      // the node's saved configuration remains the single source of truth.
+      if (providerInstanceId) {
+        body.provider_instance_id = providerInstanceId
       }
       const data = await api.post('/api/workflow/run', {
         body,

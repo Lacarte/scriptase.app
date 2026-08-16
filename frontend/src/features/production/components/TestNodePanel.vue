@@ -8,11 +8,19 @@
  * with ``run_mode=node_isolated``. Sample-fed results keep the
  * ``from_sample_data`` marker so stub-derived output is never mistaken for
  * real output.
+ *
+ * Step 13.3: when the node has a provider domain, the provider stops being
+ * read-only text and becomes a picker over that domain's catalog instances.
+ * The choice travels as the one-shot ``provider_instance_id`` of 13.2, so
+ * "what would the other instance do?" is a question rather than an edit — the
+ * node's saved configuration is never written.
  */
 import { computed, ref, watch } from 'vue'
 
 import InputPicker from '@/features/artifacts/components/InputPicker.vue'
 import { bindingsForNode, makeBinding } from '@/features/artifacts/api.js'
+import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
+import { AVAILABLE, availabilityInfo, isSelectable } from '@/features/providers/availability.js'
 
 const props = defineProps({
   /** Display name, e.g. stage label or node display name. */
@@ -23,19 +31,35 @@ const props = defineProps({
   ports: { type: Array, default: () => [] },
   currentJobId: { type: String, default: '' },
   providerLabel: { type: String, default: '' },
+  /**
+   * Provider domain of the node under test, or '' for a local node. Non-empty
+   * turns the read-only provider line into the 13.3 picker.
+   */
+  providerDomain: { type: String, default: '' },
   running: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
   /**
    * Last test result for this node:
-   * { status, from_sample_data, outputs_summary, error, execution_id }
+   * { status, from_sample_data, outputs_summary, error, execution_id,
+   *   provider_instance_id, selection_reason }
    */
   lastResult: { type: Object, default: null },
 })
 
 const emit = defineEmits(['run', 'close'])
 
+const providerCatalog = useProviderCatalogStore()
+
 /** port_id → binding */
 const bindings = ref({})
+
+/**
+ * One-shot instance for the next run. `''` means "whatever the node is
+ * configured with" — the panel never pre-selects an instance, because a
+ * pre-filled override would send `provider_instance_id` on a run the user
+ * never asked to repoint.
+ */
+const providerOverride = ref('')
 
 const dataPorts = computed(() =>
   (props.ports || []).filter(
@@ -95,6 +119,44 @@ watch(
   { immediate: true, deep: true },
 )
 
+// A different node means a different provider question; carrying the previous
+// node's override forward would silently repoint the new one.
+watch(() => props.nodeId, () => { providerOverride.value = '' })
+
+watch(
+  () => props.providerDomain,
+  (domain) => { if (domain) providerCatalog.loadCatalog() },
+  { immediate: true },
+)
+
+/**
+ * Selectable instances for the node's domain. The list, the labels, and the
+ * availability all come from the catalog — no provider id is named here.
+ */
+const providerOptions = computed(() =>
+  props.providerDomain ? providerCatalog.catalogEntriesFor(props.providerDomain) : [],
+)
+
+const showProviderPicker = computed(() => Boolean(props.providerDomain))
+
+/** Entry label carrying any resting state other than "ready" (§21.5). */
+function providerOptionLabel(entry) {
+  const state = entry.availability
+  if (!state || state === AVAILABLE) return entry.label
+  return `${entry.label} — ${availabilityInfo(state).label}`
+}
+
+function providerOptionDisabled(entry) {
+  return !isSelectable(entry)
+}
+
+/** What the run will actually use, for the confirmation line under the picker. */
+const effectiveProviderLabel = computed(() => {
+  if (!providerOverride.value) return props.providerLabel || 'Node default'
+  const entry = providerCatalog.resolveInstance(props.providerDomain, providerOverride.value)
+  return entry?.label || providerOverride.value
+})
+
 function onBindingUpdate(portId, value) {
   bindings.value = { ...bindings.value, [portId]: value }
 }
@@ -115,6 +177,9 @@ function onSubmit() {
     runMode: runMode.value,
     inputBindings,
     currentJobId: props.currentJobId || undefined,
+    // Omitted entirely when the node keeps its own provider, so the default
+    // path stays byte-identical to a pre-13.2 request.
+    providerInstanceId: providerOverride.value || undefined,
   })
 }
 
@@ -154,7 +219,35 @@ function pretty(value) {
       </template>
     </p>
 
-    <dl v-if="providerLabel" class="tn-meta">
+    <div v-if="showProviderPicker" class="tn-provider">
+      <label class="tn-provider-label" :for="`tn-provider-${nodeId}`">Provider</label>
+      <select
+        :id="`tn-provider-${nodeId}`"
+        v-model="providerOverride"
+        class="tn-provider-select"
+        :disabled="running || disabled"
+      >
+        <option value="">
+          Node's provider{{ providerLabel ? ` (${providerLabel})` : '' }}
+        </option>
+        <option
+          v-for="entry in providerOptions"
+          :key="entry.id"
+          :value="entry.id"
+          :disabled="providerOptionDisabled(entry)"
+        >
+          {{ providerOptionLabel(entry) }}
+        </option>
+      </select>
+      <p class="tn-hint">
+        This run uses <strong>{{ effectiveProviderLabel }}</strong>.
+        <template v-if="providerOverride">
+          One-shot — the node's saved configuration is unchanged.
+        </template>
+      </p>
+    </div>
+
+    <dl v-else-if="providerLabel" class="tn-meta">
       <div>
         <dt>Provider</dt>
         <dd>{{ providerLabel }}</dd>
@@ -207,6 +300,10 @@ function pretty(value) {
       <p v-if="lastResult.execution_id" class="muted small">
         Execution <code>{{ lastResult.execution_id }}</code>
       </p>
+      <p v-if="lastResult.provider_instance_id" class="muted small">
+        Produced by <code>{{ lastResult.provider_instance_id }}</code>
+        <span v-if="lastResult.selection_reason === 'request'"> · one-shot override</span>
+      </p>
       <pre v-if="lastResult.error">{{ pretty(lastResult.error) }}</pre>
       <pre v-else>{{ pretty(lastResult.outputs_summary) }}</pre>
     </section>
@@ -258,6 +355,35 @@ function pretty(value) {
   font-size: 0.8rem;
   color: var(--text-secondary, #8899aa);
   line-height: 1.4;
+}
+
+.tn-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tn-provider-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted, #6b7f93);
+}
+
+.tn-provider-select {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border, #1e2a3a);
+  border-radius: 6px;
+  background: var(--bg-dark, #0f1520);
+  color: var(--text, #e6edf5);
+  font-size: 0.82rem;
+}
+
+.tn-provider-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .tn-meta {

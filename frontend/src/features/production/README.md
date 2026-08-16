@@ -39,6 +39,12 @@ wired to the 4.1 InputPicker. When a Job is bound, the panel posts to
 `/api/jobs/<id>/test-node` so status, current stage, and the artifact set stay
 unchanged. Sample-fed results keep the `from_sample_data` marker.
 
+Step 13.3: the panel is shared, not owned. The Workflow canvas mounts the same
+component from its node context menu ("Test node…"), replacing three run items
+that fired blind. Passing a `providerDomain` turns the read-only provider line
+into a picker over that domain's catalog instances; the choice leaves as the
+one-shot `provider_instance_id` of 13.2 and is never written to the node.
+
 View Input / View Output / Provider / History / Approve are inspect or
 checkpoint actions — not new run modes. Approve becomes durable at 2.6.
 
@@ -64,7 +70,8 @@ composables/useProductionStages.js
                                load projection, open SSE, run stage actions
 components/JobCreatePanel.vue  Step 0: Channel, source, workflow, execution mode
 components/StepDetailPanel.vue §18 action toolbar + inspect panes + script mode
-components/TestNodePanel.vue   §9 Test Node panel (input picker → node_isolated)
+components/TestNodePanel.vue   §9 Test Node panel (input picker + provider
+                               picker → node_isolated); shared with the canvas
 components/RepairHistoryPane.vue
                                issues + repair history (read-only, step 11.4)
 ProductionPage.vue             §3.1 step list + Job create + detail panel host

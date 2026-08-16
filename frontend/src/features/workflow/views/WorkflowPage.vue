@@ -29,6 +29,7 @@ import WebhookSettings from '../components/WebhookSettings.vue'
 import NotificationCenter from '../components/NotificationCenter.vue'
 import AssetGarbageCollection from '../components/AssetGarbageCollection.vue'
 import ProjectArchiveManager from '../components/ProjectArchiveManager.vue'
+import TestNodePanel from '@/features/production/components/TestNodePanel.vue'
 
 const store = useWorkflowStore()
 const catalog = useProviderCatalogStore()
@@ -557,6 +558,77 @@ function onAttachResultViewer() {
   toast.info(stub ? 'Result viewer attached' : 'This node has no data output to view')
 }
 
+// ── Test Node panel state (step 13.3) ──────────────────────────────────
+const testPanelNodeId = ref('')
+const testRunning = ref(false)
+const testExecutionId = ref('')
+
+const testNode = computed(() =>
+  testPanelNodeId.value ? store.nodeById(testPanelNodeId.value) : null,
+)
+const testNodeDef = computed(() =>
+  testNode.value ? store.nodeTypes[testNode.value.type] || null : null,
+)
+const testNodePorts = computed(() =>
+  Array.isArray(testNodeDef.value?.inputs) ? testNodeDef.value.inputs : [],
+)
+
+// A provider-backed node names its domain in the one field of type `provider`
+// (step 12.3). Nothing here is keyed on a concrete provider or domain, so a new
+// one needs no edit to this page.
+const testProviderField = computed(
+  () => (testNodeDef.value?.config_schema || []).find((field) => field.type === 'provider') || null,
+)
+const testProviderDomain = computed(() => testProviderField.value?.provider_domain || '')
+const testProviderLabel = computed(() => {
+  const field = testProviderField.value
+  if (!field) return ''
+  const configured = testNode.value?.configuration?.[field.name]
+  const id = configured || field.default || catalog.selectedProvider(field.provider_domain)?.id || ''
+  if (!id) return ''
+  return catalog.resolveInstance(field.provider_domain, id)?.label || id
+})
+
+/**
+ * The live node record of the test execution, projected onto the panel's
+ * result shape. Read from the store rather than polled: the canvas already
+ * streams this execution, and a second reader would drift from the graph.
+ */
+const testResult = computed(() => {
+  if (!testExecutionId.value || !testPanelNodeId.value) return null
+  if (store.currentExecution?.execution_id !== testExecutionId.value) return null
+  const record = store.nodeExecution(testPanelNodeId.value)
+  return {
+    status: record.status,
+    from_sample_data: Boolean(record.from_sample_data),
+    outputs_summary: record.outputs_summary || {},
+    error: record.error || null,
+    execution_id: testExecutionId.value,
+    // Step 13.2 stamps the instance that ran, and why, on the cost block.
+    provider_instance_id: record.cost?.provider_instance_id || '',
+    selection_reason: record.cost?.selection_reason || '',
+  }
+})
+
+function onContextTestNode() {
+  const nodeId = contextMenu.value?.nodeId
+  closeContextMenu()
+  if (!nodeId || !store.nodeById(nodeId)) return
+  testExecutionId.value = ''
+  testPanelNodeId.value = nodeId
+}
+
+function closeTestPanel() {
+  testPanelNodeId.value = ''
+  testExecutionId.value = ''
+}
+
+// A node deleted (or replaced) while under test leaves a panel describing
+// something that no longer exists.
+watch(testNode, (node) => {
+  if (testPanelNodeId.value && !node) closeTestPanel()
+})
+
 function isFailedNode(nodeId) {
   return store.nodeExecution(nodeId).status === 'failed'
 }
@@ -784,6 +856,36 @@ async function onContextRun(mode) {
   const nodeId = contextMenu.value?.nodeId
   closeContextMenu()
   await onRun(mode, nodeId)
+}
+
+// ── Test Node from the canvas (step 13.3) ──────────────────────────────
+//
+// The context menu used to fire three isolation runs blind: no input choice,
+// no provider choice, and no way to see what the node was actually fed. They
+// are replaced by the Production Test Node panel, which already owns per-port
+// binding, run-mode derivation, and (13.2) the one-shot provider override. The
+// canvas carries no bound Job, so a test here cannot advance one; the panel
+// posts through /api/workflow/run and the toolbar run-mode select still offers
+// every mode the removed items did.
+
+async function onCanvasTestRun(payload) {
+  if (!payload?.nodeId) return
+  testRunning.value = true
+  testExecutionId.value = ''
+  try {
+    const data = await store.runWorkflow({
+      runMode: payload.runMode || 'node_isolated',
+      targetNodeIds: [payload.nodeId],
+      inputBindings: payload.inputBindings || null,
+      providerInstanceId: payload.providerInstanceId || '',
+    })
+    testExecutionId.value = data.execution_id || ''
+    toast.success('Test run started')
+  } catch (err) {
+    toast.error(store.executionError || err?.message || 'Failed to start the test run')
+  } finally {
+    testRunning.value = false
+  }
 }
 
 async function onStop() {
@@ -1053,9 +1155,7 @@ async function onStop() {
                 </div>
               </details>
               <div class="wf-context-divider" />
-              <button class="wf-context-item" @click="onContextRun('node_with_deps')">Run node + dependencies</button>
-              <button class="wf-context-item" @click="onContextRun('node_isolated')">Run node in isolation</button>
-              <button class="wf-context-item" @click="onContextRun('from_node')">Run from node downstream</button>
+              <button class="wf-context-item" @click="onContextTestNode">Test node…</button>
               <button
                 class="wf-context-item"
                 :disabled="!isFailedNode(contextMenu.nodeId)"
@@ -1075,6 +1175,23 @@ async function onStop() {
             </template>
           </div>
         </template>
+
+        <!-- Test Node panel, opened from the node context menu (step 13.3). -->
+        <div v-if="testNode" class="wf-test-panel">
+          <TestNodePanel
+            :title="testNode.name || testNodeDef?.display_name || testNode.type"
+            :node-id="testNode.id"
+            :node-type="testNode.type"
+            :ports="testNodePorts"
+            :provider-label="testProviderLabel"
+            :provider-domain="testProviderDomain"
+            :running="testRunning"
+            :disabled="store.readOnly"
+            :last-result="testResult"
+            @run="onCanvasTestRun"
+            @close="closeTestPanel"
+          />
+        </div>
 
         <template v-if="insertionPalette">
           <div class="wf-context-backdrop" @click="insertionPalette = null" @contextmenu.prevent="insertionPalette = null" />
@@ -1672,6 +1789,21 @@ async function onStop() {
   position: fixed;
   inset: 0;
   z-index: 40;
+}
+
+/* Floating over the canvas rather than in the inspector: the inspector belongs
+   to the selected node, and testing a node must not change the selection. */
+.wf-test-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 30;
+  width: min(380px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  background: var(--bg-darkest);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 
 .wf-context-menu {

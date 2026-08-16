@@ -152,13 +152,21 @@ You do not need a full pipeline to try a node:
 
 ### Testing one node — the short path
 
-1. Right-click the node → **Run node in isolation**.
-2. If it has required inputs but no stubs yet, attach them first from the same
-   menu, or drop the node on empty canvas with Auto-stubs on.
-3. Read the output in its Result Viewer, or open the bottom panel for the full
-   JSON, duration, logs, and errors.
+1. Right-click the node → **Test node…**. The Test Node panel opens over the
+   canvas with one input picker per port and, on a provider-backed node, a
+   provider picker.
+2. Choose where each input comes from: a sample stub, the artifact library, a
+   managed upload, a manual value, or **Run dependencies** (which switches the
+   run to **Node + dependencies**).
+3. Optionally pick a different provider instance. The choice applies to that
+   run only — the node's saved configuration is never written — and the result
+   records which instance produced it.
+4. Read the output in the panel, in the node's Result Viewer, or in the bottom
+   panel for the full JSON, duration, logs, and errors.
 
-Three modes each run "one node", and they are not interchangeable:
+The Run mode dropdown in the toolbar runs the selected node without the panel
+when you already know what it should be fed. Three modes each run "one node",
+and they are not interchangeable:
 
 | You want to | Use | What it costs |
 |---|---|---|

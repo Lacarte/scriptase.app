@@ -57,6 +57,7 @@ import JobCreatePanel from './components/JobCreatePanel.vue'
 import * as api from './api.js'
 import * as channelsApi from '@/features/channels/api.js'
 import { useWorkflowStore } from '@/features/workflow/stores/workflow.js'
+import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
 import { api as workflowApi } from '@/shared/api/client.js'
 
 vi.mock('./api.js', () => ({
@@ -1223,6 +1224,91 @@ describe('ProductionPage', () => {
     await voiceRow.trigger('click')
     await nextTick()
     expect(wrapper.find('[data-testid="stage-issues"]').text()).toContain('iss_AAAAAA')
+  })
+
+  it('sends the Test Node provider choice as a one-shot override (step 13.3)', async () => {
+    api.getJob.mockResolvedValue({
+      job: { id: 'job_TEST01', workflow_id: 'wf_ABCDEF', source: { mode: 'paste' } },
+    })
+    api.getJobCost.mockResolvedValue({ cost: null })
+    api.getNodeTypes.mockResolvedValue({
+      node_types: {
+        'tts.generate': {
+          inputs: [{ id: 'script', type: 'script', required: true, multiple: false }],
+        },
+      },
+    })
+    api.testJobNode.mockResolvedValue({ execution_id: 'ex_TEST01', status: 'queued' })
+    api.getExecution.mockResolvedValue({
+      execution: { execution_id: 'ex_TEST01', status: 'succeeded', nodes: {} },
+    })
+
+    // Two instances of one provider type is the case the override exists for.
+    const catalog = useProviderCatalogStore()
+    catalog.catalogVersion = 1
+    catalog.domains = {
+      tts: {
+        label: 'Voice',
+        selected_instance_id: 'elevenlabs',
+        default_provider: 'elevenlabs',
+        capability_vocabulary: [],
+        providers: [{
+          id: 'elevenlabs', label: 'ElevenLabs',
+          availability: 'available', capabilities: {}, aliases: [],
+        }],
+        instances: [
+          {
+            instance_id: 'elevenlabs', provider_type: 'elevenlabs', label: 'ElevenLabs',
+            availability: 'available', selected: true,
+          },
+          {
+            instance_id: 'elevenlabs_alt', provider_type: 'elevenlabs', label: 'ElevenLabs Alt',
+            availability: 'available', selected: false,
+          },
+        ],
+        excluded: [],
+      },
+    }
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/production', name: 'production', component: ProductionPage },
+        { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
+      ],
+    })
+    await router.push({
+      name: 'production',
+      query: { workflow_id: 'wf_ABCDEF', job_id: 'job_TEST01' },
+    })
+    await router.isReady()
+
+    const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const voiceRow = wrapper.findAll('.stage-row').find((r) => r.text().includes('Voice'))
+    await voiceRow.trigger('click')
+    await nextTick()
+    await wrapper.find('.action-test').trigger('click')
+    await nextTick()
+
+    const select = wrapper.find('.tn-provider-select')
+    expect(select.exists()).toBe(true)
+    expect(select.text()).toContain('ElevenLabs Alt')
+    await select.setValue('elevenlabs_alt')
+    await wrapper.find('.tn-run').trigger('click')
+    await flushPromises()
+
+    // The bound Job's own endpoint, so the Job cannot advance, carrying the
+    // 13.2 one-shot instance.
+    expect(api.testJobNode).toHaveBeenCalledWith(
+      'job_TEST01',
+      expect.objectContaining({
+        target_node_ids: ['n_tts'],
+        provider_instance_id: 'elevenlabs_alt',
+      }),
+    )
+    wrapper.unmount()
   })
 })
 

@@ -389,6 +389,7 @@ async function onTestRun(payload) {
       const data = await testJobNode(jobId, {
         target_node_ids: [nodeId],
         input_bindings: payload.inputBindings || undefined,
+        provider_instance_id: payload.providerInstanceId || undefined,
         force: false,
       })
       executionId = data.execution_id
@@ -399,6 +400,7 @@ async function onTestRun(payload) {
         target_node_ids: [nodeId],
         force: false,
         input_bindings: payload.inputBindings || undefined,
+        provider_instance_id: payload.providerInstanceId || undefined,
       }
       if (payload.workflowId || workflowId.value || selectedWorkflowId.value) {
         body.workflow_id = payload.workflowId || workflowId.value || selectedWorkflowId.value
@@ -430,6 +432,10 @@ async function onTestRun(payload) {
             outputs_summary: nodeRec.outputs_summary || {},
             error: nodeRec.error || null,
             execution_id: executionId,
+            // Step 13.2 records which instance ran and why on the node's cost
+            // block; 13.3 shows it so two back-to-back tests are told apart.
+            provider_instance_id: nodeRec.cost?.provider_instance_id || '',
+            selection_reason: nodeRec.cost?.selection_reason || '',
           }
           if (['succeeded', 'failed', 'cancelled', 'partial'].includes(status)) {
             settled = true
