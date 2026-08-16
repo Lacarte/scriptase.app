@@ -21,11 +21,18 @@
   --bg-secondary: var(--bg-dark);
   --bg-tertiary:  var(--bg-surface);
 
+  /* Legacy name from the ported timeline editor, where it is the raised
+     surface for dialogs, dropdown menus, and inset select controls. */
+  --bg-darker: var(--bg-surface);
+
   /* ---- Text ---- */
   --text:           #e8edf3;
   --text-secondary: #8899aa;
   --text-muted:     #6b7f93;
   --text-primary:   var(--text);
+
+  /* Legacy name from the ported timeline editor: lowest-emphasis text. */
+  --text-dim: var(--text-muted);
 
   /* ---- Accent ---- */
   --accent:       #4ECDC4;
@@ -54,6 +61,11 @@
   --border-hover: #2a3a4e;
   --border-color: var(--border);
   --border-light: #2a3a4e;
+
+  /* Hairline the ported timeline editor draws on already-raised surfaces,
+     where a solid --border reads too heavy. Translucent so it composites
+     over whichever surface it lands on. */
+  --border-subtle: rgba(255, 255, 255, 0.06);
 
   /* ---- Glass / Depth ---- */
   --glass-bg:  rgba(255, 255, 255, 0.02);
