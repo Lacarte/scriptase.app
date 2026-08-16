@@ -31,12 +31,14 @@
     ws://localhost:5050 and Scriptase serves on 5000. See
     Sync-ScriptaseExtensions.
 
-    Step 15.3 wires this into tools\launch.ps1; it calls the functions below
-    rather than re-implementing them.
+    tools\launch.ps1 sequences all of this: Flask, then Chromium, then Vite. It
+    dot-sources this file and calls the functions below rather than
+    re-implementing them.
 
 .PARAMETER Url
     URLs to open in the new window. Ignored when a browser is already running,
-    because CDP json/new is the right way to add a tab to a live session.
+    because CDP json/new -- Open-ChromiumTab below -- is the right way to add a
+    tab to a live session.
 
 .PARAMETER AppPort
     The port the Scriptase backend is on, injected into the extensions. Defaults
@@ -114,6 +116,35 @@ function Get-ChromiumDebugPort {
     # so the port is configuration, not a constant buried in a launch line.
     if ($env:SCRIPTASE_CDP_PORT) { return [int]$env:SCRIPTASE_CDP_PORT }
     return 9222
+}
+
+function Get-ChromiumProviderTabs {
+    <#
+        The pages the two extension transports drive.
+
+        Both extensions are content scripts: they do nothing at all until their
+        page is open, so a browser without these tabs is a browser where Grok
+        and Gemini simply never respond. Opening them at launch is what makes
+        "start the app" mean "the providers are ready".
+
+        Overridable through .env because these URLs belong to somebody else and
+        will move -- a Google account with multiple profiles needs a different
+        /u/N/ prefix, for one. Set either to `off` to skip that tab; an empty
+        value cannot mean anything here, because Windows deletes an environment
+        variable that is set to the empty string.
+    #>
+    $wanted = [ordered]@{
+        SCRIPTASE_TAB_GROK   = 'https://grok.com/imagine'
+        SCRIPTASE_TAB_GEMINI = 'https://gemini.google.com/u/0/app?pageId=none'
+    }
+
+    $tabs = foreach ($name in $wanted.Keys) {
+        $value = [Environment]::GetEnvironmentVariable($name)
+        if (-not $value) { $value = $wanted[$name] }
+        $value = $value.Trim()
+        if ($value -and $value -ne 'off') { $value }
+    }
+    return @($tabs)
 }
 
 function Test-ChromiumCdp {
@@ -501,6 +532,68 @@ function Start-BundledChromium {
     throw "Chromium did not open its debugging port ($Port) within 30s."
 }
 
+function Open-ChromiumTab {
+    <#
+        Open a URL as a tab in the running Chromium, and return whether it is
+        now open.
+
+        This is the reason the launcher does not hand the app URL to
+        Start-Process: the browser that matters is already running with the
+        profile and the extensions, and a second one -- the default browser, or
+        a second Chromium against a locked profile -- helps nobody.
+
+        Two details that are easy to get wrong and silent when you do:
+
+        - The verb is PUT. Chrome refuses GET on /json/new ("Using unsafe HTTP
+          verb GET to invoke /json/new") since 111, which is every build this
+          project will ever download. GET is kept as a fallback for older
+          builds; a stale reference implementation using it is exactly why V2's
+          pipeline tab quietly stopped opening.
+        - The URL is the raw query string. /json/new?{url} takes everything
+          after the first '?' verbatim, so percent-encoding it would open a
+          literally-encoded address. Fragments do not survive the trip and no
+          caller has one -- the app routes are history-mode.
+    #>
+    param([Parameter(Mandatory)][string]$Url, [int]$Port = 0, [switch]$Force)
+
+    if (-not $Port) { $Port = Get-ChromiumDebugPort }
+    $base = "http://127.0.0.1:$Port"
+
+    # Tabs are matched by origin, not by full URL. A relaunch should not stack a
+    # duplicate on a session someone has navigated somewhere else -- and if the
+    # app is open on /editor, that IS the app being open.
+    if (-not $Force) {
+        $wanted = $Url -as [uri]
+        try {
+            # PowerShell 5.1's Invoke-RestMethod hands a JSON array to the
+            # pipeline as a single Object[], so this unrolls a level -- without
+            # it every target looks like an object with no "url" and the check
+            # silently never matches.
+            $targets = @(Invoke-RestMethod -Uri "$base/json/list" -TimeoutSec 5 -ErrorAction Stop) |
+                ForEach-Object { $_ }
+            foreach ($target in @($targets)) {
+                $names = $target.PSObject.Properties.Name
+                if ($names -notcontains 'url' -or $names -notcontains 'type') { continue }
+                if ($target.type -ne 'page') { continue }
+                $open = $target.url -as [uri]
+                if ($open -and $wanted -and $open.Authority -eq $wanted.Authority) { return $true }
+            }
+        } catch {
+            # No target list means no browser; the request below will say so.
+        }
+    }
+
+    foreach ($method in @('Put', 'Get')) {
+        try {
+            Invoke-RestMethod -Method $method -Uri "$base/json/new?$Url" -TimeoutSec 10 -ErrorAction Stop | Out-Null
+            return $true
+        } catch { continue }
+    }
+
+    Write-Warn "Could not open $Url through CDP :$Port"
+    return $false
+}
+
 # ---------------------------------------------------------------------------
 # Direct invocation
 # ---------------------------------------------------------------------------
@@ -516,6 +609,7 @@ try {
         Write-Ok 'Chromium ready'
         exit 0
     }
+    if (-not $Url.Count) { $Url = Get-ChromiumProviderTabs }
     Start-BundledChromium -Url $Url -AppPort $AppPort -Force:$Force | Out-Null
     exit 0
 } catch {

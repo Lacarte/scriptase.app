@@ -13,6 +13,11 @@
       5. Load .env into the child environment
       6. Launch, and guarantee every child dies with this process
 
+    Launch order is Flask, then Chromium, then Vite, and it is load-bearing.
+    The browser extensions dial the backend WebSocket as they load, so a
+    Chromium that starts first spends its first seconds failing to connect;
+    Vite goes last because nothing else waits on it.
+
     Child processes (Flask, Vite) are placed in a Windows Job Object with
     KILL_ON_JOB_CLOSE. When this process ends by ANY route -- clean exit,
     Ctrl+C, closing the console, crash, Task Manager -- the kernel terminates
@@ -26,7 +31,12 @@
     setup  Provision only; do not launch
 
 .PARAMETER NoBrowser
-    Do not open a browser window.
+    Do not open a browser window at all -- neither the bundled Chromium nor a
+    fallback in the default browser.
+
+.PARAMETER NoChromium
+    Skip the bundled Chromium and open the app in the default browser instead.
+    The two extension-transport providers (Grok, Gemini) will not work.
 
 .PARAMETER NoPull
     Skip the fast-forward pull from origin.
@@ -44,6 +54,7 @@ param(
     [ValidateSet('dev', 'prod', 'setup')]
     [string]$Mode = 'dev',
     [switch]$NoBrowser,
+    [switch]$NoChromium,
     [switch]$NoPull,
     [switch]$Reinstall
 )
@@ -513,6 +524,50 @@ function Wait-ForPort {
 }
 
 # ---------------------------------------------------------------------------
+# The browser
+# ---------------------------------------------------------------------------
+
+# Dot-sourced for its functions only; chromium.ps1 returns early rather than
+# launching anything when it is loaded this way. It reuses the Write-* helpers
+# above, so it has to be loaded after them.
+. (Join-Path $PSScriptRoot 'chromium.ps1')
+
+function Start-ChromiumOrWarn {
+    <#
+        Bring up the bundled browser, and return whether CDP is usable.
+
+        Every failure here is a warning. Chromium is how two of the ~thirty
+        providers reach their service; the rest of Scriptase -- every API
+        provider, the whole editor, every local module -- does not care that the
+        GitHub releases API was unreachable or that the profile is locked. A
+        launcher that refuses to start the app over that would be trading a
+        working app for a working browser.
+
+        Deliberately NOT a job member. Flask and Vite die with this window
+        because a stale one holds a port; the browser is the opposite case --
+        it holds the logged-in Google and Grok sessions, and Start-BundledChromium
+        reuses a running one in about a second precisely because it survives.
+    #>
+    param([string[]]$Url = @())
+
+    try {
+        $browser = Start-BundledChromium -Url $Url
+        if (-not $browser) {
+            # A reused browser never saw those URLs -- they are command-line
+            # arguments to a process that started before this run. Open-ChromiumTab
+            # matches by origin, so this adds the missing provider tabs to a
+            # session someone has been using and duplicates nothing.
+            foreach ($tab in $Url) { Open-ChromiumTab -Url $tab | Out-Null }
+        }
+        return $true
+    } catch {
+        Write-Warn "Chromium unavailable -- $($_.Exception.Message)"
+        Write-Host '    Grok and Gemini need it; everything else runs without it.' -ForegroundColor DarkGray
+        return $false
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -554,8 +609,13 @@ if ($Mode -eq 'prod') {
 
 $job = New-KillOnCloseJob
 $exitCode = 0
+$chromiumReady = $false
 
 try {
+    # --- 1. Flask ----------------------------------------------------------
+    # First, because the extensions Chromium loads connect straight to the
+    # backend WebSocket hubs. Starting the browser against a backend that is not
+    # listening yet buys nothing but a round of failed reconnects.
     Write-Host ''
     Write-Step "Starting backend on ${backendHost}:${backendPort}..."
     $flask = Start-JobChild -Job $job -FilePath $VenvPython -Arguments 'app.py' -WorkingDirectory $Root
@@ -566,6 +626,16 @@ try {
 
     $appUrl = "http://${backendHost}:${backendPort}/"
 
+    # --- 2. Chromium -------------------------------------------------------
+    # Second, and never fatal. It also overlaps usefully with Vite's startup:
+    # the provider tabs are loading while npm gets going.
+    if (-not $NoBrowser -and -not $NoChromium) {
+        $chromiumReady = Start-ChromiumOrWarn -Url (Get-ChromiumProviderTabs)
+    }
+
+    # --- 3. Vite -----------------------------------------------------------
+    # Last, and fatal. In dev mode it serves the UI, so there is no app to open
+    # without it -- unlike the browser, there is nothing to degrade to.
     if ($Mode -eq 'dev') {
         Write-Step 'Starting Vite dev server...'
         # `Get-Command npm` resolves to npm.ps1 on Windows, which CreateProcess
@@ -580,10 +650,22 @@ try {
     Write-Host ''
     Write-Host "  Scriptase is running at " -NoNewline
     Write-Host $appUrl -ForegroundColor Cyan
+    if ($chromiumReady) {
+        Write-Host "  Chromium CDP on :$(Get-ChromiumDebugPort)" -ForegroundColor DarkGray
+    }
     Write-Host '  Press Ctrl+C or close this window to stop everything.' -ForegroundColor DarkGray
     Write-Host ''
 
-    if (-not $NoBrowser) { Start-Process $appUrl | Out-Null }
+    # --- 4. The app tab ----------------------------------------------------
+    # Only now is $appUrl real: in dev it points at Vite, which did not exist
+    # until a moment ago. Into the window already holding the provider tabs and
+    # the logged-in profile, not a second browser beside it.
+    if ($chromiumReady) {
+        Open-ChromiumTab -Url $appUrl | Out-Null
+    }
+    elseif (-not $NoBrowser) {
+        Start-Process $appUrl | Out-Null
+    }
 
     # Block until the backend exits. Vite is a job member, so it dies with us.
     $flask.WaitForExit()

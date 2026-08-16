@@ -55,6 +55,7 @@ is a ~2s no-op.
 start.bat                 # dev: Flask :5000 + Vite :5173 with HMR
 start.bat -Mode prod      # build the frontend, serve it from Flask alone
 start.bat -Mode setup     # provision only, do not launch
+start.bat -NoChromium     # skip the bundled browser, use the default one
 start.bat -NoPull         # skip the fast-forward pull from origin
 start.bat -Reinstall      # force a dependency reinstall
 ```
@@ -64,7 +65,7 @@ What it does before launching: fast-forward pull from origin, verify Python
 `requirements.txt` changes and Node deps when `package-lock.json` changes
 (SHA-256 stamps beside each artifact), and load `.env`.
 
-Three things worth knowing:
+Four things worth knowing:
 
 - **`.env` is read by the launcher, not by Python.** `config.py` uses
   `os.environ` only, so the backend carries no dotenv dependency and tests stay
@@ -74,6 +75,10 @@ Three things worth knowing:
   holding port 5000. Don't add port-killing or window-title-killing back.
 - **The pull never blocks startup.** It is `--ff-only`, skipped when the tree is
   dirty, and every failure warns and launches on local code.
+- **The order is Flask, then Chromium, then Vite.** The extensions dial the
+  backend WebSocket as they load. Chromium is the one child deliberately outside
+  the Job Object — it holds the Grok and Google logins and is reused across runs
+  — and the one whose failure is a warning, degrading to the default browser.
 
 ## Layout
 
