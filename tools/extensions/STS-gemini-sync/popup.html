@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg-deep: #0c0e14;
+    --bg-surface: #12151e;
+    --bg-elevated: #1a1e2a;
+    --bg-input: #161a26;
+    --border: #1f2536;
+    --border-focus: #2dd4bf44;
+    --text-primary: #e2e8f0;
+    --text-secondary: #64748b;
+    --text-muted: #475569;
+    --accent: #2dd4bf;
+    --accent-dim: #2dd4bf33;
+    --accent-glow: #2dd4bf22;
+    --danger: #f87171;
+    --danger-dim: #f8717133;
+    --success: #34d399;
+    --success-dim: #34d39933;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    width: 300px;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    padding: 16px 18px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #12151e 0%, var(--bg-deep) 100%);
+  }
+
+  .logo-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent) 0%, #06b6d4 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 11px;
+    color: #0c0e14;
+    letter-spacing: -0.5px;
+    flex-shrink: 0;
+    box-shadow: 0 0 16px var(--accent-dim), inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+
+  .header-text {
+    flex: 1;
+  }
+
+  .header-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+  }
+
+  .header-sub {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+
+  /* ── Status Indicator ── */
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 4px 8px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+  }
+
+  .status-badge.offline {
+    background: var(--danger-dim);
+    color: var(--danger);
+    border: 1px solid #f8717122;
+  }
+
+  .status-badge.online {
+    background: var(--success-dim);
+    color: var(--success);
+    border: 1px solid #34d39922;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .status-badge.offline .status-dot {
+    background: var(--danger);
+    box-shadow: 0 0 6px var(--danger);
+  }
+
+  .status-badge.online .status-dot {
+    background: var(--success);
+    box-shadow: 0 0 6px var(--success);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--success); }
+    50% { opacity: 0.5; box-shadow: 0 0 12px var(--success); }
+  }
+
+  /* ── Body ── */
+  .body {
+    padding: 14px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* ── WebSocket Input ── */
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .field-label {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
+  .field-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .field-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow), 0 0 12px var(--accent-dim);
+  }
+
+  .field-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* ── Button ── */
+  .action-btn {
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s ease;
+  }
+
+  .action-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .action-btn:hover::before {
+    opacity: 1;
+  }
+
+  .action-btn:active {
+    transform: scale(0.98);
+  }
+
+  .action-btn.start {
+    background: linear-gradient(135deg, #2dd4bf 0%, #06b6d4 100%);
+    color: #0c0e14;
+    box-shadow: 0 2px 12px var(--accent-dim), inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+
+  .action-btn.start::before {
+    background: linear-gradient(135deg, #5eead4 0%, #22d3ee 100%);
+  }
+
+  .action-btn.stop {
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    color: #fff;
+    box-shadow: 0 2px 12px var(--danger-dim), inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+
+  .action-btn.stop::before {
+    background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%);
+  }
+
+  /* ── Status Bar ── */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 0 0;
+  }
+
+  .status-bar-icon {
+    width: 3px;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--accent);
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
+
+  .status-bar-text {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* ── Animations ── */
+  .header, .body, .status-bar {
+    animation: fadeSlideIn 0.25s ease-out both;
+  }
+  .body { animation-delay: 0.05s; }
+  .status-bar { animation-delay: 0.1s; }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-mark">STS</div>
+    <div class="header-text">
+      <div class="header-title">STS Gemini</div>
+      <div class="header-sub">Image Synchronizer</div>
+    </div>
+    <div class="status-badge offline" id="statusBadge">
+      <span class="status-dot"></span>
+      <span id="statusLabel">Offline</span>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-bar-icon"></div>
+    <div class="status-bar-text" id="statusText">Checking connection...</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

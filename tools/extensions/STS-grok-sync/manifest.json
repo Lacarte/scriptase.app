@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "key": "BFlEPDf8lC0jkgoL5BZHG3bsM4jmXvGeJT9m9I25DKA6WUQ8N/yULSOSCgvkFkcbduwziOZe8Z4lP2b0jbkMoDo=",
+  "name": "STS Grok Sync",
+  "version": "1.0.0",
+  "description": "Scriptase — in-page Grok asset synchronizer",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["*://grok.com/*", "http://localhost/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' ws://localhost:* ws://127.0.0.1:*"
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://grok.com/*"],
+      "js": ["src/sts-endpoint.js", "src/content.js"],
+      "css": ["src/panel.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "STS Grok Sync",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

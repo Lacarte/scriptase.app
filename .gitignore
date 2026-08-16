@@ -43,6 +43,11 @@ settings/settings.json
 # not as a build artefact.
 data/chromium-profile/
 
+# --- Generated browser payloads ----------------------------------------------
+# Per-launch copies of tools/extensions with the real backend port injected.
+# Rebuilt by Sync-ScriptaseExtensions on every launch; edit the sources instead.
+data/chromium-extensions/
+
 # --- Large local assets ------------------------------------------------------
 # ffmpeg/ffprobe binaries and Whisper weights are fetched locally, not committed.
 # bin/ also takes the ~180 MB ungoogled-Chromium that tools/chromium.ps1 fetches

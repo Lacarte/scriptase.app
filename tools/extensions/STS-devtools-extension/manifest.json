@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "key": "BP8Ef2/kM0ES6GR4P20sD7igOHcP2RbHgRfu/t1/dxnG/wR/b+QzQRLoZHg/bSwPuKA4dw/ZFseBF+7+3X93GcY=",
+  "name": "STS DevTools",
+  "version": "1.0.0",
+  "description": "Scriptase — monitor, diagnose, test, and control all pipeline modules from the browser",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "storage",
+    "downloads",
+    "debugger",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

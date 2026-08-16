@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "key": "BIuAcXv/d1ASo95GPUV71n92NUP6lj8yZ0fMgNdebnqZi4Bxe/93UBKj3kY9RXvWf3Y1Q/qWPzJnR8yA115uepk=",
+  "name": "STS Gemini Sync",
+  "version": "1.0",
+  "description": "Automates Gemini image generation via WebSocket for Scriptase",
+  "permissions": ["storage", "activeTab", "tabs"],
+  "host_permissions": ["https://gemini.google.com/*", "https://lh3.googleusercontent.com/*", "https://*.googleusercontent.com/*", "https://*.usercontent.google.com/*", "http://localhost/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' ws://localhost:* ws://127.0.0.1:*"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["sts-endpoint.js", "content.js"],
+      "css": ["panel.css"],
+      "run_at": "document_end",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

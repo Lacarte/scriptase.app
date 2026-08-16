@@ -24,13 +24,23 @@
     and pinning a version in the repo means shipping a browser that silently
     rots. bin\ is gitignored, so the download lands outside version control.
 
-    Step 15.2 adds the four extensions and step 15.3 wires this into
-    tools\launch.ps1; both call the functions below rather than re-implementing
-    them.
+    The four extensions under tools\extensions are loaded unpacked and pinned by
+    the ids their manifest keys produce. They are not loaded from there directly:
+    each launch stages a copy under data\chromium-extensions with the real
+    backend port written into its sts-endpoint.js, because V2 hardcoded
+    ws://localhost:5050 and Scriptase serves on 5000. See
+    Sync-ScriptaseExtensions.
+
+    Step 15.3 wires this into tools\launch.ps1; it calls the functions below
+    rather than re-implementing them.
 
 .PARAMETER Url
     URLs to open in the new window. Ignored when a browser is already running,
     because CDP json/new is the right way to add a tab to a live session.
+
+.PARAMETER AppPort
+    The port the Scriptase backend is on, injected into the extensions. Defaults
+    to SCRIPTASE_PORT, then 5000 -- the same resolution config.PORT uses.
 
 .PARAMETER InstallOnly
     Provision Chromium and the profile, but do not launch.
@@ -42,6 +52,7 @@
 [CmdletBinding()]
 param(
     [string[]]$Url = @(),
+    [int]$AppPort = 0,
     [switch]$InstallOnly,
     [switch]$Force
 )
@@ -56,8 +67,14 @@ $script:ChromiumBinDir  = Join-Path $script:ChromiumRoot 'bin\chromium'
 $script:ChromiumHome    = Join-Path $script:ChromiumBinDir 'ungoogled-chromium'
 $script:ChromiumExe     = Join-Path $script:ChromiumHome 'chrome.exe'
 $script:ChromiumProfile = Join-Path $script:ChromiumRoot 'data\chromium-profile'
+$script:ExtensionSource = Join-Path $script:ChromiumRoot 'tools\extensions'
+$script:ExtensionStage  = Join-Path $script:ChromiumRoot 'data\chromium-extensions'
 
 $script:ChromiumReleaseApi = 'https://api.github.com/repos/ungoogled-software/ungoogled-chromium-windows/releases'
+
+# PowerShell 5.1's UTF8 encoding emits a BOM, which Chromium's JSON parser and
+# its ES module loader both object to.
+$script:Utf8NoBom = New-Object Text.UTF8Encoding($false)
 
 # launch.ps1 already defines these; when this file is run on its own they have
 # to exist anyway. Redefining identical bodies would be the alternative, and one
@@ -76,12 +93,20 @@ if (-not (Get-Command Write-Step -ErrorAction SilentlyContinue)) {
 function Get-ChromiumPaths {
     <# One place that knows the layout, so 15.2 and 15.3 cannot disagree with it. #>
     return [ordered]@{
-        Root       = $script:ChromiumRoot
-        InstallDir = $script:ChromiumBinDir
-        Home       = $script:ChromiumHome
-        Exe        = $script:ChromiumExe
-        Profile    = $script:ChromiumProfile
+        Root            = $script:ChromiumRoot
+        InstallDir      = $script:ChromiumBinDir
+        Home            = $script:ChromiumHome
+        Exe             = $script:ChromiumExe
+        Profile         = $script:ChromiumProfile
+        ExtensionSource = $script:ExtensionSource
+        ExtensionStage  = $script:ExtensionStage
     }
+}
+
+function Get-ScriptaseAppPort {
+    # The backend port is config.PORT's twin; both read SCRIPTASE_PORT.
+    if ($env:SCRIPTASE_PORT) { return [int]$env:SCRIPTASE_PORT }
+    return 5000
 }
 
 function Get-ChromiumDebugPort {
@@ -246,6 +271,171 @@ function Initialize-ChromiumProfile {
 }
 
 # ---------------------------------------------------------------------------
+# Extensions
+# ---------------------------------------------------------------------------
+
+function Get-ChromiumExtensionId {
+    <#
+        Derive an unpacked extension's id from the "key" in its manifest.
+
+        Chromium computes the id as the first 16 bytes of SHA-256 over the
+        DER public key, each nibble mapped 0-f to a-p. Because the key travels
+        with the manifest, the id survives being copied to another path -- which
+        is what lets the ids stay pinned across the port from V2, and what lets
+        the staging copy below exist at all.
+
+        Derived rather than transcribed: a hardcoded id list is a second source
+        of truth that goes stale silently, and a wrong id pins nothing while
+        looking like it worked.
+    #>
+    param([Parameter(Mandatory)][string]$ManifestPath)
+
+    $manifest = Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($manifest.PSObject.Properties.Name -notcontains 'key') {
+        throw "$ManifestPath has no `"key`" -- its id would change on every copy."
+    }
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $hash = $sha.ComputeHash([Convert]::FromBase64String($manifest.key)) } finally { $sha.Dispose() }
+
+    $id = New-Object Text.StringBuilder
+    foreach ($byte in $hash[0..15]) {
+        [void]$id.Append([char](97 + ($byte -shr 4)))
+        [void]$id.Append([char](97 + ($byte -band 0x0F)))
+    }
+    return $id.ToString()
+}
+
+function Get-ScriptaseExtensions {
+    <# Every extension under tools\extensions that has a manifest, with its id. #>
+    if (-not (Test-Path $script:ExtensionSource)) { return @() }
+
+    return @(Get-ChildItem -Path $script:ExtensionSource -Directory | ForEach-Object {
+        $manifest = Join-Path $_.FullName 'manifest.json'
+        if (-not (Test-Path $manifest)) { return }
+        [pscustomobject]@{
+            Name   = $_.Name
+            Source = $_.FullName
+            Id     = Get-ChromiumExtensionId -ManifestPath $manifest
+        }
+    })
+}
+
+function Sync-ScriptaseExtensions {
+    <#
+        Stage the extensions with the ports this run actually uses, and return
+        one descriptor per staged extension.
+
+        Why a staged copy instead of loading tools\extensions directly: the
+        extensions need to know where the backend is, and V2 answered that by
+        hardcoding ws://localhost:5050. Scriptase serves on 5000, so a
+        straight port would connect to nothing -- silently, because a socket
+        that never opens looks exactly like a provider that is not responding.
+        Replacing one constant with another only relocates that failure to
+        whoever sets SCRIPTASE_PORT.
+
+        So each extension carries an sts-endpoint.js holding its defaults, and
+        staging rewrites the marked line in the copy with the real ports. The
+        committed sources stay clean, the generated tree is disposable, and the
+        extension ids are unaffected because they come from the manifest key.
+    #>
+    param(
+        [int]$AppPort = 0,
+        [int]$VitePort = 5173,
+        [int]$AutomationPort = 8765,
+        [string]$HostName = 'localhost',
+        # Only the tests pass this. Restaging the live tree underneath a running
+        # browser is a real way to break a session, so they stage elsewhere.
+        [string]$StageDir = ''
+    )
+
+    if (-not $AppPort) { $AppPort = Get-ScriptaseAppPort }
+    if (-not $StageDir) { $StageDir = $script:ExtensionStage }
+
+    $extensions = Get-ScriptaseExtensions
+    if (-not $extensions.Count) {
+        Write-Warn "No extensions found under $($script:ExtensionSource)"
+        return @()
+    }
+
+    # Built by hand rather than via ConvertTo-Json: PowerShell 5.1 renders a
+    # one-element array as a bare scalar, and appPorts must stay a list.
+    $uiPorts = @($AppPort)
+    if ($VitePort -and $VitePort -ne $AppPort) { $uiPorts += $VitePort }
+    $config = '{{"host":"{0}","appPorts":[{1}],"uiPorts":[{2}],"automationPort":{3}}}' -f `
+        $HostName, $AppPort, ($uiPorts -join ','), $AutomationPort
+
+    # Matched, not just replaced: on the default port the rewrite is a no-op, so
+    # "the text changed" would report a missing marker on every ordinary launch.
+    # The sources are CRLF and .NET's $ does not step over the \r, so the line
+    # end has to be matched -- but as a lookahead, or the replacement eats the
+    # \r and staging rewrites every file's line endings on the way past.
+    $marker = '(?m)^(/\* @scriptase-endpoint \*/ (?:var|export const) STS_ENDPOINT = ).*?;[ \t]*(?=\r?$)'
+
+    New-Item -ItemType Directory -Force -Path $StageDir | Out-Null
+
+    $staged = foreach ($extension in $extensions) {
+        $target = Join-Path $StageDir $extension.Name
+        if (Test-Path $target) { Remove-Item -Recurse -Force $target }
+        Copy-Item -Path $extension.Source -Destination $target -Recurse -Force
+
+        $endpoints = @(Get-ChildItem -Path $target -Filter 'sts-endpoint.js' -Recurse -File)
+        if (-not $endpoints.Count) {
+            throw "$($extension.Name) has no sts-endpoint.js -- it would keep whatever port its source hardcodes."
+        }
+        foreach ($endpoint in $endpoints) {
+            $text = Get-Content -LiteralPath $endpoint.FullName -Raw -Encoding UTF8
+            if (-not [regex]::IsMatch($text, $marker)) {
+                throw "The @scriptase-endpoint marker is missing from $($endpoint.FullName); the injected port would be dropped."
+            }
+            $updated = [regex]::Replace($text, $marker, ('${1}' + $config + ';'))
+            # Not Set-Content -Encoding UTF8: on PowerShell 5.1 that writes a BOM,
+            # and a BOM in front of an ES module service worker is a parse error.
+            [IO.File]::WriteAllText($endpoint.FullName, $updated, $script:Utf8NoBom)
+        }
+
+        [pscustomobject]@{ Name = $extension.Name; Path = $target; Id = $extension.Id }
+    }
+
+    $staged = @($staged)
+    Write-Ok "$($staged.Count) extensions staged on :$AppPort"
+    return $staged
+}
+
+function Set-ChromiumPinnedExtensions {
+    <#
+        Pin the extensions to the toolbar by editing the profile Preferences.
+
+        Written before launch on purpose: Chromium rewrites Preferences from
+        memory when it exits, so an edit made while it runs is discarded. On a
+        brand-new profile the file does not exist yet, and the pins appear on
+        the second launch -- that is a cosmetic delay, not a failure, so it
+        never stops a launch.
+    #>
+    param([Parameter(Mandatory)][string[]]$Id)
+
+    $prefsPath = Join-Path $script:ChromiumProfile 'Default\Preferences'
+    if (-not (Test-Path $prefsPath)) {
+        Write-Step 'No Preferences yet -- extensions will pin on the next launch'
+        return
+    }
+
+    try {
+        $prefs = Get-Content -LiteralPath $prefsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($prefs.PSObject.Properties.Name -notcontains 'extensions') {
+            $prefs | Add-Member -Name 'extensions' -Value ([pscustomobject]@{}) -MemberType NoteProperty
+        }
+        $prefs.extensions | Add-Member -Name 'pinned_extensions' -Value $Id -MemberType NoteProperty -Force
+        [IO.File]::WriteAllText($prefsPath, ($prefs | ConvertTo-Json -Depth 100 -Compress), $script:Utf8NoBom)
+        Write-Ok 'Extensions pinned to the toolbar'
+    } catch {
+        # A mangled Preferences file costs the user their pins, not their
+        # session -- worth a warning, never worth failing the launch.
+        Write-Warn "Could not pin the extensions: $($_.Exception.Message)"
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Launch
 # ---------------------------------------------------------------------------
 
@@ -257,7 +447,7 @@ function Start-BundledChromium {
         debuggable one was already listening. Throws on failure so the caller
         decides whether that is fatal -- for the launcher (step 15.3) it is not.
     #>
-    param([string[]]$Url = @(), [int]$Port = 0, [switch]$Force)
+    param([string[]]$Url = @(), [int]$Port = 0, [int]$AppPort = 0, [switch]$Force)
 
     if (-not $Port) { $Port = Get-ChromiumDebugPort }
 
@@ -268,6 +458,7 @@ function Start-BundledChromium {
 
     $exe        = Install-Chromium -Force:$Force
     $profileDir = Initialize-ChromiumProfile
+    $extensions = Sync-ScriptaseExtensions -AppPort $AppPort
 
     # Quoted here rather than left to Start-Process, which joins an argument
     # array on spaces without quoting anything.
@@ -279,7 +470,17 @@ function Start-BundledChromium {
         '--disable-default-apps'
         '--window-position=100,100'
         '--window-size=1400,900'
-    ) + $Url
+    )
+
+    if ($extensions.Count) {
+        Set-ChromiumPinnedExtensions -Id @($extensions.Id)
+        # Chromium 137 ignores --load-extension unless this feature is off.
+        # Harmless on builds that still honour the switch outright.
+        $chromeArgs += '--disable-features=DisableLoadExtensionCommandLineSwitch'
+        $chromeArgs += "--load-extension=`"$(@($extensions.Path) -join ',')`""
+    }
+
+    $chromeArgs += $Url
 
     Write-Step "Launching Chromium (CDP :$Port)..."
     $proc = Start-Process -FilePath $exe -ArgumentList $chromeArgs -PassThru
@@ -311,10 +512,11 @@ try {
     if ($InstallOnly) {
         Install-Chromium -Force:$Force | Out-Null
         Initialize-ChromiumProfile | Out-Null
+        Sync-ScriptaseExtensions -AppPort $AppPort | Out-Null
         Write-Ok 'Chromium ready'
         exit 0
     }
-    Start-BundledChromium -Url $Url -Force:$Force | Out-Null
+    Start-BundledChromium -Url $Url -AppPort $AppPort -Force:$Force | Out-Null
     exit 0
 } catch {
     Write-Err $_.Exception.Message
