@@ -217,6 +217,58 @@ class ProviderInstanceCrudTests(ProviderApiTestCase):
         self.assertEqual(response.get_json()['error']['code'], 'INVALID_REQUEST')
 
 
+class ProviderSimulationTests(ProviderApiTestCase):
+    """Step 5.2: every transport gets a credential-free dummy round-trip."""
+
+    SECRET = 'sk-live-must-never-leave-the-store'
+
+    def setUp(self):
+        super().setUp()
+        for provider_id, kind in (
+            ('api_demo', 'cloud'),
+            ('extension_demo', 'extension'),
+            ('n8n_demo', 'webhook'),
+        ):
+            write_provider(
+                self.base, provider_id, domain='demo', kind=kind,
+                provider_body=GOOD_PROVIDER,
+            )
+            self.provider_settings(provider_id, {
+                'api_key': self.SECRET,
+                'webhook_url': f'https://secret.invalid/{self.SECRET}',
+            })
+        self.install_hub()
+
+    def test_api_extension_and_n8n_simulate_without_invoking_a_provider(self):
+        expected = {
+            'api_demo': 'api',
+            'extension_demo': 'extension',
+            'n8n_demo': 'n8n',
+        }
+        for instance_id, kind in expected.items():
+            with self.subTest(kind=kind):
+                response = self.client.post(
+                    f'/api/providers/demo/instances/{instance_id}/simulate', json={}
+                )
+                self.assertEqual(response.status_code, 200)
+                body = response.get_json()
+                self.assertTrue(body['simulated'])
+                self.assertEqual(body['kind'], kind)
+                self.assertIsInstance(body['request'], dict)
+                self.assertIsInstance(body['response'], dict)
+                self.assertTrue(body['steps'])
+
+    def test_simulation_response_never_carries_a_credential_or_real_target(self):
+        response = self.client.post(
+            '/api/providers/demo/instances/api_demo/simulate', json={}
+        )
+        blob = response.get_data(as_text=True)
+        self.assertNotIn(self.SECRET, blob)
+        self.assertNotIn('api_key', blob)
+        self.assertNotIn('webhook_url', blob)
+        self.assertEqual(response.get_json()['transport'], 'api://simulated/api_demo')
+
+
 # ---------------------------------------------------------------------------
 # Policy: loopback and the one error envelope
 # ---------------------------------------------------------------------------
@@ -232,6 +284,7 @@ class LoopbackPolicyTests(ProviderApiTestCase):
         ('put', '/api/providers/tts/kokoro/settings', {}),
         ('post', '/api/providers/tts/kokoro/validate', {}),
         ('post', '/api/providers/tts/kokoro/test', {}),
+        ('post', '/api/providers/tts/instances/kokoro/simulate', {}),
         ('put', '/api/providers/tts/selection', {'provider_id': 'kokoro'}),
         ('get', '/api/settings/v2', None),
         ('put', '/api/settings/v2', {}),

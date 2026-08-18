@@ -34,11 +34,11 @@ describe('provider settings page', () => {
     const wrapper = shallowMount(ProvidersSettingsPage)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Provider instances')
+    expect(wrapper.text()).toContain('Providers')
     expect(wrapper.text()).toContain('Primary')
-    await wrapper.get('.domain-heading .primary').trigger('click')
-    await wrapper.get('.create-row input').setValue('Client account')
-    await wrapper.get('.create-row .primary').trigger('click')
+    await wrapper.get('.instance-tools .ghost').trigger('click')
+    await wrapper.get('.create-form input').setValue('Client account')
+    await wrapper.get('.create-form .primary').trigger('click')
     await flushPromises()
 
     expect(api.post).toHaveBeenCalledWith('/api/providers/tts/instances', {

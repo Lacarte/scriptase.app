@@ -455,6 +455,11 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     })
   }
 
+  /** Run the platform-owned dummy fixture. This endpoint never receives settings. */
+  function simulateProvider(domain, instanceId) {
+    return api.post(`${instanceResource(domain, instanceId)}/simulate`, { body: {} })
+  }
+
   async function createInstance(domain, { providerType, label, instanceId } = {}) {
     const body = { provider_type: providerType }
     if (label) body.label = label
@@ -554,6 +559,7 @@ export const useProviderCatalogStore = defineStore('providerCatalog', () => {
     healthFor,
     checkHealth,
     testProvider,
+    simulateProvider,
     selectProvider,
     getProviderSettings,
     schemas,

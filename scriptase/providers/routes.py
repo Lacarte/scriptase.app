@@ -30,6 +30,7 @@ from scriptase.providers import hub, settings_manager
 from scriptase.providers.domains import DOMAINS
 from scriptase.engine.dev_reload import dev_reload_enabled
 from scriptase.engine.options import invalidate_settings_cache
+from scriptase.providers.simulation import build_simulation
 
 providers_bp = Blueprint("providers", __name__)
 
@@ -445,6 +446,25 @@ def test_instance_settings(domain, instance_id):
         "domain": domain,
         "health": _health_dict(provider, merged, instance_id=iid),
     })
+
+
+@providers_bp.route(
+    "/api/providers/<domain>/instances/<instance_id>/simulate", methods=["POST"]
+)
+def simulate_instance_request(domain, instance_id):
+    """Return a dummy transport round-trip without reading settings or doing I/O."""
+    denied = _require_loopback()
+    if denied:
+        return denied
+    provider, iid, _stored, err = _resolve_instance(domain, instance_id)
+    if err is not None:
+        return err
+    return jsonify(build_simulation(
+        domain=domain,
+        provider_id=provider.id,
+        instance_id=iid,
+        kind=provider.kind,
+    ))
 
 
 @providers_bp.route(

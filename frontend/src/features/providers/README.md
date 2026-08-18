@@ -9,3 +9,8 @@ two bindings of one type resolve their own model and voice lists.
 
 Secrets are write-only: the API never echoes one back, so these forms must never
 try to display a stored credential.
+
+Plan step 5.2 replaces the settings-card index with the prototype's provider
+rail/detail surface. `ProviderSimulationConsole` calls the platform-owned
+`/simulate` fixture for the selected instance; that endpoint never invokes the
+provider or a configured transport and returns only dummy request/response data.
