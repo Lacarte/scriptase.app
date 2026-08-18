@@ -54,24 +54,12 @@ function openInWindow(target) {
 </template>
 
 <style>
-/* Global baseline; design tokens come from styles/theme.css */
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--bg-darkest, #0a0e13);
-  color: var(--text, #e8edf3);
-  font-family: var(--font-body, system-ui, sans-serif);
-}
-
+/* The reset, body background and type ramp live in styles/theme.css.
+   This block would otherwise win on order and repaint the ambient wash. */
 a {
   color: inherit;
 }
 
-html,
-body,
 #app {
   height: 100%;
 }

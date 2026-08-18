@@ -378,7 +378,7 @@ function updateErrorPolicy(patch) {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 5px;
-  background: var(--bg-panel);
+  background: var(--panel);
   color: var(--text);
   padding: 5px 6px;
   font-size: 11px;
