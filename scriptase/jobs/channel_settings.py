@@ -80,6 +80,7 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
     )
 
     tone = _text(content.get("tone"))
+    mood = _text(content.get("mood"))
     style = _text(visual.get("style"))
     aspect = _text(export.get("aspect_ratio"))
 
@@ -87,6 +88,7 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
         # project.setup field names
         "channel_name": _text(snapshot.get("name")),
         "tone": tone,
+        "mood": mood,
         "style": style,
         "aspect_ratio": aspect,
         # Adapter alias targets used by inherited_config(..., aliases=...)
@@ -118,8 +120,8 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
     }
 
     # Step 5.2: structured Channel visual direction for Scene Director.
-    # Nested object (pattern is structured, never free text). Provider packages
-    # own prompt wording; adapters only forward the typed block.
+    # Nested object (pattern is structured, never free text). The central visual
+    # composer owns final subject/style/mood/aspect assembly.
     visual_direction = _visual_direction_block(visual)
     if visual_direction:
         settings["visual_direction"] = visual_direction
@@ -316,6 +318,7 @@ def _visual_direction_block(visual: Mapping[str, Any]) -> dict[str, Any] | None:
     block: dict[str, Any] = {}
     for key in (
         "style",
+        "style_prompt",
         "palette",
         "lighting",
         "camera",

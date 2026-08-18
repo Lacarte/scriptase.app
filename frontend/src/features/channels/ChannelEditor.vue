@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
+  composeVisualPrompt,
   deleteChannel,
   getChannel,
   listBrandingAssets,
@@ -20,6 +21,9 @@ const success = ref('')
 const brandingAssets = ref([])
 const uploadBusy = ref(false)
 const draggedSection = ref(null)
+const promptPreview = ref('')
+const promptPreviewLoading = ref(false)
+let promptPreviewRequest = 0
 
 const channelId = computed(() => route.params.id)
 
@@ -59,6 +63,7 @@ const form = reactive({
   },
   visual_direction: {
     style: '',
+    style_prompt: '',
     pattern: [],
     palette: '',
     lighting: '',
@@ -126,6 +131,36 @@ const POSITIONS = [
   'center',
 ]
 
+async function refreshPromptPreview() {
+  const requestId = ++promptPreviewRequest
+  promptPreviewLoading.value = true
+  try {
+    const result = await composeVisualPrompt({
+      scene_subject: 'A lone traveler finds a glowing door in the rain',
+      visual_style: form.visual_direction.style_prompt,
+      mood: form.content.mood,
+      aspect_ratio: form.export_defaults.aspect_ratio,
+    })
+    if (requestId === promptPreviewRequest) {
+      promptPreview.value = result?.prompt || ''
+    }
+  } catch {
+    if (requestId === promptPreviewRequest) promptPreview.value = 'Preview unavailable'
+  } finally {
+    if (requestId === promptPreviewRequest) promptPreviewLoading.value = false
+  }
+}
+
+watch(
+  [
+    () => form.visual_direction.style_prompt,
+    () => form.content.mood,
+    () => form.export_defaults.aspect_ratio,
+  ],
+  refreshPromptPreview,
+  { immediate: true },
+)
+
 function applyDocument(doc) {
   meta.id = doc.id
   meta.version = doc.version
@@ -165,6 +200,7 @@ function applyDocument(doc) {
     : []
   const vd = doc.visual_direction || {}
   form.visual_direction.style = vd.style || ''
+  form.visual_direction.style_prompt = vd.style_prompt || ''
   form.visual_direction.pattern = Array.isArray(vd.pattern)
     ? vd.pattern.map((p) => ({
         narrative_role: p.narrative_role || '',
@@ -641,6 +677,18 @@ onMounted(load)
           never free text. That is what makes Scene Director deterministic.
         </p>
         <label>Style <input v-model="form.visual_direction.style" type="text" /></label>
+        <label>
+          Visual style prompt
+          <textarea
+            v-model="form.visual_direction.style_prompt"
+            rows="4"
+            placeholder="Describe the Channel's house look, materials, color treatment, and rendering style."
+          ></textarea>
+        </label>
+        <div class="prompt-preview" aria-live="polite">
+          <span class="prompt-preview-label">Composed prompt example</span>
+          <p>{{ promptPreviewLoading && !promptPreview ? 'Composing…' : promptPreview }}</p>
+        </div>
         <div class="pattern-table">
           <div class="pattern-head">
             <span>Narrative role</span>
@@ -1009,6 +1057,32 @@ input[type="file"]:disabled {
   border: 1px solid var(--line-soft);
   padding: 1px 5px;
   border-radius: 5px;
+}
+
+.prompt-preview {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-s);
+  background: var(--accent-dim);
+}
+
+.prompt-preview-label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.prompt-preview p {
+  margin: 0;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .logo-row {

@@ -16,6 +16,8 @@ from scriptase.modules.scene_director.providers.contract import (
 )
 from scriptase.providers.errors import ProviderError
 from scriptase.providers.hub import hub
+from scriptase.prompts.visual import compose_visual_prompt
+from scriptase.shared.io_utils import safe_json_write
 
 from .common import (
     AdapterError,
@@ -46,7 +48,7 @@ def blueprint(inputs, config, context):
     merged["text"] = inputs["script"]
     # Step 5.2: ensure structured Channel visual direction reaches the provider
     # even when the settings port was empty (e.g. V2-era project.setup with no
-    # passthrough). Never compose prompt text here — typed block only.
+    # passthrough). Final assembly uses the shared composer below.
     if not isinstance(merged.get("visual_direction"), dict):
         try:
             from scriptase.jobs.channel_settings import resolve_channel_settings
@@ -88,11 +90,32 @@ def blueprint(inputs, config, context):
     # always carries the frozen §8 field set for image/video adapters.
     try:
         typed = SceneBlueprintResultPayload.from_mapping(result)
-        result["scenes"] = typed.scenes_as_dicts()
+        direction = merged.get("visual_direction") or {}
+        visual_style = str(direction.get("style_prompt") or "").strip()
+        channel_mood = str(merged.get("mood") or "").strip()
+        aspect_ratio = str(merged.get("aspect_ratio") or "9:16").strip()
+        composed = []
+        for scene in typed.scenes:
+            subject = (
+                scene.scene_subject or scene.image_prompt or scene.visual_description
+            ).strip()
+            mood = (scene.mood or channel_mood).strip()
+            scene.scene_subject = subject
+            scene.visual_style_prompt = visual_style
+            scene.prompt_aspect_ratio = aspect_ratio
+            scene.mood = mood
+            scene.image_prompt = compose_visual_prompt(
+                subject, visual_style, mood, aspect_ratio
+            )
+            composed.append(scene.to_port_dict())
+        result["scenes"] = composed
     except (TypeError, ValueError):
         specs = coerce_scene_specs(result.get("scenes") or [])
         if specs:
             result["scenes"] = [spec.to_port_dict() for spec in specs]
+    # Providers write before adapter-level normalization. Persist the canonical
+    # composed prompts so artifacts and output ports cannot disagree.
+    safe_json_write(path, result, indent=2)
     payload = with_artifacts(result, path)
     prompts = with_artifacts(
         {

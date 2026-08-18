@@ -9,8 +9,9 @@ on the stable scene id from §4. Image and Video adapters consume ``SceneSpec``,
 not loose dicts.
 
 Step 5.2 freezes structured Channel ``visual_direction`` as typed request
-inputs. The provider package owns prompt wording; no prompt text lives outside
-a provider package.
+inputs. Provider packages own LLM instruction wording; final per-scene visual
+prompt assembly lives in the shared visual composer, with no duplicated string
+building at either boundary.
 """
 
 from __future__ import annotations
@@ -115,12 +116,13 @@ class VisualDirectionInput(BaseModel):
 
     Mirrors ``channels.models.VisualDirection`` so a Job channel snapshot feeds
     the Director without free-text prompt composition at the Channel/Job layer.
-    The provider package owns how these fields become prompt wording.
+    The shared visual composer owns final subject/style/mood/aspect assembly.
     """
 
     model_config = {"extra": "forbid"}
 
     style: str = ""
+    style_prompt: str = ""
     pattern: list[PatternShotInput] = Field(default_factory=list)
     palette: str = ""
     lighting: str = ""
@@ -132,6 +134,7 @@ class VisualDirectionInput(BaseModel):
 
     @field_validator(
         "style",
+        "style_prompt",
         "palette",
         "lighting",
         "camera",
@@ -174,6 +177,7 @@ class VisualDirectionInput(BaseModel):
         """True when every structured field is unset."""
         return not (
             self.style
+            or self.style_prompt
             or self.pattern
             or self.palette
             or self.lighting
@@ -207,7 +211,7 @@ class SceneBlueprintRequest(BaseModel):
     """Frozen §32.2 request extended with Channel visual direction (step 5.2).
 
     Unknown keys are rejected (not silently ignored). ``visual_direction`` is
-    structured Channel input; the provider owns prompt wording.
+    structured Channel input; the shared visual composer owns final assembly.
     """
 
     script: str = ""
@@ -302,6 +306,7 @@ def visual_direction_from_config(data: Mapping[str, Any] | None) -> VisualDirect
     payload: dict[str, Any] = {}
     for key in (
         "style",
+        "style_prompt",
         "palette",
         "lighting",
         "camera",
@@ -342,6 +347,10 @@ class SceneSpec(BaseModel):
 
     # --- §8 core fields -------------------------------------------------------
     scene_id: str = ""
+    # Canonical composition inputs retained beside the provider-ready prompt.
+    scene_subject: str = ""
+    visual_style_prompt: str = ""
+    prompt_aspect_ratio: str = ""
     narration: str = ""
     visual_description: str = ""
     image_prompt: str = ""
@@ -366,6 +375,9 @@ class SceneSpec(BaseModel):
 
     @field_validator(
         "scene_id",
+        "scene_subject",
+        "visual_style_prompt",
+        "prompt_aspect_ratio",
         "narration",
         "visual_description",
         "image_prompt",

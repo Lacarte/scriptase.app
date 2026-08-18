@@ -42,6 +42,11 @@ export function getChannelDefaults() {
   return apiGet('/channels/defaults')
 }
 
+/** Uses the same backend composer as Scene Director and image providers. */
+export function composeVisualPrompt(parts) {
+  return apiPost('/channels/prompt-preview', parts)
+}
+
 /** Managed branding library (engine route — never a browser path). */
 export function listBrandingAssets() {
   return apiGet('/workflow/branding')

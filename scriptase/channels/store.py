@@ -24,6 +24,7 @@ from config import CHANNELS_DIR, TRASH_DIR
 from scriptase.channels.migrations import SCHEMA_VERSION, apply_migrations
 from scriptase.channels.models import (
     CHANNEL_ID_RE,
+    DEFAULT_VISUAL_STYLE_PROMPT,
     ChannelProfile,
     parse_channel,
     parse_draft,
@@ -293,6 +294,7 @@ def default_draft(*, name: str = "New Channel") -> dict[str, Any]:
         "content": {},
         "script_template": {},
         "visual_direction": {
+            "style_prompt": DEFAULT_VISUAL_STYLE_PROMPT,
             "pattern": [
                 {"narrative_role": "hook", "shot": "extreme close-up"},
                 {"narrative_role": "explanation", "shot": "medium cinematic"},

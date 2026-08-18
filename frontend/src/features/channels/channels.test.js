@@ -16,6 +16,7 @@ vi.mock('./api.js', () => ({
   listBrandingAssets: vi.fn(),
   uploadBrandingLogo: vi.fn(),
   getChannelDefaults: vi.fn(),
+  composeVisualPrompt: vi.fn(),
 }))
 
 function makeRouter(routes) {
@@ -200,6 +201,7 @@ describe('ChannelEditor', () => {
     },
     visual_direction: {
       style: 'cinematic',
+      style_prompt: 'Painterly chiaroscuro with restrained bronze highlights',
       pattern: [
         { narrative_role: 'hook', shot: 'extreme close-up' },
         { narrative_role: 'ending', shot: 'symbolic visual' },
@@ -250,6 +252,9 @@ describe('ChannelEditor', () => {
     vi.clearAllMocks()
     api.getChannel.mockResolvedValue({ channel: structuredClone(sample) })
     api.listBrandingAssets.mockResolvedValue({ assets: [] })
+    api.composeVisualPrompt.mockResolvedValue({
+      prompt: 'A lone traveler finds a glowing door in the rain. Painterly chiaroscuro with restrained bronze highlights. Aspect ratio: 9:16.',
+    })
     api.updateChannel.mockImplementation(async (_id, draft, version) => ({
       channel: {
         ...sample,
@@ -279,6 +284,8 @@ describe('ChannelEditor', () => {
 
     expect(api.getChannel).toHaveBeenCalledWith('ch_AAAAAA')
     expect(wrapper.text()).toContain('Cinematic Stoicism')
+    expect(wrapper.text()).toContain('Painterly chiaroscuro')
+    expect(api.composeVisualPrompt).toHaveBeenCalled()
 
     const textInputs = wrapper.findAll('input[type="text"]')
     const values = textInputs.map((input) => input.element.value)

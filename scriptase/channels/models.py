@@ -24,7 +24,12 @@ CHANNEL_ID_RE = re.compile(r"^ch_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py). Distinct from
 # the content ``version`` field, which bumps on every successful update.
-CHANNEL_SCHEMA_VERSION = 2
+CHANNEL_SCHEMA_VERSION = 3
+
+DEFAULT_VISUAL_STYLE_PROMPT = (
+    "Cinematic editorial imagery with intentional composition, tactile detail, "
+    "and cohesive color grading"
+)
 
 DEFAULT_SCRIPT_TEMPLATE_BRIEF = (
     "Open with an immediate hook, introduce a surprising turn, explain why it "
@@ -172,6 +177,7 @@ class VisualDirection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     style: str = ""
+    style_prompt: str = DEFAULT_VISUAL_STYLE_PROMPT
     pattern: list[PatternEntry] = Field(default_factory=list)
     palette: str = ""
     lighting: str = ""
@@ -183,6 +189,7 @@ class VisualDirection(BaseModel):
 
     @field_validator(
         "style",
+        "style_prompt",
         "palette",
         "lighting",
         "camera",

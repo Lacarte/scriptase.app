@@ -34,6 +34,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from scriptase.channels.models import DEFAULT_VISUAL_STYLE_PROMPT
 from scriptase.modules.scene_director.templates import SCENE_STYLE_TEMPLATES, TEMPLATES_BY_ID
 
 _DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -1576,6 +1577,12 @@ def preset_to_channel_draft(preset_id: str, preset: dict | None = None) -> dict[
         },
         "visual_direction": {
             "style": style,
+            "style_prompt": (
+                f"{style.replace('_', ' ')} visual treatment with a cohesive, "
+                "production-ready finish"
+                if style
+                else DEFAULT_VISUAL_STYLE_PROMPT
+            ),
             "pattern": deepcopy(_DEFAULT_PATTERN),
             "palette": "",
             "lighting": "",

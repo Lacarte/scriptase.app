@@ -19,6 +19,7 @@ from scriptase.channels.models import (
     CHANNEL_SCHEMA_VERSION,
     DEFAULT_SCRIPT_TEMPLATE_BRIEF,
     DEFAULT_SCRIPT_TEMPLATE_SECTIONS,
+    DEFAULT_VISUAL_STYLE_PROMPT,
 )
 
 # Freshly written Channel documents carry this schema_version.
@@ -45,6 +46,23 @@ def _add_script_template(data: dict[str, Any]) -> dict[str, Any]:
         "brief": DEFAULT_SCRIPT_TEMPLATE_BRIEF,
         "sections": list(DEFAULT_SCRIPT_TEMPLATE_SECTIONS),
     })
+    return migrated
+
+
+@_register(3)
+def _add_visual_style_prompt(data: dict[str, Any]) -> dict[str, Any]:
+    """Add the step 2.2 house-look prompt to legacy Channel documents."""
+    migrated = deepcopy(data)
+    visual = migrated.get("visual_direction")
+    if not isinstance(visual, dict):
+        visual = {}
+        migrated["visual_direction"] = visual
+    if not str(visual.get("style_prompt") or "").strip():
+        # Preserve the old Channel's chosen look when possible.  Blank legacy
+        # Channels receive the same useful default as newly created Channels.
+        visual["style_prompt"] = (
+            str(visual.get("style") or "").strip() or DEFAULT_VISUAL_STYLE_PROMPT
+        )
     return migrated
 
 

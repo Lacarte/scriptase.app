@@ -18,6 +18,7 @@ from typing import Any, Iterable, Mapping
 from pydantic import BaseModel, Field, field_validator
 
 from scriptase.modules.scene_director.providers.contract import SceneSpec, coerce_scene_specs
+from scriptase.prompts.visual import compose_visual_prompt
 
 
 DEFAULT_ASPECT_RATIO = "9:16"
@@ -89,7 +90,18 @@ class StoryboardRequest(BaseModel):
         for position, scene in enumerate(scenes or ()):
             if not isinstance(scene, SceneSpec):
                 scene = SceneSpec.coerce(scene, position=position)
-            prompt = scene.image_prompt_text()
+            # Rebuild from the Director-stamped components through the one
+            # canonical composer. Legacy SceneSpecs without components retain
+            # their existing image_prompt unchanged.
+            if scene.scene_subject:
+                prompt = compose_visual_prompt(
+                    scene.scene_subject,
+                    scene.visual_style_prompt,
+                    scene.mood,
+                    scene.prompt_aspect_ratio or aspect_ratio,
+                )
+            else:
+                prompt = scene.image_prompt_text()
             if not prompt:
                 continue
             units.append({"index": scene.unit_index(position), "prompt": prompt})

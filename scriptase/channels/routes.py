@@ -108,6 +108,25 @@ def _draft_from_body(body: dict):
     }
 
 
+@channels_bp.route("/api/channels/prompt-preview", methods=["POST"])
+def channels_prompt_preview():
+    """Render the editor's live example with the production composer."""
+    body, error = _json_body()
+    if error:
+        return error
+    from scriptase.prompts.visual import compose_visual_prompt
+
+    subject = body.get("scene_subject") or "A lone traveler finds a glowing door in the rain"
+    return jsonify({
+        "prompt": compose_visual_prompt(
+            subject,
+            body.get("visual_style"),
+            body.get("mood"),
+            body.get("aspect_ratio"),
+        )
+    })
+
+
 @channels_bp.route("/api/channels", methods=["GET"])
 def channels_list():
     """List channels (newest first). Auto-seeds starter Channels once.

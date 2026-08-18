@@ -129,6 +129,23 @@ class NichePresetMigrationTests(unittest.TestCase):
 
 
 class ChannelCrudApiTests(ChannelApiTestBase):
+    def test_prompt_preview_uses_canonical_composition_order(self):
+        response = self.client.post(
+            "/api/channels/prompt-preview",
+            json={
+                "scene_subject": "A red kite above the city",
+                "visual_style": "Paper-cut collage with visible fibers",
+                "mood": "joyful",
+                "aspect_ratio": "1:1",
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(
+            response.get_json()["prompt"],
+            "A red kite above the city. Paper-cut collage with visible fibers. "
+            "Mood: joyful. Aspect ratio: 1:1.",
+        )
+
     def test_create_get_update_delete_end_to_end(self):
         create = self.client.post(
             "/api/channels",

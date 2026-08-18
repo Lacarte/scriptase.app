@@ -238,16 +238,18 @@ class ChannelMigrationTests(ChannelStoreTestBase):
             raw = json.load(handle)
         raw["schema_version"] = 1
         raw.pop("script_template")
+        raw["visual_direction"].pop("style_prompt", None)
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(raw, handle)
 
         loaded = get_channel(created.id)
 
-        self.assertEqual(loaded.schema_version, 2)
+        self.assertEqual(loaded.schema_version, SCHEMA_VERSION)
         self.assertEqual(
             loaded.script_template.sections,
             ["Hook", "Turn", "Why", "Reframe", "Landing"],
         )
+        self.assertEqual(loaded.visual_direction.style_prompt, "cinematic")
         self.assertEqual(loaded.version, 1)
         with open(path, encoding="utf-8") as handle:
             persisted = json.load(handle)
