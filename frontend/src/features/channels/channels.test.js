@@ -443,4 +443,162 @@ describe('ChannelEditor', () => {
       image: { primary: 'inst_image_1', fallbacks: ['inst_image_2'] },
     })
   })
+
+  /**
+   * The rail sits beside the editor. Saving must bump the list row's version
+   * or a later Undo-delete still holds the pre-save token and 409s.
+   */
+  it('keeps the rail version in sync after save', async () => {
+    api.listChannels.mockResolvedValue({
+      channels: [
+        {
+          id: 'ch_AAAAAA',
+          name: 'Cinematic Stoicism',
+          version: 1,
+          niche: 'stoicism',
+          style: 'cinematic',
+        },
+      ],
+      starter_mappings: {},
+      seed: null,
+    })
+    api.updateChannel.mockResolvedValue({
+      channel: {
+        ...structuredClone(sample),
+        name: 'Stoicism Nightly',
+        version: 2,
+      },
+    })
+
+    const router = makeRouter([
+      { path: '/channels', name: 'channels', component: { template: '<div />' } },
+      { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
+    ])
+    router.push('/channels/ch_AAAAAA')
+    await router.isReady()
+
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.get('.ch-litem .lrow').text()).toContain('v1')
+
+    await wrapper.get('.ch-name-input').setValue('Stoicism Nightly')
+    await wrapper.get('[data-testid="channel-save"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.ch-litem .lrow').text()).toContain('v2')
+    expect(wrapper.get('.ch-litem .lname').text()).toBe('Stoicism Nightly')
+  })
+
+  /**
+   * Creating while already on the editor reuses ChannelRail — onMounted does
+   * not re-run — so the new row has to be inserted by onCreate itself.
+   */
+  it('shows a channel created from the editor rail immediately', async () => {
+    api.listChannels.mockResolvedValue({
+      channels: [
+        {
+          id: 'ch_AAAAAA',
+          name: 'Cinematic Stoicism',
+          version: 1,
+          niche: 'stoicism',
+          style: 'cinematic',
+        },
+      ],
+      starter_mappings: {},
+      seed: null,
+    })
+    api.createChannel.mockResolvedValue({
+      channel: {
+        id: 'ch_NEWNEW',
+        name: 'New Channel',
+        version: 1,
+        content: {},
+        visual_direction: {},
+        branding: {},
+        music_library: { folder: '', tracks: [] },
+      },
+    })
+    api.getChannel.mockImplementation(async (id) => ({
+      channel: {
+        ...structuredClone(sample),
+        id,
+        name: id === 'ch_NEWNEW' ? 'New Channel' : sample.name,
+      },
+    }))
+
+    const router = makeRouter([
+      { path: '/channels', name: 'channels', component: { template: '<div />' } },
+      { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
+    ])
+    router.push('/channels/ch_AAAAAA')
+    await router.isReady()
+
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.findAll('.ch-litem')).toHaveLength(1)
+
+    await wrapper.get('.ch-rail-title button.primary').trigger('click')
+    await flushPromises()
+
+    expect(api.createChannel).toHaveBeenCalled()
+    expect(wrapper.findAll('.ch-litem')).toHaveLength(2)
+    expect(wrapper.text()).toContain('New Channel')
+    expect(router.currentRoute.value.params.id).toBe('ch_NEWNEW')
+  })
+
+  /**
+   * Rapid rail clicks reuse this component. A slow response for A must not
+   * overwrite the document already shown for B.
+   */
+  it('ignores a stale load when the route has already moved on', async () => {
+    let resolveA
+    const pendingA = new Promise((resolve) => {
+      resolveA = resolve
+    })
+    api.getChannel.mockImplementation((id) => {
+      if (id === 'ch_AAAAAA') {
+        return pendingA.then(() => ({
+          channel: { ...structuredClone(sample), id: 'ch_AAAAAA', name: 'Slow A' },
+        }))
+      }
+      return Promise.resolve({
+        channel: {
+          ...structuredClone(sample),
+          id: 'ch_BBBBBB',
+          name: 'Fast B',
+          version: 3,
+        },
+      })
+    })
+    api.listChannels.mockResolvedValue({
+      channels: [
+        { id: 'ch_AAAAAA', name: 'Cinematic Stoicism', version: 1 },
+        { id: 'ch_BBBBBB', name: 'Custom Brand', version: 3 },
+      ],
+      starter_mappings: {},
+      seed: null,
+    })
+
+    const router = makeRouter([
+      { path: '/channels', name: 'channels', component: { template: '<div />' } },
+      { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
+    ])
+    router.push('/channels/ch_AAAAAA')
+    await router.isReady()
+
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    // First load is still pending — switch to B before A resolves.
+    await router.push('/channels/ch_BBBBBB')
+    await flushPromises()
+
+    expect(wrapper.get('.ch-name-input').element.value).toBe('Fast B')
+
+    resolveA()
+    await flushPromises()
+
+    expect(wrapper.get('.ch-name-input').element.value).toBe('Fast B')
+    expect(router.currentRoute.value.params.id).toBe('ch_BBBBBB')
+  })
 })

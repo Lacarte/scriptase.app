@@ -50,8 +50,8 @@ const filtered = computed(() => {
   })
 })
 
-async function refresh() {
-  loading.value = true
+async function refresh({ silent = false } = {}) {
+  if (!silent) loading.value = true
   error.value = ''
   try {
     const data = await listChannels({ limit: 500 })
@@ -61,8 +61,23 @@ async function refresh() {
   } catch (err) {
     error.value = err.message || String(err)
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
+}
+
+/**
+ * Keep a rail row aligned with an editor save without blanking the list.
+ * The editor and rail share a screen now (step 6.4); a silent list refresh
+ * after every Save would flash, and a stale `version` makes Undo-delete 409.
+ */
+function upsertSummary(summary) {
+  if (!summary?.id) return
+  const index = channels.value.findIndex((ch) => ch.id === summary.id)
+  if (index >= 0) {
+    channels.value[index] = { ...channels.value[index], ...summary }
+    return
+  }
+  channels.value = [summary, ...channels.value]
 }
 
 async function onCreate() {
@@ -70,6 +85,20 @@ async function onCreate() {
   error.value = ''
   try {
     const { channel } = await createChannel({ name: 'New Channel' })
+    // Creating while already on the editor reuses this rail instance — the
+    // route param changes but onMounted does not re-run, so the new row
+    // must be inserted here or it never appears.
+    upsertSummary({
+      id: channel.id,
+      name: channel.name,
+      version: channel.version,
+      niche: channel.content?.niche || '',
+      style: channel.visual_direction?.style || '',
+      thumbnail_asset_id: channel.branding?.thumbnail_asset_id || null,
+      track_count: channel.music_library?.tracks?.length || 0,
+      created_at: channel.created_at,
+      updated_at: channel.updated_at,
+    })
     await router.push({ name: 'channel-edit', params: { id: channel.id } })
   } catch (err) {
     error.value = err.message || String(err)
@@ -121,7 +150,7 @@ function open(ch) {
 
 onMounted(refresh)
 
-defineExpose({ refresh })
+defineExpose({ refresh, upsertSummary })
 </script>
 
 <template>

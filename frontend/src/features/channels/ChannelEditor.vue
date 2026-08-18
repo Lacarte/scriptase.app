@@ -24,6 +24,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 
+const railRef = ref(null)
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
@@ -39,6 +40,9 @@ const thumbnailInput = ref(null)
 const previewAudio = ref(null)
 const playingRef = ref('')
 let promptPreviewRequest = 0
+let loadRequest = 0
+/** Suppress the dirty-discard prompt while we revert a cancelled rail click. */
+let revertingChannelNav = false
 
 const channelId = computed(() => route.params.id)
 
@@ -490,23 +494,43 @@ function draftPayload() {
 }
 
 async function load() {
+  const requestId = ++loadRequest
+  const requestedId = channelId.value
   loading.value = true
   error.value = ''
   success.value = ''
   try {
     const [{ channel }, branding, music] = await Promise.all([
-      getChannel(channelId.value),
+      getChannel(requestedId),
       listBrandingAssets().catch(() => ({ assets: [] })),
       listMusicAssets().catch(() => []),
     ])
+    // Rail clicks reuse this component; a slow getChannel for A must not
+    // overwrite the document already shown for B.
+    if (requestId !== loadRequest || channelId.value !== requestedId) return
     applyDocument(channel)
     brandingAssets.value = branding.assets || []
     musicAssets.value = Array.isArray(music) ? music : music?.tracks || []
   } catch (err) {
+    if (requestId !== loadRequest || channelId.value !== requestedId) return
     error.value = err.message || String(err)
   } finally {
-    loading.value = false
+    if (requestId === loadRequest) loading.value = false
   }
+}
+
+function syncRailSummary(channel) {
+  railRef.value?.upsertSummary?.({
+    id: channel.id,
+    name: channel.name,
+    version: channel.version,
+    niche: channel.content?.niche || '',
+    style: channel.visual_direction?.style || '',
+    thumbnail_asset_id: channel.branding?.thumbnail_asset_id || null,
+    track_count: channel.music_library?.tracks?.length || 0,
+    created_at: channel.created_at,
+    updated_at: channel.updated_at,
+  })
 }
 
 async function onSave() {
@@ -520,6 +544,9 @@ async function onSave() {
       meta.version,
     )
     applyDocument(channel)
+    // Keep the sibling rail's optimistic-concurrency token current so a
+    // subsequent Undo-delete does not 409 against the version we just wrote.
+    syncRailSummary(channel)
     success.value = `Saved (v${channel.version})`
   } catch (err) {
     error.value = err.message || String(err)
@@ -714,8 +741,22 @@ async function resetTemplateSections() {
   }
 }
 
-watch(channelId, () => {
-  if (channelId.value) load()
+watch(channelId, (next, prev) => {
+  if (!next) return
+  if (revertingChannelNav) {
+    revertingChannelNav = false
+    return
+  }
+  // The rail sits beside the editor now, so switching channels is a click
+  // away. Dropping a dirty draft without asking would silently lose work.
+  if (dirty.value && prev && prev !== next) {
+    if (!window.confirm('Discard unsaved changes?')) {
+      revertingChannelNav = true
+      router.replace({ name: 'channel-edit', params: { id: prev } })
+      return
+    }
+  }
+  load()
 })
 
 onMounted(load)
@@ -723,7 +764,7 @@ onMounted(load)
 
 <template>
   <section class="chview" aria-label="Channel editor">
-    <ChannelRail />
+    <ChannelRail ref="railRef" />
 
     <main class="ch-detail">
       <div v-if="loading" class="ch-empty"><h3>Loading…</h3></div>
