@@ -119,7 +119,8 @@ describe('Script Studio step 3.2', () => {
 
     await wrapper.get('[aria-label="Script title"]').setValue('A quieter room')
     await wrapper.get('#script-body').setValue('A hand-written revision.')
-    await wrapper.get('article .document-foot .primary').trigger('click')
+    expect(wrapper.get('.s1-dirty-note').classes()).toContain('show')
+    await wrapper.get('.s1-doc-foot .primary').trigger('click')
     await flushPromises()
 
     expect(scriptApi.updateScript).toHaveBeenCalledWith(
@@ -139,7 +140,7 @@ describe('Script Studio step 3.2', () => {
     }))
     const wrapper = await mountPage({ withScript: false })
 
-    await wrapper.get('.rail-title .primary').trigger('click')
+    await wrapper.get('.s1-rail-title .primary').trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain("Using Philosophy Daily's template")
@@ -147,7 +148,7 @@ describe('Script Studio step 3.2', () => {
       expect(wrapper.text()).toContain(section)
     }
 
-    await wrapper.get('.document-foot .primary').trigger('click')
+    await wrapper.get('.s1-doc-foot .primary').trigger('click')
     await flushPromises()
 
     expect(scriptApi.generateScript).toHaveBeenCalledTimes(1)
@@ -162,13 +163,13 @@ describe('Script Studio step 3.2', () => {
   it('generates Topic to Idea through the script provider', async () => {
     scriptApi.createScript.mockImplementation(async draft => ({ script: { ...DOCUMENT, ...draft } }))
     const wrapper = await mountPage({ withScript: false })
-    await wrapper.get('.rail-title .primary').trigger('click')
+    await wrapper.get('.s1-rail-title .primary').trigger('click')
     await flushPromises()
 
     const ideaTab = wrapper.findAll('[role="tab"]').find(button => button.text().includes('Topic to Idea'))
     await ideaTab.trigger('click')
     await wrapper.get('#idea-input').setValue('Why old arguments replay in our heads')
-    await wrapper.get('.document-foot .primary').trigger('click')
+    await wrapper.get('.s1-doc-foot .primary').trigger('click')
     await flushPromises()
 
     expect(scriptApi.generateScript).toHaveBeenCalledWith(expect.objectContaining({
@@ -182,13 +183,13 @@ describe('Script Studio step 3.2', () => {
     const pasted = 'My exact opening.\n\nMy exact landing — unchanged.'
     scriptApi.createScript.mockImplementation(async draft => ({ script: { ...DOCUMENT, ...draft } }))
     const wrapper = await mountPage({ withScript: false })
-    await wrapper.get('.rail-title .primary').trigger('click')
+    await wrapper.get('.s1-rail-title .primary').trigger('click')
     await flushPromises()
 
     const pasteTab = wrapper.findAll('[role="tab"]').find(button => button.text().includes('Paste'))
     await pasteTab.trigger('click')
     await wrapper.get('#paste-script').setValue(pasted)
-    await wrapper.get('.document-foot .primary').trigger('click')
+    await wrapper.get('.s1-doc-foot .primary').trigger('click')
     await flushPromises()
 
     expect(scriptApi.generateScript).not.toHaveBeenCalled()
@@ -200,17 +201,33 @@ describe('Script Studio step 3.2', () => {
 })
 
 describe('Script Studio step 3.3 narration', () => {
-  it('defaults to Channel voice and shows processing values as inherited', async () => {
+  it('defaults to Channel voice and marks processing values inherited', async () => {
     const wrapper = await mountPage()
 
     expect(wrapper.get('[aria-label="Narration voice"]').element.value).toBe('Alex')
-    expect(wrapper.get('[aria-label="Remove silence override"]').classes()).toContain('inherited')
-    expect(wrapper.get('[aria-label="Narration speed override"]').classes()).toContain('inherited')
-    expect(wrapper.text()).toContain('Inherited · On')
-    expect(wrapper.text()).toContain('Inherited · 1.10×')
+    // Inheritance shows as the effective value plus an `s1-inh` badge, and the
+    // reset affordance stays hidden while nothing is overridden.
+    expect(wrapper.get('[aria-label="Remove silence override"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.get('[aria-label="Narration speed override"]').element.value).toBe('1.1')
+    expect(wrapper.findAll('.s1-inh')).toHaveLength(2)
+    expect(wrapper.get('.s1-proc-src').text()).toBe('inherited from Philosophy Daily')
+    expect(wrapper.find('.s1-proc-reset').exists()).toBe(false)
   })
 
-  it('generates with explicit overrides and renders the returned audio player', async () => {
+  it('overrides processing through the toggle and restores the Channel default', async () => {
+    const wrapper = await mountPage()
+
+    await wrapper.get('[aria-label="Remove silence override"]').trigger('click')
+    expect(wrapper.get('[aria-label="Remove silence override"]').attributes('aria-checked')).toBe('false')
+    expect(wrapper.findAll('.s1-inh')).toHaveLength(1)
+    expect(wrapper.get('.s1-proc-src').text()).toBe('overridden for this script')
+
+    await wrapper.get('.s1-proc-reset').trigger('click')
+    expect(wrapper.get('[aria-label="Remove silence override"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.findAll('.s1-inh')).toHaveLength(2)
+  })
+
+  it('generates with explicit overrides and renders the returned take', async () => {
     const ready = {
       ...DOCUMENT,
       version: 3,
@@ -219,21 +236,45 @@ describe('Script Studio step 3.3 narration', () => {
         duration_s: 12.4, audio_artifact_id: 'art_AAAAAA',
       },
     }
-    scriptApi.generateNarration.mockResolvedValue({ script: ready, narration_audio: {} })
+    scriptApi.generateNarration.mockResolvedValue({
+      script: ready,
+      narration_audio: { mime: 'audio/mpeg' },
+    })
     const wrapper = await mountPage()
 
     await wrapper.get('[aria-label="Narration voice"]').setValue('Ashley')
-    await wrapper.get('[aria-label="Remove silence override"]').setValue(false)
-    await wrapper.get('[aria-label="Narration speed override"]').setValue(1.25)
-    await wrapper.get('.narration-button').trigger('click')
+    await wrapper.get('[aria-label="Remove silence override"]').trigger('click')
+    await wrapper.get('[aria-label="Narration speed override"]').setValue('1.25')
+    await wrapper.get('[data-testid="narration-generate"]').trigger('click')
     await flushPromises()
 
     expect(scriptApi.generateNarration).toHaveBeenCalledWith('scr_AAAAAA', {
       voice: 'Ashley', remove_silence: false, speed: 1.25, expected_version: 1,
     })
     expect(wrapper.get('audio').attributes('src')).toContain('art_AAAAAA')
-    expect(wrapper.get('[aria-label="Remove silence override"]').classes()).not.toContain('inherited')
+    expect(wrapper.findAll('.s1-inh')).toHaveLength(0)
     expect(wrapper.text()).toContain('Regenerate narration')
+
+    // The player replaces the browser's default controls: a play button, the
+    // 48-bar progress track and the elapsed/total readout.
+    expect(wrapper.get('[data-testid="narration-status"]').classes()).toContain('ready')
+    expect(wrapper.find('[data-testid="narration-play"]').exists()).toBe(true)
+    expect(wrapper.findAll('.s1-wave-track i')).toHaveLength(48)
+    expect(wrapper.get('.s1-player .time').text()).toBe('0:00 / 0:12')
+    expect(wrapper.get('.s1-kv .mono').text()).toBe('0:12')
+    expect(wrapper.text()).toContain('audio/mpeg')
+  })
+
+  it('names the Channel provider instance without hardcoding a provider', async () => {
+    channelApi.getChannel.mockResolvedValue({
+      channel: {
+        ...CHANNEL,
+        audio_defaults: { ...CHANNEL.audio_defaults, tts_provider_instance_id: 'voice_house#2' },
+      },
+    })
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('[data-testid="narration-provider"]').text()).toBe('voice_house#2')
   })
 })
 
@@ -249,20 +290,30 @@ describe('Script Studio step 3.4 virality panel', () => {
     ],
   }
 
-  it('runs on demand and renders the overall grade and dimension detail', async () => {
+  it('runs from the Check Virality header button and renders the gauge detail', async () => {
     scriptApi.scoreScript.mockResolvedValue({ virality: VIRALITY, cached: false })
     const wrapper = await mountPage()
 
+    // The not-yet-run panel is copy only; Check Virality above the editor is
+    // the affordance, as in the prototype.
     expect(wrapper.get('[data-testid="virality-panel"]').text()).toContain('Virality score not run')
-    await wrapper.get('[data-testid="virality-panel"] button').trigger('click')
+    expect(wrapper.find('[data-testid="virality-panel"] button').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="check-virality"]').trigger('click')
     await flushPromises()
 
     expect(scriptApi.scoreScript).toHaveBeenCalledWith(DOCUMENT.id, DOCUMENT.body)
     expect(wrapper.get('[data-testid="virality-panel"]').text()).toContain('68')
     expect(wrapper.get('[data-testid="virality-panel"]').text()).toContain('solid')
+    expect(wrapper.get('.s1-vir-gauge').attributes('data-band')).toBe('solid')
     expect(wrapper.get('[data-testid="virality-dimensions"]').text()).toContain('Hook')
     expect(wrapper.get('[data-testid="virality-dimensions"]').text()).toContain('Open loops')
     expect(wrapper.get('[data-testid="virality-dimensions"]').text()).toContain('Open loops sparse')
+
+    // A run turns the panel head into the Re-check control.
+    expect(wrapper.get('.s1-vir-recheck').text()).toContain('Re-check')
+    expect(wrapper.findAll('.s1-vir-dim')).toHaveLength(2)
+    expect(wrapper.get('.s1-vir-dim .s1-vir-bar .fill').attributes('style')).toContain('width: 80%')
   })
 
   it('scores unsaved text without disabling Save', async () => {
@@ -270,12 +321,87 @@ describe('Script Studio step 3.4 virality panel', () => {
     const wrapper = await mountPage()
     await wrapper.get('#script-body').setValue('Unsaved text can still be analyzed.')
 
-    expect(wrapper.get('article .document-foot .primary').attributes('disabled')).toBeUndefined()
-    await wrapper.get('[data-testid="virality-panel"] button').trigger('click')
+    expect(wrapper.get('.s1-doc-foot .primary').attributes('disabled')).toBeUndefined()
+    await wrapper.get('[data-testid="check-virality"]').trigger('click')
     await flushPromises()
 
     expect(scriptApi.scoreScript).toHaveBeenCalledWith(DOCUMENT.id, 'Unsaved text can still be analyzed.')
     expect(scriptApi.updateScript).not.toHaveBeenCalled()
+  })
+
+  it('offers Check current text once the body has moved on from the score', async () => {
+    scriptApi.scoreScript.mockResolvedValue({ virality: VIRALITY, cached: false })
+    const wrapper = await mountPage()
+    await wrapper.get('[data-testid="check-virality"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('#script-body').setValue('Rewritten opening.')
+    expect(wrapper.get('.s1-vir-recheck').text()).toContain('Check current text')
+  })
+})
+
+describe('Script Studio step 6.3 library filter chips', () => {
+  const NARRATED = {
+    ...SUMMARY,
+    id: 'scr_BBBBBB',
+    title: 'The pause before an answer',
+    narration: { state: 'ready', voice: 'Alex', duration_s: 31, audio_artifact_id: 'art_BBBBBB' },
+  }
+
+  async function mountLibrary() {
+    scriptApi.listScripts.mockResolvedValue({ scripts: [SUMMARY, NARRATED], total: 2 })
+    const router = makeRouter()
+    await router.push('/script')
+    await router.isReady()
+    const wrapper = mount(ScriptPage, { global: { plugins: [router] } })
+    await flushPromises()
+    return wrapper
+  }
+
+  it('counts each narration state and filters the list without a second request', async () => {
+    const wrapper = await mountLibrary()
+
+    expect(wrapper.get('[data-testid="narration-filter-all"]').text()).toBe('All · 2')
+    expect(wrapper.get('[data-testid="narration-filter-ready"]').text()).toBe('TTS Ready · 1')
+    expect(wrapper.get('[data-testid="narration-filter-only"]').text()).toBe('Script Only · 1')
+    expect(wrapper.get('[data-testid="narration-filter-all"]').classes()).toContain('sel')
+    expect(wrapper.findAll('.s1-card')).toHaveLength(2)
+
+    const requests = scriptApi.listScripts.mock.calls.length
+    await wrapper.get('[data-testid="narration-filter-ready"]').trigger('click')
+
+    expect(scriptApi.listScripts).toHaveBeenCalledTimes(requests)
+    expect(wrapper.findAll('.s1-card')).toHaveLength(1)
+    expect(wrapper.get('.s1-card .ctitle').text()).toBe('The pause before an answer')
+    expect(wrapper.get('[data-testid="narration-filter-ready"]').classes()).toContain('sel')
+
+    await wrapper.get('[data-testid="narration-filter-only"]').trigger('click')
+    expect(wrapper.findAll('.s1-card')).toHaveLength(1)
+    expect(wrapper.get('.s1-card .ctitle').text()).toBe('Silence changes a room')
+  })
+
+  it('tags each card with its narration state and totals them in the rail foot', async () => {
+    const wrapper = await mountLibrary()
+    const tags = wrapper.findAll('.s1-card .tts-tag')
+
+    expect(tags.map(tag => tag.text())).toEqual(['Script Only', 'TTS Ready'])
+    expect(tags[0].classes()).toContain('tts-only')
+    expect(tags[1].classes()).toContain('tts-ready')
+    expect(wrapper.get('.s1-rail-foot').text()).toContain('1 with narration')
+    expect(wrapper.get('.s1-rail-foot').text()).toContain('2 total')
+  })
+
+  it('says so when a filter empties a library that is not itself empty', async () => {
+    scriptApi.listScripts.mockResolvedValue({ scripts: [SUMMARY], total: 1 })
+    const router = makeRouter()
+    await router.push('/script')
+    await router.isReady()
+    const wrapper = mount(ScriptPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="narration-filter-ready"]').trigger('click')
+    expect(wrapper.findAll('.s1-card')).toHaveLength(0)
+    expect(wrapper.get('[data-testid="script-library"]').text()).toBe('No scripts match.')
   })
 })
 

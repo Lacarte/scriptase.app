@@ -410,6 +410,49 @@ pre {
   background: var(--accent-dim);
 }
 
+/* The prototype's inline separator between two mono metadata values. It is a
+   dot drawn as a box, not a `·` glyph, so it keeps its size in every font. */
+.dot-sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--faint);
+  flex: none;
+}
+
+/* Narration state on a script reference. Cross-cutting because the Script
+   library card and Production's job-create picker both carry it (step 6.3). */
+.tts-tag {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.3px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  flex: none;
+  text-transform: uppercase;
+}
+
+.tts-ready {
+  color: var(--ok);
+  background: var(--ok-dim);
+  box-shadow: inset 0 0 0 1px var(--ok-line);
+}
+
+.tts-only {
+  color: var(--muted);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* The prototype writes the in-flight tag as an inline style; the ramp already
+   has the colour pair, so it is a modifier here. */
+.tts-tag.mini-run {
+  color: var(--run);
+  background: var(--run-dim);
+  box-shadow: inset 0 0 0 1px var(--run-line);
+}
+
 /* The mono identity tag on a project / channel / instance reference. */
 .project-badge,
 .module-project-badge {

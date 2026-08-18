@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { getChannel, listChannels } from '@/features/channels/api.js'
@@ -25,7 +25,9 @@ const scripts = ref([])
 const channels = ref([])
 const channelDetails = reactive({})
 const selected = ref(null)
+const narrationAudio = ref(null)
 const query = ref('')
+const narrationFilter = ref('all')
 const loading = ref(true)
 const loadingDetail = ref(false)
 const saving = ref(false)
@@ -58,6 +60,21 @@ const originLabels = {
   manual: 'Manual',
 }
 
+/** The prototype's three library chips, in its order. */
+const narrationFilters = [
+  { id: 'all', label: 'All' },
+  { id: 'ready', label: 'TTS Ready' },
+  { id: 'only', label: 'Script Only' },
+]
+
+const SPEED_CHOICES = [0.75, 0.9, 1, 1.1, 1.25, 1.5]
+
+/**
+ * 48 bars, the prototype's deterministic silhouette. It is a progress track,
+ * not a waveform: nothing here has a per-sample envelope to draw.
+ */
+const WAVE_BARS = Array.from({ length: 48 }, (_, index) => 18 + Math.abs(Math.sin(index * 1.7)) * 70)
+
 const selectedChannel = computed(() => (
   channelDetails[draft.channelId]
   || channels.value.find(channel => channel.id === draft.channelId)
@@ -71,12 +88,68 @@ const pasteDuration = computed(() => Math.round(pasteWordCount.value / 2.5))
 const scriptChannel = computed(() => selected.value ? channelDetails[selected.value.channel_id] : null)
 const channelAudio = computed(() => scriptChannel.value?.audio_defaults || {})
 const activeRemoveSilence = computed(() => narrationForm.removeSilence ?? channelAudio.value.remove_silence ?? true)
-const activeSpeed = computed(() => narrationForm.speed ?? channelAudio.value.speed ?? 1)
+const activeSpeed = computed(() => Number(narrationForm.speed ?? channelAudio.value.speed ?? 1))
+const silenceInherited = computed(() => narrationForm.removeSilence === null)
+const speedInherited = computed(() => narrationForm.speed === null)
+const processingInherited = computed(() => silenceInherited.value && speedInherited.value)
+/**
+ * The `.prov` chip names the Channel's narration binding. It is an instance
+ * reference read from the Channel document — never a provider name written here.
+ */
+const narrationProvider = computed(() => (
+  channelAudio.value.tts_provider_instance_id
+  || scriptChannel.value?.provider_defaults?.tts
+  || 'Channel default'
+))
+/** The effective speed always has an option, even when the Channel picks one. */
+const speedChoices = computed(() => {
+  const values = new Set(SPEED_CHOICES)
+  values.add(activeSpeed.value)
+  return [...values].sort((left, right) => left - right)
+})
+const narrationState = computed(() => {
+  if (generatingNarration.value) return 'generating'
+  return selected.value?.narration?.state || 'none'
+})
 const audioUrl = computed(() => {
   const artifactId = selected.value?.narration?.audio_artifact_id
   return artifactId ? narrationAudioUrl(selected.value.id, artifactId) : ''
 })
+const takeDuration = computed(() => Number(selected.value?.narration?.duration_s) || 0)
 const viralityStale = computed(() => Boolean(virality.value) && viralityText.value !== form.body)
+
+const readyCount = computed(() => scripts.value.filter(isNarrated).length)
+/**
+ * Chip counts describe the set the search returned, not the whole library: the
+ * query is answered by the backend, so counting anything else would take a
+ * second unfiltered request whose numbers would disagree with the list.
+ */
+const filterCounts = computed(() => ({
+  all: scripts.value.length,
+  ready: readyCount.value,
+  only: scripts.value.length - readyCount.value,
+}))
+const visibleScripts = computed(() => {
+  if (narrationFilter.value === 'ready') return scripts.value.filter(isNarrated)
+  if (narrationFilter.value === 'only') return scripts.value.filter(script => !isNarrated(script))
+  return scripts.value
+})
+
+const audio = ref(null)
+const playing = ref(false)
+const elapsed = ref(0)
+const playPos = computed(() => (takeDuration.value ? elapsed.value / takeDuration.value : 0))
+
+function isNarrated(script) {
+  return script?.narration?.state === 'ready'
+}
+
+/** The prototype folds `generating` into Script Only for the chips and tags. */
+function narrationTag(script) {
+  if (isNarrated(script)) return { cls: 'tts-ready', label: 'TTS Ready' }
+  if (script?.narration?.state === 'generating') return { cls: 'mini-run', label: 'Generating' }
+  return { cls: 'tts-only', label: 'Script Only' }
+}
 
 function wordCount(value) {
   const text = String(value || '').trim()
@@ -86,7 +159,7 @@ function wordCount(value) {
 function formatDuration(seconds) {
   const total = Math.max(0, Number(seconds) || 0)
   const minutes = Math.floor(total / 60)
-  return `${minutes}:${String(Math.round(total % 60)).padStart(2, '0')}`
+  return `${minutes}:${String(Math.floor(total % 60)).padStart(2, '0')}`
 }
 
 function formatDate(value) {
@@ -136,6 +209,41 @@ function search() {
   searchTimer = setTimeout(loadLibrary, 220)
 }
 
+function setFilter(id) {
+  narrationFilter.value = id
+}
+
+function stopPlayer() {
+  const element = audio.value
+  if (element) {
+    element.pause()
+    element.currentTime = 0
+  }
+  playing.value = false
+  elapsed.value = 0
+}
+
+function togglePlay() {
+  const element = audio.value
+  if (!element) return
+  if (playing.value) {
+    element.pause()
+    return
+  }
+  // A blocked autoplay policy and jsdom both refuse. Neither is worth an error
+  // banner, but the button must not be left reading Pause.
+  try {
+    const started = element.play()
+    if (started?.catch) started.catch(() => { playing.value = false })
+  } catch {
+    playing.value = false
+  }
+}
+
+function trackTime() {
+  elapsed.value = Number(audio.value?.currentTime) || 0
+}
+
 async function openScript(summary) {
   if (dirty.value && selected.value?.id !== summary.id) {
     toast.warning('Save or discard the current edits before opening another script')
@@ -143,9 +251,11 @@ async function openScript(summary) {
   }
   loadingDetail.value = true
   error.value = ''
+  stopPlayer()
   try {
     const payload = await getScript(summary.id)
     selected.value = payload.script
+    narrationAudio.value = payload.narration_audio || null
     virality.value = payload.virality || null
     viralityText.value = payload.virality ? payload.script.body : ''
     const channel = await loadChannelDetail(payload.script.channel_id)
@@ -225,6 +335,20 @@ async function loadVoices(channel) {
   narrationForm.voice = chosen
 }
 
+/** Both processing controls write an explicit override; Reset restores null. */
+function toggleRemoveSilence() {
+  narrationForm.removeSilence = !activeRemoveSilence.value
+}
+
+function setSpeed(event) {
+  narrationForm.speed = Number(event.target.value)
+}
+
+function resetProcessing() {
+  narrationForm.removeSilence = null
+  narrationForm.speed = null
+}
+
 async function makeNarration() {
   if (!selected.value || generatingNarration.value) return
   if (dirty.value) {
@@ -233,6 +357,7 @@ async function makeNarration() {
   }
   generatingNarration.value = true
   error.value = ''
+  stopPlayer()
   try {
     const payload = await generateNarration(selected.value.id, {
       voice: narrationForm.voice || undefined,
@@ -241,6 +366,7 @@ async function makeNarration() {
       expected_version: selected.value.version,
     })
     selected.value = payload.script
+    narrationAudio.value = payload.narration_audio || null
     narrationForm.voice = payload.script.narration.voice
     narrationForm.removeSilence = payload.script.narration.remove_silence ?? null
     narrationForm.speed = payload.script.narration.speed ?? null
@@ -287,6 +413,7 @@ async function startCreate() {
     toast.warning('Save the current script before creating another one')
     return
   }
+  stopPlayer()
   selected.value = null
   creating.value = true
   draft.mode = 'auto'
@@ -364,6 +491,7 @@ async function createNew() {
     })
     creating.value = false
     selected.value = payload.script
+    narrationAudio.value = payload.narration_audio || null
     virality.value = null
     viralityText.value = ''
     form.title = payload.script.title
@@ -386,6 +514,9 @@ function focusSearch(event) {
   searchInput.value?.focus()
 }
 
+// A take replaced mid-playback must not keep the old one's position.
+watch(audioUrl, stopPlayer)
+
 onMounted(async () => {
   window.addEventListener('keydown', focusSearch)
   try {
@@ -407,141 +538,207 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="studio" aria-label="Script Studio">
-    <aside class="library-rail">
-      <div class="rail-head">
-        <div class="rail-title">
-          <div>
-            <span class="section-label">Studio</span>
-            <h1>Script library</h1>
-          </div>
-          <button class="btn primary sm" type="button" @click="startCreate">+ New</button>
+  <section class="s1view" aria-label="Script Studio">
+    <aside class="s1-rail">
+      <div class="s1-rail-head">
+        <div class="s1-rail-title">
+          <h2>Script Library</h2>
+          <button class="btn primary sm" type="button" @click="startCreate">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            New
+          </button>
         </div>
 
-        <label class="search-box">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <label class="s1-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
           <span class="sr-only">Search scripts</span>
           <input ref="searchInput" v-model="query" type="search" placeholder="Search scripts…" @input="search">
           <kbd>/</kbd>
         </label>
+
+        <div class="s1-filters" role="group" aria-label="Filter by narration state">
+          <button
+            v-for="chip in narrationFilters"
+            :key="chip.id"
+            type="button"
+            class="s1-fchip"
+            :class="{ sel: narrationFilter === chip.id }"
+            :aria-pressed="narrationFilter === chip.id"
+            :data-testid="`narration-filter-${chip.id}`"
+            @click="setFilter(chip.id)"
+          >{{ chip.label }} · {{ filterCounts[chip.id] }}</button>
+        </div>
       </div>
 
-      <div class="script-list" aria-live="polite">
+      <div class="s1-list-wrap" data-testid="script-library" aria-live="polite">
         <div v-if="loading" class="rail-state">Loading scripts…</div>
         <div v-else-if="!scripts.length" class="rail-state">
           {{ query ? 'No scripts match that search.' : 'No scripts yet. Create the first one.' }}
         </div>
+        <div v-else-if="!visibleScripts.length" class="rail-state">No scripts match.</div>
         <button
-          v-for="script in scripts"
+          v-for="script in visibleScripts"
           v-else
           :key="script.id"
           type="button"
-          class="script-card"
-          :class="{ selected: selected?.id === script.id && !creating }"
+          class="s1-card"
+          :class="{ sel: selected?.id === script.id && !creating }"
           @click="openScript(script)"
         >
-          <span class="card-row">
-            <span class="avatar">{{ initials(channelFor(script.channel_id)?.name) }}</span>
-            <span class="card-title">{{ script.title }}</span>
+          <span class="row1">
+            <span class="cavatar">{{ initials(channelFor(script.channel_id)?.name) }}</span>
+            <span class="ctitle">{{ script.title }}</span>
           </span>
-          <span class="card-meta">
-            <span>{{ formatDate(script.updated_at) }}</span>
-            <span>{{ script.word_count }} words</span>
-            <span class="origin">{{ originLabels[script.origin] }}</span>
+          <span class="row2">
+            <span class="origin-tag">{{ originLabels[script.origin] }}</span>
+            <span class="meta">
+              {{ formatDuration(script.estimated_duration_s) }}
+              <span class="dot-sep" />
+              {{ formatDate(script.updated_at) }}
+            </span>
+            <span class="tts-tag" :class="narrationTag(script).cls">{{ narrationTag(script).label }}</span>
           </span>
         </button>
       </div>
 
-      <div class="rail-foot"><span class="status-dot" /> {{ scripts.length }} scripts · local library</div>
+      <div class="s1-rail-foot">
+        <span class="sd" />
+        {{ readyCount }} with narration
+        <span class="dot-sep" />
+        {{ scripts.length }} total
+      </div>
     </aside>
 
-    <main class="studio-detail">
-      <div v-if="error" class="error-banner" role="alert">
+    <main class="s1-detail">
+      <div v-if="error" class="banner error" role="alert">
         {{ error }}
         <button type="button" aria-label="Dismiss error" @click="error = ''">×</button>
       </div>
 
-      <div v-if="creating" class="create-sheet">
-        <header class="document-head">
-          <div class="eyebrow">+ New Script</div>
-          <input v-model="draft.title" class="title-input" aria-label="New script title" placeholder="Untitled script">
-          <label class="channel-select">Channel
-            <select v-model="draft.channelId" @change="chooseChannel">
-              <option v-for="channel in channels" :key="channel.id" :value="channel.id">{{ channel.name }}</option>
-            </select>
-          </label>
-        </header>
-
-        <div class="create-body">
-          <span class="section-label">How should Scriptase create it?</span>
-          <div class="create-modes" role="tablist" aria-label="Create mode">
-            <button type="button" role="tab" :aria-selected="draft.mode === 'auto'" :class="{ active: draft.mode === 'auto' }" @click="chooseMode('auto')">
-              <strong>Auto</strong><span>Pick the next topic</span>
-            </button>
-            <button type="button" role="tab" :aria-selected="draft.mode === 'idea'" :class="{ active: draft.mode === 'idea' }" @click="chooseMode('idea')">
-              <strong>Topic to Idea</strong><span>Expand your topic</span>
-            </button>
-            <button type="button" role="tab" :aria-selected="draft.mode === 'paste'" :class="{ active: draft.mode === 'paste' }" @click="chooseMode('paste')">
-              <strong>Paste</strong><span>Bring your own</span>
-            </button>
+      <template v-if="creating">
+        <div class="s1-doc-head">
+          <div class="s1-doc-eyebrow">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            New Script
           </div>
-
-          <div v-if="draft.mode === 'idea'" class="mode-field">
-            <label for="idea-input">Topic or idea</label>
-            <input id="idea-input" v-model="draft.idea" class="text-input" placeholder="Why we replay old arguments in our heads…">
-          </div>
-
-          <template v-if="draft.mode !== 'paste'">
-            <div v-if="template" class="template-card">
-              <div class="template-head">
-                <span>Using <b>{{ selectedChannel.name }}</b>'s template</span>
-                <RouterLink :to="`/channels/${selectedChannel.id}`">Edit in Channel</RouterLink>
-              </div>
-              <p>{{ template.brief }}</p>
-              <div class="template-chips" aria-label="Template section outline">
-                <span v-for="(section, index) in template.sections" :key="`${section}-${index}`">
-                  <i>{{ index + 1 }}</i>{{ section }}
-                </span>
-              </div>
-            </div>
-            <div v-else class="rail-state">Loading Channel template…</div>
-          </template>
-
-          <div v-else class="mode-field">
-            <label for="paste-script">Script</label>
-            <textarea id="paste-script" v-model="draft.body" class="script-area" placeholder="Paste your narration script here…" />
-            <div class="paste-meta"><span>{{ pasteWordCount }} words</span><span>~{{ formatDuration(pasteDuration) }} narration</span></div>
+          <input v-model="draft.title" class="s1-title-input" aria-label="New script title" placeholder="Untitled script">
+          <div class="s1-doc-sub">
+            <span class="kv">Channel
+              <select v-model="draft.channelId" class="filter-select" aria-label="Draft channel" @change="chooseChannel">
+                <option v-for="channel in channels" :key="channel.id" :value="channel.id">{{ channel.name }}</option>
+              </select>
+            </span>
           </div>
         </div>
 
-        <footer class="document-foot">
-          <button class="btn ghost" type="button" :disabled="generating" @click="cancelCreate">Cancel</button>
-          <button class="btn primary" type="button" :disabled="generating || !draft.channelId" @click="createNew">
+        <div class="s1-doc-body single">
+          <div class="s1-script-col">
+            <div class="s1-col-label"><span>How should Scriptase create it?</span></div>
+            <div class="segmented create-modes" role="tablist" aria-label="Create mode">
+              <button type="button" role="tab" class="seg-opt" :class="{ sel: draft.mode === 'auto' }" :aria-selected="draft.mode === 'auto'" @click="chooseMode('auto')">
+                <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 3v2M12 19v2M3 12h2M19 12h2" /></svg></span>
+                <span class="txt"><span class="t">Auto</span><span class="d">Next topic</span></span>
+              </button>
+              <button type="button" role="tab" class="seg-opt" :class="{ sel: draft.mode === 'idea' }" :aria-selected="draft.mode === 'idea'" @click="chooseMode('idea')">
+                <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18h6M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" /></svg></span>
+                <span class="txt"><span class="t">Topic to Idea</span><span class="d">Topic → script</span></span>
+              </button>
+              <button type="button" role="tab" class="seg-opt" :class="{ sel: draft.mode === 'paste' }" :aria-selected="draft.mode === 'paste'" @click="chooseMode('paste')">
+                <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1" /><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" /></svg></span>
+                <span class="txt"><span class="t">Paste</span><span class="d">Bring your own</span></span>
+              </button>
+            </div>
+
+            <p v-if="draft.mode === 'auto'" class="idea-hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              Scriptase picks the next topic for <b>{{ selectedChannel?.name || 'this channel' }}</b> and writes it to the template below.
+            </p>
+
+            <input
+              v-if="draft.mode === 'idea'"
+              id="idea-input"
+              v-model="draft.idea"
+              class="txt"
+              aria-label="Topic or idea"
+              placeholder="e.g. Why we replay old arguments in our heads…"
+            >
+
+            <template v-if="draft.mode !== 'paste'">
+              <div v-if="template" class="s1-tpl-card">
+                <div class="s1-tpl-head">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7V4h16v3M9 20h6M12 4v16" /></svg>
+                  Using <b>{{ selectedChannel.name }}</b>'s template
+                  <RouterLink class="s1-tpl-edit" :to="`/channels/${selectedChannel.id}`">Edit in Channel</RouterLink>
+                </div>
+                <div class="s1-tpl-brief">{{ template.brief }}</div>
+                <div class="s1-tpl-chips" aria-label="Template section outline">
+                  <span v-for="(section, index) in template.sections" :key="`${section}-${index}`" class="s1-tpl-chip">
+                    <span class="n">{{ index + 1 }}</span>{{ section }}
+                  </span>
+                </div>
+              </div>
+              <div v-else class="rail-state">Loading Channel template…</div>
+            </template>
+
+            <template v-else>
+              <textarea id="paste-script" v-model="draft.body" class="s1-script-area paste" aria-label="Pasted script" placeholder="Paste your script here…" />
+              <div class="script-meta"><span>{{ pasteWordCount }} words</span><span>~{{ formatDuration(pasteDuration) }} narration</span></div>
+            </template>
+          </div>
+        </div>
+
+        <div class="s1-doc-foot">
+          <div class="spacer" />
+          <button class="btn ghost sm" type="button" :disabled="generating" @click="cancelCreate">Cancel</button>
+          <button class="btn primary sm" type="button" :disabled="generating || !draft.channelId" @click="createNew">
             {{ generating ? 'Writing…' : draft.mode === 'paste' ? 'Save pasted script' : 'Generate script' }}
           </button>
-        </footer>
-      </div>
+        </div>
+      </template>
 
-      <div v-else-if="loadingDetail" class="empty-state"><h2>Opening script…</h2></div>
+      <div v-else-if="loadingDetail" class="s1-empty"><h3>Opening script…</h3></div>
 
-      <article v-else-if="selected" class="document">
-        <header class="document-head">
-          <div class="eyebrow">
-            <span class="avatar">{{ initials(channelFor(selected.channel_id)?.name) }}</span>
-            {{ channelFor(selected.channel_id)?.name || 'Channel' }} · {{ selected.id }} · {{ originLabels[selected.origin] }}
+      <template v-else-if="selected">
+        <div class="s1-doc-head">
+          <div class="s1-doc-eyebrow">
+            <span class="cavatar">{{ initials(channelFor(selected.channel_id)?.name) }}</span>
+            {{ channelFor(selected.channel_id)?.name || 'Channel' }}
+            <span class="dot-sep" />
+            {{ selected.id }}
+            <span class="dot-sep" />
+            {{ originLabels[selected.origin] }}
           </div>
-          <input v-model="form.title" class="title-input" aria-label="Script title" @input="markDirty">
-          <div class="document-meta">
-            <span><b>{{ liveWordCount }}</b> words</span>
-            <span>~<b>{{ formatDuration(liveDuration) }}</b> narration</span>
-            <span>Created <b>{{ formatDate(selected.created_at) }}</b></span>
+          <input v-model="form.title" class="s1-title-input" aria-label="Script title" @input="markDirty">
+          <div class="s1-doc-sub">
+            <span class="kv">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7V4h16v3M9 20h6M12 4v16" /></svg>
+              <b>{{ liveWordCount }}</b> words
+            </span>
+            <span class="kv">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+              ~<b>{{ formatDuration(liveDuration) }}</b> narration
+            </span>
+            <span class="kv">Created <b>{{ formatDate(selected.created_at) }}</b></span>
           </div>
-        </header>
+        </div>
 
-        <div class="document-body">
-          <div class="editor-column">
-            <label for="script-body" class="section-label">Script</label>
-            <textarea id="script-body" v-model="form.body" class="script-area" :class="{ dirty }" spellcheck="true" @input="markDirty" />
+        <div class="s1-doc-body">
+          <div class="s1-script-col">
+            <div class="s1-col-label">
+              <span>Script</span>
+              <button
+                class="btn xs"
+                type="button"
+                title="Analyze this script for virality"
+                data-testid="check-virality"
+                :disabled="scoringVirality"
+                @click="checkVirality"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8" /><path d="M17 7h4v4" /></svg>
+                Check Virality
+              </button>
+            </div>
+            <textarea id="script-body" v-model="form.body" class="s1-script-area" :class="{ dirty }" aria-label="Script body" spellcheck="true" @input="markDirty" />
             <ViralityPanel
               :score="virality"
               :analyzing="scoringVirality"
@@ -549,130 +746,433 @@ onBeforeUnmount(() => {
               @analyze="checkVirality"
             />
           </div>
-          <aside class="narration-preview panel" aria-label="Narration controls">
-            <div class="narration-head"><span>◖</span><strong>Narration</strong></div>
-            <div class="narration-state" :class="{ ready: selected.narration.state === 'ready' }">
-              <strong>{{ generatingNarration ? 'Generating narration…' : selected.narration.state === 'ready' ? 'Narration ready' : 'No narration yet' }}</strong>
-              <span>{{ selected.narration.state === 'ready' ? 'This take is saved and ready for Production.' : 'Choose a voice and create the first take.' }}</span>
-            </div>
-            <audio v-if="audioUrl" :key="audioUrl" class="narration-player" controls preload="metadata" :src="audioUrl">
-              Your browser does not support audio playback.
-            </audio>
-            <div class="narration-controls">
-              <label>Voice
-                <select v-model="narrationForm.voice" aria-label="Narration voice">
-                  <option v-if="!voices.length" :value="narrationForm.voice">{{ narrationForm.voice || 'Channel default' }}</option>
-                  <option v-for="voice in voices" :key="voice.id" :value="voice.id">{{ voice.label || voice.id }}</option>
-                </select>
-              </label>
-              <label>Remove silence
-                <select v-model="narrationForm.removeSilence" :class="{ inherited: narrationForm.removeSilence === null }" aria-label="Remove silence override">
-                  <option :value="null">Inherited · {{ channelAudio.remove_silence ? 'On' : 'Off' }}</option>
-                  <option :value="true">On · Override</option>
-                  <option :value="false">Off · Override</option>
-                </select>
-              </label>
-              <label>Speed
-                <select v-model="narrationForm.speed" :class="{ inherited: narrationForm.speed === null }" aria-label="Narration speed override">
-                  <option :value="null">Inherited · {{ Number(channelAudio.speed || 1).toFixed(2) }}×</option>
-                  <option v-for="value in [0.75, 0.9, 1, 1.1, 1.25, 1.5]" :key="value" :value="value">{{ value.toFixed(2) }}× · Override</option>
-                </select>
-              </label>
-              <div class="active-processing" aria-label="Active narration processing">
-                Active: {{ activeRemoveSilence ? 'trim silence' : 'keep silence' }} · {{ Number(activeSpeed).toFixed(2) }}×
+
+          <div class="s1-tts">
+            <div class="s1-panel" aria-label="Narration controls">
+              <div class="s1-panel-head">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" /><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4" /></svg>
+                <span class="pt">Narration</span>
+                <span class="prov" data-testid="narration-provider">{{ narrationProvider }}</span>
               </div>
-              <div v-if="selected.narration.duration_s" class="take-duration">Duration {{ formatDuration(selected.narration.duration_s) }}</div>
-              <button class="btn primary narration-button" type="button" :disabled="generatingNarration || dirty" @click="makeNarration">
-                {{ generatingNarration ? 'Generating…' : selected.narration.state === 'ready' ? 'Regenerate narration' : 'Generate narration' }}
-              </button>
+              <div class="s1-panel-body">
+                <div
+                  class="s1-tts-status"
+                  :class="narrationState === 'ready' ? 'ready' : narrationState === 'generating' ? 'gen' : 'none'"
+                  data-testid="narration-status"
+                >
+                  <div class="ic">
+                    <svg v-if="narrationState === 'ready'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                    <svg v-else-if="narrationState === 'generating'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></svg>
+                    <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v20M6 8v8M18 8v8" /></svg>
+                  </div>
+                  <div class="txt">
+                    <div class="t">
+                      {{ narrationState === 'ready' ? 'Narration ready' : narrationState === 'generating' ? 'Generating…' : 'No narration yet' }}
+                    </div>
+                    <div class="d">
+                      {{
+                        narrationState === 'ready'
+                          ? 'Production will reuse this — no regeneration'
+                          : narrationState === 'generating'
+                            ? 'The Channel’s voice provider is synthesizing narration'
+                            : 'Generate narration to attach audio to this script'
+                      }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="s1-kv">
+                  <span class="k">Voice</span>
+                  <span class="v">
+                    <select v-model="narrationForm.voice" aria-label="Narration voice">
+                      <option v-if="!voices.length" :value="narrationForm.voice">{{ narrationForm.voice || 'Channel default' }}</option>
+                      <option v-for="voice in voices" :key="voice.id" :value="voice.id">{{ voice.label || voice.id }}</option>
+                    </select>
+                  </span>
+                </div>
+                <div class="s1-kv">
+                  <span class="k">Duration</span>
+                  <span class="v mono">{{ takeDuration ? formatDuration(takeDuration) : '—' }}</span>
+                </div>
+                <div v-if="narrationAudio?.mime" class="s1-kv">
+                  <span class="k">Format</span>
+                  <span class="v mono">{{ narrationAudio.mime }}</span>
+                </div>
+
+                <div v-if="audioUrl" class="s1-player">
+                  <div class="controls">
+                    <button
+                      class="s1-play"
+                      type="button"
+                      :aria-label="playing ? 'Pause narration' : 'Play narration'"
+                      data-testid="narration-play"
+                      @click="togglePlay"
+                    >
+                      <svg v-if="playing" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                      <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>
+                    </button>
+                    <div class="s1-wave-track" aria-hidden="true">
+                      <i
+                        v-for="(height, index) in WAVE_BARS"
+                        :key="index"
+                        :class="{ on: index / WAVE_BARS.length <= playPos }"
+                        :style="{ height: `${height}%` }"
+                      />
+                    </div>
+                    <span class="time">{{ formatDuration(elapsed) }} / {{ formatDuration(takeDuration) }}</span>
+                  </div>
+                  <audio
+                    ref="audio"
+                    :key="audioUrl"
+                    :src="audioUrl"
+                    preload="metadata"
+                    @play="playing = true"
+                    @pause="playing = false"
+                    @ended="stopPlayer"
+                    @timeupdate="trackTime"
+                  />
+                </div>
+
+                <div class="s1-tts-actions">
+                  <button
+                    class="btn sm block"
+                    :class="{ primary: narrationState === 'none' }"
+                    type="button"
+                    data-testid="narration-generate"
+                    :disabled="generatingNarration || dirty"
+                    @click="makeNarration"
+                  >
+                    <svg v-if="narrationState === 'ready'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4" /><path d="M21 3v6h-6" /></svg>
+                    <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v20M6 8v8M18 8v8M2 11v2M22 11v2" /></svg>
+                    {{ generatingNarration ? 'Generating…' : narrationState === 'ready' ? 'Regenerate narration' : 'Generate narration' }}
+                  </button>
+                </div>
+
+                <div class="s1-proc">
+                  <div class="s1-proc-head">
+                    Processing
+                    <span class="s1-proc-src">
+                      {{ processingInherited ? `inherited from ${scriptChannel?.name || 'this Channel'}` : 'overridden for this script' }}
+                    </span>
+                  </div>
+                  <div class="s1-kv">
+                    <span class="k">Remove silence <span v-if="silenceInherited" class="s1-inh">inherited</span></span>
+                    <span class="v">
+                      <div
+                        class="s1-toggle sm"
+                        :class="{ on: activeRemoveSilence }"
+                        role="switch"
+                        tabindex="0"
+                        :aria-checked="activeRemoveSilence"
+                        aria-label="Remove silence override"
+                        @click="toggleRemoveSilence"
+                        @keydown.enter.prevent="toggleRemoveSilence"
+                        @keydown.space.prevent="toggleRemoveSilence"
+                      />
+                    </span>
+                  </div>
+                  <div class="s1-kv">
+                    <span class="k">Speed <span v-if="speedInherited" class="s1-inh">inherited</span></span>
+                    <span class="v">
+                      <select :value="activeSpeed" aria-label="Narration speed override" @change="setSpeed">
+                        <option v-for="value in speedChoices" :key="value" :value="value">{{ value.toFixed(2) }}×</option>
+                      </select>
+                    </span>
+                  </div>
+                  <button v-if="!processingInherited" class="s1-proc-reset" type="button" @click="resetProcessing">
+                    ↺ Reset to channel default
+                  </button>
+                </div>
+              </div>
             </div>
-          </aside>
+          </div>
         </div>
 
-        <footer class="document-foot">
-          <span v-if="dirty" class="dirty-note">● Unsaved changes</span>
-          <span class="foot-spacer" />
-          <button class="btn primary" type="button" :disabled="saving || !dirty" @click="save">{{ saving ? 'Saving…' : 'Save' }}</button>
-        </footer>
-      </article>
+        <div class="s1-doc-foot">
+          <div class="s1-dirty-note" :class="{ show: dirty }">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+            Unsaved changes
+          </div>
+          <div class="spacer" />
+          <button class="btn primary sm" type="button" :disabled="saving || !dirty" @click="save">{{ saving ? 'Saving…' : 'Save' }}</button>
+        </div>
+      </template>
 
-      <div v-else class="empty-state">
-        <div class="empty-icon">S</div>
-        <h2>No script selected</h2>
+      <div v-else class="s1-empty">
+        <div class="ic">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
+        </div>
+        <h3>No script selected</h3>
         <p>Pick a script from the library, or create a new one to start writing.</p>
-        <button class="btn primary" type="button" @click="startCreate">Create script</button>
+        <button class="btn primary sm" type="button" @click="startCreate">Create script</button>
       </div>
     </main>
   </section>
 </template>
 
 <style scoped>
-.studio { height: 100%; min-height: 0; display: grid; grid-template-columns: 360px minmax(0, 1fr); background: var(--bg); }
-.library-rail { min-width: 0; min-height: 0; border-right: 1px solid var(--line); background: linear-gradient(180deg, var(--bg-2), var(--bg)); display: flex; flex-direction: column; }
-.rail-head { padding: 18px 18px 14px; border-bottom: 1px solid var(--line-soft); }
-.rail-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.rail-title h1 { margin: 3px 0 0; font: 600 17px var(--display); }
-.search-box { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel); color: var(--muted); }
-.search-box:focus-within { border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-dim); }
-.search-box input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font: 13px var(--body); }
-.search-box kbd { color: var(--faint); font: 10px var(--mono); }
-.script-list { flex: 1; min-height: 180px; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 7px; }
-.script-card { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }
-.script-card:hover { border-color: var(--line-2); background: var(--panel-2); }
-.script-card.selected { border-color: var(--accent-line-2); background: var(--accent-dim); }
-.card-row { display: flex; align-items: center; gap: 8px; }
-.avatar { width: 21px; height: 21px; border-radius: 5px; display: inline-grid; place-items: center; flex: none; background: var(--accent-grad); color: white; font: 700 9px var(--display); }
-.card-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
-.card-meta { display: flex; align-items: center; gap: 7px; margin-top: 7px; color: var(--muted); font: 10px var(--mono); }
-.origin { margin-left: auto; padding: 2px 6px; border-radius: 4px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-soft); text-transform: uppercase; font-size: 9px; }
-.rail-state { padding: 24px 12px; text-align: center; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.rail-foot { padding: 11px 16px; border-top: 1px solid var(--line-soft); color: var(--muted); font: 10.5px var(--mono); }
-.status-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--ok); }
-.studio-detail { min-width: 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
-.document, .create-sheet { flex: 1; display: flex; flex-direction: column; }
-.document-head { padding: 22px 30px 18px; border-bottom: 1px solid var(--line-soft); }
-.eyebrow { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; color: var(--muted); font: 10.5px var(--mono); letter-spacing: .5px; text-transform: uppercase; }
-.title-input { width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: 600 24px var(--display); letter-spacing: -.5px; }
-.document-meta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; color: var(--muted); font: 11px var(--mono); }
-.document-meta b { color: var(--text-2); font-weight: 500; }
-.document-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 300px; align-items: start; gap: 24px; padding: 22px 30px; }
-.editor-column { min-width: 0; }
-.script-area { box-sizing: border-box; width: 100%; min-height: 390px; resize: vertical; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg-2); color: var(--text); font: 14.5px/1.75 var(--body); }
-.script-area:focus { outline: 0; border-color: var(--accent-line-2); box-shadow: 0 0 0 3px var(--accent-dim); }
-.script-area.dirty { border-color: var(--warn-line); }
-.narration-preview { position: sticky; top: 76px; overflow: hidden; }
-.narration-head { display: flex; gap: 8px; padding: 13px 15px; border-bottom: 1px solid var(--line-soft); color: var(--run); font-size: 13px; }
-.narration-head strong { color: var(--text); }
-.narration-state { display: flex; flex-direction: column; gap: 3px; margin: 15px; padding: 12px; border-radius: var(--r-s); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
-.narration-state strong { font-size: 13px; }
-.narration-state span { color: var(--muted); font-size: 11px; line-height: 1.4; }
-.narration-state.ready { box-shadow: inset 3px 0 0 var(--ok), inset 0 0 0 1px var(--line); }
-.narration-player { display: block; width: calc(100% - 30px); height: 36px; margin: 0 15px 14px; }
-.narration-controls { display: flex; flex-direction: column; gap: 10px; padding: 0 15px 15px; }
-.narration-controls label { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 11px; }
-.narration-controls select { width: 100%; }
-.narration-controls select.inherited { border-style: dashed; color: var(--muted); }
-.active-processing { padding: 7px 9px; border-radius: 5px; background: var(--accent-dim); color: var(--accent); font: 10px var(--mono); }
-.take-duration { color: var(--muted); font: 10px var(--mono); }
-.narration-button { width: 100%; justify-content: center; }
-.document-foot { display: flex; align-items: center; gap: 9px; padding: 14px 30px; border-top: 1px solid var(--line-soft); background: var(--bg-2); }
-.foot-spacer { flex: 1; }.dirty-note { color: var(--warn); font: 11px var(--mono); }
-.create-body { flex: 1; width: min(800px, 100%); box-sizing: border-box; padding: 24px 30px; }
-.channel-select { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--muted); font: 11px var(--mono); }
-select, .text-input { border: 1px solid var(--line); border-radius: 6px; background: var(--bg-2); color: var(--text); font: 12px var(--body); padding: 7px 9px; }
-.channel-select select { max-width: 260px; }
-.create-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 10px 0 18px; }
-.create-modes button { display: flex; flex-direction: column; gap: 3px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }
-.create-modes button span { color: var(--muted); font-size: 11px; }.create-modes button.active { border-color: var(--accent-line-2); background: var(--accent-dim); }
-.mode-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }.mode-field label { color: var(--text-2); font-size: 12px; }.text-input { width: 100%; box-sizing: border-box; }
-.template-card { padding: 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-grad); box-shadow: var(--hairline-top); }
-.template-head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }.template-head b { color: var(--accent); }.template-head a { margin-left: auto; color: var(--muted); font-size: 11px; }
-.template-card p { margin: 9px 0 12px; color: var(--text-2); font-size: 12.5px; line-height: 1.55; }
-.template-chips { display: flex; flex-wrap: wrap; gap: 6px; }.template-chips span { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--line-soft); border-radius: 20px; background: var(--bg-2); color: var(--text-2); font-size: 11px; }.template-chips i { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-dim); color: var(--accent); font: normal 700 9px var(--mono); }
-.paste-meta { display: flex; justify-content: space-between; color: var(--muted); font: 10.5px var(--mono); }
-.error-banner { display: flex; align-items: center; gap: 12px; margin: 14px 20px 0; padding: 10px 12px; border: 1px solid var(--fail-line); border-radius: var(--r-s); background: var(--fail-dim); color: var(--fail); font-size: 12px; }.error-banner button { margin-left: auto; border: 0; background: transparent; color: inherit; cursor: pointer; }
-.empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; text-align: center; color: var(--muted); }.empty-state h2 { margin: 0 0 7px; color: var(--text); font: 600 16px var(--display); }.empty-state p { max-width: 320px; margin: 0 0 16px; font-size: 13px; line-height: 1.6; }.empty-icon { width: 58px; height: 58px; display: grid; place-items: center; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--accent); font: 600 22px var(--display); }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
-@media (max-width: 900px) { .studio { grid-template-columns: 290px minmax(0, 1fr); }.document-body { grid-template-columns: 1fr; }.narration-preview { position: static; }.document-head, .document-body, .create-body, .document-foot { padding-left: 20px; padding-right: 20px; } }
-@media (max-width: 700px) { .studio { display: block; overflow-y: auto; }.library-rail { border-right: 0; border-bottom: 1px solid var(--line); }.studio-detail { overflow: visible; }.script-list { max-height: 260px; }.create-modes { grid-template-columns: 1fr; }.document-head, .document-body, .create-body, .document-foot { padding-left: 14px; padding-right: 14px; }.document-foot { position: sticky; bottom: 0; z-index: 2; }.title-input { font-size: 21px; } }
+/* The prototype's `.body.s1view`: a library rail and a scrolling document. */
+.s1view {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ── Library rail ───────────────────────────────────────────────────── */
+.s1-rail {
+  border-right: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .02), rgba(255, 255, 255, 0) 180px),
+    linear-gradient(180deg, var(--bg-2), var(--bg));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.s1-rail-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--line-soft); }
+.s1-rail-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.s1-rail-title h2 { margin: 0; font-family: var(--display); font-size: 15px; font-weight: 600; }
+
+.s1-search { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); padding: 8px 11px; }
+.s1-search:focus-within { border-color: var(--accent-line-2); box-shadow: 0 0 0 3px var(--accent-ring); }
+.s1-search input { background: transparent; border: none; outline: none; color: var(--text); font-size: 13px; width: 100%; font-family: var(--body); }
+.s1-search input::placeholder { color: var(--faint); }
+.s1-search svg { color: var(--muted); flex: none; }
+.s1-search kbd { flex: none; color: var(--faint); font: 10px var(--mono); }
+
+.s1-filters { display: flex; gap: 6px; margin-top: 11px; flex-wrap: wrap; }
+.s1-fchip {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .3px; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); background: var(--panel);
+  border-radius: 20px; padding: 4px 10px; cursor: pointer; transition: all .12s;
+}
+.s1-fchip:hover { border-color: var(--line-2); color: var(--text-2); }
+.s1-fchip.sel { color: var(--accent); border-color: var(--accent-line-2); background: var(--accent-dim); }
+
+.s1-list-wrap { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+.s1-card {
+  width: 100%; text-align: left; color: var(--text); flex: none;
+  border: 1px solid var(--line); background: var(--panel); border-radius: var(--r-s);
+  padding: 11px 12px; cursor: pointer; box-shadow: var(--hairline-top);
+  transition: border-color .16s, background .16s, box-shadow .16s, transform .16s var(--ease-spring);
+}
+.s1-card:hover { border-color: var(--line-2); background: var(--panel-2); transform: translateY(-1px); }
+.s1-card.sel { border-color: var(--accent-line-2); background: var(--accent-wash); box-shadow: var(--hairline-top), inset 0 0 0 1px var(--accent-line); }
+.s1-card .row1 { display: flex; align-items: center; gap: 8px; }
+.s1-card .cavatar {
+  width: 20px; height: 20px; border-radius: 5px; font-size: 9px; display: grid; place-items: center;
+  color: #fff; font-family: var(--display); font-weight: 600; flex: none; background: var(--accent-grad);
+}
+.s1-card .ctitle { font-size: 13px; font-weight: 600; letter-spacing: -.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s1-card .row2 { display: flex; align-items: center; gap: 7px; margin-top: 7px; }
+.s1-card .meta { font-family: var(--mono); font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
+.s1-card .origin-tag {
+  flex: none; font-family: var(--mono); font-size: 9px; letter-spacing: .3px; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 4px; color: var(--text-2); background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.s1-card .tts-tag { margin-left: auto; }
+
+.s1-rail-foot { padding: 11px 16px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-size: 10.5px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.s1-rail-foot .sd { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ok); }
+
+.rail-state { padding: 30px 16px; text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+
+/* ── Detail / editor ────────────────────────────────────────────────── */
+.s1-detail { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.s1-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--muted); padding: 40px; }
+.s1-empty .ic {
+  width: 60px; height: 60px; border-radius: 16px; display: grid; place-items: center;
+  background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--faint); margin-bottom: 18px;
+}
+.s1-empty h3 { margin: 0 0 7px; font-family: var(--display); font-size: 16px; color: var(--text); }
+.s1-empty p { margin: 0; font-size: 13px; max-width: 300px; line-height: 1.6; }
+.s1-empty .btn { margin-top: 16px; }
+
+.s1-doc-head { padding: 22px 30px 18px; border-bottom: 1px solid var(--line-soft); }
+.s1-doc-eyebrow { display: flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .5px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; }
+.s1-doc-eyebrow .cavatar {
+  width: 18px; height: 18px; border-radius: 5px; font-size: 8px; display: grid; place-items: center;
+  color: #fff; font-family: var(--display); font-weight: 600; flex: none; background: var(--accent-grad);
+}
+.s1-title-input {
+  width: 100%; background: transparent; border: none; outline: none; color: var(--text);
+  font-family: var(--display); font-weight: 600; font-size: 24px; letter-spacing: -.5px; padding: 0;
+}
+.s1-title-input:focus { color: #fff; }
+.s1-doc-sub { display: flex; align-items: center; gap: 14px; margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.s1-doc-sub .kv { display: flex; align-items: center; gap: 5px; }
+.s1-doc-sub .kv b { color: var(--text-2); font-weight: 500; }
+
+.s1-doc-body { flex: 1; padding: 22px 30px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 26px; align-items: start; }
+/* The create flow has no narration column yet, so it runs one wide. */
+.s1-doc-body.single { grid-template-columns: minmax(0, 1fr); max-width: 860px; }
+.s1-script-col { min-width: 0; }
+.s1-col-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; font-family: var(--mono); font-size: 10px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); }
+.s1-script-area {
+  box-sizing: border-box; width: 100%; min-height: 340px; resize: vertical;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r);
+  color: var(--text); font-family: var(--body); font-size: 14.5px; line-height: 1.75; padding: 18px 20px;
+}
+.s1-script-area:focus { outline: none; border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-ring); }
+.s1-script-area.dirty { border-color: var(--warn-line); }
+.s1-script-area.paste { min-height: 220px; }
+
+/* ── Create flow ────────────────────────────────────────────────────── */
+.create-modes { grid-template-columns: repeat(3, 1fr); margin-bottom: 16px; }
+.idea-hint { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; font-size: 11px; color: var(--muted); }
+.idea-hint b { color: var(--accent); font-weight: 600; }
+.idea-hint svg { flex: none; }
+
+input.txt {
+  box-sizing: border-box; width: 100%; margin-bottom: 12px; padding: 10px 11px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r-s);
+  color: var(--text); font-family: var(--body); font-size: 13px;
+}
+input.txt::placeholder { color: var(--faint); }
+input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow: 0 0 0 3px var(--accent-ring); }
+
+.filter-select {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s);
+  color: var(--text-2); font-family: var(--body); font-size: 12.5px; padding: 4px 8px; cursor: pointer;
+}
+.filter-select:focus { outline: none; border-color: var(--accent-line-2); }
+.script-meta { display: flex; justify-content: space-between; margin-top: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+.s1-tpl-card { border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-grad); box-shadow: var(--hairline-top); padding: 13px 14px; }
+.s1-tpl-head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text); }
+.s1-tpl-head svg { flex: none; color: var(--accent); }
+.s1-tpl-head b { color: var(--accent); font-weight: 600; }
+.s1-tpl-edit { margin-left: auto; font-size: 11px; font-weight: 500; color: var(--muted); cursor: pointer; text-decoration: none; }
+.s1-tpl-edit:hover { color: var(--accent); text-decoration: underline; }
+.s1-tpl-brief { margin: 9px 0 12px; font-size: 12.5px; color: var(--text-2); line-height: 1.55; }
+.s1-tpl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.s1-tpl-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px;
+  border: 1px solid var(--line-soft); border-radius: 20px; background: var(--bg-2);
+  color: var(--text-2); font-size: 11px;
+}
+.s1-tpl-chip .n {
+  width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--accent); background: var(--accent-dim);
+}
+
+/* ── Narration panel ───────────────────────────────────────────────── */
+.s1-tts { position: sticky; top: 0; }
+.s1-panel { border: 1px solid var(--line); border-radius: var(--r); background: linear-gradient(180deg, var(--panel), var(--bg-2)); overflow: hidden; }
+.s1-panel-head { display: flex; align-items: center; gap: 9px; padding: 13px 16px; border-bottom: 1px solid var(--line-soft); }
+.s1-panel-head > svg { flex: none; color: var(--run); }
+.s1-panel-head .pt { font-family: var(--display); font-weight: 600; font-size: 13.5px; }
+.s1-panel-head .prov {
+  margin-left: auto; max-width: 45%; padding: 3px 8px; border-radius: 5px;
+  font-family: var(--mono); font-size: 10px; color: var(--run); background: var(--run-dim);
+  box-shadow: inset 0 0 0 1px var(--run-line);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.s1-panel-body { padding: 15px 16px; }
+
+.s1-tts-status { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-s); margin-bottom: 14px; }
+.s1-tts-status.ready { background: var(--ok-dim); box-shadow: inset 0 0 0 1px var(--ok-line); }
+.s1-tts-status.none { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
+.s1-tts-status.gen { background: var(--run-dim); box-shadow: inset 0 0 0 1px var(--run-line); }
+.s1-tts-status .ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; }
+.s1-tts-status.ready .ic { background: var(--ok-dim); color: var(--ok); }
+.s1-tts-status.none .ic { background: var(--raise); color: var(--muted); }
+.s1-tts-status.gen .ic { background: var(--run-dim); color: var(--run); }
+.s1-tts-status .txt .t { font-size: 13px; font-weight: 600; }
+.s1-tts-status .txt .d { margin-top: 1px; font-size: 11px; color: var(--muted); line-height: 1.35; }
+.s1-tts-status.ready .txt .t { color: var(--ok); }
+.s1-tts-status.gen .txt .t { color: var(--run); }
+
+.s1-kv { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; font-size: 12.5px; border-bottom: 1px solid var(--line-soft); }
+.s1-kv:last-of-type { border-bottom: none; }
+.s1-kv .k { color: var(--muted); }
+.s1-kv .v { min-width: 0; color: var(--text); font-weight: 500; }
+.s1-kv select {
+  max-width: 100%; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text); font-family: var(--body); font-size: 12px; padding: 5px 8px; cursor: pointer;
+}
+.s1-kv select:focus { outline: none; border-color: var(--accent-line-2); }
+
+.s1-player { margin: 14px 0 4px; padding: 12px 14px; border-radius: var(--r-s); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.s1-player .controls { display: flex; align-items: center; gap: 11px; }
+.s1-play {
+  width: 34px; height: 34px; border-radius: 50%; flex: none; border: none; cursor: pointer;
+  background: linear-gradient(180deg, #4bbf92, var(--ok)); color: #052018; display: grid; place-items: center;
+  box-shadow: 0 4px 12px -4px rgba(53, 192, 138, .7);
+}
+.s1-play:hover { filter: brightness(1.08); }
+.s1-wave-track { flex: 1; min-width: 0; height: 26px; display: flex; align-items: center; gap: 2px; overflow: hidden; }
+.s1-wave-track i { flex: 1; background: var(--faint); border-radius: 1px; min-width: 2px; transition: background .1s; }
+.s1-wave-track i.on { background: var(--ok); }
+.s1-player .time { flex: none; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.s1-player audio { display: none; }
+
+.s1-tts-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+
+.s1-proc { margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line-soft); }
+.s1-proc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
+.s1-proc-src { color: var(--faint); text-transform: none; letter-spacing: 0; }
+.s1-inh {
+  margin-left: 5px; padding: 1px 5px; border-radius: 4px; vertical-align: middle;
+  font-family: var(--mono); font-size: 8.5px; text-transform: uppercase; letter-spacing: .3px;
+  color: var(--muted); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.s1-proc-reset {
+  margin-top: 8px; width: 100%; padding: 6px; border: 1px dashed var(--line); border-radius: var(--r-s);
+  background: transparent; color: var(--muted); font-family: var(--body); font-size: 11.5px; cursor: pointer;
+}
+.s1-proc-reset:hover { color: var(--text-2); border-color: var(--line-2); }
+
+.s1-toggle {
+  width: 38px; height: 22px; border-radius: 20px; background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line); position: relative; cursor: pointer; flex: none;
+  transition: background .16s;
+}
+.s1-toggle::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--muted); transition: transform .16s, background .16s;
+}
+.s1-toggle.on { background: var(--run-dim); box-shadow: inset 0 0 0 1px var(--run-line); }
+.s1-toggle.on::after { transform: translateX(16px); background: var(--run); }
+.s1-toggle.sm { width: 34px; height: 20px; }
+.s1-toggle.sm::after { width: 14px; height: 14px; }
+.s1-toggle.sm.on::after { transform: translateX(14px); }
+.s1-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Document footer ───────────────────────────────────────────────── */
+.s1-doc-foot { display: flex; align-items: center; gap: 10px; padding: 14px 30px; border-top: 1px solid var(--line-soft); background: var(--bg-2); }
+.s1-doc-foot .spacer { flex: 1; }
+.s1-dirty-note { display: none; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--warn); }
+.s1-dirty-note.show { display: flex; }
+
+.banner.error { display: flex; align-items: center; gap: 12px; margin: 14px 30px 0; }
+.banner.error button { margin-left: auto; border: 0; background: transparent; color: inherit; font-size: 15px; cursor: pointer; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+
+@media (max-width: 1100px) {
+  .s1-doc-body { grid-template-columns: 1fr; }
+  .s1-tts { position: static; }
+}
+
+/* The prototype hides the rail below 820px because its library lives in a
+   modal there. This app has no such modal, so the rail stacks instead. */
+@media (max-width: 820px) {
+  .s1view { display: block; overflow-y: auto; }
+  .s1-rail { border-right: 0; border-bottom: 1px solid var(--line); }
+  .s1-detail { overflow: visible; }
+  .s1-list-wrap { max-height: 260px; }
+  .create-modes { grid-template-columns: 1fr; }
+  .s1-doc-head, .s1-doc-body, .s1-doc-foot { padding-left: 16px; padding-right: 16px; }
+  .banner.error { margin-left: 16px; margin-right: 16px; }
+  .s1-title-input { font-size: 21px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s1-card, .s1-fchip, .s1-toggle, .s1-toggle::after, .s1-wave-track i { transition: none; }
+  .s1-card:hover { transform: none; }
+}
 </style>

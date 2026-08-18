@@ -282,13 +282,16 @@ void defaultJobDraft
         <p v-else-if="!studioScripts.length" class="provider-note">
           This Channel has no Studio scripts yet.
         </p>
-        <div v-else class="script-list" data-testid="studio-script-list">
-          <label v-for="script in studioScripts" :key="script.id" class="script-option">
-            <input v-model="selectedScriptIds" type="checkbox" :value="script.id" :disabled="submitting" />
-            <span class="script-copy">
-              <strong>{{ script.title || script.id }}</strong>
-              <span>{{ script.word_count || 0 }} words / {{ script.narration?.state === 'ready' ? 'Narrated' : 'Text only' }}</span>
+        <div v-else class="s1-list" data-testid="studio-script-list">
+          <label v-for="script in studioScripts" :key="script.id" class="s1-row" :class="{ sel: selectedScriptIds.includes(script.id) }">
+            <span class="top">
+              <input v-model="selectedScriptIds" type="checkbox" :value="script.id" :disabled="submitting" />
+              <span class="title">{{ script.title || script.id }}</span>
+              <span class="tts-tag" :class="script.narration?.state === 'ready' ? 'tts-ready' : 'tts-only'">
+                {{ script.narration?.state === 'ready' ? 'TTS Ready' : 'Script Only' }}
+              </span>
             </span>
+            <span class="meta2">{{ script.word_count || 0 }} words</span>
           </label>
         </div>
         <span class="field-hint">
@@ -619,48 +622,64 @@ textarea {
   background: var(--bg-2);
 }
 
-.script-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px;
-  max-height: 280px;
-  overflow: auto;
-}
-
-.script-option {
+/* The prototype's script picker (step 6.3). Its rows are single-select there;
+   here one Job per script is the point, so the row carries a checkbox and
+   `.sel` follows the box rather than a cursor. */
+.s1-list {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--panel);
-  cursor: pointer;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 236px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
-.script-option:has(input:checked) {
-  border-color: var(--accent-line-2);
+.s1-row {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-s);
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s;
+}
+
+.s1-row:hover {
+  border-color: var(--line-2);
+  background: var(--panel-2);
+}
+
+.s1-row.sel {
+  border-color: var(--accent-line);
   background: var(--accent-wash);
 }
 
-.script-copy {
+.s1-row .top {
   display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 8px;
 }
 
-.script-copy strong {
+.s1-row .title {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text);
 }
 
-.script-copy span {
+.s1-row .meta2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 5px;
+  color: var(--muted);
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s1-row { transition: none; }
 }
 
 .narration-source { margin: 0 0 10px; }

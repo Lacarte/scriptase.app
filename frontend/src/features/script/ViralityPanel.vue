@@ -64,35 +64,38 @@ const gauge = computed(() => {
 </script>
 
 <template>
-  <section class="virality-panel" aria-label="Script virality score" data-testid="virality-panel">
-    <div v-if="analyzing" class="virality-scan" role="status">
-      <span class="spinner" aria-hidden="true" /> Analyzing hook, pacing, loops &amp; CTA…
+  <section class="s1-vir" :class="{ analyzing }" aria-label="Script virality score" data-testid="virality-panel">
+    <div v-if="analyzing" class="s1-vir-scan" role="status">
+      <span class="sp" aria-hidden="true" /> Analyzing hook, pacing, loops &amp; CTA…
     </div>
 
     <template v-else-if="score">
-      <header class="virality-head">
-        <div class="gauge" :data-band="score.band">
+      <div class="s1-vir-head">
+        <div class="s1-vir-gauge" :data-band="score.band">
           <svg width="52" height="52" aria-hidden="true">
             <circle cx="26" cy="26" r="22" fill="none" stroke="var(--raise)" stroke-width="5" />
             <circle cx="26" cy="26" r="22" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" :stroke-dasharray="gauge" />
           </svg>
-          <span>{{ score.score }}</span>
+          <div class="score">{{ score.score }}</div>
         </div>
-        <div class="virality-title">
-          <div><strong>Virality score</strong> <span class="grade" :class="`grade-${score.band}`">{{ score.band }}</span></div>
-          <small>{{ stale ? 'Text changed since this score was run.' : 'Advisory only — it never blocks saving.' }}</small>
+        <div class="vt">
+          <div class="tt">Virality score <span class="grade" :class="`grade-${score.band}`">{{ score.band }}</span></div>
+          <div class="sub">{{ stale ? 'Text changed since this score was run.' : 'Advisory only — it never blocks saving.' }}</div>
         </div>
-        <button class="btn xs" type="button" @click="$emit('analyze')">{{ stale ? 'Check current text' : 'Re-check' }}</button>
-      </header>
+        <button class="btn xs s1-vir-recheck" type="button" @click="$emit('analyze')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4" /><path d="M21 3v6h-6" /></svg>
+          {{ stale ? 'Check current text' : 'Re-check' }}
+        </button>
+      </div>
 
-      <div class="dimension-list" data-testid="virality-dimensions">
-        <div v-for="dimension in dimensions" :key="dimension.id" class="dimension">
-          <div class="dimension-top"><span>{{ dimension.label }}</span><b :style="{ color: color(dimension.percent) }">{{ dimension.percent }}%</b></div>
-          <div class="dimension-bar" role="img" :aria-label="`${dimension.label} scored ${dimension.percent} percent`">
-            <span :style="{ width: `${dimension.percent}%`, background: color(dimension.percent) }" />
+      <div class="s1-vir-body" data-testid="virality-dimensions">
+        <div v-for="dimension in dimensions" :key="dimension.id" class="s1-vir-dim">
+          <div class="top"><span class="nm">{{ dimension.label }}</span><span class="pc" :style="{ color: color(dimension.percent) }">{{ dimension.percent }}%</span></div>
+          <div class="s1-vir-bar" role="img" :aria-label="`${dimension.label} scored ${dimension.percent} percent`">
+            <div class="fill" :style="{ width: `${dimension.percent}%`, background: color(dimension.percent) }" />
           </div>
-          <div v-if="dimension.reasons.length" class="reason-list">
-            <span v-for="reason in dimension.reasons" :key="reason.code" :class="reason.positive ? 'good' : 'bad'">
+          <div v-if="dimension.reasons.length" class="s1-vir-issues">
+            <span v-for="reason in dimension.reasons" :key="reason.code" class="s1-vir-chip" :class="reason.positive ? 'good' : 'bad'">
               {{ reason.positive ? '✓ ' : '' }}{{ reason.label }}
             </span>
           </div>
@@ -100,28 +103,63 @@ const gauge = computed(() => {
       </div>
     </template>
 
-    <div v-else class="virality-empty">
-      <strong>Virality score not run</strong>
-      <span>Check how this script is likely to perform — hook, pacing, open loops and CTA.</span>
-      <button class="btn sm" type="button" @click="$emit('analyze')">Analyze script</button>
+    <!-- The prototype's not-yet-run state is copy only: Check Virality above the
+         editor is the affordance, so a second button here would duplicate it. -->
+    <div v-else class="s1-vir-empty">
+      <div class="big">Virality score not run</div>
+      Check how this script is likely to perform — hook, pacing, open loops and CTA.
     </div>
   </section>
 </template>
 
 <style scoped>
-.virality-panel { margin-top: 16px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r); background: linear-gradient(180deg, var(--panel), var(--bg-2)); }
-.virality-head { display: flex; align-items: center; gap: 14px; padding: 15px 18px; border-bottom: 1px solid var(--line-soft); }
-.gauge { position: relative; width: 52px; height: 52px; flex: none; color: var(--muted); }
-.gauge[data-band="poor"] { color: var(--fail); }.gauge[data-band="weak"] { color: var(--warn); }.gauge[data-band="solid"] { color: var(--run); }.gauge[data-band="strong"] { color: var(--ok); }
-.gauge svg { transform: rotate(-90deg); }.gauge span { position: absolute; inset: 0; display: grid; place-items: center; font: 600 18px var(--display); }
-.virality-title { min-width: 0; flex: 1; }.virality-title > div { display: flex; align-items: center; gap: 9px; font: 14px var(--display); }.virality-title small { display: block; margin-top: 3px; color: var(--muted); font-size: 11.5px; }
-.grade { padding: 2px 8px; border-radius: 20px; font: 10px var(--mono); letter-spacing: .5px; text-transform: uppercase; }.grade-poor { color: var(--fail); background: var(--fail-dim); }.grade-weak { color: var(--warn); background: var(--warn-dim); }.grade-solid { color: var(--run); background: var(--run-dim); }.grade-strong { color: var(--ok); background: var(--ok-dim); }
-.dimension-list { padding: 6px 18px 16px; }.dimension { padding: 11px 0; border-bottom: 1px solid var(--line-soft); }.dimension:last-child { border-bottom: 0; }.dimension-top { display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--text-2); font-size: 12.5px; }.dimension-top b { font: 600 11.5px var(--mono); }
-.dimension-bar { height: 5px; overflow: hidden; border-radius: 3px; background: var(--raise); }.dimension-bar span { display: block; height: 100%; border-radius: 3px; transition: width .6s var(--ease-spring); }
-.reason-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }.reason-list span { display: inline-flex; padding: 3px 9px; border-radius: 5px; font-size: 10.5px; }.reason-list .bad { color: var(--warn); background: var(--warn-dim); box-shadow: inset 0 0 0 1px var(--warn-line); }.reason-list .good { color: var(--ok); background: var(--ok-dim); box-shadow: inset 0 0 0 1px var(--ok-line); }
-.virality-empty { display: flex; flex-direction: column; align-items: center; padding: 24px 18px; color: var(--muted); text-align: center; font-size: 12.5px; line-height: 1.6; }.virality-empty strong { color: var(--text-2); font: 600 13px var(--display); }.virality-empty .btn { margin-top: 12px; }
-.virality-scan { display: flex; align-items: center; gap: 8px; padding: 20px 18px; color: var(--run); font: 11px var(--mono); }.spinner { width: 12px; height: 12px; border: 2px solid var(--run-dim); border-top-color: var(--run); border-radius: 50%; animation: spin .7s linear infinite; }
+.s1-vir { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--r); background: linear-gradient(180deg, var(--panel), var(--bg-2)); overflow: hidden; }
+.s1-vir-head { display: flex; align-items: center; gap: 14px; padding: 15px 18px; border-bottom: 1px solid var(--line-soft); }
+.s1-vir-gauge { position: relative; width: 52px; height: 52px; flex: none; color: var(--muted); }
+.s1-vir-gauge[data-band="poor"] { color: var(--fail); }
+.s1-vir-gauge[data-band="weak"] { color: var(--warn); }
+.s1-vir-gauge[data-band="solid"] { color: var(--run); }
+.s1-vir-gauge[data-band="strong"] { color: var(--ok); }
+.s1-vir-gauge svg { transform: rotate(-90deg); }
+.s1-vir-gauge .score { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 600; font-size: 18px; letter-spacing: -.5px; }
+.s1-vir-head .vt { flex: 1; min-width: 0; }
+.s1-vir-head .vt .tt { font-family: var(--display); font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 9px; }
+.s1-vir-head .vt .grade { font-family: var(--mono); font-size: 10px; letter-spacing: .5px; text-transform: uppercase; padding: 2px 8px; border-radius: 20px; }
+.s1-vir-head .vt .sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.s1-vir-recheck { flex: none; }
+
+.grade-poor { color: var(--fail); background: var(--fail-dim); }
+.grade-weak { color: var(--warn); background: var(--warn-dim); }
+.grade-solid { color: var(--run); background: var(--run-dim); }
+.grade-strong { color: var(--ok); background: var(--ok-dim); }
+
+.s1-vir-body { padding: 6px 18px 16px; }
+.s1-vir-dim { padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+.s1-vir-dim:last-child { border-bottom: none; }
+.s1-vir-dim .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.s1-vir-dim .top .nm { font-size: 12.5px; color: var(--text-2); font-weight: 500; }
+.s1-vir-dim .top .pc { font-family: var(--mono); font-size: 11.5px; font-weight: 600; }
+.s1-vir-bar { height: 5px; border-radius: 3px; background: var(--raise); overflow: hidden; }
+.s1-vir-bar .fill { height: 100%; border-radius: 3px; width: 0%; transition: width .6s cubic-bezier(.4, 0, .2, 1); }
+.s1-vir-issues { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.s1-vir-chip { font-size: 10.5px; padding: 3px 9px; border-radius: 5px; display: inline-flex; align-items: center; gap: 5px; }
+.s1-vir-chip.bad { color: var(--warn); background: var(--warn-dim); box-shadow: inset 0 0 0 1px var(--warn-line); }
+.s1-vir-chip.good { color: var(--ok); background: var(--ok-dim); box-shadow: inset 0 0 0 1px var(--ok-line); }
+.s1-vir-empty { padding: 26px 18px; text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+.s1-vir-empty .big { font-family: var(--display); font-size: 13px; color: var(--text-2); font-weight: 600; margin-bottom: 4px; }
+.s1-vir.analyzing .s1-vir-body { opacity: .45; }
+.s1-vir-scan { font-family: var(--mono); font-size: 11px; color: var(--run); display: flex; align-items: center; gap: 8px; padding: 20px 18px; }
+.s1-vir-scan .sp { width: 12px; height: 12px; border: 2px solid var(--run-dim); border-top-color: var(--run); border-radius: 50%; animation: spin .7s linear infinite; }
+
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spinner { animation: none; }.dimension-bar span { transition: none; } }
-@media (max-width: 560px) { .virality-head { align-items: flex-start; flex-wrap: wrap; }.virality-head .btn { margin-left: 66px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .s1-vir-scan .sp { animation: none; }
+  .s1-vir-bar .fill { transition: none; }
+}
+
+@media (max-width: 560px) {
+  .s1-vir-head { align-items: flex-start; flex-wrap: wrap; }
+  .s1-vir-recheck { margin-left: 66px; }
+}
 </style>
