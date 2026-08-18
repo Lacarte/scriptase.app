@@ -47,6 +47,18 @@ def _add_narration_overrides(data: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+@_register(3)
+def _add_studio_script_reference(data: dict[str, Any]) -> dict[str, Any]:
+    """Add the optional managed Script Studio provenance field."""
+    migrated = deepcopy(data)
+    source = migrated.get("source")
+    if not isinstance(source, dict):
+        source = {}
+        migrated["source"] = source
+    source.setdefault("script_id", None)
+    return migrated
+
+
 def apply_migrations(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     """Upgrade ``data`` to ``SCHEMA_VERSION``.
 

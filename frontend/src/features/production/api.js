@@ -66,7 +66,7 @@ export function runWorkflow(body) {
 }
 
 // ---------------------------------------------------------------------------
-// Jobs (step 2.5 — Step 0 creation + start)
+// Jobs (steps 2.5 and 4.1 — creation, batch creation, and start)
 // ---------------------------------------------------------------------------
 
 /** Source / execution mode catalog for the Job creation form. */
@@ -116,6 +116,11 @@ export function getJobRepairHistory(jobId) {
  */
 export function createJob(draft) {
   return apiPost('/jobs', { job: draft })
+}
+
+/** Create one queued Job per selected Script Studio document (step 4.1). */
+export function createJobBatch(batch) {
+  return apiPost('/jobs/batch', { batch })
 }
 
 /**

@@ -1,17 +1,20 @@
 <script setup>
 /**
- * Step 0 — Job creation (step 2.5).
+ * Job creation (steps 2.5 and 4.1).
  *
  * Channel picker, Script stage source mode (topic / idea / paste / manual /
- * automatic), workflow choice, and execution mode. Provider UI appears only
- * when the selected source mode needs a script provider (§6).
+ * automatic), existing Studio-script multi-select, workflow choice, and
+ * execution mode. Provider UI appears only when the selected source mode
+ * needs a script provider (§6).
  */
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { listChannels } from '@/features/channels/api.js'
+import { listScripts } from '@/features/script/api.js'
 
 import {
   createJob,
+  createJobBatch,
   getJobDefaults,
   listWorkflows,
   startJob,
@@ -42,6 +45,10 @@ const channelId = ref('')
 const workflowId = ref('')
 const executionMode = ref('manual')
 const sourceMode = ref('paste')
+const sourceKind = ref('input')
+const studioScripts = ref([])
+const selectedScriptIds = ref([])
+const scriptsLoading = ref(false)
 const topic = ref('')
 const idea = ref('')
 const pastedScript = ref('')
@@ -86,8 +93,25 @@ const showPaste = computed(() => {
 const canSubmit = computed(() => {
   if (submitting.value || loading.value) return false
   if (!channelId.value) return false
+  if (sourceKind.value === 'studio') return selectedScriptIds.value.length > 0
   return validateJobSource(buildSource()).length === 0
 })
+
+async function loadStudioScripts() {
+  selectedScriptIds.value = []
+  studioScripts.value = []
+  if (sourceKind.value !== 'studio' || !channelId.value) return
+  scriptsLoading.value = true
+  error.value = ''
+  try {
+    const data = await listScripts({ channelId: channelId.value, limit: 500 })
+    studioScripts.value = data.scripts || []
+  } catch (err) {
+    error.value = err.message || String(err)
+  } finally {
+    scriptsLoading.value = false
+  }
+}
 
 function buildSource() {
   return {
@@ -151,7 +175,9 @@ async function loadCatalogs() {
 }
 
 async function onSubmit() {
-  fieldErrors.value = validateJobSource(buildSource())
+  fieldErrors.value = sourceKind.value === 'studio'
+    ? (selectedScriptIds.value.length ? [] : ['Select at least one Studio script'])
+    : validateJobSource(buildSource())
   if (!channelId.value) {
     fieldErrors.value = ['Channel is required', ...fieldErrors.value]
   }
@@ -160,6 +186,18 @@ async function onSubmit() {
   submitting.value = true
   error.value = ''
   try {
+    if (sourceKind.value === 'studio') {
+      const batch = {
+        channel_id: channelId.value,
+        script_ids: [...selectedScriptIds.value],
+        execution_mode: executionMode.value,
+      }
+      if (workflowId.value) batch.workflow_id = workflowId.value
+      const result = await createJobBatch(batch)
+      const jobs = result.jobs || []
+      emit('created', { job: jobs[0] || null, jobs, batch: result })
+      return
+    }
     const { job } = await createJob(buildDraft())
     emit('created', { job })
     if (props.autoStart) {
@@ -187,6 +225,10 @@ watch(
     if (id && !workflowId.value) workflowId.value = id
   },
 )
+
+watch([sourceKind, channelId], () => {
+  void loadStudioScripts()
+})
 
 onMounted(() => {
   void loadCatalogs()
@@ -225,7 +267,36 @@ void defaultJobDraft
         </select>
       </label>
 
-      <fieldset class="field mode-fieldset">
+      <label class="field">
+        <span class="field-label">Script source</span>
+        <select v-model="sourceKind" data-testid="script-source-kind" :disabled="submitting">
+          <option value="input">New script input</option>
+          <option value="studio">Existing Studio scripts</option>
+        </select>
+        <span class="field-hint">Select several Studio scripts to create one queued Job for each.</span>
+      </label>
+
+      <fieldset v-if="sourceKind === 'studio'" class="field studio-fieldset">
+        <legend class="field-label">Studio scripts</legend>
+        <p v-if="scriptsLoading" class="muted">Loading scripts...</p>
+        <p v-else-if="!studioScripts.length" class="provider-note">
+          This Channel has no Studio scripts yet.
+        </p>
+        <div v-else class="script-list" data-testid="studio-script-list">
+          <label v-for="script in studioScripts" :key="script.id" class="script-option">
+            <input v-model="selectedScriptIds" type="checkbox" :value="script.id" :disabled="submitting" />
+            <span class="script-copy">
+              <strong>{{ script.title || script.id }}</strong>
+              <span>{{ script.word_count || 0 }} words / {{ script.narration?.state === 'ready' ? 'Narrated' : 'Text only' }}</span>
+            </span>
+          </label>
+        </div>
+        <span class="field-hint">
+          {{ selectedScriptIds.length }} selected. Jobs stay queued until you run the batch.
+        </span>
+      </fieldset>
+
+      <fieldset v-if="sourceKind === 'input'" class="field mode-fieldset">
         <legend class="field-label">Script stage mode</legend>
         <div class="mode-grid">
           <label
@@ -253,7 +324,7 @@ void defaultJobDraft
         </div>
       </fieldset>
 
-      <label v-if="showTopic" class="field">
+      <label v-if="sourceKind === 'input' && showTopic" class="field">
         <span class="field-label">Topic</span>
         <input
           v-model="topic"
@@ -264,7 +335,7 @@ void defaultJobDraft
         />
       </label>
 
-      <label v-if="showIdea" class="field">
+      <label v-if="sourceKind === 'input' && showIdea" class="field">
         <span class="field-label">Idea</span>
         <textarea
           v-model="idea"
@@ -275,7 +346,7 @@ void defaultJobDraft
         />
       </label>
 
-      <label v-if="showPaste" class="field">
+      <label v-if="sourceKind === 'input' && showPaste" class="field">
         <span class="field-label">
           {{ sourceMode === 'manual' ? 'Script text' : 'Pasted script' }}
         </span>
@@ -289,16 +360,16 @@ void defaultJobDraft
         <span class="field-hint">{{ pastedScript.length }} / 10000</span>
       </label>
 
-      <div v-if="providerRequired" class="provider-note" role="status">
+      <div v-if="sourceKind === 'input' && providerRequired" class="provider-note" role="status">
         This mode uses a script provider from the Channel defaults. Configure
         providers under the Channel editor if generation fails.
       </div>
-      <div v-else class="provider-note local" role="status">
+      <div v-else-if="sourceKind === 'input'" class="provider-note local" role="status">
         Paste / Manual run through Script Input only — no script provider is
         configured or required.
       </div>
 
-      <fieldset class="field narration-fieldset">
+      <fieldset v-if="sourceKind === 'input'" class="field narration-fieldset">
         <legend class="field-label">Narration processing</legend>
         <p class="field-hint narration-source">
           {{
@@ -345,20 +416,6 @@ void defaultJobDraft
       </fieldset>
 
       <label class="field">
-        <span class="field-label">Workflow</span>
-        <select v-model="workflowId" :disabled="submitting">
-          <option value="">Channel default workflow</option>
-          <option
-            v-for="wf in workflows"
-            :key="wf.workflow_id || wf.id"
-            :value="wf.workflow_id || wf.id"
-          >
-            {{ wf.name || wf.workflow_id || wf.id }}
-          </option>
-        </select>
-      </label>
-
-      <label class="field">
         <span class="field-label">Execution mode</span>
         <select v-model="executionMode" :disabled="submitting">
           <option
@@ -377,6 +434,20 @@ void defaultJobDraft
         </span>
       </label>
 
+      <label class="field">
+        <span class="field-label">Workflow</span>
+        <select v-model="workflowId" :disabled="submitting">
+          <option value="">Channel default workflow</option>
+          <option
+            v-for="wf in workflows"
+            :key="wf.workflow_id || wf.id"
+            :value="wf.workflow_id || wf.id"
+          >
+            {{ wf.name || wf.workflow_id || wf.id }}
+          </option>
+        </select>
+      </label>
+
       <ul v-if="fieldErrors.length" class="errors" role="alert">
         <li v-for="(msg, idx) in fieldErrors" :key="idx">{{ msg }}</li>
       </ul>
@@ -387,7 +458,13 @@ void defaultJobDraft
           Cancel
         </button>
         <button type="submit" class="primary" :disabled="!canSubmit">
-          {{ submitting ? 'Starting…' : autoStart ? 'Create & Run' : 'Create Job' }}
+          {{
+            submitting
+              ? 'Creating…'
+              : sourceKind === 'studio'
+                ? `Queue ${selectedScriptIds.length} Job${selectedScriptIds.length === 1 ? '' : 's'}`
+                : autoStart ? 'Create & Run' : 'Create Job'
+          }}
         </button>
       </div>
     </form>
@@ -530,6 +607,58 @@ textarea {
   border: 1px solid var(--line);
   border-radius: var(--r-s);
   background: var(--bg-2);
+}
+
+.studio-fieldset {
+  margin: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+}
+
+.script-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.script-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.script-option:has(input:checked) {
+  border-color: var(--accent-line-2);
+  background: var(--accent-wash);
+}
+
+.script-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.script-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.script-copy span {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
 }
 
 .narration-source { margin: 0 0 10px; }

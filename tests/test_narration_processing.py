@@ -51,9 +51,10 @@ class NarrationResolutionTests(unittest.TestCase):
             "source": {"mode": "paste", "pasted_script": "Narration"},
         })
         self.assertTrue(changed)
-        self.assertEqual(migrated["schema_version"], 2)
+        self.assertEqual(migrated["schema_version"], 3)
         self.assertIsNone(migrated["source"]["remove_silence"])
         self.assertIsNone(migrated["source"]["speed"])
+        self.assertIsNone(migrated["source"]["script_id"])
 
     def test_job_snapshot_stamps_active_tts_parameters(self):
         job = Job(

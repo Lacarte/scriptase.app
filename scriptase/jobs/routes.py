@@ -9,6 +9,7 @@ Job creation (Step 0 / step 2.5)
 * ``GET    /api/jobs/defaults`` — source + execution mode catalog
 * ``GET    /api/jobs`` — list (newest first)
 * ``POST   /api/jobs`` — create from Channel + source + workflow + mode
+* ``POST   /api/jobs/batch`` — create one queued Job per Studio script
 * ``GET    /api/jobs/<job_id>`` — full document (snapshot is secret-free)
 * ``GET    /api/jobs/<job_id>/cost`` — cost accounting report (9.3)
 * ``GET    /api/jobs/<job_id>/repair-history`` — full repair sequence (8.4)
@@ -60,6 +61,7 @@ from scriptase.jobs.store import (
     JobTerminal,
     JobValidationError,
     create_job,
+    create_script_batch,
     delete_job,
     get_job,
     job_summary,
@@ -281,6 +283,34 @@ def jobs_create():
     response = jsonify({"job": _job_public(document)})
     response.status_code = 201
     response.headers["Location"] = f"/api/jobs/{document.id}"
+    return response
+
+
+@jobs_bp.route("/api/jobs/batch", methods=["POST"])
+def jobs_batch_create():
+    """Create one queued Job for every selected Script Studio document."""
+    body, error = _json_body()
+    if error:
+        return error
+    batch = body.get("batch") if isinstance(body.get("batch"), dict) else body
+    channel_id = str(batch.get("channel_id") or "").strip()
+    if not channel_id:
+        return _error("BAD_REQUEST", "channel_id is required", 400)
+    try:
+        documents = create_script_batch(
+            channel_id=channel_id,
+            script_ids=batch.get("script_ids"),
+            execution_mode=batch.get("execution_mode") or "manual",
+            workflow_id=batch.get("workflow_id"),
+            workflow_version=batch.get("workflow_version"),
+        )
+    except (JobValidationError, ValueError) as exc:
+        return _store_error(exc)
+    response = jsonify({
+        "jobs": [_job_public(document) for document in documents],
+        "total": len(documents),
+    })
+    response.status_code = 201
     return response
 
 

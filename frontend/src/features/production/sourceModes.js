@@ -148,6 +148,7 @@ export function defaultJobDraft() {
       topic: '',
       idea: '',
       pasted_script: '',
+      script_id: null,
       references: [],
       remove_silence: null,
       speed: null,

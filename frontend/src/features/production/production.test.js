@@ -60,6 +60,7 @@ import StepDetailPanel from './components/StepDetailPanel.vue'
 import JobCreatePanel from './components/JobCreatePanel.vue'
 import * as api from './api.js'
 import * as channelsApi from '@/features/channels/api.js'
+import * as scriptsApi from '@/features/script/api.js'
 import { useWorkflowStore } from '@/features/workflow/stores/workflow.js'
 import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
 import { api as workflowApi } from '@/shared/api/client.js'
@@ -79,6 +80,7 @@ vi.mock('./api.js', () => ({
   getJobCost: vi.fn(),
   getJobRepairHistory: vi.fn(),
   createJob: vi.fn(),
+  createJobBatch: vi.fn(),
   startJob: vi.fn(),
   testJobNode: vi.fn(),
   getNodeTypes: vi.fn(),
@@ -87,6 +89,10 @@ vi.mock('./api.js', () => ({
 
 vi.mock('@/features/channels/api.js', () => ({
   listChannels: vi.fn(),
+}))
+
+vi.mock('@/features/script/api.js', () => ({
+  listScripts: vi.fn(),
 }))
 
 class FakeEventSource {
@@ -1172,6 +1178,7 @@ describe('JobCreatePanel (step 2.5)', () => {
       execution_id: 'ex_PASTE1',
       status: 'running',
     })
+    scriptsApi.listScripts.mockResolvedValue({ scripts: [], total: 0 })
   })
 
   it('creates a paste Job without requiring a script provider', async () => {
@@ -1246,6 +1253,44 @@ describe('JobCreatePanel (step 2.5)', () => {
         speed: 1.25,
       }),
     }))
+  })
+
+  it('queues one Job per selected Studio script in a single batch', async () => {
+    const scripts = Array.from({ length: 5 }, (_, index) => ({
+      id: `scr_BATCH${index}`,
+      title: `Episode ${index + 1}`,
+      channel_id: 'ch_AAAAAA',
+      word_count: 100 + index,
+      narration: { state: 'none' },
+    }))
+    scriptsApi.listScripts.mockResolvedValue({ scripts, total: 5 })
+    api.createJobBatch.mockResolvedValue({
+      jobs: scripts.map((script, index) => ({
+        id: `job_BATCH${index}`,
+        channel_id: 'ch_AAAAAA',
+        status: 'queued',
+        source: { mode: 'paste', script_id: script.id },
+      })),
+      total: 5,
+    })
+
+    const wrapper = mount(JobCreatePanel, { props: { autoStart: true } })
+    await flushPromises()
+    await wrapper.get('[data-testid="script-source-kind"]').setValue('studio')
+    await flushPromises()
+    for (const checkbox of wrapper.findAll('[data-testid="studio-script-list"] input[type="checkbox"]')) {
+      await checkbox.setValue(true)
+    }
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(api.createJobBatch).toHaveBeenCalledWith(expect.objectContaining({
+      channel_id: 'ch_AAAAAA',
+      script_ids: scripts.map((script) => script.id),
+      execution_mode: 'manual',
+    }))
+    expect(api.startJob).not.toHaveBeenCalled()
+    expect(wrapper.emitted('created')?.[0]?.[0]?.jobs).toHaveLength(5)
   })
 })
 

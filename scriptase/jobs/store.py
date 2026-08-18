@@ -178,7 +178,42 @@ def create_job(draft: dict[str, Any]) -> Job:
     require final text; Topic / Idea require their seed field. Provider
     credentials are never required at create time.
     """
-    parsed = _validate_draft(draft)
+    # A managed Studio reference is a complete source by itself. Resolve and
+    # freeze its current text before draft validation so both the single-Job
+    # endpoint and the batch endpoint accept the same source contract.
+    prepared_draft = deepcopy(draft)
+    raw_source = prepared_draft.get("source")
+    script_id = (
+        str(raw_source.get("script_id") or "").strip()
+        if isinstance(raw_source, dict)
+        else ""
+    )
+    if script_id:
+        from scriptase.scripts.store import ScriptNotFound, ScriptValidationError, get_script
+
+        try:
+            studio_script = get_script(script_id)
+        except (ScriptNotFound, ScriptValidationError, ValueError) as exc:
+            raise JobValidationError([{
+                "loc": ["source", "script_id"],
+                "msg": f"script not found: {script_id}",
+                "type": "value_error",
+            }]) from exc
+        requested_channel = str(prepared_draft.get("channel_id") or "").strip()
+        if studio_script.channel_id != requested_channel:
+            raise JobValidationError([{
+                "loc": ["source", "script_id"],
+                "msg": f"script {script_id} does not belong to Channel {requested_channel}",
+                "type": "value_error",
+            }])
+        source = dict(raw_source)
+        source["mode"] = "paste"
+        source["pasted_script"] = studio_script.body
+        source.setdefault("remove_silence", studio_script.narration.remove_silence)
+        source.setdefault("speed", studio_script.narration.speed)
+        prepared_draft["source"] = source
+
+    parsed = _validate_draft(prepared_draft)
 
     source_payload = (
         parsed.source.model_dump(mode="json")
@@ -226,6 +261,97 @@ def create_job(draft: dict[str, Any]) -> Job:
         completed_at=None,
     )
     return _write(document)
+
+
+def create_script_batch(
+    *,
+    channel_id: str,
+    script_ids: list[str],
+    execution_mode: str = "manual",
+    workflow_id: str | None = None,
+    workflow_version: int | None = None,
+) -> list[Job]:
+    """Create one queued Job per selected Studio script.
+
+    All script references and derived drafts are validated before the first
+    write. Each member then goes through ``create_job`` independently, which
+    freezes a fresh Channel snapshot. Starting remains a separate operation so
+    the complete batch exists before the serial queue begins draining.
+    """
+    from scriptase.scripts.models import SCRIPT_ID_RE
+    from scriptase.scripts.store import ScriptNotFound, ScriptValidationError, get_script
+
+    if not isinstance(script_ids, list):
+        raise JobValidationError([{
+            "loc": ["script_ids"], "msg": "script_ids must be a list", "type": "type_error",
+        }])
+    if not 1 <= len(script_ids) <= 100:
+        raise JobValidationError([{
+            "loc": ["script_ids"], "msg": "select between 1 and 100 scripts", "type": "value_error",
+        }])
+
+    normalized = [str(script_id or "").strip() for script_id in script_ids]
+    if any(not SCRIPT_ID_RE.fullmatch(script_id) for script_id in normalized):
+        raise JobValidationError([{
+            "loc": ["script_ids"],
+            "msg": "every script_id must match scr_[A-Z0-9]{6}",
+            "type": "value_error",
+        }])
+    if len(set(normalized)) != len(normalized):
+        raise JobValidationError([{
+            "loc": ["script_ids"], "msg": "script_ids must not contain duplicates", "type": "value_error",
+        }])
+
+    scripts = []
+    problems: list[dict[str, Any]] = []
+    for index, script_id in enumerate(normalized):
+        try:
+            script = get_script(script_id)
+        except (ScriptNotFound, ScriptValidationError, ValueError):
+            problems.append({
+                "loc": ["script_ids", index],
+                "msg": f"script not found: {script_id}",
+                "type": "value_error",
+            })
+            continue
+        if script.channel_id != channel_id:
+            problems.append({
+                "loc": ["script_ids", index],
+                "msg": f"script {script_id} does not belong to Channel {channel_id}",
+                "type": "value_error",
+            })
+        scripts.append(script)
+    if problems:
+        raise JobValidationError(problems)
+
+    drafts: list[dict[str, Any]] = []
+    for index, script in enumerate(scripts):
+        draft: dict[str, Any] = {
+            "channel_id": channel_id,
+            "execution_mode": execution_mode,
+            "source": {
+                "mode": "paste",
+                "pasted_script": script.body,
+                "script_id": script.id,
+                "references": [],
+                "remove_silence": script.narration.remove_silence,
+                "speed": script.narration.speed,
+            },
+        }
+        if workflow_id:
+            draft["workflow_id"] = workflow_id
+        if workflow_version is not None:
+            draft["workflow_version"] = workflow_version
+        parsed = _validate_draft(draft)
+        for problem in validate_job_source(parsed.source.model_dump(mode="json")):
+            item = dict(problem)
+            item["loc"] = ["script_ids", index, *item.get("loc", [])]
+            problems.append(item)
+        drafts.append(draft)
+    if problems:
+        raise JobValidationError(problems)
+
+    return [create_job(draft) for draft in drafts]
 
 
 def get_job(job_id: str) -> Job:

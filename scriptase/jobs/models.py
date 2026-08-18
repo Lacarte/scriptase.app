@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 JOB_ID_RE = re.compile(r"^job_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py).
-JOB_SCHEMA_VERSION = 2
+JOB_SCHEMA_VERSION = 3
 
 # contracts.md §6 status vocabulary.
 # ``paused`` is not a member — use ``awaiting_approval`` + ``status_reason``.
@@ -100,6 +100,11 @@ class JobSource(BaseModel):
     topic: str = ""
     idea: str = ""
     pasted_script: str = ""
+    # Managed Script Studio identity.  The text is copied into
+    # ``pasted_script`` when the Job is created, so a later Studio edit cannot
+    # mutate an already-queued run.  The id remains available for provenance
+    # and for narration reuse in step 4.3.
+    script_id: str | None = None
     references: list[str] = Field(default_factory=list)
     # Null means inherited from the Channel. These fields become the Script
     # model's overrides in phase 3 without changing the resolution contract.
@@ -120,6 +125,17 @@ class JobSource(BaseModel):
     @classmethod
     def _strip_fields(cls, value: Any) -> str:
         return _strip_str(value)
+
+    @field_validator("script_id", mode="before")
+    @classmethod
+    def _script_id(cls, value: Any) -> str | None:
+        text = _optional_str(value)
+        if text is None:
+            return None
+        # Avoid importing Script Studio models into the core Job contract.
+        if not re.fullmatch(r"scr_[A-Z0-9]{6}", text):
+            raise ValueError("script_id must match scr_[A-Z0-9]{6}")
+        return text
 
     @field_validator("references", mode="before")
     @classmethod
