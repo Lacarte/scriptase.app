@@ -1384,7 +1384,16 @@ describe('ProductionPage', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
     // Completed rows carry the two "open beside Production" destinations
     // inline; everything else lives in the expanded detail.
-    const libraryButton = wrapper.findAll('.job-quick button').find(button => button.text() === 'Library')
+    const quickButtons = wrapper.findAll('.job-quick .quick-btn')
+    expect(quickButtons).toHaveLength(2)
+    // Icon plus label: below 1240px the label collapses and the icon is the
+    // whole button, so each one needs its own glyph and a title to name it.
+    quickButtons.forEach((button) => {
+      expect(button.find('svg').exists()).toBe(true)
+      expect(button.find('span').exists()).toBe(true)
+      expect(button.attributes('title')).toBeTruthy()
+    })
+    const libraryButton = quickButtons.find(button => button.text() === 'Library')
     await libraryButton.trigger('click')
     expect(open).toHaveBeenCalledWith(
       '/library?project=job_NEW001',

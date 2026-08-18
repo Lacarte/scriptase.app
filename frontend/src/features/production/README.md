@@ -92,7 +92,15 @@ are deliberately unstyled rather than faked: `.job-check` / `.sel-checked`
 menu) and `.joblist` (its fixed-height scroller — `ArchiveCalendar` owns the
 list container here). The `.st-preparing`, `.st-stopping`, `.st-stopped` and
 `.st-draft` spines are absent for the same reason: `JobStatus` has no such
-members. The channel avatar arrives with the `ch-*` family in step 6.4.
+members. `.job.kb-focus` and `.job:focus-visible` ring a row the prototype's
+arrow-key navigation has landed on; the row is not a tab stop here — the
+chevron is the control and takes the shared `:focus-visible`. The channel
+avatar arrives with the `ch-*` family in step 6.4.
+
+The quick actions on a completed row are icon plus label, and the label
+collapses below 1240px so the row keeps its width, returning at 820px where
+`.job-quick` has a line to itself. The `title` carries the destination at
+every width, since below 1240px the icon is the whole button.
 
 ## Layout
 

@@ -1071,10 +1071,14 @@ onMounted(async () => {
               </div>
               <div class="job-elapsed mono">{{ jobElapsed(item) }}</div>
               <div v-if="['completed', 'succeeded'].includes(item.status)" class="job-quick">
-                <button type="button" class="quick-btn" @click.stop="openJobInEditor(item)">
+                <!-- The icon is the button below 1240px, where the label
+                     collapses, so the title carries the name at every width. -->
+                <button type="button" class="quick-btn" title="Open in Editor" @click.stop="openJobInEditor(item)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
                   <span>Editor</span>
                 </button>
-                <button type="button" class="quick-btn" @click.stop="openJobInLibrary(item)">
+                <button type="button" class="quick-btn" title="Open in Library" @click.stop="openJobInLibrary(item)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                   <span>Library</span>
                 </button>
               </div>
@@ -1490,6 +1494,11 @@ onMounted(async () => {
    list container here is ArchiveCalendar's). The `.st-preparing`,
    `.st-stopping`, `.st-stopped` and `.st-draft` spines are likewise
    absent: JobStatus has no such members.
+
+   `.job.kb-focus` and `.job:focus-visible` go with them. They ring a
+   row the prototype's arrow-key navigation has landed on; here the
+   row is not a tab stop at all — the chevron is the control, and it
+   takes the shared `:focus-visible` treatment.
    ================================================================ */
 .job {
   position: relative;
@@ -1542,6 +1551,9 @@ onMounted(async () => {
 
 .job-id { flex: none; width: 92px; font-family: var(--mono); font-size: 11px; letter-spacing: .2px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* The prototype's `display: flex; align-items: center; gap: 9px` here sits a
+   `.ch-avatar` beside this text column. With no avatar until step 6.4, a flex
+   row would put `.nm` and `.src` side by side, so it lands with the avatar. */
 .job-ch { flex: none; width: 150px; min-width: 0; }
 .job-ch .nm { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .job-ch .src { margin-top: 1px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1587,6 +1599,15 @@ onMounted(async () => {
 }
 
 .quick-btn:hover { border-color: var(--accent-line-2); background: var(--accent-dim); color: var(--text); }
+.quick-btn svg { flex: none; }
+
+/* Narrow enough that the row needs the width back: the label goes and the
+   icon stands alone. It comes back at 820px, where the row has reflowed
+   and .job-quick owns a line of its own. */
+@media (max-width: 1240px) {
+  .quick-btn span { display: none; }
+  .quick-btn { padding: 6px; }
+}
 
 .job-expand-btn {
   flex: none;
@@ -1745,6 +1766,7 @@ onMounted(async () => {
   .job-stage { order: 3; flex: 1 1 100%; width: auto; }
   .job-quick { order: 3; flex: 1 1 100%; }
   .job-quick .quick-btn { flex: 1; justify-content: center; }
+  .job-quick .quick-btn span { display: inline; }
 }
 
 @media (max-width: 720px) {
