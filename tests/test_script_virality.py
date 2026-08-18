@@ -1,0 +1,75 @@
+"""Script Studio virality endpoint and cache (implementation plan 3.4)."""
+
+from __future__ import annotations
+
+from app import create_app
+from scriptase.scripts import store as script_store
+
+
+def _client(tmp_path, monkeypatch):
+    monkeypatch.setattr(script_store, "_scripts_dir", str(tmp_path / "scripts"))
+    monkeypatch.setattr(script_store, "_trash_dir", str(tmp_path / "trash"))
+    app = create_app(
+        discover_providers=False,
+        start_triggers=False,
+        reconcile=False,
+        seed_default_workflow=False,
+    )
+    app.config["TESTING"] = True
+    return app.test_client()
+
+
+def _create(client):
+    response = client.post("/api/scripts", json={
+        "title": "A scored script",
+        "body": "Why does silence feel so loud? But here's the thing. Remember this pause.",
+        "channel_id": "ch_ABC123",
+        "origin": "manual",
+    })
+    assert response.status_code == 201
+    return response.get_json()["script"]
+
+
+def test_score_is_deterministic_cached_and_requires_no_provider(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    script = _create(client)
+    endpoint = f"/api/scripts/{script['id']}/virality"
+
+    first = client.post(endpoint, json={"text": script["body"]})
+    second = client.post(endpoint, json={"text": script["body"]})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.get_json()["cached"] is False
+    assert second.get_json()["cached"] is True
+    assert first.get_json()["virality"] == second.get_json()["virality"]
+    assert first.get_json()["virality"]["scorer"] == "deterministic"
+    assert len(first.get_json()["virality"]["dimensions"]) == 6
+
+
+def test_cached_score_round_trips_with_matching_script_text(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    script = _create(client)
+    endpoint = f"/api/scripts/{script['id']}/virality"
+    score = client.post(endpoint, json={"text": script["body"]}).get_json()["virality"]
+
+    opened = client.get(f"/api/scripts/{script['id']}")
+    assert opened.get_json()["virality"] == score
+
+    changed = client.post(endpoint, json={"text": "An unsaved revision."})
+    assert changed.status_code == 200
+    assert client.get(f"/api/scripts/{script['id']}").get_json()["virality"] is None
+
+
+def test_scoring_is_advisory_and_does_not_change_script_version(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    script = _create(client)
+    response = client.post(
+        f"/api/scripts/{script['id']}/virality",
+        json={"text": "Unsaved text is allowed here."},
+    )
+
+    assert response.status_code == 200
+    reopened = client.get(f"/api/scripts/{script['id']}").get_json()["script"]
+    assert reopened["version"] == script["version"]
+    assert reopened["body"] == script["body"]

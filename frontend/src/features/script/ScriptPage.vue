@@ -12,9 +12,11 @@ import {
   listNarrationVoices,
   listScripts,
   narrationAudioUrl,
+  scoreScript,
   updateScript,
 } from './api.js'
 import { applyTemplateOutline } from './generation.js'
+import ViralityPanel from './ViralityPanel.vue'
 
 defineOptions({ name: 'ScriptPage' })
 
@@ -30,6 +32,9 @@ const saving = ref(false)
 const creating = ref(false)
 const generating = ref(false)
 const generatingNarration = ref(false)
+const scoringVirality = ref(false)
+const virality = ref(null)
+const viralityText = ref('')
 const voices = ref([])
 const error = ref('')
 const dirty = ref(false)
@@ -71,6 +76,7 @@ const audioUrl = computed(() => {
   const artifactId = selected.value?.narration?.audio_artifact_id
   return artifactId ? narrationAudioUrl(selected.value.id, artifactId) : ''
 })
+const viralityStale = computed(() => Boolean(virality.value) && viralityText.value !== form.body)
 
 function wordCount(value) {
   const text = String(value || '').trim()
@@ -140,6 +146,8 @@ async function openScript(summary) {
   try {
     const payload = await getScript(summary.id)
     selected.value = payload.script
+    virality.value = payload.virality || null
+    viralityText.value = payload.virality ? payload.script.body : ''
     const channel = await loadChannelDetail(payload.script.channel_id)
     form.title = payload.script.title
     form.body = payload.script.body
@@ -253,6 +261,27 @@ async function makeNarration() {
   }
 }
 
+async function checkVirality() {
+  if (!selected.value || scoringVirality.value) return
+  if (!form.body.trim()) {
+    toast.warning('Write a script before checking virality')
+    return
+  }
+  scoringVirality.value = true
+  error.value = ''
+  try {
+    const text = form.body
+    const payload = await scoreScript(selected.value.id, text)
+    virality.value = payload.virality
+    viralityText.value = text
+    toast.success(`Virality ${payload.virality.score} · ${payload.virality.band}`)
+  } catch (exc) {
+    error.value = exc.message || 'Could not score this script'
+  } finally {
+    scoringVirality.value = false
+  }
+}
+
 async function startCreate() {
   if (dirty.value) {
     toast.warning('Save the current script before creating another one')
@@ -335,6 +364,8 @@ async function createNew() {
     })
     creating.value = false
     selected.value = payload.script
+    virality.value = null
+    viralityText.value = ''
     form.title = payload.script.title
     form.body = payload.script.body
     dirty.value = false
@@ -511,6 +542,12 @@ onBeforeUnmount(() => {
           <div class="editor-column">
             <label for="script-body" class="section-label">Script</label>
             <textarea id="script-body" v-model="form.body" class="script-area" :class="{ dirty }" spellcheck="true" @input="markDirty" />
+            <ViralityPanel
+              :score="virality"
+              :analyzing="scoringVirality"
+              :stale="viralityStale"
+              @analyze="checkVirality"
+            />
           </div>
           <aside class="narration-preview panel" aria-label="Narration controls">
             <div class="narration-head"><span>◖</span><strong>Narration</strong></div>

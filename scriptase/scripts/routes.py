@@ -23,6 +23,7 @@ from scriptase.scripts.store import (
     script_summary,
     update_script,
 )
+from scriptase.scripts.virality import cached_script_score, score_script_text
 
 
 MAX_SCRIPT_BODY_BYTES = 2 * 1024 * 1024
@@ -103,6 +104,7 @@ def _detail(document):
     return {
         "script": payload,
         "narration_audio": audio.to_document() if audio is not None else None,
+        "virality": cached_script_score(document.id, document.body),
     }
 
 
@@ -217,6 +219,25 @@ def scripts_generate_narration(script_id: str):
             getattr(exc, "message", None) or "Narration generation failed",
             502,
         )
+
+
+@scripts_bp.post("/api/scripts/<script_id>/virality")
+def scripts_score_virality(script_id: str):
+    if not SCRIPT_ID_RE.fullmatch(script_id or ""):
+        return _error("BAD_REQUEST", "script_id must match scr_[A-Z0-9]{6}", 400)
+    body, error = _json_body()
+    if error:
+        return error
+    try:
+        document = get_script(script_id)
+        text = body.get("text", document.body)
+        result, cached = score_script_text(script_id, text)
+        return jsonify({
+            "virality": result.model_dump(mode="json"),
+            "cached": cached,
+        })
+    except (ScriptNotFound, ScriptValidationError, ValueError) as exc:
+        return _store_error(exc)
 
 
 @scripts_bp.get("/api/scripts/<script_id>/narration/audio")

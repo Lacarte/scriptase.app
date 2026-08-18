@@ -15,6 +15,7 @@ vi.mock('./api.js', () => ({
   deleteScript: vi.fn(),
   generateScript: vi.fn(),
   generateNarration: vi.fn(),
+  scoreScript: vi.fn(),
   listNarrationVoices: vi.fn(),
   narrationAudioUrl: vi.fn((id, artifactId) => `/api/scripts/${id}/narration/audio?artifact_id=${artifactId}`),
 }))
@@ -233,6 +234,48 @@ describe('Script Studio step 3.3 narration', () => {
     expect(wrapper.get('audio').attributes('src')).toContain('art_AAAAAA')
     expect(wrapper.get('[aria-label="Remove silence override"]').classes()).not.toContain('inherited')
     expect(wrapper.text()).toContain('Regenerate narration')
+  })
+})
+
+describe('Script Studio step 3.4 virality panel', () => {
+  const VIRALITY = {
+    score: 68,
+    band: 'solid',
+    scorer: 'deterministic',
+    scorer_version: 1,
+    dimensions: [
+      { id: 'hook', score: 0.8, reasons: [{ code: 'hook_present', impact: 'positive' }] },
+      { id: 'open_loops', score: 0.25, reasons: [{ code: 'open_loops_sparse', impact: 'negative' }] },
+    ],
+  }
+
+  it('runs on demand and renders the overall grade and dimension detail', async () => {
+    scriptApi.scoreScript.mockResolvedValue({ virality: VIRALITY, cached: false })
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('[data-testid="virality-panel"]').text()).toContain('Virality score not run')
+    await wrapper.get('[data-testid="virality-panel"] button').trigger('click')
+    await flushPromises()
+
+    expect(scriptApi.scoreScript).toHaveBeenCalledWith(DOCUMENT.id, DOCUMENT.body)
+    expect(wrapper.get('[data-testid="virality-panel"]').text()).toContain('68')
+    expect(wrapper.get('[data-testid="virality-panel"]').text()).toContain('solid')
+    expect(wrapper.get('[data-testid="virality-dimensions"]').text()).toContain('Hook')
+    expect(wrapper.get('[data-testid="virality-dimensions"]').text()).toContain('Open loops')
+    expect(wrapper.get('[data-testid="virality-dimensions"]').text()).toContain('Open loops sparse')
+  })
+
+  it('scores unsaved text without disabling Save', async () => {
+    scriptApi.scoreScript.mockResolvedValue({ virality: VIRALITY, cached: false })
+    const wrapper = await mountPage()
+    await wrapper.get('#script-body').setValue('Unsaved text can still be analyzed.')
+
+    expect(wrapper.get('article .document-foot .primary').attributes('disabled')).toBeUndefined()
+    await wrapper.get('[data-testid="virality-panel"] button').trigger('click')
+    await flushPromises()
+
+    expect(scriptApi.scoreScript).toHaveBeenCalledWith(DOCUMENT.id, 'Unsaved text can still be analyzed.')
+    expect(scriptApi.updateScript).not.toHaveBeenCalled()
   })
 })
 

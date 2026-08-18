@@ -224,6 +224,9 @@ def delete_script(script_id: str, *, expected_version: int | None = None) -> Non
             shutil.move(path + ".bak", destination + ".bak")
         if os.path.isfile(path):
             shutil.move(path, destination)
+        score_path = safe_join(_scripts_dir, f"{script_id}.virality.json")
+        if os.path.isfile(score_path):
+            shutil.move(score_path, destination + ".virality")
 
 
 def resolve_narration_audio(script: StudioScript | str) -> Artifact | None:

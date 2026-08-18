@@ -40,6 +40,10 @@ export function generateNarration(id, options) {
   return apiPost(`/scripts/${id}/narration`, options)
 }
 
+export function scoreScript(id, text) {
+  return apiPost(`/scripts/${id}/virality`, { text })
+}
+
 export function listNarrationVoices(provider) {
   return apiGet('/tts/voices', { provider })
 }
