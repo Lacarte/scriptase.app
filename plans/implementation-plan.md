@@ -351,8 +351,12 @@ and the library **filter chips are missing entirely** — the prototype's
 `ALL · n` / `TTS READY · n` / `SCRIPT ONLY · n` (`s1-fchip`) have no counterpart,
 so the library cannot be filtered by narration state. That is a functional gap,
 not a styling one: build the control, do not just style a missing element. The
-narration panel, virality checker and metadata row do exist in code and appear
-once a script is selected — those need porting, not building.
+narration panel and virality panel do exist in code but are unreachable: they
+render only when a script is selected, and the library is empty. Two further
+gaps confirmed by reading the template rather than grepping for keywords — the
+header-level **Check Virality** button does not exist anywhere in `frontend/src`,
+and the virality action is labelled **Analyze script** and shown only in the
+not-yet-run state. Port the labels and placement, not just the styling.
 
 **Done when:** the studio's three columns, filter chips, template chips, narration panel and virality gauge match the prototype, filtering by narration state works, and the channel template preview still reads from the selected Channel.
 
@@ -398,6 +402,30 @@ a judgement call into a check.
 
 ---
 
+## Phase 7 — Functional gaps surfaced by the fidelity pass
+
+Phase 6 is presentational by definition. Where comparing against the prototype
+reveals a control that was never built rather than built differently, it belongs
+here — styling an absent element would hide the problem.
+
+### 7.1 Restore a script provider so Auto and Idea work
+
+Step 5.3 set the `script` domain's catalogue to the empty set, because the
+prototype's Providers page lists one provider per capability and names none for
+script. The consequence was not thought through: **two of the studio's three
+create modes are dead.** Auto and Topic → Idea both need a script provider, so
+only Paste functions, and the studio cannot originate a script at all — it can
+only ingest text written elsewhere.
+
+Decide where script generation belongs and wire it: either the n8n instance that
+already serves Scene Director also serves `script`, or the domain gets its own
+catalogue entry. Whichever is chosen, Paste and Manual must keep working with no
+provider configured, per the reference document's §6.
+
+**Done when:** Auto and Topic → Idea both produce a script end to end, Paste still needs no provider, and the Providers page shows whatever now serves the script capability.
+
+---
+
 ## Step count and sequencing
 
 | Phase | Steps | Notes |
@@ -409,8 +437,9 @@ a judgement call into a check.
 | 4 — Batch orchestrator | 4.1–4.5 (5) | 4.2 and 4.3 are engine changes. 4.3 needs 3.1. |
 | 5 — Library and Providers | 5.1–5.3 (3) | 5.1 reuses 4.4's calendar. 5.3 retires non-prototype providers. |
 | **6 — Prototype fidelity pass** | 6.1–6.8 (8) | **6.1 first** — every later step composes the shared primitives. |
+| **7 — Functional gaps** | 7.1 (1) | Surfaced by Phase 6; 7.1 unblocks two of the studio's three create modes. |
 
-**32 steps across 7 phases.** Phases 0–5 are delivered; Phase 6 is the fidelity pass.
+**33 steps across 8 phases.** Phases 0–5 are delivered; Phase 6 is the fidelity pass and Phase 7 collects the functional gaps it surfaces.
 
 Critical path: **0.1 → 1.1 → 1.2 → 1.3 → 1.4 → 1.5**, then
 **2.1 → 2.3 → 3.1 → 3.2 → 3.3 → 4.1 → 4.2 → 4.3**. Phase 5 is independent of that chain

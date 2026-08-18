@@ -331,7 +331,11 @@ def run_logged(cmd, log_file: Path, cwd=ROOT, timeout=AGENT_TIMEOUT_S) -> Logged
             output_lines += 1
             last_output = time.monotonic()
             lowered = line.lower()
-            if not blocker and any(marker in lowered for marker in AGENT_BLOCKERS):
+            # Capture both kinds of fatal line: a usage limit means switch agent,
+            # a transient upstream fault means retry the same one. They are told
+            # apart downstream by which list the captured text matches.
+            if not blocker and any(marker in lowered
+                                   for marker in AGENT_BLOCKERS + AGENT_TRANSIENT):
                 blocker = line.strip()
             sys.stdout.write(line)
             sys.stdout.flush()
@@ -361,17 +365,63 @@ def agent_run_ok(result: LoggedResult, state: dict, scope: str, stage: str) -> b
 
 
 def agent_limit_reached(result: LoggedResult) -> bool:
-    """Return whether an invocation failed because its account was limited."""
-    return bool(result.blocker and (result.returncode != 0 or result.output_lines < 80))
+    """Whether an invocation failed because its account was limited.
+
+    Must match the limit list specifically: run_logged also captures transient
+    upstream faults into the same field, and those call for a retry of the same
+    agent rather than a permanent switch to the fallback.
+    """
+    if not result.blocker:
+        return False
+    if not any(marker in result.blocker.lower() for marker in AGENT_BLOCKERS):
+        return False
+    return result.returncode != 0 or result.output_lines < 80
+
+
+AGENT_TRANSIENT = (
+    "overloaded_error",
+    "api error: 529",
+    "api error: 503",
+    "api error: 500",
+    "internal server error",
+    "econnreset",
+    "socket hang up",
+    "service unavailable",
+)
+
+TRANSIENT_RETRIES = 3
+
+
+def agent_hit_transient(result: LoggedResult) -> bool:
+    """Whether an invocation died from a passing upstream fault.
+
+    Distinct from a usage limit: a limit means switch agent, a transient means
+    wait and try the same one again. `API Error: 529 Overloaded` ended a
+    seven-step run three minutes in, which no amount of falling back would have
+    helped — the other vendor was fine, and so was this one a minute later.
+    """
+    if result.returncode == 0:
+        return False
+    blob = (result.blocker or "").lower()
+    return any(marker in blob for marker in AGENT_TRANSIENT)
 
 
 def run_agent(agent: str, prompt: str, log_file: Path, *, fallback: str = "none",
               fallback_state: dict | None = None) -> LoggedResult:
-    """Run a coding agent and make a limit-triggered fallback sticky for the run."""
+    """Run a coding agent, retrying transient faults and falling back on limits."""
     if fallback_state and fallback_state.get("active") and fallback != "none":
         say(f"coding fallback is active — launching {fallback} instead of {agent}")
         agent = fallback
     result = run_logged(agent_cmd(agent, prompt), log_file)
+
+    for attempt in range(1, TRANSIENT_RETRIES + 1):
+        if not agent_hit_transient(result):
+            break
+        delay = 20 * attempt
+        say(f"{agent} hit a transient upstream fault ({result.blocker}) — "
+            f"retrying in {delay}s ({attempt}/{TRANSIENT_RETRIES})", icon="!")
+        time.sleep(delay)
+        result = run_logged(agent_cmd(agent, prompt), log_file)
     if fallback != "none" and fallback != agent and agent_limit_reached(result):
         say(f"{agent} reached its credit/usage limit — switching coding work to {fallback} "
             "for the rest of this run",
