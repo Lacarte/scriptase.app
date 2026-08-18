@@ -137,6 +137,10 @@ class JobSnapshotRedactionTests(JobStoreTestBase):
         self.assertEqual(
             snapshot["fallback_policies"]["image"]["primary"], "inst_image_1"
         )
+        self.assertEqual(
+            snapshot["script_template"]["sections"],
+            ["Hook", "Turn", "Why", "Reframe", "Landing"],
+        )
         self.assertIn("snapshotted_at", snapshot)
         self.assertTrue(snapshot["snapshotted_at"])
 

@@ -88,6 +88,11 @@ class ChannelCrudTests(ChannelStoreTestBase):
         self.assertEqual(created.visual_direction.pattern[0].narrative_role, "hook")
         self.assertEqual(created.visual_direction.pattern[0].shot, "extreme close-up")
         self.assertEqual(created.provider_defaults.script, "inst_script_1")
+        self.assertIn("immediate hook", created.script_template.brief)
+        self.assertEqual(
+            created.script_template.sections,
+            ["Hook", "Turn", "Why", "Reframe", "Landing"],
+        )
         self.assertTrue(created.created_at)
         self.assertEqual(created.created_at, created.updated_at)
 
@@ -105,6 +110,10 @@ class ChannelCrudTests(ChannelStoreTestBase):
         # Update bumps content version and refreshes updated_at.
         updated_draft = self._draft(name="Philosophy Nightly")
         updated_draft["content"]["tone"] = "dramatic"
+        updated_draft["script_template"] = {
+            "brief": "Start with tension and resolve it with one useful insight.",
+            "sections": ["Cold Open", "Tension", "Insight", "Close"],
+        }
         updated = update_channel(
             created.id, updated_draft, expected_version=created.version
         )
@@ -112,6 +121,7 @@ class ChannelCrudTests(ChannelStoreTestBase):
         self.assertEqual(updated.version, 2)
         self.assertEqual(updated.name, "Philosophy Nightly")
         self.assertEqual(updated.content.tone, "dramatic")
+        self.assertEqual(updated.script_template.sections[1], "Tension")
         self.assertEqual(updated.created_at, created.created_at)
         self.assertGreaterEqual(updated.updated_at, created.updated_at)
 
@@ -221,6 +231,28 @@ class PatternValidationTests(unittest.TestCase):
 
 
 class ChannelMigrationTests(ChannelStoreTestBase):
+    def test_v1_channel_migrates_to_default_script_template(self):
+        created = create_channel(self._draft())
+        path = os.path.join(channel_store._channels_dir, f"{created.id}.json")
+        with open(path, encoding="utf-8") as handle:
+            raw = json.load(handle)
+        raw["schema_version"] = 1
+        raw.pop("script_template")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(raw, handle)
+
+        loaded = get_channel(created.id)
+
+        self.assertEqual(loaded.schema_version, 2)
+        self.assertEqual(
+            loaded.script_template.sections,
+            ["Hook", "Turn", "Why", "Reframe", "Landing"],
+        )
+        self.assertEqual(loaded.version, 1)
+        with open(path, encoding="utf-8") as handle:
+            persisted = json.load(handle)
+        self.assertEqual(persisted["script_template"], loaded.script_template.model_dump())
+
     def test_missing_schema_version_is_stamped_on_load(self):
         created = create_channel(self._draft())
         path = os.path.join(channel_store._channels_dir, f"{created.id}.json")

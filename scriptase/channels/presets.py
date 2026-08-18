@@ -1565,6 +1565,15 @@ def preset_to_channel_draft(preset_id: str, preset: dict | None = None) -> dict[
             "cta_style": "",
             "duration_target": duration_target,
         },
+        "script_template": {
+            "brief": (
+                f"Write a concise {tone or 'engaging'} script for {name}. "
+                "Open with an immediate hook, build through a surprising turn, "
+                "explain why it matters, reframe the idea, and finish with a "
+                "memorable landing."
+            ),
+            "sections": ["Hook", "Turn", "Why", "Reframe", "Landing"],
+        },
         "visual_direction": {
             "style": style,
             "pattern": deepcopy(_DEFAULT_PATTERN),

@@ -121,6 +121,11 @@ class NichePresetMigrationTests(unittest.TestCase):
                 self.assertEqual(
                     document.visual_direction.style, source["visual_style"]
                 )
+            self.assertTrue(document.script_template.brief)
+            self.assertEqual(
+                document.script_template.sections,
+                ["Hook", "Turn", "Why", "Reframe", "Landing"],
+            )
 
 
 class ChannelCrudApiTests(ChannelApiTestBase):
@@ -134,6 +139,10 @@ class ChannelCrudApiTests(ChannelApiTestBase):
                         "niche": "stoicism",
                         "tone": "educational",
                         "duration_target": 60,
+                    },
+                    "script_template": {
+                        "brief": "Start with a paradox and resolve it practically.",
+                        "sections": ["Paradox", "Example", "Lesson"],
                     },
                     "visual_direction": {
                         "style": "cinematic",
@@ -155,6 +164,10 @@ class ChannelCrudApiTests(ChannelApiTestBase):
         self.assertEqual(channel["version"], 1)
         self.assertEqual(channel["name"], "Philosophy Daily")
         self.assertEqual(channel["provider_defaults"]["script"], "inst_script_1")
+        self.assertEqual(
+            channel["script_template"]["sections"],
+            ["Paradox", "Example", "Lesson"],
+        )
         # No secret fields ever appear.
         blob = str(body)
         self.assertNotIn("api_key", blob.lower())
@@ -175,6 +188,10 @@ class ChannelCrudApiTests(ChannelApiTestBase):
                         "tone": "dramatic",
                         "duration_target": 75,
                     },
+                    "script_template": {
+                        "brief": "Lead with the lesson, then reveal its cause.",
+                        "sections": ["Lesson", "Cause", "Landing"],
+                    },
                     "visual_direction": {
                         "style": "noir",
                         "pattern": [
@@ -191,6 +208,7 @@ class ChannelCrudApiTests(ChannelApiTestBase):
         self.assertEqual(doc["name"], "Philosophy Nightly")
         self.assertEqual(doc["content"]["tone"], "dramatic")
         self.assertEqual(doc["visual_direction"]["style"], "noir")
+        self.assertEqual(doc["script_template"]["sections"], ["Lesson", "Cause", "Landing"])
 
         # Stale version → conflict.
         conflict = self.client.put(

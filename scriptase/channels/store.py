@@ -131,6 +131,7 @@ def create_channel(draft: dict[str, Any]) -> ChannelProfile:
         schema_version=SCHEMA_VERSION,
         branding=parsed.branding,
         content=parsed.content,
+        script_template=parsed.script_template,
         visual_direction=parsed.visual_direction,
         audio_defaults=parsed.audio_defaults,
         captions=parsed.captions,
@@ -211,6 +212,7 @@ def update_channel(
             schema_version=SCHEMA_VERSION,
             branding=parsed.branding,
             content=parsed.content,
+            script_template=parsed.script_template,
             visual_direction=parsed.visual_direction,
             audio_defaults=parsed.audio_defaults,
             captions=parsed.captions,
@@ -289,6 +291,7 @@ def default_draft(*, name: str = "New Channel") -> dict[str, Any]:
         "name": name,
         "branding": {},
         "content": {},
+        "script_template": {},
         "visual_direction": {
             "pattern": [
                 {"narrative_role": "hook", "shot": "extreme close-up"},

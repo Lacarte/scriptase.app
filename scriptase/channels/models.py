@@ -24,7 +24,13 @@ CHANNEL_ID_RE = re.compile(r"^ch_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py). Distinct from
 # the content ``version`` field, which bumps on every successful update.
-CHANNEL_SCHEMA_VERSION = 1
+CHANNEL_SCHEMA_VERSION = 2
+
+DEFAULT_SCRIPT_TEMPLATE_BRIEF = (
+    "Open with an immediate hook, introduce a surprising turn, explain why it "
+    "matters, reframe the idea, and finish with a memorable landing."
+)
+DEFAULT_SCRIPT_TEMPLATE_SECTIONS = ("Hook", "Turn", "Why", "Reframe", "Landing")
 
 # Domains that may appear in provider_defaults / fallback_policies keys.
 PROVIDER_DEFAULT_DOMAINS = (
@@ -105,6 +111,37 @@ class Content(BaseModel):
     @classmethod
     def _strip_fields(cls, value: Any) -> str:
         return _strip_str(value)
+
+
+class ScriptTemplate(BaseModel):
+    """Plain-language writing guidance and its ordered script outline."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    brief: str = DEFAULT_SCRIPT_TEMPLATE_BRIEF
+    sections: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_SCRIPT_TEMPLATE_SECTIONS),
+        min_length=1,
+        max_length=24,
+    )
+
+    @field_validator("brief", mode="before")
+    @classmethod
+    def _brief(cls, value: Any) -> str:
+        text = _strip_str(value)
+        if not text:
+            raise ValueError("brief must be a non-empty string")
+        return text
+
+    @field_validator("sections", mode="before")
+    @classmethod
+    def _sections(cls, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            raise ValueError("sections must be an ordered list of strings")
+        sections = [_strip_str(item) for item in value]
+        if not sections or any(not section for section in sections):
+            raise ValueError("sections must contain non-empty strings")
+        return sections
 
 
 class PatternEntry(BaseModel):
@@ -451,6 +488,7 @@ class ChannelProfile(BaseModel):
 
     branding: Branding = Field(default_factory=Branding)
     content: Content = Field(default_factory=Content)
+    script_template: ScriptTemplate = Field(default_factory=ScriptTemplate)
     visual_direction: VisualDirection = Field(default_factory=VisualDirection)
     audio_defaults: AudioDefaults = Field(default_factory=AudioDefaults)
     captions: CaptionsDefaults = Field(default_factory=CaptionsDefaults)
@@ -513,6 +551,7 @@ class ChannelDraft(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     branding: Branding = Field(default_factory=Branding)
     content: Content = Field(default_factory=Content)
+    script_template: ScriptTemplate = Field(default_factory=ScriptTemplate)
     visual_direction: VisualDirection = Field(default_factory=VisualDirection)
     audio_defaults: AudioDefaults = Field(default_factory=AudioDefaults)
     captions: CaptionsDefaults = Field(default_factory=CaptionsDefaults)
@@ -593,8 +632,11 @@ __all__ = [
     "PROVIDER_DEFAULT_DOMAINS",
     "CADENCE_SOURCE_MODES",
     "CADENCE_EXECUTION_MODES",
+    "DEFAULT_SCRIPT_TEMPLATE_BRIEF",
+    "DEFAULT_SCRIPT_TEMPLATE_SECTIONS",
     "Branding",
     "Content",
+    "ScriptTemplate",
     "PatternEntry",
     "VisualDirection",
     "AudioDefaults",

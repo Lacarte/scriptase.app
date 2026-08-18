@@ -194,6 +194,10 @@ describe('ChannelEditor', () => {
       cta_style: '',
       duration_target: 60,
     },
+    script_template: {
+      brief: 'Hook the viewer, turn the premise, explain it, then land cleanly.',
+      sections: ['Hook', 'Turn', 'Why', 'Reframe', 'Landing'],
+    },
     visual_direction: {
       style: 'cinematic',
       pattern: [
@@ -280,6 +284,13 @@ describe('ChannelEditor', () => {
     const values = textInputs.map((input) => input.element.value)
     expect(values).toContain('extreme close-up')
     expect(values).toContain('hook')
+    expect(wrapper.findAll('.section-chip')).toHaveLength(5)
+    expect(
+      wrapper.findAll('.section-chip input').map((input) => input.element.value),
+    ).toEqual(['Hook', 'Turn', 'Why', 'Reframe', 'Landing'])
+
+    const turnChip = wrapper.findAll('.section-chip')[1]
+    await turnChip.find('button[aria-label="Move Turn down"]').trigger('click')
 
     // First text input is the channel name.
     await textInputs[0].setValue('Stoicism Nightly')
@@ -294,6 +305,10 @@ describe('ChannelEditor', () => {
     expect(draft.visual_direction.pattern[0]).toEqual({
       narrative_role: 'hook',
       shot: 'extreme close-up',
+    })
+    expect(draft.script_template).toEqual({
+      brief: 'Hook the viewer, turn the premise, explain it, then land cleanly.',
+      sections: ['Hook', 'Why', 'Turn', 'Reframe', 'Landing'],
     })
     // Provider defaults must remain instance-id slots (null / empty), never secrets.
     expect(draft.provider_defaults).toEqual({

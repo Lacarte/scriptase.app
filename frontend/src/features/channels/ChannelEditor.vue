@@ -19,6 +19,7 @@ const error = ref('')
 const success = ref('')
 const brandingAssets = ref([])
 const uploadBusy = ref(false)
+const draggedSection = ref(null)
 
 const channelId = computed(() => route.params.id)
 
@@ -51,6 +52,10 @@ const form = reactive({
     hook_style: '',
     cta_style: '',
     duration_target: null,
+  },
+  script_template: {
+    brief: '',
+    sections: [],
   },
   visual_direction: {
     style: '',
@@ -150,6 +155,14 @@ function applyDocument(doc) {
     duration_target: null,
     ...(doc.content || {}),
   })
+  Object.assign(form.script_template, {
+    brief: '',
+    sections: [],
+    ...(doc.script_template || {}),
+  })
+  form.script_template.sections = Array.isArray(doc.script_template?.sections)
+    ? [...doc.script_template.sections]
+    : []
   const vd = doc.visual_direction || {}
   form.visual_direction.style = vd.style || ''
   form.visual_direction.pattern = Array.isArray(vd.pattern)
@@ -237,6 +250,12 @@ function draftPayload() {
         form.content.duration_target === '' || form.content.duration_target == null
           ? null
           : Number(form.content.duration_target),
+    },
+    script_template: {
+      brief: form.script_template.brief.trim(),
+      sections: form.script_template.sections
+        .map((section) => section.trim())
+        .filter(Boolean),
     },
     visual_direction: {
       ...form.visual_direction,
@@ -404,6 +423,30 @@ function movePattern(index, delta) {
   list.splice(next, 0, row)
 }
 
+function addTemplateSection() {
+  form.script_template.sections.push('New section')
+}
+
+function removeTemplateSection(index) {
+  form.script_template.sections.splice(index, 1)
+}
+
+function moveTemplateSection(index, delta) {
+  const next = index + delta
+  if (next < 0 || next >= form.script_template.sections.length) return
+  const [section] = form.script_template.sections.splice(index, 1)
+  form.script_template.sections.splice(next, 0, section)
+}
+
+function dropTemplateSection(targetIndex) {
+  const sourceIndex = draggedSection.value
+  draggedSection.value = null
+  if (sourceIndex == null || sourceIndex === targetIndex) return
+  const [section] = form.script_template.sections.splice(sourceIndex, 1)
+  const adjustedTarget = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
+  form.script_template.sections.splice(adjustedTarget, 0, section)
+}
+
 watch(channelId, () => {
   if (channelId.value) load()
 })
@@ -524,6 +567,71 @@ onMounted(load)
             <input v-model="form.content.duration_target" type="number" min="1" max="600" />
           </label>
         </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Script template</legend>
+        <p class="hint">
+          This house structure guides Auto and Idea scripts. Drag the chips or use
+          their arrow controls to change the section order.
+        </p>
+        <label>
+          Structure brief
+          <textarea
+            v-model="form.script_template.brief"
+            rows="4"
+            required
+            placeholder="Describe the story shape in plain language."
+          ></textarea>
+        </label>
+        <div class="section-outline" aria-label="Ordered script sections">
+          <div
+            v-for="(section, index) in form.script_template.sections"
+            :key="index"
+            class="section-chip"
+            draggable="true"
+            @dragstart="draggedSection = index"
+            @dragend="draggedSection = null"
+            @dragover.prevent
+            @drop.prevent="dropTemplateSection(index)"
+          >
+            <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+            <span class="section-number">{{ index + 1 }}</span>
+            <input
+              v-model="form.script_template.sections[index]"
+              type="text"
+              required
+              maxlength="80"
+              :aria-label="`Section ${index + 1} name`"
+            />
+            <div class="chip-actions">
+              <button
+                type="button"
+                class="ghost"
+                :disabled="index === 0"
+                :aria-label="`Move ${section} up`"
+                @click="moveTemplateSection(index, -1)"
+              >↑</button>
+              <button
+                type="button"
+                class="ghost"
+                :disabled="index === form.script_template.sections.length - 1"
+                :aria-label="`Move ${section} down`"
+                @click="moveTemplateSection(index, 1)"
+              >↓</button>
+              <button
+                type="button"
+                class="ghost danger"
+                :disabled="form.script_template.sections.length === 1"
+                :aria-label="`Remove ${section}`"
+                @click="removeTemplateSection(index)"
+              >×</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="ghost" @click="addTemplateSection">
+          + Add section
+        </button>
       </fieldset>
 
       <fieldset>
@@ -834,6 +942,7 @@ input[type="checkbox"] {
 input[type="text"],
 input[type="number"],
 input[type="file"],
+textarea,
 select {
   width: 100%;
   background: var(--panel);
@@ -859,6 +968,7 @@ input::placeholder {
 input[type="text"]:focus,
 input[type="number"]:focus,
 input[type="file"]:focus,
+textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--accent-line-2);
@@ -945,6 +1055,59 @@ input[type="file"]:disabled {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 14px;
+}
+
+.section-outline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.section-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 190px;
+  padding: 4px 5px 4px 8px;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  background: var(--accent-dim);
+  cursor: grab;
+}
+
+.section-chip:active {
+  cursor: grabbing;
+}
+
+.drag-handle,
+.section-number {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.section-chip input[type="text"] {
+  min-width: 72px;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  font-weight: 600;
+}
+
+.chip-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.chip-actions button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  font-family: var(--mono);
+  font-size: 11px;
 }
 
 .pattern-head,

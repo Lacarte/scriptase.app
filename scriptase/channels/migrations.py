@@ -15,7 +15,11 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Callable
 
-from scriptase.channels.models import CHANNEL_SCHEMA_VERSION
+from scriptase.channels.models import (
+    CHANNEL_SCHEMA_VERSION,
+    DEFAULT_SCRIPT_TEMPLATE_BRIEF,
+    DEFAULT_SCRIPT_TEMPLATE_SECTIONS,
+)
 
 # Freshly written Channel documents carry this schema_version.
 SCHEMA_VERSION = CHANNEL_SCHEMA_VERSION
@@ -33,9 +37,19 @@ def _register(version: int):
     return decorator
 
 
-# No historical hops yet: SCHEMA_VERSION is 1 and documents are born at v1.
-# Future schema changes register here as @_register(2), @_register(3), …
-# and land in the same step that changes the model (CLAUDE.md non-negotiable).
+@_register(2)
+def _add_script_template(data: dict[str, Any]) -> dict[str, Any]:
+    """Add the step 2.1 template to legacy Channel documents."""
+    migrated = deepcopy(data)
+    migrated.setdefault("script_template", {
+        "brief": DEFAULT_SCRIPT_TEMPLATE_BRIEF,
+        "sections": list(DEFAULT_SCRIPT_TEMPLATE_SECTIONS),
+    })
+    return migrated
+
+
+# Future schema changes register the next consecutive target here and land in
+# the same step that changes the model (CLAUDE.md non-negotiable).
 
 
 def apply_migrations(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
