@@ -68,6 +68,9 @@ const narrationFilters = [
 ]
 
 const SPEED_CHOICES = [0.75, 0.9, 1, 1.1, 1.25, 1.5]
+/** Narration overrides are narrower than Channel audio_defaults.speed (0.25–4). */
+const SPEED_OVERRIDE_MIN = 0.5
+const SPEED_OVERRIDE_MAX = 2.0
 
 /**
  * 48 bars, the prototype's deterministic silhouette. It is a progress track,
@@ -101,10 +104,19 @@ const narrationProvider = computed(() => (
   || scriptChannel.value?.provider_defaults?.tts
   || 'Channel default'
 ))
-/** The effective speed always has an option, even when the Channel picks one. */
+/**
+ * Override options stay inside the narration API window. An out-of-range
+ * Channel default is listed only while inherited, so the select can show it
+ * without offering an illegal override.
+ */
 const speedChoices = computed(() => {
   const values = new Set(SPEED_CHOICES)
-  values.add(activeSpeed.value)
+  const effective = activeSpeed.value
+  if (Number.isFinite(effective) && effective >= SPEED_OVERRIDE_MIN && effective <= SPEED_OVERRIDE_MAX) {
+    values.add(effective)
+  } else if (speedInherited.value && Number.isFinite(effective)) {
+    values.add(effective)
+  }
   return [...values].sort((left, right) => left - right)
 })
 const narrationState = computed(() => {
@@ -144,7 +156,7 @@ function isNarrated(script) {
   return script?.narration?.state === 'ready'
 }
 
-/** The prototype folds `generating` into Script Only for the chips and tags. */
+/** The prototype folds `generating` into Script Only for the chips. */
 function narrationTag(script) {
   if (isNarrated(script)) return { cls: 'tts-ready', label: 'TTS Ready' }
   if (script?.narration?.state === 'generating') return { cls: 'mini-run', label: 'Generating' }
@@ -341,7 +353,19 @@ function toggleRemoveSilence() {
 }
 
 function setSpeed(event) {
-  narrationForm.speed = Number(event.target.value)
+  const value = Number(event.target.value)
+  const channelDefault = Number(channelAudio.value.speed ?? 1)
+  // Re-picking the Channel default means inherit — same as Reset — and also
+  // blocks writing an out-of-range Channel speed as an explicit override.
+  if (!Number.isFinite(value) || value === channelDefault) {
+    narrationForm.speed = null
+    return
+  }
+  if (value < SPEED_OVERRIDE_MIN || value > SPEED_OVERRIDE_MAX) {
+    narrationForm.speed = null
+    return
+  }
+  narrationForm.speed = value
 }
 
 function resetProcessing() {
@@ -496,6 +520,12 @@ async function createNew() {
     viralityText.value = ''
     form.title = payload.script.title
     form.body = payload.script.body
+    // Same handoff as openScript: do not keep the previous script's voice or
+    // processing overrides on the new document.
+    narrationForm.voice = payload.script.narration?.voice || channel.audio_defaults?.voice || ''
+    narrationForm.removeSilence = payload.script.narration?.remove_silence ?? null
+    narrationForm.speed = payload.script.narration?.speed ?? null
+    await loadVoices(channel)
     dirty.value = false
     await loadLibrary()
     toast.success(`${payload.script.id} created`)

@@ -622,9 +622,7 @@ textarea {
   background: var(--bg-2);
 }
 
-/* The prototype's script picker (step 6.3). Its rows are single-select there;
-   here one Job per script is the point, so the row carries a checkbox and
-   `.sel` follows the box rather than a cursor. */
+/* Multi-select Studio picker: one Job per checked script; `.sel` tracks the box. */
 .s1-list {
   display: flex;
   flex-direction: column;
@@ -660,6 +658,8 @@ textarea {
 }
 
 .s1-row .title {
+  flex: 1;
+  min-width: 0;
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: -0.1px;

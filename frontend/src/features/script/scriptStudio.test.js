@@ -276,6 +276,75 @@ describe('Script Studio step 3.3 narration', () => {
 
     expect(wrapper.get('[data-testid="narration-provider"]').text()).toBe('voice_house#2')
   })
+
+  it('resets voice and processing when create follows an open script', async () => {
+    scriptApi.createScript.mockImplementation(async draft => ({
+      script: {
+        ...DOCUMENT,
+        id: 'scr_NEWNEW',
+        title: draft.title,
+        body: draft.body,
+        channel_id: draft.channel_id,
+        origin: draft.origin,
+        narration: { state: 'none', voice: '', remove_silence: null, speed: null },
+      },
+      narration_audio: null,
+    }))
+    const wrapper = await mountPage()
+
+    await wrapper.get('[aria-label="Narration voice"]').setValue('Ashley')
+    await wrapper.get('[aria-label="Remove silence override"]').trigger('click')
+    await wrapper.get('[aria-label="Narration speed override"]').setValue('1.25')
+    expect(wrapper.findAll('.s1-inh')).toHaveLength(0)
+
+    await wrapper.get('.s1-rail-title .primary').trigger('click')
+    await flushPromises()
+    const pasteTab = wrapper.findAll('[role="tab"]').find(button => button.text().includes('Paste'))
+    await pasteTab.trigger('click')
+    await wrapper.get('#paste-script').setValue('A fresh pasted script.')
+    await wrapper.get('.s1-doc-foot .primary').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[aria-label="Narration voice"]').element.value).toBe('Alex')
+    expect(wrapper.get('[aria-label="Remove silence override"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.get('[aria-label="Narration speed override"]').element.value).toBe('1.1')
+    expect(wrapper.findAll('.s1-inh')).toHaveLength(2)
+    expect(scriptApi.listNarrationVoices).toHaveBeenCalled()
+  })
+
+  it('keeps an out-of-range Channel speed inherited instead of posting it as an override', async () => {
+    channelApi.getChannel.mockResolvedValue({
+      channel: {
+        ...CHANNEL,
+        audio_defaults: { ...CHANNEL.audio_defaults, speed: 3 },
+      },
+    })
+    scriptApi.generateNarration.mockResolvedValue({
+      script: {
+        ...DOCUMENT,
+        version: 2,
+        narration: {
+          state: 'ready', voice: 'Alex', remove_silence: null, speed: null,
+          duration_s: 8, audio_artifact_id: 'art_SPEED',
+        },
+      },
+      narration_audio: { mime: 'audio/mpeg' },
+    })
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('[aria-label="Narration speed override"]').element.value).toBe('3')
+    expect(wrapper.findAll('.s1-inh')).toHaveLength(2)
+
+    // Re-selecting the Channel default must stay null (inherit), not 3.0 —
+    // narration overrides only accept 0.5–2.0.
+    await wrapper.get('[aria-label="Narration speed override"]').setValue('3')
+    await wrapper.get('[data-testid="narration-generate"]').trigger('click')
+    await flushPromises()
+
+    expect(scriptApi.generateNarration).toHaveBeenCalledWith('scr_AAAAAA', expect.objectContaining({
+      speed: null,
+    }))
+  })
 })
 
 describe('Script Studio step 3.4 virality panel', () => {

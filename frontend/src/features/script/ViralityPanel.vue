@@ -103,8 +103,6 @@ const gauge = computed(() => {
       </div>
     </template>
 
-    <!-- The prototype's not-yet-run state is copy only: Check Virality above the
-         editor is the affordance, so a second button here would duplicate it. -->
     <div v-else class="s1-vir-empty">
       <div class="big">Virality score not run</div>
       Check how this script is likely to perform — hook, pacing, open loops and CTA.
