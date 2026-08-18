@@ -1,0 +1,29 @@
+{
+  "scenes": [
+    {
+      "scene_id": "",
+      "scene_subject": "p",
+      "visual_style_prompt": "",
+      "prompt_aspect_ratio": "9:16",
+      "narration": "",
+      "visual_description": "",
+      "image_prompt": "p. Aspect ratio: 9:16.",
+      "motion_prompt": "",
+      "camera": "",
+      "lighting": "",
+      "mood": "",
+      "continuity": "",
+      "narrative_role": "",
+      "overlay_hints": [],
+      "sfx_hints": [],
+      "index": 0,
+      "start": null,
+      "end": null,
+      "type_of_scene": "",
+      "title": "",
+      "text_content": null,
+      "sfx_hint": null
+    }
+  ],
+  "provider": "n8n"
+}
