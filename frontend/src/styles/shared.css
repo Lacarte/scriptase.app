@@ -199,12 +199,16 @@ pre {
   border-color: var(--fail-line-2);
 }
 
-.btn.warn {
+/* `.warnb` is the prototype's spelling — `.warn` already meant something else
+   in its stylesheet. Both resolve here so either reads correctly. */
+.btn.warn,
+.btn.warnb {
   color: var(--warn);
   border-color: var(--warn-line);
 }
 
-.btn.warn:hover:not(:disabled) {
+.btn.warn:hover:not(:disabled),
+.btn.warnb:hover:not(:disabled) {
   background: var(--warn-dim);
   border-color: var(--warn-line);
 }
@@ -310,6 +314,11 @@ pre {
   box-shadow: inset 0 0 0 1px var(--run-line);
 }
 
+/* Running is the one status that throws light — it is the thing to look at. */
+.badge.b-running {
+  box-shadow: inset 0 0 0 1px var(--run-line), 0 0 16px -6px rgba(88, 166, 255, 0.6);
+}
+
 .badge.b-running .bd {
   box-shadow: 0 0 6px var(--run);
   animation: badge-blink 1.2s infinite;
@@ -345,6 +354,7 @@ pre {
 }
 
 .badge.b-paused,
+.badge.b-draft,
 .badge.b-scheduled,
 .badge.b-awaiting {
   color: var(--sched);
@@ -533,20 +543,45 @@ pre {
 .progress .fill.warn { background: var(--warn); }
 
 /* ================================================================
-   Counters and empty states
+   Counters — a row of numbers divided by hairlines, not a row of cards.
+   The density is the point: five counters read as one instrument.
+
+   Each counter draws its own right-hand rule, so the container needs
+   nothing but `display: flex`. The prototype's `.summary` wrapper is the
+   run-sheet head's, and lands with Production.
    ================================================================ */
 .stat {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 1px;
+  padding: 2px 18px 2px 0;
+  margin-right: 18px;
+  border-right: 1px solid var(--line-soft);
+  cursor: default;
+}
+
+.stat:last-child {
+  margin-right: 0;
+  border-right: none;
 }
 
 .stat .num {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   font-family: var(--display);
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.5px;
   line-height: 1;
+}
+
+/* The status dot that can sit beside a count. */
+.stat .num .sd {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
 
 .stat .lbl {
@@ -558,10 +593,140 @@ pre {
   margin-top: 4px;
 }
 
+.stat.total .num { color: var(--text); }
 .stat.running .num { color: var(--run); }
+.stat.queued .num { color: var(--text-2); }
 .stat.done .num { color: var(--ok); }
 .stat.failed .num { color: var(--fail); }
-.stat.queued .num { color: var(--text-2); }
+
+/* A counter that filters the list beneath it. The underline is drawn always
+   and coloured only when active, so turning a filter on moves nothing. */
+.stat.clickable {
+  cursor: pointer;
+}
+
+.stat.clickable::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 18px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.stat.clickable:hover .lbl {
+  color: var(--text-2);
+}
+
+.stat.active-filter::after { background: currentColor; }
+.stat.total.active-filter::after { background: var(--text); }
+.stat.running.active-filter::after { background: var(--run); }
+.stat.queued.active-filter::after { background: var(--text-2); }
+.stat.done.active-filter::after { background: var(--ok); }
+.stat.failed.active-filter::after { background: var(--fail); }
+
+/* ================================================================
+   Segmented — a set of mutually exclusive options as cards, not radios.
+   The <input> stays in the markup and is what a screen reader and the
+   keyboard actually operate; the card is its label.
+   ================================================================ */
+.segmented {
+  display: grid;
+  gap: 5px;
+}
+
+.seg-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.seg-opt {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel-grad);
+  box-shadow: var(--hairline-top);
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s, box-shadow 0.16s,
+    transform 0.16s var(--ease-spring);
+}
+
+.seg-opt:hover {
+  border-color: var(--line-2);
+  background: var(--panel-grad2);
+  transform: translateY(-1px);
+}
+
+/* Selected is one of the two places the duotone appears. */
+.seg-opt.sel {
+  border-color: var(--accent-line-2);
+  background: var(--accent-fill-2);
+  color: var(--text);
+  box-shadow: var(--hairline-top), var(--accent-cast-md);
+}
+
+.seg-opt:focus-within {
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* The real control, kept operable but invisible behind its card. */
+.seg-opt input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.seg-opt .ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--raise);
+  color: var(--text-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition: background 0.16s, color 0.16s, box-shadow 0.16s;
+}
+
+.seg-opt.sel .ic {
+  background: var(--accent-ic);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px var(--accent-line-2);
+}
+
+.seg-opt .txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.seg-opt .txt .t {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+
+.seg-opt .txt .d {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+/* ================================================================
+   Empty states
+   ================================================================ */
 
 /* `.empty-state` is the prototype's hero placeholder. `.empty` is left alone
    on purpose — half a dozen views already use it for a one-line note, and

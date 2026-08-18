@@ -298,12 +298,12 @@ void defaultJobDraft
 
       <fieldset v-if="sourceKind === 'input'" class="field mode-fieldset">
         <legend class="field-label">Script stage mode</legend>
-        <div class="mode-grid">
+        <div class="segmented mode-grid">
           <label
             v-for="mode in sourceModes"
             :key="mode.mode"
-            class="mode-card"
-            :class="{ selected: sourceMode === mode.mode }"
+            class="seg-opt"
+            :class="{ sel: sourceMode === mode.mode }"
           >
             <input
               v-model="sourceMode"
@@ -312,13 +312,15 @@ void defaultJobDraft
               :value="mode.mode"
               :disabled="submitting"
             />
-            <span class="mode-title">{{ mode.label }}</span>
-            <span class="mode-desc">{{ mode.description }}</span>
-            <span
-              class="mode-badge"
-              :data-provider="mode.provider_required ? 'yes' : 'no'"
-            >
-              {{ mode.provider_required ? 'Provider required' : 'No provider' }}
+            <span class="txt">
+              <span class="t">{{ mode.label }}</span>
+              <span class="d">{{ mode.description }}</span>
+              <span
+                class="mode-badge"
+                :data-provider="mode.provider_required ? 'yes' : 'no'"
+              >
+                {{ mode.provider_required ? 'Provider required' : 'No provider' }}
+              </span>
             </span>
           </label>
         </div>
@@ -679,65 +681,16 @@ textarea {
 
 .reset-processing { align-self: flex-start; margin-top: 8px; }
 
+/* The options themselves are the shared `.segmented` / `.seg-opt` primitive
+   (step 6.1); only the track's column count is this panel's business. */
 .mode-grid {
-  display: grid;
   grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
   gap: 9px;
 }
 
-.mode-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 11px 12px;
-  cursor: pointer;
-  background: var(--panel-grad);
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
-  transition: background 0.16s, border-color 0.16s, box-shadow 0.16s;
-}
-
-.mode-card:hover {
-  border-color: var(--line-2);
-  box-shadow: var(--hairline-top), 0 8px 24px -12px rgba(0, 0, 0, 0.65);
-}
-
-/* Selected is the only other place the duotone accent appears. */
-.mode-card.selected {
-  border-color: var(--accent-line-2);
-  background: var(--accent-wash);
-  box-shadow: var(--hairline-top), inset 0 0 0 1px var(--accent-line);
-}
-
-.mode-card:focus-within {
-  border-color: var(--accent-line-2);
-  box-shadow: 0 0 0 3px var(--accent-ring);
-}
-
-.mode-card input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.mode-title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.1px;
-  color: var(--text);
-}
-
-.mode-desc {
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: var(--muted);
-}
-
 .mode-badge {
   align-self: flex-start;
-  margin-top: 3px;
+  margin-top: 6px;
   font-family: var(--mono);
   font-size: 9.5px;
   font-weight: 600;

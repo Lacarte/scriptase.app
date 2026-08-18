@@ -69,6 +69,18 @@
   --accent-wash:   rgba(106,140,255,.08);
   --accent-cast:    0 6px 20px -8px rgba(106,140,255,.85);
   --accent-cast-lg: 0 10px 26px -8px rgba(106,140,255,.95);
+  /* The prototype's two lighter casts: the active nav destination, and the
+     lift under a selected card or segmented option. */
+  --accent-cast-sm: 0 4px 14px -8px rgba(106,140,255,.6);
+  --accent-cast-md: 0 6px 18px -8px rgba(106,140,255,.45);
+  --accent-cast-glow: 0 8px 20px -6px rgba(106,140,255,.7);
+  /* The two "active surface" fills. --accent-fill is the nav destination,
+     --accent-fill-2 the selected card; they differ by two points of alpha
+     and the prototype uses both, so both are named. */
+  --accent-fill:   linear-gradient(180deg, rgba(106,140,255,.12), rgba(106,140,255,.05));
+  --accent-fill-2: linear-gradient(180deg, rgba(106,140,255,.14), rgba(106,140,255,.04));
+  /* The duotone plate behind a selected option's icon. */
+  --accent-ic:     linear-gradient(145deg, rgba(106,140,255,.28), rgba(165,139,255,.2));
   --fail-text: #ffc4c9;
   --warn-text: #f4dcae;
 
@@ -152,6 +164,12 @@
   --accent-wash:   rgba(78,205,196,.08);
   --accent-cast:    0 4px 16px -6px rgba(78,205,196,.7);
   --accent-cast-lg: 0 8px 24px -6px rgba(78,205,196,.8);
+  --accent-cast-sm: 0 4px 14px -8px rgba(78,205,196,.6);
+  --accent-cast-md: 0 6px 18px -8px rgba(78,205,196,.45);
+  --accent-cast-glow: 0 8px 20px -6px rgba(78,205,196,.7);
+  --accent-fill:   linear-gradient(180deg, rgba(78,205,196,.12), rgba(78,205,196,.05));
+  --accent-fill-2: linear-gradient(180deg, rgba(78,205,196,.14), rgba(78,205,196,.04));
+  --accent-ic:     linear-gradient(145deg, rgba(78,205,196,.28), rgba(59,168,159,.2));
 
   --bg-darkest:       #0a0e13;
   --bg-dark:          #0f1520;

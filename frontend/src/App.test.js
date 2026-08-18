@@ -123,6 +123,23 @@ describe('scaffold', () => {
     expect(current[0].text()).toBe('Channels')
     expect(current[0].attributes('aria-selected')).toBe('true')
     expect(tabs[0].attributes('aria-selected')).toBe('false')
+
+    // The prototype's active treatment hangs off `.active` (step 6.1).
+    expect(wrapper.findAll('.topnav a.active')).toHaveLength(1)
+    expect(current[0].classes()).toContain('active')
+  })
+
+  it('wears the prototype topbar and brand (step 6.1)', async () => {
+    const { wrapper } = await mountShell()
+
+    expect(wrapper.find('header.topbar').exists()).toBe(true)
+    expect(wrapper.find('nav.topnav').exists()).toBe(true)
+
+    // The wordmark is the lit tile plus Script/ase, not a bare text link.
+    const brand = wrapper.find('.brand')
+    expect(brand.find('.logo').exists()).toBe(true)
+    expect(brand.find('.name').text()).toBe(APP_NAME)
+    expect(brand.find('.tag').text()).toBe('Studio')
   })
 
   it('labels its icon-only controls and reports the nav collapse state', async () => {
@@ -135,7 +152,7 @@ describe('scaffold', () => {
 
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('true')
-    expect(wrapper.find('#app-nav').classes()).toContain('app-nav-links--open')
+    expect(wrapper.find('#app-nav').classes()).toContain('open')
 
     // Choosing a destination puts the collapsed nav away again.
     await wrapper.findAll('[role="tab"]')[0].trigger('click')

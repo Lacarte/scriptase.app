@@ -245,12 +245,12 @@ describe('first-run welcome', () => {
     expect(overlay.textContent).toContain('Enter Studio')
 
     vi.useFakeTimers()
-    overlay.querySelector('.welcome-enter').click()
+    overlay.querySelector('.welcome-enter-btn').click()
     expect(hasSeenWelcome()).toBe(true)
     vi.advanceTimersByTime(600)
     await flushPromises()
 
-    expect(document.querySelector('.welcome')).toBeNull()
+    expect(document.querySelector('.welcome-root')).toBeNull()
     wrapper.unmount()
   })
 
@@ -263,7 +263,7 @@ describe('first-run welcome', () => {
     })
     await flushPromises()
 
-    expect(document.querySelector('.welcome')).toBeNull()
+    expect(document.querySelector('.welcome-root')).toBeNull()
     wrapper.unmount()
   })
 })
@@ -362,14 +362,14 @@ describe('toasts', () => {
     show('Deleted channel “Ghosts”', 'info', 0, { label: 'Undo', onAction })
     await flushPromises()
 
-    const button = document.querySelector('.toast-action')
+    const button = document.querySelector('.toast-undo')
     expect(button.textContent.trim()).toBe('Undo')
 
     button.click()
     await flushPromises()
 
     expect(onAction).toHaveBeenCalledTimes(1)
-    expect(document.querySelector('.toast-action')).toBeNull()
+    expect(document.querySelector('.toast-undo')).toBeNull()
 
     wrapper.unmount()
   })

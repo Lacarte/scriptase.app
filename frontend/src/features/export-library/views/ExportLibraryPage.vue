@@ -270,40 +270,40 @@ const extendedStats = computed(() => {
 
     <!-- Stats bar (compact) -->
     <div v-if="items.length" class="stats-bar">
-      <div class="stat">
+      <div class="stat-item">
         <span class="stat-num" style="color: var(--accent)">{{ extendedStats.total }}</span>
         <span class="stat-lbl">Exports</span>
       </div>
       <span class="stat-divider"></span>
-      <div class="stat">
+      <div class="stat-item">
         <span class="stat-num" :style="{ color: extendedStats.today > 0 ? '#26DE81' : 'var(--text-muted)' }">{{ extendedStats.today }}</span>
         <span class="stat-lbl">Today</span>
       </div>
       <span class="stat-divider"></span>
-      <div class="stat">
+      <div class="stat-item">
         <span class="stat-num" style="color: #FFB347">{{ extendedStats.week }}</span>
         <span class="stat-lbl">This Week</span>
       </div>
       <span class="stat-divider"></span>
-      <div class="stat">
+      <div class="stat-item">
         <span class="stat-num" style="color: #A78BFA">{{ fmtDuration(extendedStats.totalDur) }}</span>
         <span class="stat-lbl">Duration</span>
       </div>
       <span class="stat-divider"></span>
-      <div class="stat">
+      <div class="stat-item">
         <span class="stat-num" style="color: var(--text-secondary)">{{ formatBytes(extendedStats.totalSize) }}</span>
         <span class="stat-lbl">Size</span>
       </div>
       <template v-if="extendedStats.topStyle">
         <span class="stat-divider"></span>
-        <div class="stat">
+        <div class="stat-item">
           <span class="stat-num" :style="{ color: styleColor(extendedStats.topStyle[0]) }">{{ styleLabel(extendedStats.topStyle[0]) }}</span>
           <span class="stat-lbl">Top Style</span>
         </div>
       </template>
       <template v-if="extendedStats.topRatio">
         <span class="stat-divider"></span>
-        <div class="stat">
+        <div class="stat-item">
           <span class="stat-num" style="color: #A78BFA">{{ aspectRatioFromDimensions(extendedStats.topRatio[0]) || extendedStats.topRatio[0] }}</span>
           <span class="stat-lbl">Top Ratio</span>
         </div>
@@ -677,7 +677,7 @@ const extendedStats = computed(() => {
   flex-wrap: wrap;
 }
 
-.stat {
+.stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;

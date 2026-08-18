@@ -78,8 +78,12 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app-root" :class="{ 'app-root--full': fullHeight }">
-    <header class="app-nav">
-      <router-link class="brand" to="/">{{ APP_NAME }}</router-link>
+    <header class="topbar">
+      <router-link class="brand" to="/" :aria-label="APP_NAME">
+        <span class="logo" aria-hidden="true"></span>
+        <span class="name">Script<b>ase</b></span>
+        <span class="tag" aria-hidden="true">Studio</span>
+      </router-link>
 
       <button
         type="button"
@@ -89,12 +93,12 @@ onBeforeUnmount(() => {
         :aria-expanded="String(navOpen)"
         @click="navOpen = !navOpen"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M3 6h18M3 12h18M3 18h18" />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
 
-      <nav id="app-nav" class="app-nav-links" :class="{ 'app-nav-links--open': navOpen }">
+      <nav id="app-nav" class="topnav" :class="{ open: navOpen }">
         <div class="nav-tabs" role="tablist" aria-label="Main sections">
           <router-link
             v-for="item in navItems"
@@ -106,8 +110,7 @@ onBeforeUnmount(() => {
             <a
               :href="href"
               role="tab"
-              class="nav-tab"
-              :class="{ 'router-link-active': isActive }"
+              :class="{ active: isActive }"
               :aria-selected="String(isActive)"
               :aria-current="isActive ? 'page' : undefined"
               @click.exact.prevent="goto(navigate)"
@@ -128,6 +131,8 @@ onBeforeUnmount(() => {
           >{{ link.label }} ↗</a>
         </div>
       </nav>
+
+      <div class="spacer"></div>
 
       <button
         type="button"
@@ -172,8 +177,18 @@ a {
 }
 
 /* The prototype's topbar: a lit bar over the ambient wash, with a hairline
-   of light along the top and a hard shadow beneath so it sits above the page. */
-.app-nav {
+   of light along the top and a hard shadow beneath so it sits above the page.
+
+   Three of the prototype's topbar controls are deliberately absent, and stay
+   absent — they are not styling gaps:
+     - `.avatar-me` renders a hardcoded "DV". The app is local-first and has
+       no user model, so there is no one to show.
+     - `.theme-btn` shuffles the accent duotone at random. That is a feature,
+       and a settings-shaped one; it is not part of porting a stylesheet.
+     - `.onair` reports whether anything is running. That is Production's
+       projection, not the shell's, and wiring it here would mean the shell
+       polling for run state. It lands with Production (step 6.2). */
+.topbar {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -188,28 +203,81 @@ a {
   flex: 0 0 auto;
 }
 
-.app-root--full .app-nav {
+.app-root--full .topbar {
   position: relative;
 }
 
+/* ---- Brand: a lit tile, the wordmark, and a mono qualifier ---- */
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: none;
+  text-decoration: none;
+}
+
+.brand .logo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent-grad);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.14) inset,
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    var(--accent-cast-glow);
+}
+
+/* The mark: a rotated square knocked out of the tile. */
+.brand .logo::after {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--bg);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  transform: rotate(45deg);
+}
+
+.brand .name {
   font-family: var(--display);
   font-weight: 600;
   font-size: 15.5px;
   letter-spacing: -0.4px;
-  text-decoration: none;
-  /* The wordmark is the one place the duotone reads as identity. */
+  color: var(--text);
+}
+
+/* Only the second half carries the duotone — the wordmark is the one place
+   the accent reads as identity rather than as state. */
+.brand .name b {
+  font-weight: 600;
   background: var(--accent-grad);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-.app-nav-links {
+.brand .tag {
+  margin-left: 2px;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+}
+
+/* ---- Destinations ---- */
+.topnav {
   display: flex;
-  gap: 16px;
+  gap: 2px;
   align-items: center;
-  flex: 1 1 auto;
+  margin-left: 14px;
   min-width: 0;
 }
 
@@ -220,43 +288,62 @@ a {
   align-items: center;
 }
 
-nav a {
+.nav-windows {
+  margin-left: 14px;
+}
+
+.topnav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: var(--text-2);
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
   padding: 7px 11px;
-  border-radius: var(--r-s);
+  border-radius: 8px;
   white-space: nowrap;
   transition: background 0.18s var(--ease-spring), color 0.15s, box-shadow 0.18s;
 }
 
-nav a:hover {
+.topnav a:hover {
   background: var(--panel);
   color: var(--text);
 }
 
-/* Each destination carries its glyph; the label stays the accessible name. */
-.nav-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.nav-tab:hover :deep(.nav-icon) {
+.topnav a:hover :deep(.nav-icon) {
   opacity: 1;
 }
 
 /* Active is the second and last place the accent appears in the shell. */
-nav a.router-link-active {
+.topnav a.active {
   color: var(--text);
-  background: linear-gradient(180deg, rgba(106, 140, 255, 0.12), rgba(106, 140, 255, 0.05));
-  box-shadow: inset 0 0 0 1px var(--accent-line), 0 4px 14px -8px rgba(106, 140, 255, 0.6);
+  background: var(--accent-fill);
+  box-shadow: inset 0 0 0 1px var(--accent-line), var(--accent-cast-sm);
 }
 
-.nav-tab.router-link-active :deep(.nav-icon) {
+.topnav a.active :deep(.nav-icon) {
   opacity: 1;
   color: var(--accent);
+}
+
+/* The prototype qualifies one destination with a mono suffix — "Script (S1)".
+   S1 is its own internal view id, so no destination here carries one; the slot
+   is part of the family and stays. */
+.topnav a .nav-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+}
+
+.topnav a.active .nav-sub {
+  color: var(--accent);
+}
+
+/* Pushes everything after it to the right edge. */
+.spacer {
+  flex: 1;
 }
 
 /* Icon-only controls: a hit area, no chrome until you touch them. */
@@ -274,8 +361,8 @@ nav a.router-link-active {
   background: transparent;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
   transition: background 0.16s, color 0.14s, border-color 0.16s;
 }
@@ -289,7 +376,6 @@ nav a.router-link-active {
 
 .help-btn {
   display: inline-flex;
-  margin-left: auto;
 }
 
 /* Reads as "leaves this page" — it opens its own window, never navigates. */
@@ -328,9 +414,13 @@ nav a.router-link-active {
    horizontal scrollbar on every view underneath.
    ================================================================ */
 @media (max-width: 820px) {
-  .app-nav {
+  .topbar {
     gap: 10px;
-    padding: 0 14px;
+    padding: 0 12px;
+  }
+
+  .brand .tag {
+    display: none;
   }
 
   .nav-toggle {
@@ -341,25 +431,27 @@ nav a.router-link-active {
 
   .help-btn {
     order: 4;
-    margin-left: 0;
   }
 
-  .app-nav-links {
+  /* The nav becomes a dropdown panel under the bar. */
+  .topnav {
     display: none;
     position: absolute;
     top: 56px;
     left: 0;
     right: 0;
+    z-index: 40;
+    margin: 0;
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
-    padding: 10px 14px 14px;
+    gap: 3px;
+    padding: 8px;
     background: var(--bg-2);
     border-bottom: 1px solid var(--line);
-    box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.95);
+    box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.6);
   }
 
-  .app-nav-links--open {
+  .topnav.open {
     display: flex;
   }
 
@@ -367,17 +459,18 @@ nav a.router-link-active {
   .nav-windows {
     flex-direction: column;
     align-items: stretch;
-    gap: 2px;
+    gap: 3px;
   }
 
   .nav-windows {
-    margin-top: 6px;
+    margin: 6px 0 0;
     padding-top: 8px;
     border-top: 1px solid var(--line-soft);
   }
 
-  nav a {
-    padding: 10px 12px;
+  .topnav a {
+    padding: 11px 12px;
+    font-size: 14px;
   }
 }
 </style>

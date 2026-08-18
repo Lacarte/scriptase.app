@@ -599,7 +599,7 @@ describe('Schema node actions and failure navigation (step 1.4)', () => {
     const { wrapper } = await mountPage('/schema?job=job_AAA111')
     seedProviderCatalog()
     await clickNode(wrapper)
-    await wrapper.findAll('.ins-action').find((button) => button.text() === 'Test').trigger('click')
+    await wrapper.findAll('.si-action').find((button) => button.text() === 'Test').trigger('click')
     await flushPromises()
 
     const picker = wrapper.find('.tn-provider-select')
@@ -678,7 +678,7 @@ describe('Schema node actions and failure navigation (step 1.4)', () => {
     }))
     const { wrapper } = await mountPage('/schema?run=ex_LIVE01')
     await clickNode(wrapper)
-    await wrapper.findAll('.ins-action').find((button) => button.text() === 'Retry').trigger('click')
+    await wrapper.findAll('.si-action').find((button) => button.text() === 'Retry').trigger('click')
     await flushPromises()
 
     expect(api.runWorkflow).toHaveBeenCalledWith(expect.objectContaining({
