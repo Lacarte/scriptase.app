@@ -1,4 +1,17 @@
 <script setup>
+/**
+ * The prototype's Providers screen (step 6.5): the `pv-rail` capability list
+ * beside a `pv-detail` pane that opens with a hero carrying the connection
+ * state, then the activity strip, the capability chips, the simulation console
+ * and a sticky `pv-foot` of actions.
+ *
+ * Nothing about a provider is written down here. The prototype hardcodes a
+ * name, tagline, colour, icon, status and activity counters per provider; all
+ * of that comes from `GET /api/providers` instead, and the two things the
+ * catalog has no field for — the plate colour and its glyph — are *derived*
+ * from ids the catalog does own, the way step 6.4 derives a channel avatar.
+ * A new provider therefore still renders without a Vue edit (§26).
+ */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { apiErrorText } from '@/shared/api/errors.js'
 import ProviderSettingsForm from './components/ProviderSettingsForm.vue'
@@ -8,13 +21,59 @@ import { useProviderCatalogStore } from './stores/providerCatalog.js'
 
 defineOptions({ name: 'ProvidersSettingsPage' })
 
+/**
+ * The prototype's five provider accents. Which domains exist is the backend's
+ * to say; what colour one is drawn in is not, so the palette is indexed by the
+ * domain's place in the sorted domain list rather than by a table of domain
+ * names — a table would need an edit every time a domain is added.
+ *
+ * Position and not a hash of the id, which is where this differs from step
+ * 6.4: there are 81 channels against 8 colours, but only a handful of domains
+ * against 5, and a hash into a palette that small lands two capabilities on
+ * the same colour more often than not. `domainIds` is sorted, so a given
+ * catalog always produces the same assignment.
+ */
+const PROVIDER_COLORS = ['#3fb68b', '#5b8cff', '#b06be6', '#e0a44a', '#e6e9ed']
+
+/**
+ * Transport copy for the manifest's `kind` vocabulary — the same four values
+ * `scriptase/providers/simulation.py` maps. An unrecognized kind falls back to
+ * its own name rather than disappearing.
+ */
+const KINDS = {
+  cloud: { label: 'API key', hint: 'Authenticated by a stored key' },
+  extension: { label: 'Extension', hint: 'Browser extension over the automation socket' },
+  webhook: { label: 'n8n', hint: 'Runs as an n8n workflow via webhook' },
+  local: { label: 'Local', hint: 'Runs in-process, needs no credential' },
+}
+
+const STATUS_LABELS = {
+  connected: 'Connected',
+  disconnected: 'Disconnected',
+  error: 'Error',
+  connecting: 'Connecting',
+}
+
 const catalog = useProviderCatalogStore()
+
+function accentOf(domain) {
+  const index = catalog.domainIds.indexOf(domain)
+  return PROVIDER_COLORS[(index < 0 ? 0 : index) % PROVIDER_COLORS.length]
+}
+
+function plateStyle(domain) {
+  const accent = accentOf(domain)
+  return { background: `${accent}22`, color: accent }
+}
+
 const selectedKey = ref('')
-const testing = ref(false)
+/** The instance whose health probe is in flight — the `st-connecting` row. */
+const probing = ref('')
 const error = ref('')
 const creatingFor = ref('')
 const createDraft = reactive({ providerType: '', label: '' })
 const modal = reactive({ open: false, domain: '', instanceId: '' })
+const simConsole = ref(null)
 
 const providers = computed(() => catalog.domainIds.flatMap((domain) => {
   const instances = catalog.instancesFor(domain)
@@ -29,28 +88,61 @@ const providers = computed(() => catalog.domainIds.flatMap((domain) => {
       }))
   return rows.map((instance) => {
     const type = catalog.resolveProvider(domain, instance.provider_type) || {}
+    const capability = catalog.domainLabel(domain)
     return {
       ...instance,
       domain,
       key: `${domain}/${instance.instance_id}`,
-      capability: catalog.domainLabel(domain),
+      availability: instance.availability || 'needs_configuration',
+      capability,
+      // The prototype's per-provider icon has no catalog field. The capability's
+      // own initial needs none and stays stable as the catalog changes.
+      glyph: capability.slice(0, 1).toUpperCase(),
       name: instance.label || type.label || instance.instance_id,
       typeName: type.label || instance.provider_type,
+      version: type.version || '',
       kind: type.kind || 'local',
+      kindLabel: KINDS[type.kind]?.label || type.kind || 'Local',
       description: type.description || 'Provider integration for this production capability.',
-      capabilities: Object.entries(type.capabilities || {}).filter(([, value]) => value).map(([key]) => key),
+      capabilities: catalog.grantedCapabilitiesOf(domain, instance.instance_id),
       health: catalog.healthFor(domain, instance.instance_id),
     }
   })
 }))
 
-const selected = computed(() => providers.value.find((provider) => provider.key === selectedKey.value) || providers.value[0] || null)
-const connectedCount = computed(() => providers.value.filter((provider) => provider.availability === 'available').length)
-const status = computed(() => {
-  if (selected.value?.health?.status) return selected.value.health.status === 'ok' ? 'connected' : 'error'
-  return selected.value?.availability === 'available' ? 'connected' : 'disconnected'
+const selected = computed(() => providers.value.find((p) => p.key === selectedKey.value) || providers.value[0] || null)
+const availableCount = computed(() => providers.value.filter((p) => p.availability === 'available').length)
+
+/**
+ * Two axes, kept apart the way the store keeps them (§21.5): a probe result
+ * when one has been asked for, otherwise the availability that shipped with the
+ * catalog. Nothing here triggers I/O to decide which dot to draw.
+ */
+function statusOf(provider) {
+  if (probing.value === provider.key) return 'connecting'
+  if (provider.health?.status) return provider.health.status === 'ok' ? 'connected' : 'error'
+  return provider.availability === 'available' ? 'connected' : 'disconnected'
+}
+
+function statusLabel(status) {
+  return STATUS_LABELS[status] || status
+}
+
+const status = computed(() => (selected.value ? statusOf(selected.value) : 'disconnected'))
+const kindHint = computed(() => KINDS[selected.value?.kind]?.hint || 'Provider transport')
+
+const probeResult = computed(() => {
+  if (!selected.value) return null
+  if (probing.value === selected.value.key) return { tone: 'run', text: 'Testing the stored configuration…' }
+  const health = selected.value.health
+  if (!health) return null
+  const latency = health.latency_ms == null ? '' : ` · ${Math.round(health.latency_ms)}ms`
+  const fallback = health.status === 'ok' ? 'Connection test passed' : 'Connection test failed'
+  return {
+    tone: health.status === 'ok' ? 'ok' : 'err',
+    text: `${health.message || fallback}${latency}`,
+  }
 })
-const kindLabel = computed(() => ({ cloud: 'API key', extension: 'Extension', webhook: 'n8n', local: 'Local' }[selected.value?.kind] || selected.value?.kind))
 
 watch(providers, (items) => {
   if (!items.some((item) => item.key === selectedKey.value)) selectedKey.value = items[0]?.key || ''
@@ -64,15 +156,15 @@ function openSettings() {
 }
 
 async function testConnection() {
-  if (!selected.value) return
-  testing.value = true
+  if (!selected.value || probing.value) return
+  probing.value = selected.value.key
   error.value = ''
   try {
     await catalog.checkHealth(selected.value.domain, selected.value.instance_id)
   } catch (err) {
     error.value = apiErrorText(err, 'Could not test connection')
   } finally {
-    testing.value = false
+    probing.value = ''
   }
 }
 
@@ -102,94 +194,204 @@ onMounted(() => catalog.loadCatalog())
 </script>
 
 <template>
-  <section class="providers-page">
-    <aside class="provider-rail">
-      <header>
-        <h1>Providers</h1>
-        <p>One provider per production capability. Configure, test, and inspect each integration.</p>
-      </header>
-      <div v-if="catalog.loading && !catalog.loaded" class="rail-empty">Loading providers…</div>
-      <nav v-else class="provider-list" aria-label="Provider integrations">
+  <section class="pvview" aria-label="Providers">
+    <aside class="pv-rail">
+      <div class="pv-rail-head">
+        <h2>Providers</h2>
+        <div class="pv-rail-sub">
+          One provider per production capability. Capability is metadata — a
+          provider never owns a stage.
+        </div>
+      </div>
+
+      <p v-if="catalog.loading && !catalog.loaded" class="rail-state">Loading providers…</p>
+      <nav v-else class="pv-list" aria-label="Provider integrations">
         <button
           v-for="provider in providers"
           :key="provider.key"
-          class="provider-item"
-          :class="{ selected: selected?.key === provider.key }"
+          type="button"
+          class="pv-litem"
+          :class="{ sel: selected?.key === provider.key, off: provider.availability === 'unavailable' }"
           :aria-current="selected?.key === provider.key ? 'true' : undefined"
           @click="selectedKey = provider.key"
         >
-          <span class="provider-mark">{{ provider.capability.slice(0, 1) }}</span>
-          <span class="provider-copy">
-            <small>{{ provider.capability }}</small>
-            <strong>{{ provider.name }} <em>{{ ({ cloud: 'API', extension: 'EXT', webhook: 'N8N', local: 'LOCAL' })[provider.kind] }}</em></strong>
+          <span class="pv-ic" :style="plateStyle(provider.domain)">{{ provider.glyph }}</span>
+          <span class="pl">
+            <span class="cap">{{ provider.capability }}</span>
+            <span class="pn">{{ provider.name }} <span class="kind">{{ provider.kindLabel }}</span></span>
           </span>
-          <span class="status-dot" :class="provider.availability === 'available' ? 'connected' : 'disconnected'"></span>
+          <span
+            class="pv-status-dot"
+            :class="`st-${statusOf(provider)}`"
+            :title="statusLabel(statusOf(provider))"
+          ></span>
         </button>
+        <p v-if="!providers.length" class="rail-state">No providers discovered.</p>
       </nav>
-      <footer><span class="status-dot connected"></span>{{ connectedCount }} of {{ providers.length }} available</footer>
+
+      <div class="pv-rail-foot">
+        <span class="pv-status-dot st-connected"></span>
+        {{ availableCount }} of {{ providers.length }} available
+      </div>
     </aside>
 
-    <main v-if="selected" class="provider-detail">
-      <header class="provider-hero">
-        <span class="hero-mark">{{ selected.capability.slice(0, 1) }}</span>
-        <div class="hero-copy">
-          <small>{{ selected.capability }}</small>
-          <h2>{{ selected.name }} <span class="status-dot" :class="status"></span></h2>
-          <p>{{ selected.description }}</p>
+    <main v-if="selected" class="pv-detail">
+      <header class="pv-hero" :style="{ '--pv-color': accentOf(selected.domain) }">
+        <span class="pv-hero-ic" :style="plateStyle(selected.domain)">{{ selected.glyph }}</span>
+        <div class="pv-hero-main">
+          <div class="pv-hero-cap">{{ selected.capability }}</div>
+          <h1 class="pv-hero-name">
+            {{ selected.name }}
+            <span class="pv-status-dot" :class="`st-${status}`" :title="statusLabel(status)"></span>
+          </h1>
+          <p class="pv-hero-tag">{{ selected.description }}</p>
         </div>
-        <div class="hero-status">
-          <span class="status-badge" :class="status"><span class="status-dot" :class="status"></span>{{ status }}</span>
-          <small>{{ kindLabel }} transport · {{ selected.typeName }}</small>
+        <div class="pv-hero-side">
+          <span class="pv-badge" :class="status">
+            <span class="pv-status-dot" :class="`st-${status}`"></span>{{ statusLabel(status) }}
+          </span>
+          <span class="mono kind-hint">{{ kindHint }}</span>
         </div>
       </header>
 
-      <div class="detail-body">
-        <p v-if="error || catalog.error" class="page-error" role="alert">{{ error || catalog.error }}</p>
+      <div class="pv-body">
+        <p v-if="error || catalog.error" class="banner error" role="alert">{{ error || catalog.error }}</p>
 
-        <section class="capability-link">
-          <span class="link-mark">→</span>
-          <div><strong>Powers {{ selected.capability }}</strong><p>Capability is metadata; execution remains owned by the workflow.</p></div>
-          <span class="capability-pill">{{ selected.domain }}</span>
-        </section>
+        <div class="pv-link">
+          <span class="lic" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </span>
+          <div class="lt">
+            <div class="t">Powers the {{ selected.capability }} capability</div>
+            <div class="d">Capability is metadata — the workflow, not this provider, owns the stage that uses it.</div>
+          </div>
+          <span class="stage-pill">{{ selected.domain }}</span>
+        </div>
 
-        <section class="detail-section">
-          <div class="section-heading">
-            <div><h3>Connection & configuration</h3><p>Credentials are write-only. Stored secret values are never returned to this page.</p></div>
-            <div class="section-actions">
-              <button class="secondary" :disabled="testing" @click="testConnection">{{ testing ? 'Testing…' : 'Test connection' }}</button>
-              <button class="primary" @click="openSettings">Configure</button>
+        <section class="pv-section">
+          <h3>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3v18h18" /><path d="M7 14l3-3 3 3 5-5" /></svg>
+            Activity
+          </h3>
+          <!-- The prototype's counters are invented telemetry. These four cells
+               are the catalog's own answers about this binding. -->
+          <div class="pv-meta">
+            <div class="cell">
+              <div class="n">{{ selected.availability.replaceAll('_', ' ') }}</div>
+              <div class="l">Availability</div>
+            </div>
+            <div class="cell">
+              <div class="n">{{ selected.version || '—' }}</div>
+              <div class="l">{{ selected.typeName }}</div>
+            </div>
+            <div class="cell">
+              <div class="n">{{ selected.capabilities.length }}</div>
+              <div class="l">Capabilities</div>
+            </div>
+            <div class="cell">
+              <div class="n">{{ selected.health?.latency_ms == null ? '—' : `${Math.round(selected.health.latency_ms)}ms` }}</div>
+              <div class="l">Last probe</div>
             </div>
           </div>
-          <div v-if="selected.health" class="health-result" :class="status">
-            <span class="status-dot" :class="status"></span>
-            {{ selected.health.message || (status === 'connected' ? 'Connection test passed' : 'Connection test failed') }}
-            <span v-if="selected.health.latency_ms">· {{ selected.health.latency_ms }}ms</span>
+        </section>
+
+        <section class="pv-section">
+          <h3>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8M4.6 9a1.6 1.6 0 0 0-.3-1.8M9 4.6a1.6 1.6 0 0 0 1.8-.3M15 19.4a1.6 1.6 0 0 0-1.8.3" /></svg>
+            Configuration
+          </h3>
+          <div class="desc">
+            {{ kindHint }}. Settings are edited in a dialog, so this pane never
+            holds a credential field.
           </div>
-          <div class="capability-tags">
-            <span v-for="capability in selected.capabilities" :key="capability">{{ capability.replaceAll('_', ' ') }}</span>
+          <!-- The prototype's `pv-static` carries a fact that is always true of
+               the row it sits in. Here that is the storage guarantee itself. -->
+          <div class="pv-static">
+            <span class="sd"></span>
+            Secrets are stored write-only — no stored value is ever returned to this page.
+          </div>
+          <div v-if="selected.capabilities.length" class="pv-caps">
+            <span v-for="capability in selected.capabilities" :key="capability" class="kind">
+              {{ capability.replaceAll('_', ' ') }}
+            </span>
           </div>
         </section>
 
-        <ProviderSimulationConsole
-          :key="selected.key"
-          :domain="selected.domain"
-          :instance-id="selected.instance_id"
-          :provider-name="selected.name"
-        />
+        <div class="pv-test-out" :class="probeResult ? `show ${probeResult.tone}` : ''">
+          {{ probeResult?.text }}
+        </div>
 
-        <section class="instance-tools">
-          <span>Need another named {{ selected.capability }} account?</span>
-          <button class="ghost" @click="beginCreate(selected.domain)">Add instance</button>
-          <div v-if="creatingFor === selected.domain" class="create-form">
-            <select v-model="createDraft.providerType" aria-label="Provider type">
-              <option v-for="type in catalog.providersFor(selected.domain)" :key="type.id" :value="type.id">{{ type.label }}</option>
-            </select>
-            <input v-model="createDraft.label" aria-label="Instance name" placeholder="Instance name" @keyup.enter="createInstance" />
-            <button class="primary" @click="createInstance">Add and configure</button>
-            <button class="ghost" @click="creatingFor = ''">Cancel</button>
+        <section class="pv-section">
+          <h3>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" /><circle cx="12" cy="12" r="3" /></svg>
+            Simulation
+          </h3>
+          <div class="desc">
+            Send a safe dummy request and inspect the transport round-trip. No
+            configured endpoint is contacted.
+          </div>
+          <ProviderSimulationConsole
+            ref="simConsole"
+            :key="selected.key"
+            :domain="selected.domain"
+            :instance-id="selected.instance_id"
+            :provider-name="selected.name"
+          />
+        </section>
+
+        <section class="pv-section instance-tools">
+          <h3>Instances</h3>
+          <div class="desc">
+            A second named binding of the same provider type holds its own
+            settings and its own availability.
+          </div>
+          <button type="button" class="btn sm ghost" @click="beginCreate(selected.domain)">
+            Add instance
+          </button>
+          <div v-if="creatingFor === selected.domain" class="pv-cfg create-form">
+            <div class="pv-field">
+              <label for="pv-new-type">Provider type</label>
+              <select id="pv-new-type" v-model="createDraft.providerType" class="pv-select">
+                <option v-for="type in catalog.providersFor(selected.domain)" :key="type.id" :value="type.id">
+                  {{ type.label }}
+                </option>
+              </select>
+            </div>
+            <div class="pv-field">
+              <label for="pv-new-label">Instance name</label>
+              <input
+                id="pv-new-label"
+                v-model="createDraft.label"
+                class="pv-input mono"
+                placeholder="Instance name"
+                @keyup.enter="createInstance"
+              />
+            </div>
+            <div class="create-actions">
+              <button type="button" class="btn primary sm" @click="createInstance">Add and configure</button>
+              <button type="button" class="btn sm ghost" @click="creatingFor = ''">Cancel</button>
+            </div>
           </div>
         </section>
       </div>
+
+      <footer class="pv-foot">
+        <div class="spacer"></div>
+        <button
+          type="button"
+          class="btn sm simulate-button"
+          :disabled="simConsole?.running"
+          @click="simConsole?.simulate()"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+          Simulate request
+        </button>
+        <button type="button" class="btn sm" :disabled="Boolean(probing)" @click="testConnection">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+          {{ probing ? 'Testing…' : 'Test connection' }}
+        </button>
+        <button type="button" class="btn primary sm" @click="openSettings">Configure</button>
+      </footer>
     </main>
 
     <ProviderSettingsModal
@@ -212,44 +414,324 @@ onMounted(() => catalog.loadCatalog())
 </template>
 
 <style scoped>
-.providers-page { height: 100%; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); color: var(--text); font: 13px var(--body); }
-.provider-rail { min-height: 0; display: flex; flex-direction: column; background: linear-gradient(180deg, var(--bg-2), var(--bg)); border-right: 1px solid var(--line); }
-.provider-rail header { padding: 18px 20px 15px; border-bottom: 1px solid var(--line-soft); }
-h1 { margin: 0; font: 600 15px var(--display); }
-.provider-rail header p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
-.provider-list { flex: 1; min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: 7px; padding: 10px; }
-.provider-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px; color: var(--text); text-align: left; background: var(--panel-grad); border: 1px solid var(--line); border-radius: var(--r-s); box-shadow: var(--hairline-top); cursor: pointer; transition: .16s var(--ease-spring); }
-.provider-item:hover { transform: translateY(-1px); border-color: var(--line-2); }
-.provider-item.selected { background: var(--accent-dim); border-color: var(--accent-line-2); box-shadow: var(--hairline-top), var(--glow); }
-.provider-mark, .hero-mark { display: grid; place-items: center; flex: none; color: var(--accent); background: var(--accent-dim); box-shadow: inset 0 0 0 1px var(--accent-line); font: 600 15px var(--display); }
-.provider-mark { width: 36px; height: 36px; border-radius: 9px; }
-.provider-copy { min-width: 0; flex: 1; display: grid; gap: 3px; }
-.provider-copy small, .hero-copy small { color: var(--muted); font: 9.5px var(--mono); letter-spacing: .5px; text-transform: uppercase; }
-.provider-copy strong { overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
-.provider-copy em { padding: 1px 5px; color: var(--text-2); background: var(--bg-2); border-radius: 4px; font: 500 8.5px var(--mono); }
-.status-dot { width: 8px; height: 8px; display: inline-block; flex: none; border-radius: 50%; background: var(--faint); }
-.status-dot.connected { background: var(--ok); box-shadow: 0 0 8px var(--ok); }.status-dot.error { background: var(--fail); }.status-dot.disconnected { background: var(--faint); }
-.provider-rail footer { display: flex; align-items: center; gap: 8px; padding: 11px 18px; color: var(--muted); border-top: 1px solid var(--line-soft); font: 10.5px var(--mono); }
-.rail-empty { padding: 20px; color: var(--muted); }
-.provider-detail { min-width: 0; overflow-y: auto; }
-.provider-hero { position: relative; display: flex; align-items: center; gap: 18px; padding: 26px 32px 22px; overflow: hidden; border-bottom: 1px solid var(--line-soft); }
-.provider-hero::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .08; background: radial-gradient(420px 200px at 12% -30%, var(--accent), transparent 70%); }
-.hero-mark { width: 62px; height: 62px; border-radius: 15px; font-size: 24px; }
-.hero-copy { z-index: 1; flex: 1; min-width: 0; }
-.hero-copy h2 { display: flex; align-items: center; gap: 11px; margin: 4px 0 7px; font: 600 24px var(--display); letter-spacing: -.5px; }
-.hero-copy p, .section-heading p, .capability-link p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.hero-status { z-index: 1; display: grid; justify-items: end; gap: 11px; color: var(--muted); font: 10.5px var(--mono); }
-.status-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 20px; text-transform: uppercase; font: 600 10.5px var(--mono); }
-.status-badge.connected { color: var(--ok); background: var(--ok-dim); }.status-badge.error { color: var(--fail); background: var(--fail-dim); }.status-badge.disconnected { color: var(--muted); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
-.detail-body { max-width: 900px; display: grid; gap: 24px; padding: 24px 32px 50px; }
-.capability-link { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--panel-grad); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--hairline-top); }
-.link-mark { width: 34px; height: 34px; display: grid; place-items: center; color: var(--text-2); background: var(--raise); border-radius: 9px; }.capability-link div { flex: 1; }.capability-link strong { font-size: 12.5px; }
-.capability-pill { padding: 4px 10px; color: var(--accent); background: var(--accent-dim); border-radius: 20px; font: 10px var(--mono); text-transform: uppercase; }
-.detail-section { display: grid; gap: 14px; }.section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; }.section-heading h3 { margin: 0 0 5px; font: 600 13px var(--display); }.section-actions { display: flex; gap: 8px; }
-button { padding: 8px 13px; border-radius: var(--r-s); font: 500 12.5px var(--body); cursor: pointer; }.primary { color: var(--text); background: var(--accent-grad); border: 1px solid transparent; font-weight: 600; }.secondary { color: var(--text); background: var(--panel-grad); border: 1px solid var(--line); box-shadow: var(--hairline-top); }.ghost { color: var(--text-2); background: transparent; border: 1px solid transparent; }
-.health-result { display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: var(--text-2); background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: var(--r-s); font: 11px var(--mono); }.health-result.error { color: var(--fail-text); border-color: var(--fail-line); }
-.capability-tags { display: flex; flex-wrap: wrap; gap: 6px; }.capability-tags span { padding: 3px 7px; color: var(--muted); background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: 4px; font: 9px var(--mono); text-transform: uppercase; }
-.instance-tools { display: flex; align-items: center; gap: 8px; padding-top: 18px; color: var(--muted); border-top: 1px solid var(--line-soft); font-size: 12px; }.create-form { width: 100%; display: flex; gap: 8px; flex-wrap: wrap; }.create-form input, .create-form select { min-width: 160px; padding: 8px 10px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); }
-.page-error { padding: 11px 13px; color: var(--fail-text); background: var(--fail-dim); border: 1px solid var(--fail-line); border-radius: var(--r-s); }
-@media (max-width: 820px) { .providers-page { display: block; overflow-y: auto; }.provider-rail { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }.provider-list { display: flex; overflow-x: auto; }.provider-item { min-width: 230px; }.provider-rail footer { display: none; }.provider-detail { overflow: visible; }.provider-hero, .section-heading, .instance-tools { align-items: flex-start; flex-wrap: wrap; }.hero-status { width: 100%; justify-items: start; }.detail-body { padding: 20px; }.section-actions { width: 100%; }.section-actions button { flex: 1; } }
+/* ── The prototype's `.body.pvview` ───────────────────────────────────── */
+.pvview {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
+}
+
+.pv-rail {
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--bg-2), var(--bg));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pv-rail-head { padding: 18px 20px 15px; border-bottom: 1px solid var(--line-soft); }
+.pv-rail-head h2 { margin: 0; font-family: var(--display); font-size: 15px; font-weight: 600; }
+.pv-rail-sub { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.45; }
+
+.pv-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* A real button, with none of a button's chrome — the row is the surface. */
+.pv-litem {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-s);
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color .14s, background .14s;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  box-shadow: var(--hairline-top);
+}
+
+.pv-litem:hover { border-color: var(--line-2); background: var(--panel-2); }
+.pv-litem.sel { border-color: var(--accent-line-2); background: var(--accent-fill-2); }
+.pv-litem.off { opacity: .55; }
+
+.pv-ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pv-litem .pl { flex: 1; min-width: 0; }
+.pv-litem .cap { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
+.pv-litem .pn { font-size: 13.5px; font-weight: 600; letter-spacing: -.1px; margin-top: 2px; display: flex; align-items: center; gap: 7px; min-width: 0; }
+
+/* One chip shape, on the rail row's transport and on a capability alike. */
+.pv-litem .pn .kind,
+.pv-caps .kind {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  color: var(--text-2);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  flex: none;
+  white-space: nowrap;
+}
+
+.pv-caps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+
+.pv-status-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.st-connected { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-dim); }
+.st-disconnected { background: var(--faint); }
+.st-error { background: var(--fail); box-shadow: 0 0 0 3px var(--fail-dim); }
+.st-connecting { background: var(--run); box-shadow: 0 0 0 3px var(--run-dim); animation: pv-blink 1s infinite; }
+
+@keyframes pv-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .st-connecting { animation: none; }
+}
+
+.pv-rail-foot {
+  padding: 11px 18px;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rail-state { padding: 28px 14px; margin: 0; text-align: center; color: var(--muted); font-size: 12.5px; }
+
+/* ── Detail ───────────────────────────────────────────────────────────── */
+.pv-detail { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; }
+
+.pv-hero {
+  padding: 26px 32px 22px;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  position: relative;
+  overflow: hidden;
+  flex: none;
+}
+
+/* The wash is tinted by the row's own derived accent, not by --accent. */
+.pv-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .09;
+  background: radial-gradient(420px 200px at 12% -30%, var(--pv-color, var(--accent)), transparent 70%);
+  pointer-events: none;
+}
+
+.pv-hero-ic {
+  width: 62px;
+  height: 62px;
+  border-radius: 15px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), 0 10px 24px -10px rgba(0, 0, 0, .6);
+  z-index: 1;
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.pv-hero-main { flex: 1; min-width: 0; z-index: 1; }
+.pv-hero-cap { font-family: var(--mono); font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.pv-hero-name { margin: 4px 0 0; font-family: var(--display); font-weight: 600; font-size: 24px; letter-spacing: -.5px; display: flex; align-items: center; gap: 11px; }
+.pv-hero-tag { margin: 7px 0 0; font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+.pv-hero-side { z-index: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.kind-hint { font-size: 10.5px; color: var(--muted); text-align: right; }
+
+.pv-badge {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pv-badge.connected { color: var(--ok); background: var(--ok-dim); box-shadow: inset 0 0 0 1px var(--ok-line); }
+.pv-badge.disconnected { color: var(--muted); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
+.pv-badge.error { color: var(--fail); background: var(--fail-dim); box-shadow: inset 0 0 0 1px var(--fail-line); }
+.pv-badge.connecting { color: var(--run); background: var(--run-dim); box-shadow: inset 0 0 0 1px var(--run-line); }
+
+.pv-body { padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 24px; max-width: 900px; flex: 1; }
+.pv-section h3 { margin: 0 0 4px; font-family: var(--display); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
+.pv-section h3 svg { color: var(--muted); flex: none; }
+.pv-section .desc { color: var(--muted); font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
+
+/* ── Activity strip ───────────────────────────────────────────────────── */
+.pv-meta { display: flex; gap: 0; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.pv-meta .cell { flex: 1; min-width: 0; padding: 14px 16px; border-right: 1px solid var(--line-soft); background: var(--panel); }
+.pv-meta .cell:last-child { border-right: none; }
+.pv-meta .cell .n { font-family: var(--display); font-size: 17px; font-weight: 600; letter-spacing: -.3px; text-transform: capitalize; overflow-wrap: anywhere; }
+.pv-meta .cell .l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+
+/* ── Config fields (the create-instance form is this page's only one) ─── */
+.pv-cfg { display: flex; flex-direction: column; gap: 14px; }
+.pv-field { display: flex; flex-direction: column; gap: 8px; }
+.pv-field > label { font-family: var(--mono); font-size: 10px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); }
+
+.pv-input,
+.pv-select {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  color: var(--text);
+  font-size: 13px;
+  padding: 9px 11px;
+  font-family: var(--body);
+  width: 100%;
+}
+
+.pv-input.mono { font-family: var(--mono); font-size: 12px; }
+
+.pv-select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237c8698' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.pv-input:focus,
+.pv-select:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.pv-static {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.pv-static .sd { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+
+/* ── Pipeline link callout ────────────────────────────────────────────── */
+.pv-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: linear-gradient(180deg, var(--panel), var(--bg-2));
+  padding: 14px 16px;
+}
+
+.pv-link .lic { width: 34px; height: 34px; border-radius: 9px; flex: none; display: grid; place-items: center; background: var(--raise); box-shadow: inset 0 0 0 1px var(--line-soft); color: var(--text-2); }
+.pv-link .lt { flex: 1; min-width: 0; }
+.pv-link .lt .t { font-size: 12.5px; font-weight: 600; }
+.pv-link .lt .d { font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+.pv-link .stage-pill { font-family: var(--mono); font-size: 10px; letter-spacing: .3px; text-transform: uppercase; color: var(--accent); background: var(--accent-dim); box-shadow: inset 0 0 0 1px var(--accent-line); padding: 4px 10px; border-radius: 20px; flex: none; }
+
+/* ── Probe readout ────────────────────────────────────────────────────── */
+.pv-test-out { font-family: var(--mono); font-size: 11.5px; display: none; align-items: center; gap: 8px; }
+.pv-test-out.show { display: flex; }
+.pv-test-out.ok { color: var(--ok); }
+.pv-test-out.err { color: var(--fail); }
+.pv-test-out.run { color: var(--run); }
+
+/* ── Sticky action footer ─────────────────────────────────────────────── */
+.pv-foot {
+  padding: 14px 32px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  bottom: 0;
+  flex: none;
+}
+
+.pv-foot .spacer { flex: 1; }
+/* The prototype's `.pv-enable` toggle is not ported: a provider is discovered
+   or excluded (§21.4), and there is no enable flag for a switch to write. */
+
+.instance-tools .btn { align-self: flex-start; }
+.create-form { margin-top: 14px; }
+.create-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.banner.error {
+  margin: 0;
+  padding: 11px 13px;
+  color: var(--fail-text);
+  background: var(--fail-dim);
+  border: 1px solid var(--fail-line);
+  border-radius: var(--r-s);
+}
+
+@media (max-width: 1000px) {
+  .pv-meta { flex-wrap: wrap; }
+  .pv-meta .cell { flex: 1 1 40%; }
+  .pv-hero { flex-wrap: wrap; }
+}
+
+/* The prototype hides the rail below 820px. Here it is the only way to reach
+   a provider, so it stacks above the detail instead. */
+@media (max-width: 820px) {
+  .pvview { display: block; overflow-y: auto; }
+  .pv-rail { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .pv-list { flex-direction: row; overflow-x: auto; }
+  .pv-litem { min-width: 240px; }
+  .pv-detail { overflow: visible; }
+  .pv-body { padding: 20px; }
+  .pv-hero { padding: 20px; }
+  .pv-hero-side { width: 100%; align-items: flex-start; }
+  .kind-hint { text-align: left; }
+  .pv-foot { padding: 14px 20px; position: static; flex-wrap: wrap; }
+  .pv-foot .spacer { display: none; }
+  .pv-foot .btn { flex: 1; }
+}
 </style>
