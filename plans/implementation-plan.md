@@ -346,7 +346,15 @@ Port `s1-*` (151 rules) — the largest family. The library rail, script editor,
 create flow with its template preview chips, the narration panel with its player,
 and the virality gauge with per-dimension bars.
 
-**Done when:** the studio's three columns, template chips, narration panel and virality gauge match the prototype, and the channel template preview still reads from the selected Channel.
+Verified gap before starting: **none of the 57 `s1-*` classes exist in the app**,
+and the library **filter chips are missing entirely** — the prototype's
+`ALL · n` / `TTS READY · n` / `SCRIPT ONLY · n` (`s1-fchip`) have no counterpart,
+so the library cannot be filtered by narration state. That is a functional gap,
+not a styling one: build the control, do not just style a missing element. The
+narration panel, virality checker and metadata row do exist in code and appear
+once a script is selected — those need porting, not building.
+
+**Done when:** the studio's three columns, filter chips, template chips, narration panel and virality gauge match the prototype, filtering by narration state works, and the channel template preview still reads from the selected Channel.
 
 ### 6.4 Channels
 
