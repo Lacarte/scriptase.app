@@ -27,6 +27,30 @@ os.environ.setdefault("SCRIPTASE_DISABLE_TRIGGERS", "1")
 # need reconciliation call reconcile_on_startup() against a temp root.
 os.environ.setdefault("SCRIPTASE_DISABLE_RECONCILE", "1")
 
+# Redirect the managed output tree at a throwaway directory for the whole run.
+#
+# The two settings above stop daemons and crash recovery touching output/, but
+# not tests that legitimately create domain objects. Anything calling
+# channels.store.create_channel(), the job store, or the artifact store wrote
+# into the developer's real output/ — 592 stray channel documents accumulated
+# there, two per run from the approval tests alone, and they render on the
+# Channels page as "Approval channel" / "Reject channel".
+#
+# config.py resolves OUTPUT_DIR from this variable at import time and conftest
+# is imported before any scriptase module, so one assignment here makes the
+# whole suite hermetic. It is also the precondition for running pytest in
+# parallel: workers cannot race over a tree none of them shares with the app.
+# An explicit SCRIPTASE_OUTPUT_DIR still wins, so a debugging session can point
+# the suite wherever it likes.
+if not os.environ.get("SCRIPTASE_OUTPUT_DIR"):
+    import atexit
+    import shutil
+    import tempfile
+
+    _TEST_OUTPUT_ROOT = tempfile.mkdtemp(prefix="scriptase-tests-")
+    os.environ["SCRIPTASE_OUTPUT_DIR"] = _TEST_OUTPUT_ROOT
+    atexit.register(shutil.rmtree, _TEST_OUTPUT_ROOT, ignore_errors=True)
+
 
 def pytest_collection_modifyitems(config, items):
     if os.environ.get("STS_LIVE") == "1":
