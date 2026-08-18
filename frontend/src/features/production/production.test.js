@@ -82,6 +82,8 @@ vi.mock('./api.js', () => ({
   createJob: vi.fn(),
   createJobBatch: vi.fn(),
   startJob: vi.fn(),
+  pauseJob: vi.fn(),
+  resumeJob: vi.fn(),
   testJobNode: vi.fn(),
   getNodeTypes: vi.fn(),
   deleteJob: vi.fn(),
@@ -1305,6 +1307,7 @@ describe('ProductionPage', () => {
       total: 1,
     })
     api.listExecutions.mockResolvedValue({ executions: [], total: 0 })
+    api.listJobs.mockResolvedValue({ jobs: [], total: 0 })
     api.getJobDefaults.mockResolvedValue({
       source_modes: SOURCE_MODE_CATALOG,
       execution_modes: [{ mode: 'manual', label: 'Manual', description: '' }],
@@ -1350,6 +1353,35 @@ describe('ProductionPage', () => {
     // Provider capability is metadata, not a "-P" suffix on the name.
     expect(text).not.toMatch(/Script\s*-P/)
     expect(text).not.toMatch(/Voice-P/)
+  })
+
+  it('searches a collapsed 48-hour Job without opening its date', async () => {
+    const now = Date.now()
+    api.listJobs.mockResolvedValue({
+      jobs: [
+        { id: 'job_NEW001', name: 'Fresh Job', channel_id: 'ch_A', status: 'completed', completed_at: new Date(now - 2 * 3600000).toISOString() },
+        { id: 'job_OLD001', name: 'Hidden History', channel_id: 'ch_A', status: 'completed', completed_at: new Date(now - 72 * 3600000).toISOString() },
+      ],
+      total: 2,
+    })
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/production', name: 'production', component: ProductionPage },
+        { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
+      ],
+    })
+    await router.push('/production')
+    await router.isReady()
+    const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.findAll('.job-row')).toHaveLength(1)
+    expect(wrapper.find('.calendar-cell').exists()).toBe(true)
+    await wrapper.find('.job-search input').setValue('Hidden History')
+    expect(wrapper.findAll('.job-row')).toHaveLength(1)
+    expect(wrapper.find('.job-row').text()).toContain('Hidden History')
+    expect(wrapper.text()).toContain('Found in archive · 1')
   })
 
   it('binds an execution from the query string and shows live status', async () => {

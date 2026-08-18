@@ -348,7 +348,8 @@ describe('ExportLibraryPage', () => {
   it('lists every export with its stats bar', async () => {
     const wrapper = await mountPage()
 
-    expect(wrapper.findAllComponents(ExportCard)).toHaveLength(3)
+    expect(wrapper.findAllComponents(ExportCard)).toHaveLength(2)
+    expect(wrapper.find('.calendar-cell').exists()).toBe(true)
     const stats = wrapper.find('.stats-bar').text()
     expect(stats).toContain('3')
     expect(stats).toContain('Exports')
@@ -380,6 +381,18 @@ describe('ExportLibraryPage', () => {
     expect(highlighted[0].text()).toContain('pm_TWO')
   })
 
+  it('finds a collapsed archived video by name before its date is opened', async () => {
+    const wrapper = await mountPage()
+    expect(wrapper.text()).not.toContain('two.mp4')
+
+    await wrapper.find('.search-input').setValue('two.mp4')
+    await flushPromises()
+
+    expect(wrapper.find('.archive-strip').exists()).toBe(false)
+    expect(wrapper.findComponent(ExportCard).text()).toContain('two.mp4')
+    expect(wrapper.text()).toContain('Found in archive · 1')
+  })
+
   it('opens the delete dialog before trashing anything', async () => {
     const wrapper = await mountPage()
 
@@ -394,7 +407,8 @@ describe('ExportLibraryPage', () => {
     expect(apiPost).toHaveBeenCalledWith('/api/export/library/trash', {
       body: { video_relpath: 'pm_ONE/one.mp4' },
     })
-    expect(wrapper.findAllComponents(ExportCard)).toHaveLength(2)
+    expect(wrapper.findAllComponents(ExportCard)).toHaveLength(1)
+    expect(wrapper.find('.calendar-cell').exists()).toBe(true)
   })
 })
 

@@ -7,6 +7,7 @@ import LibraryAnalytics from '../components/LibraryAnalytics.vue'
 import LibrarySearch from '../components/LibrarySearch.vue'
 import { useExportLibrary, aspectRatioFromDimensions } from '../composables/useExportLibrary.js'
 import { formatBytes, fmtDuration } from '@/shared/utils/format.js'
+import ArchiveCalendar from '@/shared/components/ArchiveCalendar.vue'
 
 defineOptions({ name: 'ExportLibraryPage' })
 
@@ -36,19 +37,22 @@ const {
   syncToFolder,
 } = useExportLibrary()
 
-const cardRefs = ref([])
+const cardRefs = ref({})
+const archiveCalendarRef = ref(null)
 const highlightedItemKey = ref('')
 const focusedQueryKey = ref('')
 const pendingTrashItem = ref(null)
 const trashing = ref(false)
 let highlightTimer = null
 
-function setCardRef(el, idx) {
-  cardRefs.value[idx] = el || null
+function setCardRef(el, item) {
+  const key = itemKey(item)
+  if (el) cardRefs.value[key] = el
+  else delete cardRefs.value[key]
 }
 
 function handlePlay(videoEl) {
-  for (const card of cardRefs.value) {
+  for (const card of Object.values(cardRefs.value)) {
     if (card && card.videoEl !== videoEl) card.stopPlayback()
   }
 }
@@ -106,12 +110,14 @@ async function focusRequestedExport() {
   if (index < 0 && projectId) index = filteredItems.value.findIndex(item => item.project_id === projectId)
   if (index < 0) return
 
+  const item = filteredItems.value[index]
+  archiveCalendarRef.value?.revealItem(item)
   await nextTick()
-  const card = cardRefs.value[index]
+  const card = cardRefs.value[itemKey(item)]
   const rootEl = card?.cardRootEl?.value || card?.cardRootEl
   if (!rootEl) return
 
-  const key = itemKey(filteredItems.value[index])
+  const key = itemKey(item)
   focusedQueryKey.value = queryKey
   highlightedItemKey.value = key
   if (typeof rootEl.scrollIntoView === 'function') rootEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -326,20 +332,30 @@ const extendedStats = computed(() => {
     <div v-else-if="!loading && items.length === 0" class="state-msg">No exported videos found yet.</div>
     <div v-else-if="items.length > 0 && filteredItems.length === 0" class="state-msg">No videos match the current filters.</div>
 
-    <!-- Grid -->
-    <div v-else class="export-grid">
-      <ExportCard
-        v-for="(item, idx) in filteredItems"
-        :key="item.project_id + (item.video_relpath || idx)"
-        :item="item"
-        :highlighted="highlightedItemKey === itemKey(item)"
-        :ref="(el) => setCardRef(el, idx)"
-        @play="handlePlay"
-        @download-video="downloadVideo"
-        @download-zip="downloadZip"
-        @trash="handleTrash"
-      />
-    </div>
+    <!-- The same 48-hour calendar renders Production rows and Library cards. -->
+    <ArchiveCalendar
+      v-else
+      ref="archiveCalendarRef"
+      :items="filteredItems"
+      :search-query="searchQuery"
+      timestamp-key="modified_at"
+      item-key="video_relpath"
+      :search-keys="['project_id', 'project_name', 'video_name', 'style']"
+      noun="video"
+      layout="grid"
+    >
+      <template #item="{ item }">
+        <ExportCard
+          :item="item"
+          :highlighted="highlightedItemKey === itemKey(item)"
+          :ref="(el) => setCardRef(el, item)"
+          @play="handlePlay"
+          @download-video="downloadVideo"
+          @download-zip="downloadZip"
+          @trash="handleTrash"
+        />
+      </template>
+    </ArchiveCalendar>
 
     <DeleteExportDialog
       :visible="!!pendingTrashItem"

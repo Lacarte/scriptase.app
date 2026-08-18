@@ -17,6 +17,7 @@ import {
   getJob,
   getJobCost,
   getNodeTypes,
+  listJobs,
   listExecutions,
   listWorkflows,
   pauseJob,
@@ -32,6 +33,7 @@ import { sourceModeLabel, sourceModeRequiresProvider } from './sourceModes.js'
 import { statusLabel } from './stageStatus.js'
 import { onShortcut } from '@/shared/composables/useShortcuts.js'
 import { openAppWindow } from '@/shared/utils/openWindow.js'
+import ArchiveCalendar from '@/shared/components/ArchiveCalendar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -81,6 +83,10 @@ const nodeTypes = ref({})
 const testResult = ref(null)
 const pauseActionRunning = ref(false)
 const pauseActionError = ref('')
+const jobs = ref([])
+const jobsLoading = ref(false)
+const jobsError = ref('')
+const jobSearch = ref('')
 
 /** Free-text stage filter — the input `/` focuses (step 0.3). */
 const stageFilter = ref('')
@@ -105,6 +111,39 @@ const visibleStages = computed(() => {
 const focusedStage = computed(() =>
   visibleStages.value.find((s) => s.key === focusedStageKey.value) || null,
 )
+
+/** Finished Jobs alone age into the archive; queued/running/failed work stays visible. */
+const calendarJobs = computed(() => jobs.value.map(job => ({
+  ...job,
+  name: job.name || job.title || job.source_name || job.id,
+  archive_at: job.status === 'completed' ? (job.completed_at || job.created_at) : null,
+})))
+
+async function refreshJobs() {
+  jobsLoading.value = true
+  jobsError.value = ''
+  try {
+    const data = await listJobs({ limit: 500 })
+    jobs.value = data.jobs || []
+  } catch (err) {
+    jobsError.value = err?.message || String(err)
+  } finally {
+    jobsLoading.value = false
+  }
+}
+
+function openJob(job) {
+  router.push({ name: 'production', query: { job_id: job.id } })
+}
+
+function jobDate(job) {
+  const value = job.completed_at || job.started_at || job.created_at
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date)
+    : ''
+}
 
 /**
  * Jobs run strictly one at a time (step 13.1), so a queued Job is waiting on
@@ -313,6 +352,7 @@ async function onJobStarted({ job, executionId: exId }) {
     await loadWorkflow(job.workflow_id)
     await refreshExecutions(job.workflow_id)
   }
+  await refreshJobs()
 }
 
 function formatCostAmount(amount, currency = 'USD') {
@@ -352,6 +392,7 @@ function onJobCreated({ job }) {
   activeJobId.value = job?.id || ''
   activeJobSourceMode.value = job?.source?.mode || null
   activeJobExecutionMode.value = job?.execution_mode || null
+  void refreshJobs()
 }
 
 function onWorkflowChange() {
@@ -640,7 +681,7 @@ watch(
 )
 
 onMounted(async () => {
-  await refreshWorkflows()
+  await Promise.all([refreshWorkflows(), refreshJobs()])
   try {
     const registry = await getNodeTypes()
     nodeTypes.value = registry?.node_types || {}
@@ -715,6 +756,53 @@ onMounted(async () => {
       @created="onJobCreated"
       @started="onJobStarted"
     />
+
+    <section class="job-index" aria-labelledby="production-jobs-title">
+      <header class="job-index-head">
+        <div>
+          <h2 id="production-jobs-title">Jobs</h2>
+          <p>Recent work stays at hand; completed work older than 48 hours packs into the calendar.</p>
+        </div>
+        <label class="job-search">
+          <span class="sr-only">Search jobs by name</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input v-model="jobSearch" type="search" placeholder="Search jobs by name…" />
+        </label>
+      </header>
+      <p v-if="jobsLoading && !jobs.length" class="muted">Loading jobs…</p>
+      <p v-else-if="jobsError" class="error" role="alert">{{ jobsError }}</p>
+      <ArchiveCalendar
+        v-else
+        :items="calendarJobs"
+        :search-query="jobSearch"
+        timestamp-key="archive_at"
+        item-key="id"
+        :search-keys="['name', 'id', 'channel_id', 'status']"
+        noun="job"
+      >
+        <template #item="{ item, archived }">
+          <button
+            type="button"
+            class="job-row"
+            :class="{ selected: item.id === activeJobId }"
+            @click="openJob(item)"
+          >
+            <span class="job-row-main">
+              <strong>{{ item.name }}</strong>
+              <span>{{ item.channel_name || item.channel_id }} · {{ item.id }}</span>
+            </span>
+            <span class="job-row-meta">
+              <span class="job-status" :data-status="item.status">{{ statusLabel(item.status) }}</span>
+              <time v-if="jobDate(item)">{{ jobDate(item) }}</time>
+              <span v-if="archived" class="archived-label">Archived</span>
+            </span>
+          </button>
+        </template>
+        <template #empty>
+          <p class="muted job-empty">No jobs match “{{ jobSearch }}”.</p>
+        </template>
+      </ArchiveCalendar>
+    </section>
 
     <div class="pickers">
       <label class="picker">
@@ -982,6 +1070,34 @@ onMounted(async () => {
   gap: 16px;
   align-items: flex-start;
   margin-bottom: 20px;
+}
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.job-index { display: grid; gap: 12px; margin: 0 0 20px; padding: 16px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-grad); }
+.job-index-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.job-index-head h2 { margin: 0 0 3px; font-family: var(--display); font-size: 15px; }
+.job-index-head p { margin: 0; color: var(--muted); font-size: 11.5px; }
+.job-search { width: min(280px, 100%); display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--bg-2); color: var(--muted); }
+.job-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+.job-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: 12px var(--body); }
+.job-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--bg-2); color: var(--text); text-align: left; cursor: pointer; }
+.job-row:hover { border-color: var(--line-2); background: var(--panel-2); }
+.job-row.selected { border-color: var(--accent-line-2); box-shadow: 0 0 0 1px var(--accent-line); }
+.job-row-main, .job-row-meta { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.job-row-main { flex-direction: column; align-items: flex-start; gap: 3px; }
+.job-row-main strong { max-width: 52ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job-row-main span, .job-row-meta time, .archived-label { color: var(--muted); font: 10px var(--mono); }
+.job-row-meta { flex: none; }
+.job-status { padding: 3px 7px; border-radius: 999px; background: var(--raise); color: var(--muted); font: 600 9px var(--mono); text-transform: uppercase; letter-spacing: .4px; }
+.job-status[data-status="completed"], .job-status[data-status="succeeded"] { background: var(--ok-dim); color: var(--ok); }
+.job-status[data-status="failed"] { background: var(--fail-dim); color: var(--fail); }
+.job-status[data-status="running"], .job-status[data-status="paused"] { background: var(--accent-dim); color: var(--accent); }
+.job-empty { margin: 4px 0; text-align: center; }
+
+@media (max-width: 720px) {
+  .job-index-head, .job-row { align-items: stretch; flex-direction: column; }
+  .job-search { width: auto; }
+  .job-row-meta { justify-content: space-between; }
 }
 
 h1 {

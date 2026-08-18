@@ -660,6 +660,36 @@ def delete_job(job_id: str) -> None:
             pass
 
 
+def _job_display_name(document: Job) -> str:
+    """Human-readable list name without expanding the Job payload."""
+    source = document.source
+    if source.script_id:
+        try:
+            from scriptase.scripts.store import get_script
+
+            title = str(get_script(source.script_id).title or "").strip()
+            if title:
+                return title
+        except (FileNotFoundError, ValueError):
+            pass
+
+    seed = source.topic or source.idea
+    if seed:
+        return seed[:200]
+    if source.pasted_script:
+        first_line = next(
+            (
+                line.strip("# *\t")
+                for line in source.pasted_script.splitlines()
+                if line.strip()
+            ),
+            "",
+        )
+        if first_line:
+            return first_line[:200]
+    return document.id
+
+
 def job_summary(document: Job) -> dict[str, Any]:
     """Compact listing payload (no full snapshot)."""
     source = document.source
@@ -669,7 +699,9 @@ def job_summary(document: Job) -> dict[str, Any]:
     spent = document.budget_spent
     return {
         "id": document.id,
+        "name": _job_display_name(document),
         "channel_id": document.channel_id,
+        "channel_name": str(document.channel_snapshot.get("name") or ""),
         "workflow_id": document.workflow_id,
         "execution_mode": document.execution_mode,
         "source_mode": source_mode,

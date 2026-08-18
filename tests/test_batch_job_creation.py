@@ -81,6 +81,25 @@ def test_invalid_selection_creates_no_partial_batch(batch_env):
     assert list_jobs() == []
 
 
+def test_job_list_exposes_searchable_script_and_channel_names(batch_env):
+    """Step 4.4: collapsed archive entries remain findable by their names."""
+    client, channel, scripts = batch_env
+    created = client.post("/api/jobs", json={
+        "job": {
+            "channel_id": channel.id,
+            "execution_mode": "manual",
+            "source": {"script_id": scripts[2].id},
+        }
+    })
+    assert created.status_code == 201
+
+    response = client.get("/api/jobs")
+    assert response.status_code == 200
+    summary = response.get_json()["jobs"][0]
+    assert summary["name"] == "Episode 2"
+    assert summary["channel_name"] == "Batch Channel"
+
+
 def test_single_job_endpoint_accepts_a_managed_studio_source(batch_env):
     client, channel, scripts = batch_env
     response = client.post("/api/jobs", json={
