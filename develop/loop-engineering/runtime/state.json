@@ -40,6 +40,24 @@
       "step": "0.3",
       "event": "done",
       "detail": "bb7e814"
+    },
+    {
+      "ts": "2026-08-18T01:33:41",
+      "step": "phase-0",
+      "event": "done",
+      "detail": "5a8dd7e"
+    },
+    {
+      "ts": "2026-08-18T01:33:44",
+      "step": "phase-1",
+      "event": "start",
+      "detail": "5a8dd7e"
+    },
+    {
+      "ts": "2026-08-18T01:33:44",
+      "step": "1.1",
+      "event": "start",
+      "detail": ""
     }
   ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
