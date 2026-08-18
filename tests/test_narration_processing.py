@@ -11,6 +11,7 @@ import numpy as np
 import soundfile as sf
 
 from scriptase.channels.migrations import apply_migrations
+from scriptase.channels.models import CHANNEL_SCHEMA_VERSION
 from scriptase.engine.adapters.common import AdapterContext
 from scriptase.engine.adapters.tts import generate as generate_tts
 from scriptase.engine.templates import narration_only_template
@@ -29,7 +30,7 @@ class NarrationResolutionTests(unittest.TestCase):
             "audio_defaults": {"speed": 0.95},
         })
         self.assertTrue(changed)
-        self.assertEqual(migrated["schema_version"], 4)
+        self.assertEqual(migrated["schema_version"], CHANNEL_SCHEMA_VERSION)
         self.assertIs(migrated["audio_defaults"]["remove_silence"], True)
 
     def test_script_override_wins_channel(self):

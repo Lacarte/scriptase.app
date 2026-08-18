@@ -34,6 +34,7 @@ _SNAPSHOT_FIELDS: tuple[str, ...] = (
     "script_template",
     "visual_direction",
     "audio_defaults",
+    "music_library",
     "captions",
     "provider_defaults",
     "fallback_policies",

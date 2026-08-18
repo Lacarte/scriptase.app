@@ -231,6 +231,37 @@ class PatternValidationTests(unittest.TestCase):
 
 
 class ChannelMigrationTests(ChannelStoreTestBase):
+    def test_v4_channel_migrates_media_library(self):
+        created = create_channel(self._draft())
+        path = os.path.join(channel_store._channels_dir, f"{created.id}.json")
+        with open(path, encoding="utf-8") as handle:
+            raw = json.load(handle)
+        raw["schema_version"] = 4
+        raw["branding"].pop("thumbnail_asset_id", None)
+        raw.pop("music_library", None)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(raw, handle)
+
+        loaded = get_channel(created.id)
+
+        self.assertEqual(loaded.schema_version, SCHEMA_VERSION)
+        self.assertIsNone(loaded.branding.thumbnail_asset_id)
+        self.assertEqual(loaded.music_library.tracks, [])
+
+    def test_media_library_rejects_browser_filesystem_paths(self):
+        draft = self._draft()
+        draft["branding"] = {"thumbnail_asset_id": r"C:\\Users\\me\\thumb.png"}
+        with self.assertRaises(ChannelValidationError):
+            create_channel(draft)
+
+        draft = self._draft()
+        draft["music_library"] = {
+            "folder": "Bad",
+            "tracks": [r"C:\\Music\\track.mp3"],
+        }
+        with self.assertRaises(ChannelValidationError):
+            create_channel(draft)
+
     def test_v1_channel_migrates_to_default_script_template(self):
         created = create_channel(self._draft())
         path = os.path.join(channel_store._channels_dir, f"{created.id}.json")

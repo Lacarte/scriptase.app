@@ -24,7 +24,19 @@ CHANNEL_ID_RE = re.compile(r"^ch_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py). Distinct from
 # the content ``version`` field, which bumps on every successful update.
-CHANNEL_SCHEMA_VERSION = 4
+CHANNEL_SCHEMA_VERSION = 5
+
+WATERMARK_POSITIONS = (
+    "top-left",
+    "top-center",
+    "top-right",
+    "middle-left",
+    "center",
+    "middle-right",
+    "bottom-left",
+    "bottom-center",
+    "bottom-right",
+)
 
 DEFAULT_VISUAL_STYLE_PROMPT = (
     "Cinematic editorial imagery with intentional composition, tactile detail, "
@@ -59,6 +71,17 @@ def _optional_str(value: Any) -> str | None:
     return text or None
 
 
+def _managed_ref(value: Any, prefixes: tuple[str, ...]) -> str | None:
+    """Normalize and validate a relative reference issued by an asset API."""
+    text = _optional_str(value)
+    if text is None:
+        return None
+    text = text.replace("\\", "/").lstrip("/")
+    if ":" in text or ".." in text.split("/") or not text.startswith(prefixes):
+        raise ValueError("must be a managed asset reference")
+    return text
+
+
 # ---------------------------------------------------------------------------
 # Nested blocks
 # ---------------------------------------------------------------------------
@@ -70,21 +93,55 @@ class Branding(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     logo_asset_id: str | None = None
+    thumbnail_asset_id: str | None = None
     enabled: bool = False
     position: str = "bottom-right"
     size: float = Field(default=0.12, ge=0.0, le=1.0)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
     margin: float = Field(default=0.04, ge=0.0, le=0.5)
 
-    @field_validator("logo_asset_id", mode="before")
+    @field_validator("logo_asset_id", "thumbnail_asset_id", mode="before")
     @classmethod
     def _logo(cls, value: Any) -> str | None:
-        return _optional_str(value)
+        return _managed_ref(value, ("branding/",))
 
     @field_validator("position", mode="before")
     @classmethod
     def _position(cls, value: Any) -> str:
-        return _strip_str(value) or "bottom-right"
+        position = (_strip_str(value) or "bottom-right").replace("_", "-")
+        if position not in WATERMARK_POSITIONS:
+            raise ValueError(
+                f"position must be one of: {', '.join(WATERMARK_POSITIONS)}"
+            )
+        return position
+
+
+class MusicLibrary(BaseModel):
+    """Channel-owned music collection using managed relative references only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    folder: str = ""
+    tracks: list[str] = Field(default_factory=list, max_length=200)
+
+    @field_validator("folder", mode="before")
+    @classmethod
+    def _folder(cls, value: Any) -> str:
+        return _strip_str(value)
+
+    @field_validator("tracks", mode="before")
+    @classmethod
+    def _tracks(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError("tracks must be a list of managed asset references")
+        tracks: list[str] = []
+        for item in value:
+            ref = _managed_ref(item, ("musics/", "sounds/music/"))
+            if ref and ref not in tracks:
+                tracks.append(ref)
+        return tracks
 
 
 class Content(BaseModel):
@@ -499,6 +556,7 @@ class ChannelProfile(BaseModel):
     script_template: ScriptTemplate = Field(default_factory=ScriptTemplate)
     visual_direction: VisualDirection = Field(default_factory=VisualDirection)
     audio_defaults: AudioDefaults = Field(default_factory=AudioDefaults)
+    music_library: MusicLibrary = Field(default_factory=MusicLibrary)
     captions: CaptionsDefaults = Field(default_factory=CaptionsDefaults)
     provider_defaults: ProviderDefaults = Field(default_factory=ProviderDefaults)
     fallback_policies: dict[str, FallbackPolicy] = Field(default_factory=dict)
@@ -562,6 +620,7 @@ class ChannelDraft(BaseModel):
     script_template: ScriptTemplate = Field(default_factory=ScriptTemplate)
     visual_direction: VisualDirection = Field(default_factory=VisualDirection)
     audio_defaults: AudioDefaults = Field(default_factory=AudioDefaults)
+    music_library: MusicLibrary = Field(default_factory=MusicLibrary)
     captions: CaptionsDefaults = Field(default_factory=CaptionsDefaults)
     provider_defaults: ProviderDefaults = Field(default_factory=ProviderDefaults)
     fallback_policies: dict[str, FallbackPolicy] = Field(default_factory=dict)
@@ -643,6 +702,8 @@ __all__ = [
     "DEFAULT_SCRIPT_TEMPLATE_BRIEF",
     "DEFAULT_SCRIPT_TEMPLATE_SECTIONS",
     "Branding",
+    "MusicLibrary",
+    "WATERMARK_POSITIONS",
     "Content",
     "ScriptTemplate",
     "PatternEntry",

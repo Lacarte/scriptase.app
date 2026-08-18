@@ -509,13 +509,14 @@ Per product §15.1. Implemented at 1.1 / 1.3.
 ```
 ChannelProfile
 - id / name / version / schema_version
-- branding          { logo_asset_id, enabled, position, size, opacity, margin }
+- branding          { logo_asset_id, thumbnail_asset_id, enabled, position, size, opacity, margin }
 - content           { niche, language, audience, script_style, tone, mood,
                       hook_style, cta_style, duration_target }
 - visual_direction  { style, pattern, palette, lighting, camera, character_style,
                       continuity, negative_prompt, references[] }
 - audio_defaults    { tts_provider_instance_id, voice, remove_silence, speed, music_profile,
                       loudness, ducking }
+- music_library     { folder, tracks[] } # managed refs only
 - captions          { preset, position, font_treatment, animation }
 - provider_defaults { script, tts, scene_director, image, video, review }  # instance ids
 - fallback_policies { <stage>: { primary, fallbacks[] } }                  # instance ids

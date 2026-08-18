@@ -160,12 +160,20 @@ onMounted(refresh)
              and the keyboard path belong to one real control (step 0.3). Its
              click bubbles to the row, so Enter and Space need no handler. -->
         <button type="button" class="card-main">
+          <img
+            v-if="ch.thumbnail_asset_id"
+            class="channel-thumbnail"
+            :src="`/output/${ch.thumbnail_asset_id}`"
+            alt=""
+          />
+          <span class="card-copy">
           <strong>{{ ch.name }}</strong>
           <span class="meta">
             <code>{{ ch.id }}</code>
             <span v-if="starterIds.has(ch.id)" class="badge">starter</span>
             <span v-if="ch.niche">· {{ ch.niche }}</span>
             <span v-if="ch.style">· {{ ch.style }}</span>
+          </span>
           </span>
         </button>
         <div class="card-side" @click.stop>
@@ -392,8 +400,8 @@ button.danger:hover:not(:disabled) {
    sits in is the surface, so it must stay invisible until focused. */
 .card-main {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
   gap: 4px;
   min-width: 0;
   flex: 1 1 auto;
@@ -413,6 +421,24 @@ button.danger:hover:not(:disabled) {
   border: none;
   transform: none;
   box-shadow: none;
+}
+
+.card-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.channel-thumbnail {
+  width: 64px;
+  height: 40px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-2);
+  object-fit: cover;
 }
 
 .card-main strong {

@@ -12,9 +12,11 @@ music picker shows them together.
 import json
 import os
 import subprocess
+import uuid
 
 from flask import Blueprint, jsonify, request, send_from_directory
 from loguru import logger
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 from config import MUSIC_DIR, MUSIC_LIBRARY_DIR
@@ -23,6 +25,34 @@ from scriptase.shared.ffmpeg_utils import find_ffprobe
 music_bp = Blueprint("music", __name__)
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a", ".flac"}
+ALLOWED_MIME_TYPES = {
+    "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg",
+    "audio/mp4", "audio/x-m4a", "audio/flac", "audio/x-flac",
+}
+MAX_MUSIC_BYTES = 25 * 1024 * 1024
+MAX_MUSIC_REQUEST_BYTES = MAX_MUSIC_BYTES + 1024 * 1024
+
+
+def _audio_signature_matches(ext, data):
+    """Reject renamed arbitrary files before they enter the managed library."""
+    if ext == ".wav":
+        return data.startswith(b"RIFF") and data[8:12] == b"WAVE"
+    if ext == ".ogg":
+        return data.startswith(b"OggS")
+    if ext == ".flac":
+        return data.startswith(b"fLaC")
+    if ext == ".m4a":
+        return len(data) >= 12 and data[4:8] == b"ftyp"
+    if ext == ".mp3":
+        return data.startswith(b"ID3") or (
+            len(data) >= 2 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0
+        )
+    return False
+
+
+@music_bp.errorhandler(RequestEntityTooLarge)
+def _music_too_large(_exc):
+    return jsonify({"error": {"code": "REQUEST_TOO_LARGE", "message": "Track exceeds the 25 MB limit"}}), 413
 
 
 def _get_duration(filepath):
@@ -72,6 +102,7 @@ def list_music():
                 size_mb = round(os.path.getsize(fpath) / (1024 * 1024), 1)
                 files.append({
                     "filename": fname,
+                    "ref": f"sounds/music/{entry}/{fname}",
                     "path": f"/assets/sounds/music/{entry}/{fname}",
                     "category": entry,
                     "source": "builtin",
@@ -91,6 +122,7 @@ def list_music():
             size_mb = round(os.path.getsize(fpath) / (1024 * 1024), 1)
             files.append({
                 "filename": fname,
+                "ref": f"musics/{fname}",
                 "path": f"/output/musics/{fname}",
                 "category": "uploads",
                 "source": "user",
@@ -104,6 +136,9 @@ def list_music():
 @music_bp.route("/api/music/upload", methods=["POST"])
 def upload_music():
     """Upload a music file to output/musics/ (the user-upload bucket)."""
+    request.max_content_length = MAX_MUSIC_REQUEST_BYTES
+    if request.content_length is not None and request.content_length > MAX_MUSIC_REQUEST_BYTES:
+        return jsonify({"error": {"code": "REQUEST_TOO_LARGE", "message": "Track exceeds the 25 MB limit"}}), 413
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
@@ -115,16 +150,30 @@ def upload_music():
     if ext not in ALLOWED_EXTENSIONS:
         return jsonify({"error": f"Unsupported format: {ext}"}), 400
 
-    fname = secure_filename(f.filename)
+    if (f.mimetype or "").lower() not in ALLOWED_MIME_TYPES:
+        return jsonify({"error": {"code": "BAD_REQUEST", "message": "Upload must be a supported audio file"}}), 400
+
+    data = f.read(MAX_MUSIC_BYTES + 1)
+    if len(data) > MAX_MUSIC_BYTES:
+        return jsonify({"error": {"code": "REQUEST_TOO_LARGE", "message": "Track exceeds the 25 MB limit"}}), 413
+    if not data:
+        return jsonify({"error": {"code": "BAD_REQUEST", "message": "Uploaded file is empty"}}), 400
+    if not _audio_signature_matches(ext, data):
+        return jsonify({"error": {"code": "BAD_REQUEST", "message": "File content does not match its audio extension"}}), 400
+
+    stem = os.path.splitext(secure_filename(f.filename))[0][:60] or "track"
+    fname = f"{stem}_{uuid.uuid4().hex[:8]}{ext}"
     os.makedirs(MUSIC_DIR, exist_ok=True)
     dest = os.path.join(MUSIC_DIR, fname)
-    f.save(dest)
+    with open(dest, "wb") as handle:
+        handle.write(data)
     logger.info("Music uploaded: {}", fname)
 
     size_mb = round(os.path.getsize(dest) / (1024 * 1024), 1)
     duration = _get_duration(dest)
     return jsonify({
         "filename": fname,
+        "ref": f"musics/{fname}",
         "path": f"/output/musics/{fname}",
         "category": "uploads",
         "source": "user",

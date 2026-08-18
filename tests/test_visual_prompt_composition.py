@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from scriptase.channels.migrations import apply_migrations
+from scriptase.channels.models import CHANNEL_SCHEMA_VERSION
 from scriptase.modules.image.providers.contract import StoryboardRequest
 from scriptase.modules.scene_director.providers.contract import SceneSpec
 from scriptase.prompts.visual import compose_visual_prompt
@@ -65,7 +66,7 @@ def test_v2_channel_migrates_visual_style_prompt_from_existing_style():
 
     assert changed is True
     # Later Channel fields continue the same hop-by-hop migration chain.
-    assert migrated["schema_version"] == 4
+    assert migrated["schema_version"] == CHANNEL_SCHEMA_VERSION
     assert migrated["visual_direction"]["style_prompt"] == "noir"
     assert migrated["audio_defaults"]["remove_silence"] is True
     assert migrated["version"] == 7

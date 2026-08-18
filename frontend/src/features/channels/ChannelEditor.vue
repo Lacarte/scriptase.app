@@ -7,8 +7,11 @@ import {
   deleteChannel,
   getChannel,
   listBrandingAssets,
+  listMusicAssets,
   updateChannel,
   uploadBrandingLogo,
+  uploadChannelThumbnail,
+  uploadMusicTrack,
 } from './api.js'
 
 const route = useRoute()
@@ -19,6 +22,7 @@ const saving = ref(false)
 const error = ref('')
 const success = ref('')
 const brandingAssets = ref([])
+const musicAssets = ref([])
 const uploadBusy = ref(false)
 const draggedSection = ref(null)
 const promptPreview = ref('')
@@ -40,6 +44,7 @@ const form = reactive({
   name: '',
   branding: {
     logo_asset_id: null,
+    thumbnail_asset_id: null,
     enabled: false,
     position: 'bottom-right',
     size: 0.12,
@@ -81,6 +86,10 @@ const form = reactive({
     music_profile: '',
     loudness: null,
     ducking: null,
+  },
+  music_library: {
+    folder: '',
+    tracks: [],
   },
   captions: {
     preset: '',
@@ -124,12 +133,21 @@ const logoPreviewUrl = computed(() => {
   return `/output/branding/${refId}`
 })
 
+const thumbnailPreviewUrl = computed(() => {
+  const refId = form.branding.thumbnail_asset_id
+  return refId ? `/output/${refId}` : ''
+})
+
 const POSITIONS = [
   'top-left',
+  'top-center',
   'top-right',
-  'bottom-left',
-  'bottom-right',
+  'middle-left',
   'center',
+  'middle-right',
+  'bottom-left',
+  'bottom-center',
+  'bottom-right',
 ]
 
 async function refreshPromptPreview() {
@@ -172,6 +190,7 @@ function applyDocument(doc) {
   form.name = doc.name || ''
   Object.assign(form.branding, {
     logo_asset_id: null,
+    thumbnail_asset_id: null,
     enabled: false,
     position: 'bottom-right',
     size: 0.12,
@@ -227,6 +246,14 @@ function applyDocument(doc) {
     ducking: null,
     ...(doc.audio_defaults || {}),
   })
+  Object.assign(form.music_library, {
+    folder: '',
+    tracks: [],
+    ...(doc.music_library || {}),
+  })
+  form.music_library.tracks = Array.isArray(doc.music_library?.tracks)
+    ? [...doc.music_library.tracks]
+    : []
   Object.assign(form.captions, {
     preset: '',
     position: '',
@@ -278,6 +305,7 @@ function draftPayload() {
     branding: {
       ...form.branding,
       logo_asset_id: emptyToNull(form.branding.logo_asset_id),
+      thumbnail_asset_id: emptyToNull(form.branding.thumbnail_asset_id),
       size: Number(form.branding.size),
       opacity: Number(form.branding.opacity),
       margin: Number(form.branding.margin),
@@ -317,6 +345,10 @@ function draftPayload() {
         form.audio_defaults.ducking === '' || form.audio_defaults.ducking == null
           ? null
           : Number(form.audio_defaults.ducking),
+    },
+    music_library: {
+      folder: form.music_library.folder.trim(),
+      tracks: [...form.music_library.tracks],
     },
     captions: { ...form.captions },
     provider_defaults: {
@@ -360,12 +392,14 @@ async function load() {
   error.value = ''
   success.value = ''
   try {
-    const [{ channel }, branding] = await Promise.all([
+    const [{ channel }, branding, music] = await Promise.all([
       getChannel(channelId.value),
       listBrandingAssets().catch(() => ({ assets: [] })),
+      listMusicAssets().catch(() => []),
     ])
     applyDocument(channel)
     brandingAssets.value = branding.assets || []
+    musicAssets.value = Array.isArray(music) ? music : music?.tracks || []
   } catch (err) {
     error.value = err.message || String(err)
   } finally {
@@ -433,6 +467,48 @@ async function onLogoFile(event) {
   } finally {
     uploadBusy.value = false
   }
+}
+
+async function onThumbnailFile(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  uploadBusy.value = true
+  error.value = ''
+  try {
+    const asset = await uploadChannelThumbnail(file)
+    form.branding.thumbnail_asset_id = asset.ref
+    brandingAssets.value = [asset, ...brandingAssets.value.filter((a) => a.ref !== asset.ref)]
+    success.value = 'Thumbnail uploaded — save the channel to keep the reference.'
+  } catch (err) {
+    error.value = err.message || String(err)
+  } finally {
+    uploadBusy.value = false
+  }
+}
+
+async function onMusicFile(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  uploadBusy.value = true
+  error.value = ''
+  try {
+    const asset = await uploadMusicTrack(file)
+    musicAssets.value = [asset, ...musicAssets.value.filter((a) => a.ref !== asset.ref)]
+    if (!form.music_library.tracks.includes(asset.ref)) form.music_library.tracks.push(asset.ref)
+    success.value = 'Track uploaded and added to this channel.'
+  } catch (err) {
+    error.value = err.message || String(err)
+  } finally {
+    uploadBusy.value = false
+  }
+}
+
+function toggleTrack(refId) {
+  const index = form.music_library.tracks.indexOf(refId)
+  if (index >= 0) form.music_library.tracks.splice(index, 1)
+  else form.music_library.tracks.push(refId)
 }
 
 function selectExistingLogo(refId) {
@@ -565,13 +641,21 @@ onMounted(load)
               </select>
             </label>
             <button type="button" class="ghost" @click="clearLogo">Clear logo</button>
+            <div class="watermark-picker" role="radiogroup" aria-label="Watermark position">
+              <button
+                v-for="p in POSITIONS"
+                :key="p"
+                type="button"
+                class="watermark-position"
+                :class="{ active: form.branding.position === p }"
+                role="radio"
+                :aria-checked="form.branding.position === p"
+                :aria-label="p"
+                @click="form.branding.position = p"
+              ><span></span></button>
+            </div>
+            <small class="picker-value">Watermark: {{ form.branding.position }}</small>
             <div class="grid-2">
-              <label>
-                Position
-                <select v-model="form.branding.position">
-                  <option v-for="p in POSITIONS" :key="p" :value="p">{{ p }}</option>
-                </select>
-              </label>
               <label>
                 Size (0–1)
                 <input v-model.number="form.branding.size" type="number" min="0" max="1" step="0.01" />
@@ -585,6 +669,27 @@ onMounted(load)
                 <input v-model.number="form.branding.margin" type="number" min="0" max="0.5" step="0.01" />
               </label>
             </div>
+          </div>
+        </div>
+        <div class="thumbnail-row">
+          <div class="logo-preview thumbnail-preview" v-if="thumbnailPreviewUrl">
+            <img :src="thumbnailPreviewUrl" alt="Channel thumbnail preview" />
+          </div>
+          <div class="logo-preview thumbnail-preview empty" v-else>No thumbnail</div>
+          <div class="logo-controls">
+            <label>
+              Upload channel thumbnail
+              <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="uploadBusy" @change="onThumbnailFile" />
+            </label>
+            <label>
+              Or pick existing
+              <select v-model="form.branding.thumbnail_asset_id">
+                <option :value="null">—</option>
+                <option v-for="asset in brandingAssets" :key="asset.ref" :value="asset.ref">
+                  {{ asset.filename }}
+                </option>
+              </select>
+            </label>
           </div>
         </div>
       </fieldset>
@@ -746,6 +851,35 @@ onMounted(load)
             />
           </label>
           <label>Music profile <input v-model="form.audio_defaults.music_profile" type="text" /></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Music library</legend>
+        <p class="hint">
+          Build a reusable track list for this channel. Uploads are validated and stored as managed assets.
+        </p>
+        <div class="grid-2">
+          <label>
+            Folder label
+            <input v-model="form.music_library.folder" type="text" placeholder="e.g. Documentary bed" />
+          </label>
+          <label>
+            Upload track
+            <input type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/flac" :disabled="uploadBusy" @change="onMusicFile" />
+          </label>
+        </div>
+        <div class="track-list" aria-label="Channel music tracks">
+          <label v-for="track in musicAssets" :key="track.ref" class="track-row">
+            <input
+              type="checkbox"
+              :checked="form.music_library.tracks.includes(track.ref)"
+              @change="toggleTrack(track.ref)"
+            />
+            <span>{{ track.filename }}</span>
+            <small>{{ track.category || track.source }}</small>
+          </label>
+          <p v-if="!musicAssets.length" class="hint">No tracks in the managed library yet.</p>
         </div>
       </fieldset>
 
@@ -1143,6 +1277,99 @@ input[type="file"]:disabled {
   flex: 1;
   min-width: 220px;
 }
+
+.thumbnail-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.thumbnail-preview {
+  width: 160px;
+  height: 90px;
+}
+
+.thumbnail-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.watermark-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  gap: 5px;
+  width: max-content;
+  margin: 10px 0 6px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+}
+
+.watermark-position {
+  position: relative;
+  width: 34px;
+  height: 28px;
+  padding: 0;
+  border-color: var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+}
+
+.watermark-position span {
+  position: absolute;
+  width: 7px;
+  height: 5px;
+  border-radius: 2px;
+  background: var(--muted);
+}
+
+.watermark-position:nth-child(3n + 1) span { left: 4px; }
+.watermark-position:nth-child(3n + 2) span { left: 50%; transform: translateX(-50%); }
+.watermark-position:nth-child(3n) span { right: 4px; }
+.watermark-position:nth-child(-n + 3) span { top: 4px; }
+.watermark-position:nth-child(n + 4):nth-child(-n + 6) span { top: 50%; transform: translateY(-50%); }
+.watermark-position:nth-child(5) span { transform: translate(-50%, -50%); }
+.watermark-position:nth-child(n + 7) span { bottom: 4px; }
+
+.watermark-position.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.watermark-position.active span { background: var(--accent); }
+
+.picker-value {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.track-list {
+  display: grid;
+  gap: 5px;
+  max-height: 220px;
+  margin-top: 12px;
+  overflow: auto;
+}
+
+.track-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+}
+
+.track-row small { color: var(--muted); }
 
 .pattern-table {
   display: flex;

@@ -280,6 +280,8 @@ def channel_summary(document: ChannelProfile) -> dict[str, Any]:
         "schema_version": document.schema_version,
         "niche": document.content.niche,
         "style": document.visual_direction.style,
+        "thumbnail_asset_id": document.branding.thumbnail_asset_id,
+        "track_count": len(document.music_library.tracks),
         "audio_defaults": {
             "remove_silence": document.audio_defaults.remove_silence,
             "speed": document.audio_defaults.speed,

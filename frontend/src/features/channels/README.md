@@ -6,7 +6,7 @@ The Channel Profile editor (step 1.3).
 |---|---|
 | `ChannelsPage.vue` | List + create + delete; auto-seeds starters from niche presets |
 | `ChannelEditor.vue` | Full ChannelProfile form with structured pattern editor |
-| `api.js` | CRUD against `/api/channels`; logo via `/api/workflow/branding` |
+| `api.js` | CRUD plus managed image and music uploads |
 
 Logo upload goes through the managed-branding endpoint — never a
 browser-supplied filesystem path. Channels select provider **instance ids**;

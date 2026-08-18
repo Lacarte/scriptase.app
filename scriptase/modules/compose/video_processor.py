@@ -1179,10 +1179,14 @@ class VideoProcessor:
         position = cfg.get('position', 'top_right')
         positions = {
             'top_left': (str(margin), str(margin)),
+            'top_center': ('(W-w)/2', str(margin)),
             'top_right': (f'W-w-{margin}', str(margin)),
-            'bottom_left': (str(margin), f'H-h-{margin}'),
-            'bottom_right': (f'W-w-{margin}', f'H-h-{margin}'),
+            'middle_left': (str(margin), '(H-h)/2'),
             'center': ('(W-w)/2', '(H-h)/2'),
+            'middle_right': (f'W-w-{margin}', '(H-h)/2'),
+            'bottom_left': (str(margin), f'H-h-{margin}'),
+            'bottom_center': ('(W-w)/2', f'H-h-{margin}'),
+            'bottom_right': (f'W-w-{margin}', f'H-h-{margin}'),
         }
         x, y = positions.get(position, positions['top_right'])
         logo_width = max(2, int(round(self.width * size / 100.0)))

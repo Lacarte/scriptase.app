@@ -14,7 +14,10 @@ vi.mock('./api.js', () => ({
   getChannel: vi.fn(),
   updateChannel: vi.fn(),
   listBrandingAssets: vi.fn(),
+  listMusicAssets: vi.fn(),
   uploadBrandingLogo: vi.fn(),
+  uploadChannelThumbnail: vi.fn(),
+  uploadMusicTrack: vi.fn(),
   getChannelDefaults: vi.fn(),
   composeVisualPrompt: vi.fn(),
 }))
@@ -178,6 +181,7 @@ describe('ChannelEditor', () => {
     updated_at: '2026-01-01T00:00:00Z',
     branding: {
       logo_asset_id: null,
+      thumbnail_asset_id: null,
       enabled: false,
       position: 'bottom-right',
       size: 0.12,
@@ -222,6 +226,10 @@ describe('ChannelEditor', () => {
       loudness: null,
       ducking: null,
     },
+    music_library: {
+      folder: 'Cinematic beds',
+      tracks: ['musics/bed_12345678.mp3'],
+    },
     captions: { preset: '', position: '', font_treatment: '', animation: '' },
     provider_defaults: {
       script: null,
@@ -252,6 +260,9 @@ describe('ChannelEditor', () => {
     vi.clearAllMocks()
     api.getChannel.mockResolvedValue({ channel: structuredClone(sample) })
     api.listBrandingAssets.mockResolvedValue({ assets: [] })
+    api.listMusicAssets.mockResolvedValue([
+      { filename: 'bed.mp3', ref: 'musics/bed_12345678.mp3', category: 'uploads' },
+    ])
     api.composeVisualPrompt.mockResolvedValue({
       prompt: 'A lone traveler finds a glowing door in the rain. Painterly chiaroscuro with restrained bronze highlights. Aspect ratio: 9:16.',
     })
@@ -292,6 +303,7 @@ describe('ChannelEditor', () => {
     expect(values).toContain('extreme close-up')
     expect(values).toContain('hook')
     expect(wrapper.findAll('.section-chip')).toHaveLength(5)
+    expect(wrapper.findAll('.watermark-position')).toHaveLength(9)
     expect(
       wrapper.findAll('.section-chip input').map((input) => input.element.value),
     ).toEqual(['Hook', 'Turn', 'Why', 'Reframe', 'Landing'])
@@ -316,6 +328,10 @@ describe('ChannelEditor', () => {
     expect(draft.script_template).toEqual({
       brief: 'Hook the viewer, turn the premise, explain it, then land cleanly.',
       sections: ['Hook', 'Why', 'Turn', 'Reframe', 'Landing'],
+    })
+    expect(draft.music_library).toEqual({
+      folder: 'Cinematic beds',
+      tracks: ['musics/bed_12345678.mp3'],
     })
     // Provider defaults must remain instance-id slots (null / empty), never secrets.
     expect(draft.provider_defaults).toEqual({

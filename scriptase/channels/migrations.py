@@ -78,6 +78,19 @@ def _add_narration_processing(data: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+@_register(5)
+def _add_channel_media_library(data: dict[str, Any]) -> dict[str, Any]:
+    """Add step 2.4 thumbnail and music collection defaults."""
+    migrated = deepcopy(data)
+    branding = migrated.get("branding")
+    if not isinstance(branding, dict):
+        branding = {}
+        migrated["branding"] = branding
+    branding.setdefault("thumbnail_asset_id", None)
+    migrated.setdefault("music_library", {"folder": "", "tracks": []})
+    return migrated
+
+
 # Future schema changes register the next consecutive target here and land in
 # the same step that changes the model (CLAUDE.md non-negotiable).
 

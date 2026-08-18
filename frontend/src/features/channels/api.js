@@ -70,3 +70,27 @@ export async function uploadBrandingLogo(file) {
   }
   return payload.asset
 }
+
+/** Thumbnails share the validated managed image library with logos. */
+export const uploadChannelThumbnail = uploadBrandingLogo
+
+export function listMusicAssets() {
+  return apiGet('/music/library')
+}
+
+export async function uploadMusicTrack(file) {
+  const body = new FormData()
+  body.append('file', file)
+  const response = await fetch('/api/music/upload', { method: 'POST', body })
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    const detail = payload?.error
+    const error = new Error(
+      (typeof detail === 'object' ? detail?.message : detail) || 'Music upload failed',
+    )
+    error.code = detail?.code
+    error.status = response.status
+    throw error
+  }
+  return payload
+}
