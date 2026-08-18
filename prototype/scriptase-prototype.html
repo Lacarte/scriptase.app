@@ -233,6 +233,10 @@ a:focus-visible, button:focus-visible, .job:focus-visible, .sch-node:focus-visib
 }
 .help-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-family: var(--mono); font-size: 14px; font-weight: 700; cursor: pointer; flex: none; }
 .help-btn:hover { background: var(--panel-2); color: var(--text); border-color: #333b45; }
+.theme-btn { width: 30px; height: 28px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--accent); cursor: pointer; flex: none; transition: transform .35s var(--ease-spring), border-color .2s, background .2s; }
+.theme-btn:hover { background: var(--panel-2); border-color: rgba(106,140,255,.4); }
+.theme-btn:active { transform: rotate(180deg) scale(.92); }
+.theme-btn svg { color: var(--accent); }
 
 /* ============================================================
    Body split: config rail + run-sheet
@@ -568,6 +572,7 @@ input.txt::placeholder { color: var(--faint); }
 .job.st-failed::before { background: var(--fail); opacity: 1; }
 .job.st-preparing::before { background: var(--run); opacity: .6; }
 .job.st-stopping::before, .job.st-stopped::before { background: var(--warn); opacity: 1; }
+.job.st-paused::before { background: var(--sched); opacity: .8; }
 .job.st-queued::before { background: var(--queue); opacity: .35; }
 .job.st-cancelled::before { background: var(--faint); opacity: .5; }
 .job.sel-checked { border-color: rgba(106,140,255,.6); box-shadow: 0 0 0 1px rgba(106,140,255,.4), 0 6px 20px -10px rgba(106,140,255,.5); }
@@ -634,6 +639,8 @@ input.txt::placeholder { color: var(--faint); }
 .badge.b-stopped .bd { background: var(--warn); }
 .badge.b-cancelled { color: var(--muted); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
 .badge.b-cancelled .bd { background: var(--faint); }
+.badge.b-paused { color: var(--sched); background: var(--sched-dim); box-shadow: inset 0 0 0 1px rgba(185,139,255,.3); }
+.badge.b-paused .bd { background: var(--sched); }
 .badge.b-draft { color: var(--sched); background: var(--sched-dim); box-shadow: inset 0 0 0 1px rgba(185,139,255,.25); }
 .badge.b-draft .bd { background: var(--sched); }
 @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
@@ -1426,6 +1433,12 @@ input.txt::placeholder { color: var(--faint); }
 .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
 .lib-card { border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); overflow: hidden; cursor: pointer; transition: border-color .14s, transform .12s; }
 .lib-card:hover { border-color: #333b45; transform: translateY(-2px); }
+.lib-card.lib-flash { animation: libFlash 1.6s var(--ease-spring); }
+@keyframes libFlash {
+  0%   { box-shadow: var(--glow); border-color: var(--accent); transform: translateY(-2px) scale(1.015); }
+  60%  { box-shadow: var(--glow); border-color: var(--accent); }
+  100% { box-shadow: var(--hairline-top), 0 1px 2px rgba(0,0,0,.3); border-color: var(--line); transform: none; }
+}
 .lib-thumb { aspect-ratio: 16/10; position: relative; display: grid; place-items: center; overflow: hidden; }
 .lib-thumb .cap { position: absolute; bottom: 10px; left: 10px; right: 10px; text-align: center; font-weight: 700; font-size: 12px; color: #fff; text-shadow: 0 1px 5px rgba(0,0,0,.9); line-height: 1.2; z-index: 2; }
 .lib-thumb .wm { max-width: 30px; max-height: 18px; opacity: .9; z-index: 3; filter: drop-shadow(0 1px 3px rgba(0,0,0,.6)); }
@@ -1594,6 +1607,9 @@ input.txt::placeholder { color: var(--faint); }
 .sch-live.done .dot { background: var(--ok); }
 .sch-live.fail { color: var(--fail); border-color: rgba(240,97,109,.4); background: var(--fail-dim); }
 .sch-live.fail .dot { background: var(--fail); }
+.sch-live.paused { color: var(--sched); border-color: rgba(185,139,255,.4); background: var(--sched-dim); }
+.sch-live.paused .dot { background: var(--sched); }
+.sch-live.paused b { color: var(--sched); }
 .sch-zoom { display: flex; gap: 4px; }
 .sch-zbtn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); cursor: pointer; font-family: var(--mono); font-size: 12px; }
 .sch-zbtn:hover { background: var(--panel-2); color: var(--text); }
@@ -1893,6 +1909,9 @@ body.welcomed .welcome-root { display: none; }
     </nav>
     <div class="spacer"></div>
     <div class="onair" id="onair"><span class="dot"></span><span id="onairText">IDLE</span></div>
+    <button class="theme-btn" id="themeBtn" onclick="randomTheme()" oncontextmenu="resetTheme();return false;" title="Shuffle accent theme · right-click to reset" aria-label="Shuffle accent theme">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="12.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="14.5" r="2.5"/><path d="M12 22a10 10 0 1 1 0-20 6 6 0 0 0 0 12 3 3 0 0 0 0 6z"/></svg>
+    </button>
     <button class="help-btn" onclick="openKeys()" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
     <div class="avatar-me">DV</div>
   </div>
@@ -2146,9 +2165,9 @@ body.welcomed .welcome-root { display: none; }
       <div class="spacer"></div>
       <button class="sch-errbadge" id="schErrBadge" style="display:none" onclick="schShowError()"></button>
       <div class="sch-live" id="schLive"></div>
-      <button class="sch-pause" id="schPauseBtn" onclick="schTogglePause()" aria-pressed="false" title="Pause live animation">
+      <button class="sch-pause" id="schPauseBtn" onclick="schTogglePause()" aria-pressed="false" title="Freeze the canvas animation — does not pause the jobs (use the job row's Pause for that)">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-        <span>Pause</span>
+        <span>Freeze view</span>
       </button>
       <div class="sch-zoom">
         <button class="sch-zbtn" onclick="schZoom(-1)" title="Zoom out" aria-label="Zoom out">−</button>
@@ -2740,7 +2759,7 @@ function render(){
   // summary counts
   const counts = { total:JOBS.length, running:0, queued:0, completed:0, failed:0, other:0 };
   JOBS.forEach(j=>{
-    if(j.status==='running'||j.status==='preparing'||j.status==='stopping') counts.running++;
+    if(j.status==='running'||j.status==='preparing'||j.status==='stopping'||j.status==='paused') counts.running++;
     else if(j.status==='queued'||j.status==='draft') counts.queued++;
     else if(j.status==='completed') counts.completed++;
     else if(j.status==='failed') counts.failed++;
@@ -2754,7 +2773,7 @@ function render(){
   let visible = JOBS.filter(j=>{
     if(chFilter && j.channel!==chFilter) return false;
     if(activeFilter){
-      if(activeFilter==='running' && !['running','preparing','stopping'].includes(j.status)) return false;
+      if(activeFilter==='running' && !['running','preparing','stopping','paused'].includes(j.status)) return false;
       if(activeFilter==='queued' && !['queued','draft'].includes(j.status)) return false;
       if(activeFilter==='completed' && j.status!=='completed') return false;
       if(activeFilter==='failed' && j.status!=='failed') return false;
@@ -2920,7 +2939,8 @@ function closeArchiveDate(k){ openArchiveDates.delete(k); render(); }
 
 function badgeFor(status){
   const map={ queued:'Queued', running:'Running', preparing:'Preparing', completed:'Completed',
-    failed:'Failed', stopping:'Stopping', stopped:'Stopped', cancelled:'Cancelled', draft:'Scheduled' };
+    failed:'Failed', stopping:'Stopping', stopped:'Stopped', cancelled:'Cancelled', draft:'Scheduled',
+    paused:'Paused' };
   return `<span class="badge b-${status}"><span class="bd"></span>${map[status]||status}</span>`;
 }
 
@@ -2934,6 +2954,10 @@ function compactStage(j){
   if(j.status==='queued') return `<div class="cur"><span class="nm" style="color:var(--muted)">Waiting for slot</span></div><div class="progress"><div class="fill" style="width:0%"></div></div>`;
   if(j.status==='draft') return `<div class="cur"><span class="nm" style="color:var(--sched)">Scheduled</span></div><div class="progress"><div class="fill" style="width:0%"></div></div>`;
   if(j.status==='preparing') return `<div class="cur"><span class="nm">Preparing S1…</span></div><div class="progress indet"><div class="fill"></div></div>`;
+  if(j.status==='paused'){
+    const st=STAGES[j.stageIdx];
+    return `<div class="cur"><span class="nm">Paused · ${st?st.name:'—'}</span><span class="pct">${j.pct}%</span></div><div class="progress"><div class="fill" style="width:${j.pct}%"></div></div>`;
+  }
   if(j.status==='stopping') return `<div class="cur"><span class="nm">Stopping…</span></div><div class="progress"><div class="fill" style="width:${j.pct}%"></div></div>`;
   if(j.status==='stopped') return `<div class="cur"><span class="nm">Stopped</span><span class="pct">${j.pct}%</span></div><div class="progress"><div class="fill" style="width:${j.pct}%"></div></div>`;
   if(j.status==='cancelled') return `<div class="cur"><span class="nm" style="color:var(--muted)">Cancelled</span></div><div class="progress"><div class="fill" style="width:0%"></div></div>`;
@@ -2975,7 +2999,7 @@ function renderJob(j){
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
           <span>Editor</span>
         </button>
-        <button class="quick-btn" onclick="showInLibrary('${j.id}',event)" title="Open in Library">
+        <button class="quick-btn" onclick="goLibrary('${j.id}',event)" title="Open in Library">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
           <span>Library</span>
         </button>
@@ -3121,8 +3145,9 @@ function jobActions(j){
   const btn=(cls,fn,label)=>`<button class="btn xs ${cls}" onclick="event.stopPropagation();${fn}('${j.id}')">${label}</button>`;
   let a=[];
   if(s==='queued'||s==='draft') { a.push(btn('primary','startJob','Start')); a.push(btn('','duplicateJob','Duplicate')); a.push(btn('danger','removeJob','Remove')); }
-  else if(s==='running'||s==='preparing') { a.push(btn('warnb','stopJob','Stop')); a.push(btn('danger','cancelJob','Cancel')); }
-  else if(s==='completed') { a.push(btn('','showInEditor','Open in Editor')); a.push(btn('','showInExport','Export')); a.push(btn('','showInLibrary','Library')); a.push(btn('','duplicateJob','Duplicate')); a.push(btn('danger','removeJob','Remove')); }
+  else if(s==='running'||s==='preparing') { a.push(btn('','pauseJob','Pause')); a.push(btn('warnb','stopJob','Stop')); a.push(btn('danger','cancelJob','Cancel')); }
+  else if(s==='paused') { a.push(btn('primary','resumeJob','Resume')); a.push(btn('warnb','stopJob','Stop')); a.push(btn('danger','cancelJob','Cancel')); }
+  else if(s==='completed') { a.push(btn('','showInEditor','Open in Editor')); a.push(btn('','showInExport','Export')); a.push(btn('','goLibrary','Library')); a.push(btn('','duplicateJob','Duplicate')); a.push(btn('danger','removeJob','Remove')); }
   else if(s==='failed') { a.push(btn('primary','retryJob','Retry')); a.push(btn('','duplicateJob','Duplicate')); a.push(btn('danger','removeJob','Remove')); }
   else if(s==='stopped'||s==='cancelled') { a.push(btn('primary','startJob','Restart')); a.push(btn('danger','removeJob','Remove')); }
   return a.join('');
@@ -3291,7 +3316,7 @@ function finishedJobs(){ return JOBS.filter(j=>j.status==='completed'); }
 // a video card (reused for recent + archived reveal)
 function libCard(j){
   const c=CHANNELS[j.channel];
-  return `<div class="lib-card" onclick="showInLibrary('${j.id}')">
+  return `<div class="lib-card" data-lib-id="${j.id}" onclick="showInLibrary('${j.id}')">
     <div class="lib-thumb" style="background:linear-gradient(160deg,${c.color},${c.color}44)">
       <div class="cap">${j.title}</div>
       ${c.logo?`<img class="wm" src="${c.logo}" alt="wm" style="${watermarkStyle(c.logoPos,8)}"/>`:''}
@@ -3339,6 +3364,25 @@ function libCalendarStrip(archived){
 }
 function libToggleDate(k){ if(libOpenDates.has(k)) libOpenDates.delete(k); else libOpenDates.add(k); renderLibrary(); }
 function libCloseDate(k){ libOpenDates.delete(k); renderLibrary(); }
+// Deep-link a finished job into the Library VIEW (not the export modal):
+// switch section, clear filters + reveal the archive date so the card exists,
+// then scroll to it and flash a highlight.
+function goLibrary(id,e){ if(e) e.stopPropagation();
+  const j=JOBS.find(x=>x.id===id);
+  if(!j || j.status!=='completed'){ toast('warn','The library holds finished videos'); return; }
+  // clear filters so the card is guaranteed visible; open its archive date if archived
+  libState.channel=''; libState.search='';
+  if(isArchived(j)) libOpenDates.add(dateKey(j.completedMs));
+  goView('library');   // renders the library with the card present
+  requestAnimationFrame(()=>{
+    const card=document.querySelector('.lib-card[data-lib-id="'+id+'"]');
+    if(card){
+      card.scrollIntoView({behavior:'smooth', block:'center'});
+      card.classList.add('lib-flash');
+      setTimeout(()=>card.classList.remove('lib-flash'), 1600);
+    }
+  });
+}
 function renderLibrary(){
   const host=document.getElementById('view-library');
   const all=finishedJobs().slice().sort((a,b)=>(b.completedMs||0)-(a.completedMs||0));
@@ -3416,13 +3460,13 @@ function schTogglePause(){
   const btn=document.getElementById('schPauseBtn');
   btn.classList.toggle('on', schState.paused);
   btn.setAttribute('aria-pressed', schState.paused?'true':'false');
-  btn.querySelector('span').textContent = schState.paused?'Resume':'Pause';
+  btn.querySelector('span').textContent = schState.paused?'Resume view':'Freeze view';
   btn.querySelector('svg').innerHTML = schState.paused
     ? '<polygon points="6 3 20 12 6 21 6 3"/>'                                   // play icon
     : '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'; // pause icon
-  btn.title = schState.paused?'Resume live animation':'Pause live animation';
+  btn.title = schState.paused?'Resume the canvas animation':'Freeze the canvas animation — does not pause the jobs (use the job row\'s Pause for that)';
   if(!schState.paused) renderSchema();   // catch up to current state on resume
-  toast('info', schState.paused?'Schema paused — live updates frozen':'Schema resumed');
+  toast('info', schState.paused?'Canvas frozen — jobs keep running':'Canvas animation resumed');
 }
 const SCH_NODE_W=150, SCH_NODE_H=48;
 
@@ -3430,7 +3474,7 @@ const SCH_NODE_W=150, SCH_NODE_H=48;
 // one, else the most recent failed/completed.
 function schemaFocusJob(){
   if(schState.errorFocusId){ const p=JOBS.find(j=>j.id===schState.errorFocusId && j.status==='failed'); if(p) return p; schState.errorFocusId=null; }
-  return JOBS.find(j=>['running','preparing'].includes(j.status))
+  return JOBS.find(j=>['running','preparing','paused'].includes(j.status))
       || JOBS.find(j=>j.status==='failed')
       || [...JOBS].reverse().find(j=>j.status==='completed')
       || null;
@@ -3532,6 +3576,10 @@ function renderSchema(){
       const st=STAGES[j.stageIdx]||STAGES[0];
       live.className='sch-live on';
       live.innerHTML=`<span class="dot"></span> ${j.id} · <b>${st?st.name:'…'}</b> · ${Math.round(j.pct)}%`;
+    } else if(j && j.status==='paused'){
+      const st=STAGES[j.stageIdx]||STAGES[0];
+      live.className='sch-live paused';
+      live.innerHTML=`<span class="dot"></span> ${j.id} · Paused at <b>${st?st.name:'…'}</b> · ${Math.round(j.pct)}%`;
     } else if(j && j.status==='failed'){
       live.className='sch-live fail'; live.innerHTML=`<span class="dot"></span> ${j.id} · Failed at ${STAGES.find(s=>s.key===j.failStage)?.name||'—'}`;
     } else if(j && j.status==='completed'){
@@ -4148,6 +4196,7 @@ function openCtx(id,e){ e.stopPropagation();
   const ic={
     play:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>',
     stop:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+    pause:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
     retry:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>',
     dup:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
     eye:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
@@ -4161,11 +4210,12 @@ function openCtx(id,e){ e.stopPropagation();
   html += item('expandFromCtx','View Details',ic.eye);
   if(j.status==='completed'){ html+=item('showInEditor','Open in Editor',ic.edit); html+=item('showInExport','Export & download',ic.exp); }
   if(j.status==='queued'||j.status==='draft'||j.status==='stopped'||j.status==='cancelled') html+=item('startJob','Start',ic.play);
-  if(j.status==='running'||j.status==='preparing') { html+=item('stopJob','Stop',ic.stop); }
+  if(j.status==='running'||j.status==='preparing') { html+=item('pauseJob','Pause',ic.pause); html+=item('stopJob','Stop',ic.stop); }
+  if(j.status==='paused') { html+=item('resumeJob','Resume',ic.play); html+=item('stopJob','Stop',ic.stop); }
   if(j.status==='failed') html+=item('retryJob','Retry',ic.retry);
   html+=item('duplicateJob','Duplicate',ic.dup);
   html+='<div class="ctx-sep"></div>';
-  if(j.status==='running'||j.status==='preparing') html+=item('cancelJob','Cancel',ic.x,'danger');
+  if(j.status==='running'||j.status==='preparing'||j.status==='paused') html+=item('cancelJob','Cancel',ic.x,'danger');
   html+=item('removeJob','Remove',ic.trash,'danger');
   m.innerHTML=html;
   m.classList.add('open');
@@ -4184,7 +4234,9 @@ const timers={};
 const MAX_CONCURRENT=1;   // one job at a time — the next queued job starts when the current one finishes
 let batchRunning=true;   // when true, the queue continuously drains into free slots
 
-function runningCount(){ return JOBS.filter(j=>['running','preparing'].includes(j.status)).length; }
+// A paused job still occupies its slot, so it counts toward the concurrency cap —
+// the queue must NOT start a fresh job just because the active one is paused.
+function runningCount(){ return JOBS.filter(j=>['running','preparing','paused'].includes(j.status)).length; }
 function queuedCount(){ return JOBS.filter(j=>j.status==='queued').length; }
 
 function startJob(id, silent){
@@ -4288,10 +4340,26 @@ function pumpQueue(){
 }
 
 function stopJob(id){
-  const j=JOBS.find(x=>x.id===id); if(!j||!['running','preparing'].includes(j.status)) return;
+  const j=JOBS.find(x=>x.id===id); if(!j||!['running','preparing','paused'].includes(j.status)) return;
   j.status='stopping'; render();
   clearInterval(timers[j.id]);
   setTimeout(()=>{ if(j.status==='stopping'){ j.status='stopped'; j.updated=nowStamp(0); render(); toast('warn',`${j.id} stopped`); pumpQueue(); } }, 700);
+}
+// Pause the running job at its current stage. Unlike Stop, this preserves progress
+// (stageIdx + pct) and keeps holding the concurrency slot — the queue does NOT jump
+// ahead, because the job is paused, not finished. Resume re-enters the tick loop.
+function pauseJob(id){
+  const j=JOBS.find(x=>x.id===id); if(!j||!['running','preparing'].includes(j.status)) return;
+  clearInterval(timers[j.id]);
+  j.status='paused'; j.updated=nowStamp(0);
+  render(); toast('info',`${j.id} paused — progress held at ${j.pct}%`);
+  // NOTE: no pumpQueue() here — a paused job still occupies the running slot on purpose.
+}
+function resumeJob(id){
+  const j=JOBS.find(x=>x.id===id); if(!j||j.status!=='paused') return;
+  j.status='running'; j.updated=nowStamp(0);
+  render(); toast('info',`${j.id} resumed`);
+  tickJob(j);   // pick up from the same stage/pct
 }
 function cancelJob(id){
   const j=JOBS.find(x=>x.id===id); if(!j) return;
@@ -4310,7 +4378,7 @@ function removeJob(id){
     clearInterval(timers[id]); const removed=JOBS[idx]; JOBS.splice(idx,1); render();
     toast('ok',`${id} removed`, { label:'Undo', onUndo:()=>{ JOBS.splice(Math.min(idx,JOBS.length),0,removed); render(); toast('info',`${id} restored`); } });
   };
-  if(['running','preparing'].includes(j.status)){
+  if(['running','preparing','paused'].includes(j.status)){
     confirmModal('danger','Remove a running job?', `${id} is currently running. Removing it cancels production and discards progress.`, go);
   } else go();
 }
@@ -4328,7 +4396,7 @@ function doDuplicate(src, notify){
    BATCH CONTROLS
    ============================================================ */
 function stopBatch(){
-  const running=JOBS.filter(j=>['running','preparing'].includes(j.status));
+  const running=JOBS.filter(j=>['running','preparing','paused'].includes(j.status));
   // Pause the queue first so freed slots don't immediately refill.
   batchRunning=false;
   if(running.length){
@@ -4342,7 +4410,7 @@ function stopBatch(){
   render();
 }
 function cancelAll(){
-  const affected=JOBS.filter(j=>['running','preparing','queued','draft','stopping'].includes(j.status));
+  const affected=JOBS.filter(j=>['running','preparing','queued','draft','stopping','paused'].includes(j.status));
   if(!affected.length){ toast('warn','Nothing to cancel'); return; }
   confirmModal('danger','Cancel all active jobs?', `This cancels ${affected.length} running and queued job${affected.length>1?'s':''}. Completed jobs are kept. This can't be undone.`, ()=>{
     affected.forEach(j=>{ clearInterval(timers[j.id]); j.status='cancelled'; j.pct=0; j.stageIdx=-1; j.updated=nowStamp(0); });
@@ -4491,6 +4559,64 @@ function goView(v){
   if(v==='channels'){ if(!chState.selectedId) chState.selectedId=Object.keys(CHANNELS)[0]; renderChannels(); }
   if(v==='providers'){ if(!pvState.selectedId) pvState.selectedId=Object.keys(PROVIDERS)[0]; renderProviders(); }
   if(v==='schema'){ buildSchema(); renderSchema(); }
+}
+
+/* ============================================================
+   THEME — shuffle the signature duotone accent
+   Re-tints only the accent tokens (the app's visual identity hangs off
+   --accent / --accent-2). Neutral ink and status colours (ok/fail/warn)
+   are left intact so the UI stays legible. Right-click resets to default.
+   ============================================================ */
+const THEME_DEFAULTS = {
+  '--accent':'#6a8cff', '--accent-2':'#a58bff',
+  '--accent-grad':'linear-gradient(135deg, #6a8cff, #9b7bff)',
+  '--accent-dim':'rgba(106,140,255,.15)',
+  '--run':'#58a6ff', '--run-dim':'rgba(88,166,255,.15)',
+  '--glow':'0 0 0 1px rgba(106,140,255,.35), 0 6px 24px -6px rgba(106,140,255,.55)',
+};
+// hsl → hex, s/l in %
+function hslHex(h,s,l){
+  s/=100; l/=100;
+  const k=n=>(n+h/30)%12, a=s*Math.min(l,1-l);
+  const f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
+  const to=x=>Math.round(255*x).toString(16).padStart(2,'0');
+  return `#${to(f(0))}${to(f(8))}${to(f(4))}`;
+}
+// pick a random hue this run (Math.random is unavailable in the workflow
+// sandbox, but this is a browser handler — fine here)
+function randomTheme(){
+  const h=Math.floor(Math.random()*360);
+  const h2=(h+38)%360;                 // duotone partner, ~40° along the wheel
+  const accent = hslHex(h, 78, 70);
+  const accent2= hslHex(h2, 72, 74);
+  const run    = hslHex(h, 82, 68);
+  // rgba helpers from the two hues for dim/glow tints
+  const rgb=hex=>{ const n=parseInt(hex.slice(1),16); return [n>>16&255, n>>8&255, n&255]; };
+  const [ar,ag,ab]=rgb(accent), [rr,rg,rb]=rgb(run);
+  const r=document.documentElement.style;
+  r.setProperty('--accent', accent);
+  r.setProperty('--accent-2', accent2);
+  r.setProperty('--accent-grad', `linear-gradient(135deg, ${accent}, ${accent2})`);
+  r.setProperty('--accent-dim', `rgba(${ar},${ag},${ab},.15)`);
+  r.setProperty('--run', run);
+  r.setProperty('--run-dim', `rgba(${rr},${rg},${rb},.15)`);
+  r.setProperty('--glow', `0 0 0 1px rgba(${ar},${ag},${ab},.35), 0 6px 24px -6px rgba(${ar},${ag},${ab},.55)`);
+  // re-tint the ambient body glow + selection to match
+  r.setProperty('--theme-bg-a', `rgba(${ar},${ag},${ab},.10)`);
+  r.setProperty('--theme-bg-b', `rgba(${rgb(accent2)[0]},${rgb(accent2)[1]},${rgb(accent2)[2]},.06)`);
+  document.body.style.background =
+    `radial-gradient(1300px 680px at 82% -12%, rgba(${ar},${ag},${ab},.10), transparent 58%),`+
+    `radial-gradient(1000px 560px at -6% 112%, rgba(${rgb(accent2)[0]},${rgb(accent2)[1]},${rgb(accent2)[2]},.06), transparent 54%),`+
+    `radial-gradient(700px 400px at 50% 120%, rgba(53,192,138,.03), transparent 60%), var(--bg)`;
+  if(currentView==='schema') renderSchema();
+  toast('ok', `Accent shuffled · hue ${h}°`);
+}
+function resetTheme(){
+  const r=document.documentElement.style;
+  Object.entries(THEME_DEFAULTS).forEach(([k,v])=>r.setProperty(k,v));
+  document.body.style.background='';   // fall back to the stylesheet default
+  if(currentView==='schema') renderSchema();
+  toast('info','Theme reset to default');
 }
 
 /* welcome screen */
