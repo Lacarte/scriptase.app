@@ -235,7 +235,13 @@ def resolved_settings(instance, options=None, *, instance_id: str | None = None)
     }
 
 
-def cache_key(text: str, voice: str, speed: float, provider_id: str = "") -> str:
+def cache_key(
+    text: str,
+    voice: str,
+    speed: float,
+    provider_id: str = "",
+    remove_silence: bool = False,
+) -> str:
     """Deterministic preview-cache key.
 
     `provider_id` is part of the key because the same `(text, voice, speed)`
@@ -245,7 +251,7 @@ def cache_key(text: str, voice: str, speed: float, provider_id: str = "") -> str
     """
     import hashlib
 
-    raw = f"{provider_id}|{text}|{voice}|{float(speed):.2f}"
+    raw = f"{provider_id}|{text}|{voice}|{float(speed):.2f}|trim={int(remove_silence)}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
@@ -290,6 +296,7 @@ def synthesize(
     voice = resolve_voice(package, config, settings=settings)
     text = str((config or {}).get("text") or "")
     speed = float((config or {}).get("speed") or settings.get("speed") or 1.0)
+    remove_silence = bool((config or {}).get("remove_silence", False))
 
     directory = output_dir or job_dir(project_id)
     os.makedirs(directory, exist_ok=True)
@@ -303,7 +310,7 @@ def synthesize(
         output_sidecar=sidecar_name,
     )
 
-    key = cache_key(text, voice, speed, instance_id)
+    key = cache_key(text, voice, speed, instance_id, remove_silence)
     cached = _cache_hit(key, directory, basename) if use_cache else None
     if cached is not None:
         return _metadata(
@@ -320,7 +327,11 @@ def synthesize(
             selection_reason=selection_reason,
             inference_time=0.0,
             cache_hit=True,
-            extra_metadata=extra_metadata,
+            extra_metadata={
+                **dict(extra_metadata or {}),
+                "remove_silence": remove_silence,
+                "silence_trimmed": remove_silence,
+            },
         )
 
     invocation = build_invocation(
@@ -343,7 +354,23 @@ def synthesize(
         settings_version=settings_manager.load_settings().get("version", 1),
     )
 
-    wav_path = resolve_ref(result.payload["audio_ref"])
+    payload = dict(result.payload or {})
+    provider_metadata = dict(result.metadata or {})
+    wav_path = resolve_ref(payload["audio_ref"])
+    silence_result = {"changed": False, "removed_seconds": 0.0}
+    if remove_silence:
+        from scriptase.modules.tts.audio import remove_long_silence
+
+        silence_result = remove_long_silence(wav_path)
+        if silence_result.get("changed"):
+            # Native timings describe the provider's pre-processed waveform.
+            # Timing AUTO must realign after pause compression.
+            provider_metadata.pop("word_timings", None)
+            provider_metadata.pop("native_word_timing", None)
+            payload.pop("word_timings", None)
+            payload["duration_seconds"] = silence_result.get(
+                "duration_after_seconds"
+            )
     if use_cache:
         _cache_store(key, wav_path)
 
@@ -353,15 +380,20 @@ def synthesize(
         request=request,
         settings=settings,
         options=options,
-        provider_metadata=dict(result.metadata or {}),
-        payload=dict(result.payload or {}),
+        provider_metadata=provider_metadata,
+        payload=payload,
         provenance=result.provenance,
         config=config,
         project_id=project_id,
         directory=directory,
         sidecar_name=sidecar_name,
         selection_reason=selection_reason,
-        extra_metadata=extra_metadata,
+        extra_metadata={
+            **dict(extra_metadata or {}),
+            "remove_silence": remove_silence,
+            "silence_trimmed": bool(silence_result.get("changed")),
+            "silence_removed_seconds": silence_result.get("removed_seconds", 0.0),
+        },
     )
 
 
@@ -478,6 +510,7 @@ def _metadata(
         "duration_seconds": duration,
         "sample_rate": sample_rate,
         "speed": request.speed,
+        "remove_silence": bool(config.get("remove_silence", False)),
         "words": words,
         "approx_tokens": int(words * 1.3),
         "cache_hit": bool(
@@ -499,7 +532,7 @@ def _metadata(
     # `word_timings` rides through provider_metadata; the boolean is derived
     # from the manifest so a rogue payload cannot claim reliability alone.
     caps = dict(getattr(instance, "capabilities", None) or {})
-    if caps.get("native_word_timing"):
+    if caps.get("native_word_timing") and not metadata.get("silence_trimmed"):
         metadata["native_word_timing"] = True
 
     metadata["job_meta"] = _job_meta(

@@ -24,7 +24,7 @@ CHANNEL_ID_RE = re.compile(r"^ch_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py). Distinct from
 # the content ``version`` field, which bumps on every successful update.
-CHANNEL_SCHEMA_VERSION = 3
+CHANNEL_SCHEMA_VERSION = 4
 
 DEFAULT_VISUAL_STYLE_PROMPT = (
     "Cinematic editorial imagery with intentional composition, tactile detail, "
@@ -247,6 +247,7 @@ class AudioDefaults(BaseModel):
 
     tts_provider_instance_id: str | None = None
     voice: str = ""
+    remove_silence: bool = True
     speed: float = Field(default=1.0, ge=0.25, le=4.0)
     music_profile: str = ""
     loudness: float | None = None

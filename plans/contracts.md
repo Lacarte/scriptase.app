@@ -514,7 +514,7 @@ ChannelProfile
                       hook_style, cta_style, duration_target }
 - visual_direction  { style, pattern, palette, lighting, camera, character_style,
                       continuity, negative_prompt, references[] }
-- audio_defaults    { tts_provider_instance_id, voice, speed, music_profile,
+- audio_defaults    { tts_provider_instance_id, voice, remove_silence, speed, music_profile,
                       loudness, ducking }
 - captions          { preset, position, font_treatment, animation }
 - provider_defaults { script, tts, scene_director, image, video, review }  # instance ids
@@ -565,7 +565,8 @@ Job
 - channel_snapshot         # non-secret channel config + provider INSTANCE REFERENCES
 - workflow_id / workflow_version
 - execution_mode           # manual | assisted | automatic
-- source                   { mode, topic, idea, pasted_script, references[] }
+- source                   { mode, topic, idea, pasted_script, references[],
+                             remove_silence?, speed? } # null = inherit Channel
 - status                   # queued | running | awaiting_approval |
                            # completed | failed | cancelled
 - status_reason            # nullable free-text code: approval | budget | user_pause | …

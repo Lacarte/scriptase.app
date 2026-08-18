@@ -39,6 +39,7 @@ from scriptase.jobs.source_modes import (
     DIRECT_TEXT_SOURCE_MODES,
     source_mode_requires_provider,
 )
+from scriptase.modules.tts.processing import resolve_narration_processing
 from scriptase.jobs.store import (
     JobNotFound,
     JobTerminal,
@@ -88,6 +89,7 @@ _SETUP_NODE_TYPE = "project.setup"
 _SCRIPT_INPUT_TYPE = "script.input"
 _STORY_GENERATE_TYPE = "story.generate"
 _REVIEW_NODE_TYPE = "review.run"
+_TTS_NODE_TYPE = "tts.generate"
 
 # Hard ceiling on repair cycles regardless of Channel policy. ``max_repairs``
 # is the real bound; this only guarantees that a misconfigured Channel with an
@@ -167,6 +169,7 @@ def prepare_workflow_for_job(
         raise JobOrchestrationError("WORKFLOW_INVALID", "workflow.nodes must be an array")
 
     prepared_nodes: list[dict[str, Any]] = []
+    narration_processing: dict[str, dict[str, Any]] = {}
     for raw_node in nodes:
         if not isinstance(raw_node, Mapping):
             continue
@@ -204,6 +207,16 @@ def prepare_workflow_for_job(
                     aliases={"style": "preset_style", "tone": "story_tone"},
                 )
 
+        if node_type == _TTS_NODE_TYPE:
+            active = resolve_narration_processing(
+                channel_settings,
+                source_payload,
+                config,
+            )
+            # Runtime-only TTS-stage parameters. They live on the execution
+            # snapshot extension rather than expanding the saved node schema.
+            narration_processing[str(node.get("id") or "")] = active
+
         node["configuration"] = config
         prepared_nodes.append(node)
 
@@ -218,6 +231,8 @@ def prepare_workflow_for_job(
     extensions["execution_mode"] = job.execution_mode
     extensions["source_mode"] = source_mode
     extensions["script_provider_required"] = source_mode_requires_provider(source_mode)
+    if narration_processing:
+        extensions["narration_processing"] = narration_processing
     if channel_settings:
         # Deep-copy so nested logo/pattern objects are not shared with node
         # configuration (validation rejects shared refs as "recursive JSON").

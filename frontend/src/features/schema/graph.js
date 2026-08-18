@@ -91,6 +91,28 @@ export function providerDomainOf(definition) {
   return ''
 }
 
+/** Resolved by backend orchestration and carried on the execution snapshot. */
+export function narrationProcessingFor(workflow, node, providerDomain) {
+  if (providerDomain !== 'tts') return null
+  const stamped = workflow?.extensions?.narration_processing?.[node?.id]
+  const config = node?.configuration || {}
+  const source = stamped && typeof stamped === 'object' ? stamped : config
+  const speed = Number(source.speed)
+  return {
+    removeSilence: source.remove_silence === true,
+    speed: Number.isFinite(speed) && speed > 0 ? speed : 1,
+    inherited: Boolean(stamped?.inherited),
+  }
+}
+
+export function narrationBadge(settings) {
+  if (!settings) return ''
+  const silence = settings.removeSilence ? 'Trim' : 'Pauses'
+  return `${silence} · ${Number(settings.speed).toLocaleString('en-US', {
+    maximumFractionDigits: 2,
+  })}×`
+}
+
 /**
  * Reshape backend truth into what the canvas draws.
  *
@@ -111,6 +133,8 @@ export function buildSchemaGraph({ workflow, registry, projection } = {}) {
     const definition = definitions[node.type] || {}
     const category = definition.category || ''
     const stage = stages[node.id] || null
+    const providerDomain = providerDomainOf(definition)
+    const narrationProcessing = narrationProcessingFor(workflow, node, providerDomain)
     nodes.push({
       id: node.id,
       type: node.type || '',
@@ -129,7 +153,9 @@ export function buildSchemaGraph({ workflow, registry, projection } = {}) {
       // input on, and the domain a one-shot provider override would come from.
       // Both are the registry's answer, carried rather than restated.
       inputs: Array.isArray(definition.inputs) ? definition.inputs : [],
-      providerDomain: providerDomainOf(definition),
+      providerDomain,
+      narrationProcessing,
+      narrationBadge: narrationBadge(narrationProcessing),
       disabled: Boolean(node.disabled),
       x: finite(node.position?.x),
       y: finite(node.position?.y),

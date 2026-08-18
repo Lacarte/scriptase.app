@@ -361,6 +361,11 @@ defineExpose({
             <span class="nm">{{ node.name }}</span>
             <span class="sb">{{ node.subtitle }}</span>
           </span>
+          <span
+            v-if="node.narrationBadge"
+            class="sch-tag"
+            :title="`Active narration processing${node.narrationProcessing?.inherited ? ' · inherited' : ''}`"
+          >{{ node.narrationBadge }}</span>
           <span v-if="nodePercent(node)" class="sch-pct">{{ nodePercent(node) }}</span>
           <span
             v-if="failureTooltip(nodeStates?.[node.id])"
@@ -575,6 +580,18 @@ defineExpose({
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--run);
+}
+
+.sch-tag {
+  flex: none;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  white-space: nowrap;
 }
 
 .sch-node.dragging {

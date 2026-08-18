@@ -28,6 +28,8 @@ import {
   fitView,
   graphBounds,
   homePositions,
+  narrationBadge,
+  narrationProcessingFor,
   snapPositions,
   stageIndexByNode,
   worldSize,
@@ -157,6 +159,38 @@ describe('buildSchemaGraph', () => {
   it('records disabled without hiding the node', () => {
     const { nodes } = buildSchemaGraph({ workflow: WORKFLOW, registry: REGISTRY })
     expect(nodes.find((n) => n.id === 'n_end').disabled).toBe(true)
+  })
+
+  it('carries the backend-resolved narration values onto a TTS badge', () => {
+    const node = {
+      id: 'n_tts',
+      type: 'tts.generate',
+      name: 'Text to Speech',
+      position: { x: 0, y: 0 },
+      configuration: { speed: 1 },
+    }
+    const workflow = {
+      nodes: [node],
+      edges: [],
+      extensions: {
+        narration_processing: {
+          n_tts: { remove_silence: false, speed: 1.25, inherited: false },
+        },
+      },
+    }
+    const registry = {
+      node_types: {
+        'tts.generate': {
+          category: 'audio',
+          config_schema: [{ type: 'provider', provider_domain: 'tts' }],
+        },
+      },
+      categories: REGISTRY.categories,
+    }
+    const settings = narrationProcessingFor(workflow, node, 'tts')
+    expect(narrationBadge(settings)).toBe('Pauses · 1.25×')
+    const { nodes } = buildSchemaGraph({ workflow, registry })
+    expect(nodes[0].narrationBadge).toBe('Pauses · 1.25×')
   })
 })
 

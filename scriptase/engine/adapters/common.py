@@ -45,6 +45,9 @@ class AdapterContext:
     # project.setup reads these at runtime; other adapters keep using the
     # settings port. Never carries credentials.
     channel_settings: Mapping[str, Any] | None = None
+    # Resolved per-script narration parameters for this TTS node. Runtime-only;
+    # the execution snapshot remains the source Schema reads.
+    narration_processing: Mapping[str, Any] | None = None
     # The owning Job (extensions.job_id, stamped by prepare_workflow_for_job).
     # Empty for a canvas run that no Job started. `project_id` is not a
     # substitute: ReviewIssues and Jobs are keyed by this id, so writing a

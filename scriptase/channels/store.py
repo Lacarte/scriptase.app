@@ -280,6 +280,10 @@ def channel_summary(document: ChannelProfile) -> dict[str, Any]:
         "schema_version": document.schema_version,
         "niche": document.content.niche,
         "style": document.visual_direction.style,
+        "audio_defaults": {
+            "remove_silence": document.audio_defaults.remove_silence,
+            "speed": document.audio_defaults.speed,
+        },
         "default_workflow_id": document.default_workflow_id,
         "created_at": document.created_at,
         "updated_at": document.updated_at,

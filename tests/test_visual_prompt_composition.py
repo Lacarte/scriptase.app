@@ -64,6 +64,8 @@ def test_v2_channel_migrates_visual_style_prompt_from_existing_style():
     migrated, changed = apply_migrations(legacy)
 
     assert changed is True
-    assert migrated["schema_version"] == 3
+    # Later Channel fields continue the same hop-by-hop migration chain.
+    assert migrated["schema_version"] == 4
     assert migrated["visual_direction"]["style_prompt"] == "noir"
+    assert migrated["audio_defaults"]["remove_silence"] is True
     assert migrated["version"] == 7

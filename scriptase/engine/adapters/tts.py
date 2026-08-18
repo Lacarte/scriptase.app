@@ -39,6 +39,10 @@ _ABSOLUTE_KEYS = frozenset({"wav_path", "path"})
 def generate(inputs, config, context):
     pid = project_id(context, inputs)
     merged = inherited_config(config, inputs.get("settings"), {"tone": "story_tone", "style": "visual_style"})
+    processing = getattr(context, "narration_processing", None)
+    if isinstance(processing, dict):
+        merged["remove_silence"] = bool(processing.get("remove_silence"))
+        merged["speed"] = float(processing.get("speed") or 1.0)
     merged["text"] = inputs["script"]
     # `engine` became `provider_id` in v2 (contracts.md §41.3 M1). The legacy
     # request field the pipeline reads is unchanged, so a migrated workflow

@@ -1138,7 +1138,11 @@ describe('JobCreatePanel (step 2.5)', () => {
       },
     })
     channelsApi.listChannels.mockResolvedValue({
-      channels: [{ id: 'ch_AAAAAA', name: 'Philosophy Daily' }],
+      channels: [{
+        id: 'ch_AAAAAA',
+        name: 'Philosophy Daily',
+        audio_defaults: { remove_silence: true, speed: 0.9 },
+      }],
       total: 1,
     })
     api.listWorkflows.mockResolvedValue({
@@ -1216,6 +1220,32 @@ describe('JobCreatePanel (step 2.5)', () => {
     await ideaRadio.setValue('idea')
     await flushPromises()
     expect(wrapper.text()).toMatch(/uses a script provider/i)
+  })
+
+  it('shows inherited narration values until this script overrides them', async () => {
+    const wrapper = mount(JobCreatePanel, { props: { autoStart: false } })
+    await flushPromises()
+    await wrapper.get('select').setValue('ch_AAAAAA')
+
+    const processing = wrapper.get('.narration-fieldset')
+    expect(processing.text()).toContain('Inherited from Philosophy Daily')
+    expect(processing.text()).toContain('Inherited (On)')
+    expect(processing.text()).toContain('Inherited (0.9×)')
+
+    const selects = processing.findAll('select')
+    await selects[0].setValue('off')
+    await selects[1].setValue('1.25')
+    await wrapper.get('textarea').setValue('A script-specific narration.')
+    expect(processing.text()).toContain('Overridden for this script')
+
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(api.createJob).toHaveBeenCalledWith(expect.objectContaining({
+      source: expect.objectContaining({
+        remove_silence: false,
+        speed: 1.25,
+      }),
+    }))
   })
 })
 

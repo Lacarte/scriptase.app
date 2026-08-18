@@ -45,6 +45,8 @@ const sourceMode = ref('paste')
 const topic = ref('')
 const idea = ref('')
 const pastedScript = ref('')
+const removeSilenceOverride = ref('inherit')
+const speedOverride = ref('')
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -56,6 +58,15 @@ const selectedSource = computed(
 )
 
 const providerRequired = computed(() => sourceModeRequiresProvider(sourceMode.value))
+const selectedChannel = computed(
+  () => channels.value.find((channel) => channel.id === channelId.value) || null,
+)
+const inheritedRemoveSilence = computed(
+  () => selectedChannel.value?.audio_defaults?.remove_silence !== false,
+)
+const inheritedSpeed = computed(
+  () => Number(selectedChannel.value?.audio_defaults?.speed) || 1,
+)
 
 const showTopic = computed(() => {
   const fields = selectedSource.value?.input_fields || []
@@ -85,6 +96,11 @@ function buildSource() {
     idea: idea.value,
     pasted_script: pastedScript.value,
     references: [],
+    remove_silence:
+      removeSilenceOverride.value === 'inherit'
+        ? null
+        : removeSilenceOverride.value === 'on',
+    speed: speedOverride.value === '' ? null : Number(speedOverride.value),
   }
 }
 
@@ -282,6 +298,52 @@ void defaultJobDraft
         configured or required.
       </div>
 
+      <fieldset class="field narration-fieldset">
+        <legend class="field-label">Narration processing</legend>
+        <p class="field-hint narration-source">
+          {{
+            removeSilenceOverride === 'inherit' && speedOverride === ''
+              ? `Inherited from ${selectedChannel?.name || 'Channel'}`
+              : 'Overridden for this script'
+          }}
+        </p>
+        <div class="narration-grid">
+          <label class="field">
+            <span class="field-label">
+              Remove silence
+              <em v-if="removeSilenceOverride === 'inherit'">Inherited</em>
+            </span>
+            <select v-model="removeSilenceOverride" :disabled="submitting || !channelId">
+              <option value="inherit">
+                Inherited ({{ inheritedRemoveSilence ? 'On' : 'Off' }})
+              </option>
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">
+              Speed
+              <em v-if="speedOverride === ''">Inherited</em>
+            </span>
+            <select v-model="speedOverride" :disabled="submitting || !channelId">
+              <option value="">Inherited ({{ inheritedSpeed }}×)</option>
+              <option v-for="speed in [0.9, 1, 1.1, 1.15, 1.25, 1.5]" :key="speed" :value="String(speed)">
+                {{ speed }}×
+              </option>
+            </select>
+          </label>
+        </div>
+        <button
+          v-if="removeSilenceOverride !== 'inherit' || speedOverride !== ''"
+          type="button"
+          class="ghost reset-processing"
+          @click="removeSilenceOverride = 'inherit'; speedOverride = ''"
+        >
+          Reset to Channel defaults
+        </button>
+      </fieldset>
+
       <label class="field">
         <span class="field-label">Workflow</span>
         <select v-model="workflowId" :disabled="submitting">
@@ -462,6 +524,31 @@ textarea {
   padding: 0;
   min-width: 0;
 }
+
+.narration-fieldset {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+}
+
+.narration-source { margin: 0 0 10px; }
+
+.narration-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.field-label em {
+  margin-left: 6px;
+  color: var(--accent);
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+
+.reset-processing { align-self: flex-start; margin-top: 8px; }
 
 .mode-grid {
   display: grid;
@@ -657,5 +744,9 @@ button:disabled {
 .muted {
   color: var(--muted);
   font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .narration-grid { grid-template-columns: 1fr; }
 }
 </style>

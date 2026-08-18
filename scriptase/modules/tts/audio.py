@@ -55,6 +55,83 @@ def concatenate_chunks(chunks: list, sample_rate: int = 24000,
     return np.concatenate(parts)
 
 
+def remove_long_silence(
+    wav_path: str,
+    *,
+    minimum_silence_ms: int = 500,
+    retained_pause_ms: int = 150,
+    edge_silence_ms: int = 50,
+) -> dict:
+    """Trim dead air and compress long pauses in a WAV, atomically in place.
+
+    Short conversational pauses survive. Long internal quiet spans are reduced
+    to ``retained_pause_ms`` and leading/trailing dead air to
+    ``edge_silence_ms``. NumPy and soundfile are already TTS dependencies, so
+    this stage parameter does not depend on an external ffmpeg executable.
+    """
+    audio, sample_rate = sf.read(wav_path, dtype="float32", always_2d=True)
+    before_samples = len(audio)
+    if before_samples == 0 or sample_rate <= 0:
+        return {"changed": False, "removed_seconds": 0.0}
+
+    frame_samples = max(1, round(sample_rate * 0.01))
+    frame_count = (before_samples + frame_samples - 1) // frame_samples
+    padded = np.pad(audio, ((0, frame_count * frame_samples - before_samples), (0, 0)))
+    levels = np.max(
+        np.abs(padded.reshape(frame_count, frame_samples, -1)), axis=(1, 2)
+    )
+    peak = float(levels.max(initial=0.0))
+    if peak <= 0:
+        return {"changed": False, "removed_seconds": 0.0}
+    voiced = levels >= max(0.001, peak * 0.015)
+    if not bool(voiced.any()):
+        return {"changed": False, "removed_seconds": 0.0}
+
+    minimum_frames = max(1, round(minimum_silence_ms / 10))
+    pause_frames = max(0, round(retained_pause_ms / 10))
+    edge_frames = max(0, round(edge_silence_ms / 10))
+    keep = np.ones(frame_count, dtype=bool)
+    start = 0
+    while start < frame_count:
+        if voiced[start]:
+            start += 1
+            continue
+        end = start + 1
+        while end < frame_count and not voiced[end]:
+            end += 1
+        length = end - start
+        if start == 0:
+            keep[start:max(start, end - edge_frames)] = False
+        elif end == frame_count:
+            keep[min(end, start + edge_frames):end] = False
+        elif length >= minimum_frames and length > pause_frames:
+            left = pause_frames // 2
+            right = pause_frames - left
+            keep[start + left:end - right] = False
+        start = end
+
+    sample_keep = np.repeat(keep, frame_samples)[:before_samples]
+    processed = audio[sample_keep]
+    removed_samples = before_samples - len(processed)
+    if removed_samples <= 0 or len(processed) == 0:
+        return {"changed": False, "removed_seconds": 0.0}
+
+    info = sf.info(wav_path)
+    tmp_path = wav_path + ".silence.tmp.wav"
+    try:
+        sf.write(tmp_path, processed, sample_rate, subtype=info.subtype)
+        os.replace(tmp_path, wav_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    return {
+        "changed": True,
+        "removed_seconds": round(removed_samples / sample_rate, 3),
+        "duration_before_seconds": round(before_samples / sample_rate, 3),
+        "duration_after_seconds": round(len(processed) / sample_rate, 3),
+    }
+
+
 def _parse_loudnorm_stats(stderr: str) -> dict | None:
     """Extract measured loudness stats from ffmpeg loudnorm pass-1 output."""
     # loudnorm prints a JSON block in its summary output

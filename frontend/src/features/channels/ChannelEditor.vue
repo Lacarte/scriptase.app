@@ -76,6 +76,7 @@ const form = reactive({
   audio_defaults: {
     tts_provider_instance_id: null,
     voice: '',
+    remove_silence: true,
     speed: 1,
     music_profile: '',
     loudness: null,
@@ -219,6 +220,7 @@ function applyDocument(doc) {
   Object.assign(form.audio_defaults, {
     tts_provider_instance_id: null,
     voice: '',
+    remove_silence: true,
     speed: 1,
     music_profile: '',
     loudness: null,
@@ -721,10 +723,20 @@ onMounted(load)
       </fieldset>
 
       <fieldset>
-        <legend>Audio defaults</legend>
+        <legend>Narration &amp; audio defaults</legend>
+        <p class="hint">
+          Narration processing is inherited by every script until that script overrides it.
+        </p>
         <div class="grid-2">
           <label>Voice <input v-model="form.audio_defaults.voice" type="text" /></label>
           <label>Speed <input v-model.number="form.audio_defaults.speed" type="number" min="0.25" max="4" step="0.05" /></label>
+          <label class="check narration-check">
+            <input v-model="form.audio_defaults.remove_silence" type="checkbox" />
+            <span>
+              Remove silence
+              <small>Trim dead air and compress long pauses in the voiceover.</small>
+            </span>
+          </label>
           <label>
             TTS provider instance id
             <input
@@ -977,6 +989,14 @@ label.check {
   letter-spacing: 0.1px;
   text-transform: none;
   color: var(--text-2);
+}
+
+.narration-check small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 input[type="checkbox"] {

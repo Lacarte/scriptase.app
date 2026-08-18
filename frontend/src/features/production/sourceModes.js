@@ -149,6 +149,8 @@ export function defaultJobDraft() {
       idea: '',
       pasted_script: '',
       references: [],
+      remove_silence: null,
+      speed: null,
     },
   }
 }

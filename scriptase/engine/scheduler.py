@@ -1054,6 +1054,7 @@ class WorkflowScheduler:
             extensions = self.workflow.get("extensions")
             channel_settings = None
             job_id = ""
+            narration_processing = None
             if isinstance(extensions, dict):
                 raw_channel = extensions.get("channel_settings")
                 if isinstance(raw_channel, dict):
@@ -1061,6 +1062,11 @@ class WorkflowScheduler:
                 raw_job = extensions.get("job_id")
                 if isinstance(raw_job, str):
                     job_id = raw_job.strip()
+                raw_processing = extensions.get("narration_processing")
+                if isinstance(raw_processing, dict):
+                    node_processing = raw_processing.get(node_id)
+                    if isinstance(node_processing, dict):
+                        narration_processing = node_processing
             context = AdapterContext(
                 project_id=self.project_id,
                 execution_id=self.execution_id,
@@ -1068,6 +1074,7 @@ class WorkflowScheduler:
                 stage_artifact=promoter.stage_path,
                 stop_requested=self.stop_requested,
                 channel_settings=channel_settings,
+                narration_processing=narration_processing,
                 job_id=job_id,
             )
             failure = None

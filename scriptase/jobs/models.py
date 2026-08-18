@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 JOB_ID_RE = re.compile(r"^job_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py).
-JOB_SCHEMA_VERSION = 1
+JOB_SCHEMA_VERSION = 2
 
 # contracts.md §6 status vocabulary.
 # ``paused`` is not a member — use ``awaiting_approval`` + ``status_reason``.
@@ -101,6 +101,10 @@ class JobSource(BaseModel):
     idea: str = ""
     pasted_script: str = ""
     references: list[str] = Field(default_factory=list)
+    # Null means inherited from the Channel. These fields become the Script
+    # model's overrides in phase 3 without changing the resolution contract.
+    remove_silence: bool | None = None
+    speed: float | None = Field(default=None, ge=0.25, le=4.0)
 
     @field_validator("mode", mode="before")
     @classmethod

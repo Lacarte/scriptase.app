@@ -220,6 +220,8 @@ def job_creation_catalog() -> dict[str, Any]:
                 "idea": "",
                 "pasted_script": "",
                 "references": [],
+                "remove_silence": None,
+                "speed": None,
             },
         },
     }

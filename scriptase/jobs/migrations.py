@@ -34,6 +34,19 @@ def _register(version: int):
 # and land in the same step that changes the model (CLAUDE.md non-negotiable).
 
 
+@_register(2)
+def _add_narration_overrides(data: dict[str, Any]) -> dict[str, Any]:
+    """Add nullable per-script processing overrides to legacy Jobs."""
+    migrated = deepcopy(data)
+    source = migrated.get("source")
+    if not isinstance(source, dict):
+        source = {}
+        migrated["source"] = source
+    source.setdefault("remove_silence", None)
+    source.setdefault("speed", None)
+    return migrated
+
+
 def apply_migrations(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     """Upgrade ``data`` to ``SCHEMA_VERSION``.
 

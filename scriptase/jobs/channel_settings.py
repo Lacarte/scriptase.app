@@ -96,6 +96,11 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
         "visual_style": style,
         # Audio defaults consumed by tts / music when node fields are empty
         "voice": _text(audio.get("voice")),
+        "remove_silence": (
+            audio.get("remove_silence")
+            if isinstance(audio.get("remove_silence"), bool)
+            else True
+        ),
         "speed": audio.get("speed") if audio.get("speed") is not None else "",
         "music_profile": _text(audio.get("music_profile")),
         # Captions are a local service — mode/preset fields only

@@ -66,6 +66,18 @@ def _add_visual_style_prompt(data: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+@_register(4)
+def _add_narration_processing(data: dict[str, Any]) -> dict[str, Any]:
+    """Add the step 2.3 silence-processing default to legacy Channels."""
+    migrated = deepcopy(data)
+    audio = migrated.get("audio_defaults")
+    if not isinstance(audio, dict):
+        audio = {}
+        migrated["audio_defaults"] = audio
+    audio.setdefault("remove_silence", True)
+    return migrated
+
+
 # Future schema changes register the next consecutive target here and land in
 # the same step that changes the model (CLAUDE.md non-negotiable).
 
