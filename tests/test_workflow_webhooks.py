@@ -23,7 +23,7 @@ def _workflow():
         "nodes": [{
             "id": "tts",
             "type": "tts.generate",
-            "type_version": 2,
+        "type_version": 3,
             "name": "Narration",
             "position": {"x": 0, "y": 0},
             "configuration": {},

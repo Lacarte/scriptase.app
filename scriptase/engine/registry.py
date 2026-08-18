@@ -510,7 +510,13 @@ _NODE_TYPES = {
                    _in("settings", "project_settings")],
         "outputs": [_CONTROL_OUT, _out("issues", "generic_json")],
         "config_schema": [
-            _provider_field("review"),
+            {
+                **_provider_field("review"),
+                # Technical review has no provider dependency. The prototype
+                # catalogue intentionally ships no semantic provider, so a
+                # provider is required only when that optional pass is enabled.
+                "display_options": {"show": {"semantic": [True]}},
+            },
             {"name": "subject", "label": "Review subject", "type": "options",
              "options": ["auto", "images", "videos"], "default": "auto",
              "description": "AUTO reviews whichever media ports are connected."},

@@ -463,23 +463,16 @@ class ShippedSourceTests(unittest.TestCase):
         self.addCleanup(workflow_options.clear_option_cache)
 
     def test_the_shipped_tts_source_resolves_per_provider(self):
-        kokoro = allowed_option_values('tts_voices', {'provider': 'kokoro'})
         inworld = allowed_option_values('tts_voices', {'provider': 'inworld'})
-        self.assertTrue(kokoro)
         self.assertTrue(inworld)
-        self.assertFalse(kokoro & inworld)
+        self.assertIsNone(allowed_option_values('tts_voices', {'provider': 'kokoro'}))
 
-    def test_a_provider_without_any_voices_falls_back_to_the_local_engine(self):
-        # The fallback catalog is read off the provider package, which is where
-        # V2's `tts/routes.py::VOICES` re-exported it from (step 0.2).
+    def test_a_provider_without_any_voices_has_no_retired_local_fallback(self):
         from scriptase.modules.tts import dispatch
-        from scriptase.modules.tts.providers import local_engine
 
         with patch.object(dispatch, 'list_voices', return_value=[]):
             options, _ = resolve_options('tts_voices', {'provider': 'inworld'})
-        self.assertEqual(
-            [opt['value'] for opt in options], list(local_engine().VOICES)
-        )
+        self.assertEqual(options, [])
 
 
 class ParityTests(unittest.TestCase):

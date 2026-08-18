@@ -352,9 +352,10 @@ def _tts_voices(ctx: OptionContext):
         ]
         if options:
             return options
-    from scriptase.modules.tts.providers import local_engine
-
-    return [_opt(voice) for voice in local_engine().VOICES]
+    # Step 5.3 retired the bundled local voice engine. When the configured
+    # provider returns no voices, stay empty rather than silently offering
+    # voices from an engine the product no longer supports.
+    return []
 
 
 def _story_tones(_ctx: OptionContext):

@@ -54,7 +54,7 @@ class ReviewDomainCatalogTests(unittest.TestCase):
         self.assertIn("review", DOMAINS)
         spec = DOMAINS["review"]
         self.assertEqual(spec.id, "review")
-        self.assertEqual(spec.default_provider, "semantic")
+        self.assertIsNone(spec.default_provider)
         self.assertEqual(spec.package, "scriptase.review.providers")
         for cap in REVIEW_CAPS:
             self.assertIn(cap, spec.capability_vocabulary)
@@ -80,20 +80,14 @@ class ReviewProviderDiscoveryTests(unittest.TestCase):
     def setUpClass(cls):
         hub.discover("review")
 
-    def test_semantic_provider_is_discovered(self):
-        instance = hub.get("review", "semantic")
-        self.assertIsNotNone(instance)
-        assert instance is not None
-        self.assertEqual(instance.id, "semantic")
-        self.assertEqual(instance.manifest.domain, "review")
-        caps = set(instance.manifest.capabilities)
-        self.assertTrue(REVIEW_CAPS.issubset(caps), caps)
+    def test_semantic_provider_is_not_registered(self):
+        self.assertIsNone(hub.get("review", "semantic"))
 
-    def test_catalog_includes_review_domain(self):
+    def test_catalog_includes_review_domain_without_a_prototype_provider(self):
         catalog = hub.catalog()
         self.assertIn("review", catalog)
         ids = {row["id"] for row in catalog["review"]["providers"]}
-        self.assertIn("semantic", ids)
+        self.assertEqual(ids, set())
 
 
 class SemanticReviewerEnvelopeTests(unittest.TestCase):
@@ -309,9 +303,8 @@ class NoFrameworkRedesignTests(unittest.TestCase):
         defaults = settings_manager._default_settings()
         self.assertIn("review", defaults["domains"])
         block = defaults["domains"]["review"]
-        self.assertEqual(block["selected_instance_id"], "semantic")
-        self.assertIn("semantic", block["instances"])
-        self.assertEqual(block["instances"]["semantic"]["type"], "semantic")
+        self.assertIsNone(block["selected_instance_id"])
+        self.assertEqual(block["instances"], {})
 
     def test_registry_valid_domains_tracks_catalog(self):
         from scriptase.providers.registry import ProviderRegistry

@@ -215,15 +215,15 @@ class QualityGateConfigTests(unittest.TestCase):
 
 
 class SavedWorkflowCompatibilityTests(unittest.TestCase):
-    def test_the_visual_nodes_did_not_bump_type_version(self):
+    def test_the_visual_nodes_ship_the_provider_retirement_migration(self):
         """contracts §41.2: an additive optional key with a default is not a bump.
 
         A bump without a shipped `N → N+1` migration makes every saved workflow
         containing the node unloadable, and a bump *with* a no-op migration only
         invalidates the config fingerprint the fallback exists to preserve.
         """
-        self.assertEqual(get_node_type("storyboard.generate")["type_version"], 2)
-        self.assertEqual(get_node_type("animator.generate")["type_version"], 2)
+        self.assertEqual(get_node_type("storyboard.generate")["type_version"], 3)
+        self.assertEqual(get_node_type("animator.generate")["type_version"], 3)
 
     def test_a_saved_workflow_without_the_new_keys_migrates_untouched(self):
         saved = _workflow([
@@ -241,12 +241,12 @@ class SavedWorkflowCompatibilityTests(unittest.TestCase):
         )
         self.assertEqual(_errors(result.document), [])
 
-    def test_a_v1_animator_still_migrates_through_its_one_hop(self):
+    def test_a_v1_animator_migrates_through_both_hops(self):
         saved = _workflow([
             _node("n_video", "animator.generate", {"provider": "grok"}, type_version=1),
         ])
         result = migrate_workflow(saved)
-        self.assertEqual([hop["to_version"] for hop in result.trail], [2])
+        self.assertEqual([hop["to_version"] for hop in result.trail], [2, 3])
         configuration = result.document["nodes"][0]["configuration"]
         self.assertEqual(configuration["provider_id"], "grok_automa")
         self.assertNotIn("provider", configuration)
@@ -427,31 +427,18 @@ class ReviewExecutorTests(unittest.TestCase):
         # Medium is not blocking, so the node still passes.
         self.assertEqual(payload["blocking_issue_count"], 0)
 
-    def test_the_real_semantic_provider_dispatches_through_the_hub(self):
-        """No stub: the shipped `semantic` package runs behind the boundary.
-
-        `_SemanticPass` builds a ReviewRequest, a ProviderInvocation, and calls
-        `boundary.invoke`, so this is the test that catches a signature drift in
-        any of the three.
-        """
+    def test_retired_semantic_provider_cannot_dispatch_through_the_hub(self):
         good = _write_png("good.png", 1080, 1920)
-        result = review_adapter.run(
-            {"images": {"scene_statuses": {"0": {
-                "scene_id": "scn_SEM001",
-                "artifact_ref": good,
-                "image_prompt": "a quiet harbor at dusk",
-                "caption": "harbor",
-            }}}},
-            {"subject": "images", "aspect_ratio": "9:16", "semantic": True},
-            self.context,
-        )
-        payload = result["issues"]
-        self.assertTrue(payload["semantic"])
-        self.assertEqual(payload["units_checked"], 1)
-        for issue in payload["issues"]:
-            self.assertIsInstance(issue, dict)
-            self.assertTrue(issue.get("reason"))
-            self.assertIn(issue["severity"], {"low", "medium", "high", "critical"})
+        with self.assertRaises(AdapterError) as caught:
+            review_adapter.run(
+                {"images": {"scene_statuses": {"0": {
+                    "scene_id": "scn_SEM001",
+                    "artifact_ref": good,
+                }}}},
+                {"provider_id": "semantic", "subject": "images", "semantic": True},
+                self.context,
+            )
+        self.assertEqual(caught.exception.code, "PROVIDER_UNAVAILABLE")
 
 
 if __name__ == "__main__":

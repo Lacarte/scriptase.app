@@ -392,7 +392,7 @@ Quality review of the generated stills and clips. Deterministic technical valida
 
 | Field | Label | Widget | Default | Required | Constraints |
 |---|---|---|---|---|---|
-| `provider_id` | Provider | `provider` | — | yes | options from `review_providers` |
+| `provider_id` | Provider | `provider` | — | yes | options from `review_providers`; shown when `semantic` is `true` |
 | `subject` | Review subject | `options` | `"auto"` | no | one of `auto`, `images`, `videos` |
 | `semantic` | Run semantic review | `boolean` | `false` | no | — |
 | `aspect_ratio` | Expected aspect ratio | `options` | `"9:16"` | no | one of `9:16`, `16:9`, `1:1` |

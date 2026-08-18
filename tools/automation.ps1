@@ -124,7 +124,14 @@ function Test-AutomationServer {
 
     if (-not $Port) { $Port = Get-ScriptaseAutomationPort }
     $listening = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
-    return [bool]$listening
+    if ($listening) { return $true }
+
+    # Get-NetTCPConnection uses the StandardCimv2 provider, which can be
+    # present but deny reads to a non-administrator. netstat reads the same
+    # kernel table without opening a connection and works in that environment.
+    $escapedPort = [regex]::Escape($Port.ToString())
+    $netstat = & "$env:SystemRoot\System32\netstat.exe" -ano -p TCP 2>$null
+    return [bool]($netstat | Select-String -Pattern ":$escapedPort\s+.*\sLISTENING\s+\d+\s*$")
 }
 
 # ---------------------------------------------------------------------------

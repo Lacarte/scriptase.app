@@ -565,7 +565,7 @@ def test_a_cancelled_storyboard_node_is_recorded_as_cancelled(tmp_path, monkeypa
     with pytest.raises(Exception) as caught:
         storyboard._step_storyboard(
             SCENES,
-            {"storyboard_provider_override": "wavespeed_webhook"},
+            {"storyboard_provider_override": "gemini_ws"},
             "pm_ABC123",
             _cancelling_context(),
         )

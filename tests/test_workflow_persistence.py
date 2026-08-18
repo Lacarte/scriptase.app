@@ -74,7 +74,7 @@ class ValidationTests(unittest.TestCase):
         document = draft()
         document["nodes"].extend([
             {
-                "id": "n_tts", "type": "tts.generate", "type_version": 2, "name": "TTS",
+                "id": "n_tts", "type": "tts.generate", "type_version": 3, "name": "TTS",
                 "position": {"x": 200, "y": 0}, "configuration": {}, "disabled": False,
                 "on_error": {"policy": "continue_error"},
             },
@@ -126,7 +126,6 @@ class ValidationTests(unittest.TestCase):
         templates = serialize_templates()
         self.assertEqual([item["template_id"] for item in templates], [
             "full_video",
-            "text_to_video",
             "narration_only",
             "storyboard_only",
             "reexport_existing_project",

@@ -33,7 +33,7 @@ from scriptase.jobs.orchestration import run_node_test
 from scriptase.jobs.store import create_job, default_draft
 
 NODE_ID = "n_story"
-SAVED_INSTANCE = "gemini"
+SAVED_INSTANCE = "scaffold_check"
 INSTANCE_A = "script_alpha"
 INSTANCE_B = "script_beta"
 

@@ -121,7 +121,7 @@ def test_watch_folder_validation_and_configured_text_port(tmp_path):
     valid_target["nodes"].append({
         "id": "tts",
         "type": "tts.generate",
-        "type_version": 2,
+            "type_version": 3,
         "name": "Narration",
         "position": {"x": 200, "y": 0},
         "configuration": {},

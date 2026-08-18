@@ -342,6 +342,8 @@ class EgressAndDomainsTests(SecretStoreIsolationTests):
         for domain in self.DOMAINS:
             block = doc["domains"][domain]
             iid = block["selected_instance_id"]
+            if iid is None:
+                continue
             block["instances"][iid]["settings"] = {
                 "api_key": f"sk-{domain}-secret",
                 "bearer_token": f"tok-{domain}",
@@ -363,6 +365,8 @@ class EgressAndDomainsTests(SecretStoreIsolationTests):
         # Resolved settings for each domain still yield the real key in-process.
         for domain in self.DOMAINS:
             iid = on_disk["domains"][domain]["selected_instance_id"]
+            if iid is None:
+                continue
             stored = on_disk["domains"][domain]["instances"][iid]["settings"]
             resolved = resolve_secret_refs(stored)
             self.assertEqual(resolved["api_key"], f"sk-{domain}-secret")

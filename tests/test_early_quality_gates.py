@@ -378,8 +378,7 @@ class VideoProviderNeverInvokedTests(unittest.TestCase):
             except OSError:
                 pass
 
-    def test_text_to_video_skips_image_gate(self):
-        """No storyboard → image gate is a no-op; video provider may run."""
+    def test_retired_text_to_video_provider_never_reaches_the_image_gate(self):
         video_calls: list[int] = []
 
         def fake_run(**kwargs):
@@ -389,14 +388,14 @@ class VideoProviderNeverInvokedTests(unittest.TestCase):
         original = video_adapter.run_manifest_job
         video_adapter.run_manifest_job = fake_run
         try:
-            # kie_ai grants text_to_video.
-            result = video_adapter.generate(
-                {"scenes": self.scenes},
-                {"provider_id": "kie_ai"},
-                self.ctx,
-            )
-            self.assertEqual(result["assets"]["ready"], 1)
-            self.assertEqual(video_calls, [1])
+            with self.assertRaises(AdapterError) as caught:
+                video_adapter.generate(
+                    {"scenes": self.scenes},
+                    {"provider_id": "kie_ai"},
+                    self.ctx,
+                )
+            self.assertEqual(caught.exception.code, "PROVIDER_REQUEST_INVALID")
+            self.assertEqual(video_calls, [])
         finally:
             video_adapter.run_manifest_job = original
 

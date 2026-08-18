@@ -297,8 +297,8 @@ class SettingsImportTests(unittest.TestCase):
         self.assertIn("instances", image)
         self.assertNotIn("selected_provider", image)
         self.assertNotIn("per_provider", image)
-        # Wire alias kie-ai → kie_ai on the video domain.
-        self.assertIn("kie_ai", domains["video"]["instances"])
+        # The retired Kie instance is migrated onto the prototype's Grok type.
+        self.assertEqual(set(domains["video"]["instances"]), {"grok_automa"})
         self.assertEqual(domains["video"]["selected_instance_id"], "grok_automa")
 
     def test_import_settings_writes_dest(self):
@@ -327,12 +327,12 @@ class WorkflowImportTests(unittest.TestCase):
     def test_migrate_workflow_rewrites_v1_provider_fields(self):
         state = migrate_workflow_document(_v2_workflow())
         self.assertFalse(state.read_only)
-        self.assertEqual(len(state.trail), 3)
+        self.assertEqual(len(state.trail), 6)
         by_id = {n["id"]: n for n in state.document["nodes"]}
-        self.assertEqual(by_id["n_tts"]["type_version"], 2)
-        self.assertEqual(by_id["n_tts"]["configuration"]["provider_id"], "kokoro")
+        self.assertEqual(by_id["n_tts"]["type_version"], 3)
+        self.assertEqual(by_id["n_tts"]["configuration"]["provider_id"], "inworld")
         self.assertNotIn("engine", by_id["n_tts"]["configuration"])
-        self.assertEqual(by_id["n_storyboard"]["configuration"]["provider_id"], "wavespeed_webhook")
+        self.assertEqual(by_id["n_storyboard"]["configuration"]["provider_id"], "gemini_ws")
         self.assertNotIn("provider", by_id["n_storyboard"]["configuration"])
         self.assertEqual(
             by_id["n_storyboard"]["configuration"]["provider_options"]["prompt_prefix"],
@@ -350,7 +350,7 @@ class WorkflowImportTests(unittest.TestCase):
                     _v2_workflow(), on_conflict="new_id"
                 )
             self.assertEqual(original_id, "wf_V2IMP1")
-            self.assertEqual(len(trail), 3)
+            self.assertEqual(len(trail), 6)
             self.assertTrue(saved["workflow_id"].startswith("wf_"))
             self.assertEqual(
                 validation_errors(validate_workflow(saved, require_identity=True)),
@@ -404,7 +404,7 @@ class WorkflowImportTests(unittest.TestCase):
                 saved, original = persist_import(_v2_workflow(), on_conflict="new_id")
             self.assertEqual(original, "wf_V2IMP1")
             by_id = {n["id"]: n for n in saved["nodes"]}
-            self.assertEqual(by_id["n_tts"]["configuration"]["provider_id"], "kokoro")
+            self.assertEqual(by_id["n_tts"]["configuration"]["provider_id"], "inworld")
             self.assertEqual(
                 validation_errors(validate_workflow(saved, require_identity=True)),
                 [],
@@ -511,7 +511,7 @@ class V2RootImportTests(unittest.TestCase):
                 [],
             )
             tts_node = next(n for n in saved_wf["nodes"] if n["type"] == "tts.generate")
-            self.assertEqual(tts_node["configuration"]["provider_id"], "kokoro")
+            self.assertEqual(tts_node["configuration"]["provider_id"], "inworld")
 
             self.assertIn("pm_V2IMP1", report.projects)
             self.assertTrue(
@@ -556,7 +556,7 @@ class MigrationApiTests(unittest.TestCase):
         body = resp.get_json()
         self.assertTrue(body["valid"])
         self.assertEqual(body["validation_errors"], [])
-        self.assertEqual(len(body["migration_trail"]), 3)
+        self.assertEqual(len(body["migration_trail"]), 6)
 
     def test_workflows_import_endpoint_accepts_v2_document(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -575,7 +575,7 @@ class MigrationApiTests(unittest.TestCase):
             tts = next(
                 n for n in body["workflow"]["nodes"] if n["type"] == "tts.generate"
             )
-            self.assertEqual(tts["configuration"]["provider_id"], "kokoro")
+            self.assertEqual(tts["configuration"]["provider_id"], "inworld")
 
 
 if __name__ == "__main__":

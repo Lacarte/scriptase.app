@@ -383,7 +383,20 @@ def _validate_config(
                     source, config_option_context(source, config, fields)
                 )
                 if allowed is not None and (not isinstance(value, str) or value not in allowed):
-                    problems.append(_problem("WORKFLOW_INVALID", "value is not an allowed option", field_path))
+                    # Retired shipped providers and contract/scaffolder
+                    # packages remain directly loadable without appearing in
+                    # the product catalogue. Existing workflows may retain an
+                    # explicit binding to one, but the UI cannot discover or
+                    # select it from the allowlisted option source.
+                    hidden_provider = None
+                    if widget == "provider" and isinstance(value, str):
+                        domain = field.get("provider_domain")
+                        if domain:
+                            from scriptase.providers.hub import hub
+
+                            hidden_provider = hub.get(domain, value)
+                    if hidden_provider is None:
+                        problems.append(_problem("WORKFLOW_INVALID", "value is not an allowed option", field_path))
         elif widget == "json":
             try:
                 _json_size(value)

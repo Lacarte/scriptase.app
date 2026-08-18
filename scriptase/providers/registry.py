@@ -810,6 +810,7 @@ class ProviderRegistry:
         with self._lock:
             builder = _CatalogBuilder(self.domain)
             builder.providers.update(self._snapshot.providers)
+            builder.contract_providers.update(self._snapshot.contract_providers)
             builder.exclusions.extend(self._snapshot.exclusions)
             builder.add(ProviderInstance(
                 provider_id, module, manifest,
@@ -843,11 +844,13 @@ class ProviderRegistry:
         # package (e.g. `from scriptase.modules.tts.providers.base import ...`) re-enters
         # discovery, and the second scan would re-register every provider.
         self._discovered = True
-        dropped = self.publish(self.build_snapshot(providers_base))
+        dropped = self.publish(self.build_snapshot(providers_base, enforce_catalog=True))
         for provider in dropped:
             provider.retire()
 
-    def build_snapshot(self, providers_base: str) -> CatalogSnapshot:
+    def build_snapshot(
+        self, providers_base: str, *, enforce_catalog: bool = False
+    ) -> CatalogSnapshot:
         """Scan `providers_base` into a private snapshot without publishing it."""
         builder = _CatalogBuilder(self.domain)
 
@@ -865,12 +868,11 @@ class ProviderRegistry:
                 continue
             is_contract_provider = entry in self.contract_provider_ids
             if (
-                self.catalog_provider_ids is not None
+                enforce_catalog
+                and self.catalog_provider_ids is not None
                 and entry not in self.catalog_provider_ids
                 and not is_contract_provider
             ):
-                # Intentionally unregistered from the product catalogue. Keep
-                # the package loadable by direct fixture/contract tests.
                 continue
 
             manifest_file = os.path.join(provider_path, 'manifest.py')

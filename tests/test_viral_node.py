@@ -159,8 +159,8 @@ class ViralDomainCatalogTests(unittest.TestCase):
         self.assertEqual(
             migrated["domains"][DOMAIN]["selected_instance_id"], "deterministic"
         )
-        # An existing block is never rewritten by the backfill.
-        self.assertEqual(migrated["domains"]["script"]["selected_instance_id"], "gemini")
+        # The subsequent prototype-catalogue migration retires script providers.
+        self.assertIsNone(migrated["domains"]["script"]["selected_instance_id"])
 
 
 class DeterministicProviderTests(unittest.TestCase):
