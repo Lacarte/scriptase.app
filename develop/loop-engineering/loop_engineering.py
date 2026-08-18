@@ -412,6 +412,41 @@ def ensure_agents_available(args) -> None:
 # Validation (never trust the agent)
 # ---------------------------------------------------------------------------
 
+def failure_excerpt(output: str, *, context_lines: int = 20) -> str:
+    """The lines a fixer actually needs, not merely the last ones printed.
+
+    Taking a blind tail loses the failures whenever anything prints after the
+    summary. That happened for real: loguru's atexit handler writes to a closed
+    stream after pytest finishes, so a step with nine failing tests handed the
+    fixer 'ValueError: I/O operation on closed file' and nothing else. It spent
+    forty minutes editing unrelated files.
+
+    Structured markers are collected first and always survive truncation; the
+    trailing context is appended after them.
+    """
+    lines = output.strip().splitlines()
+    markers, seen = [], set()
+    for line in lines:
+        stripped = line.strip()
+        is_marker = (
+            stripped.startswith(("FAILED ", "ERROR ", "FAIL ", "E   "))
+            or re.match(r"^\d+ (failed|error)", stripped)
+            or re.search(r"\b\d+ failed\b", stripped)
+            or "Error:" in stripped and "npm" not in stripped
+        )
+        if is_marker and stripped not in seen:
+            seen.add(stripped)
+            markers.append(stripped)
+
+    tail = [l for l in lines[-context_lines:]]
+    if not markers:
+        return "\n".join(tail)
+
+    parts = ["Failures:"] + markers[:40]
+    parts += ["", f"Last {len(tail)} lines of output:"] + tail
+    return "\n".join(parts)
+
+
 def tree_fingerprint() -> str:
     """Identity of the working tree: HEAD plus the exact dirty state.
 
@@ -457,9 +492,8 @@ def validate(log_file: Path, *, allow_cache: bool = True) -> tuple[bool, str]:
         with log_file.open("a", encoding="utf-8") as log:
             log.write(f"\n----- validate:{name}\n{output}\n")
         if result.returncode != 0:
-            tail = "\n".join(output.strip().splitlines()[-25:])
             say(f"validate: {name} is RED after {elapsed(started)}", icon="✗")
-            return False, f"{name} FAILED:\n{tail}"
+            return False, f"{name} FAILED:\n{failure_excerpt(output)}"
         say(f"validate: {name} green in {elapsed(started)}", icon="✓")
     _LAST_GREEN_FINGERPRINT = fingerprint
     return True, "all green"
