@@ -147,9 +147,12 @@ export function isTerminalExecutionStatus(status) {
 /** Human labels for status badges (UI only — never invent stage names). */
 export const STATUS_LABELS = {
   idle: 'Pending',
+  queued: 'Queued',
   running: 'Running',
   pausing: 'Pausing',
   succeeded: 'Complete',
+  // JobStatus uses completed; execution/node status uses succeeded.
+  completed: 'Complete',
   failed: 'Failed',
   cancelled: 'Cancelled',
   awaiting_approval: 'Awaiting approval',

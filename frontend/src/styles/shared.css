@@ -360,7 +360,8 @@ pre {
 .badge.b-paused,
 .badge.b-draft,
 .badge.b-scheduled,
-.badge.b-awaiting {
+.badge.b-awaiting,
+.badge.b-awaiting_approval {
   color: var(--sched);
   background: var(--sched-dim);
   box-shadow: inset 0 0 0 1px var(--sched-line);

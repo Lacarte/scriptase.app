@@ -188,6 +188,8 @@ describe('stageStatus aggregation', () => {
 
   it('never invents stage labels — statusLabel is presentation only', () => {
     expect(statusLabel('succeeded')).toBe('Complete')
+    expect(statusLabel('completed')).toBe('Complete')
+    expect(statusLabel('queued')).toBe('Queued')
     expect(statusLabel('awaiting_approval')).toBe('Awaiting approval')
   })
 })
@@ -1445,6 +1447,38 @@ describe('ProductionPage', () => {
     await wrapper.findAll('.job-actions button').find(button => button.text() === 'Retry').trigger('click')
     await flushPromises()
     expect(api.retryJob).toHaveBeenCalledWith('job_FAIL01')
+  })
+
+  it('styles awaiting_approval with the shared scheduled badge ramp', async () => {
+    // JobStatus is awaiting_approval; the 6.1 primitive also accepts b-awaiting.
+    // The row binds b-${status}, so shared.css must style b-awaiting_approval or
+    // the badge falls through to the default queued look.
+    const held = {
+      id: 'job_HOLD01',
+      name: 'Checkpoint take',
+      channel_id: 'ch_A',
+      status: 'awaiting_approval',
+      current_stage: 'images',
+      created_at: new Date().toISOString(),
+      started_at: new Date().toISOString(),
+    }
+    api.listJobs.mockResolvedValue({ jobs: [held], total: 1 })
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/production', name: 'production', component: ProductionPage },
+        { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
+      ],
+    })
+    await router.push('/production')
+    await router.isReady()
+    const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.find('.job').classes()).toContain('st-awaiting_approval')
+    const badge = wrapper.find('.job-status .badge')
+    expect(badge.classes()).toContain('b-awaiting_approval')
+    expect(badge.text()).toBe('Awaiting approval')
   })
 
   it('draws the expanded row rail from the backend stage projection', async () => {
