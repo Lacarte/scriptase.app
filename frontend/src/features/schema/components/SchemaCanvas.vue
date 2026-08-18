@@ -1,6 +1,6 @@
 <script setup>
 /**
- * Read-only workflow canvas (step 1.2).
+ * Read-only workflow canvas (steps 1.2, 1.3).
  *
  * Nodes and edges arrive as props from the backend projection; this component
  * only decides where they sit on screen. It has no connect handles, no delete,
@@ -10,6 +10,10 @@
  * Navigation follows the prototype: drag the background to pan, two-finger
  * scroll to pan, Ctrl/pinch-wheel to zoom anchored on the cursor, drag a card
  * to reposition it, right-click to realign.
+ *
+ * Step 1.3: `nodeStates` and `flowingEdges` are how a running Job reaches the
+ * picture. Both are derived from execution records upstream — this component
+ * decides how a state *looks*, never what it is.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
@@ -21,9 +25,17 @@ import SchemaContextMenu from './SchemaContextMenu.vue'
 const props = defineProps({
   nodes: { type: Array, default: () => [] },
   edges: { type: Array, default: () => [] },
+  /** node_id → {status, visual} for the bound run (see ../live.js). */
+  nodeStates: { type: Object, default: () => ({}) },
+  /** Ids of the edges carrying work into an active node — those flow. */
+  flowingEdges: { type: Object, default: () => new Set() },
+  /** Card the inspector is open on. */
+  selectedId: { type: String, default: '' },
+  /** The run's live percent, shown on whatever is active. */
+  percent: { type: Number, default: null },
 })
 
-const emit = defineEmits(['realign'])
+const emit = defineEmits(['realign', 'select'])
 
 const canvasEl = ref(null)
 
@@ -51,6 +63,7 @@ const worldStyle = computed(() => ({
 const edgeGeometry = computed(() => props.edges.map((edge) => ({
   id: edge.id,
   edgeType: edge.edgeType,
+  flowing: props.flowingEdges?.has?.(edge.id) || false,
   d: edgePath(positions.value[edge.source], positions.value[edge.target]),
 })))
 
@@ -65,6 +78,21 @@ function nodeStyle(node) {
   }
 }
 
+/** `pending` before a run is bound, so an unbound graph is not painted live. */
+function nodeVisual(node) {
+  return props.nodeStates?.[node.id]?.visual || 'pending'
+}
+
+/**
+ * The live percent belongs to the run, not to the card — the engine records
+ * per-node status, not per-node progress. An active card shows it because an
+ * active card is what the run is currently doing.
+ */
+function nodePercent(node) {
+  if (!Number.isFinite(props.percent)) return null
+  return nodeVisual(node) === 'active' ? `${props.percent}%` : null
+}
+
 // ---------------------------------------------------------------------------
 // Pan / drag
 // ---------------------------------------------------------------------------
@@ -74,14 +102,22 @@ let nodeDrag = null
 const panning = ref(false)
 const draggingId = ref('')
 
+/**
+ * Below this, a mouse-up is a click rather than a drag. Without it, the two
+ * pixels of travel in an ordinary click would swallow every card selection.
+ */
+const CLICK_SLOP = 4
+
 function onCanvasDown(event) {
   if (event.button !== 0) return
   if (event.target.closest('.sch-node, .sch-legend, .ctx-menu')) return
+  cancelOpeningFit()
   panDrag = {
     x: event.clientX,
     y: event.clientY,
     panX: view.value.panX,
     panY: view.value.panY,
+    moved: false,
   }
   panning.value = true
 }
@@ -90,20 +126,35 @@ function onNodeDown(nodeId, event) {
   // Left-drag repositions; right-click is the realign menu.
   if (event.button !== 0) return
   event.stopPropagation()
+  cancelOpeningFit()
   const point = positions.value[nodeId]
   if (!point) return
-  nodeDrag = { id: nodeId, x: event.clientX, y: event.clientY, ox: point.x, oy: point.y }
+  nodeDrag = {
+    id: nodeId,
+    x: event.clientX,
+    y: event.clientY,
+    ox: point.x,
+    oy: point.y,
+    moved: false,
+  }
   draggingId.value = nodeId
+}
+
+function travelled(drag, event) {
+  return Math.abs(event.clientX - drag.x) > CLICK_SLOP
+    || Math.abs(event.clientY - drag.y) > CLICK_SLOP
 }
 
 function onWindowMove(event) {
   if (nodeDrag) {
+    if (travelled(nodeDrag, event)) nodeDrag.moved = true
     const dx = (event.clientX - nodeDrag.x) / view.value.zoom
     const dy = (event.clientY - nodeDrag.y) / view.value.zoom
     canvas.moveNode(nodeDrag.id, Math.max(0, nodeDrag.ox + dx), Math.max(0, nodeDrag.oy + dy))
     return
   }
   if (panDrag) {
+    if (travelled(panDrag, event)) panDrag.moved = true
     canvas.setView({
       zoom: view.value.zoom,
       panX: panDrag.panX + (event.clientX - panDrag.x),
@@ -113,14 +164,26 @@ function onWindowMove(event) {
 }
 
 function onWindowUp() {
+  // A card that was pressed and not dragged was clicked: open its panel.
+  // Pressing the background the same way closes it again.
+  if (nodeDrag && !nodeDrag.moved) emit('select', nodeDrag.id)
+  else if (panDrag && !panDrag.moved) emit('select', '')
   panDrag = null
   nodeDrag = null
   panning.value = false
   draggingId.value = ''
 }
 
+/** Keyboard equivalent of clicking a card. */
+function onNodeKey(nodeId, event) {
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  emit('select', props.selectedId === nodeId ? '' : nodeId)
+}
+
 function onWheel(event) {
   event.preventDefault()
+  cancelOpeningFit()
   const el = canvasEl.value
   const box = el?.getBoundingClientRect?.() || { left: 0, top: 0 }
   if (event.ctrlKey || event.metaKey) {
@@ -139,14 +202,30 @@ function onWheel(event) {
   else canvas.panBy(-event.deltaX, -event.deltaY)
 }
 
+/**
+ * The opening fit waits a frame, because nothing has a box on the first tick.
+ * Any navigation inside that frame cancels it: an automatic framing must never
+ * yank the view back from someone already driving it.
+ */
+let openingFit = 0
+
+function cancelOpeningFit() {
+  if (!openingFit) return
+  cancelAnimationFrame(openingFit)
+  openingFit = 0
+}
+
 onMounted(() => {
   window.addEventListener('mousemove', onWindowMove)
   window.addEventListener('mouseup', onWindowUp)
-  // Nothing has been laid out on the first tick, so wait a frame for a box.
-  requestAnimationFrame(() => canvas.fit())
+  openingFit = requestAnimationFrame(() => {
+    openingFit = 0
+    canvas.fit()
+  })
 })
 
 onBeforeUnmount(() => {
+  cancelOpeningFit()
   window.removeEventListener('mousemove', onWindowMove)
   window.removeEventListener('mouseup', onWindowUp)
 })
@@ -188,8 +267,16 @@ function onMenuSelect({ action, nodeId }) {
 }
 
 defineExpose({
-  fit: canvas.fit,
-  zoomStep: canvas.zoomStep,
+  // The topbar drives these, and driving them means the opening fit has been
+  // overtaken.
+  fit: () => {
+    cancelOpeningFit()
+    canvas.fit()
+  },
+  zoomStep: (direction) => {
+    cancelOpeningFit()
+    canvas.zoomStep(direction)
+  },
   autoAlign: canvas.autoAlign,
   snapAll: canvas.snapAll,
   resetLayout: canvas.resetLayout,
@@ -221,23 +308,36 @@ defineExpose({
           v-for="edge in edgeGeometry"
           :key="edge.id"
           class="sch-edge"
-          :class="{ 'e-control': edge.edgeType === 'control' }"
+          :class="{ 'e-control': edge.edgeType === 'control', flowing: edge.flowing }"
+          :data-edge-id="edge.id"
           :d="edge.d"
         />
       </svg>
 
-      <div class="sch-nodes" role="list" aria-label="Workflow nodes">
+      <div class="sch-nodes" role="listbox" aria-label="Workflow nodes">
         <div
           v-for="node in nodes"
           :key="node.id"
           class="sch-node"
-          :class="[`role-${node.role}`, { dragging: draggingId === node.id, disabled: node.disabled }]"
-          role="listitem"
+          :class="[
+            `role-${node.role}`,
+            `vis-${nodeVisual(node)}`,
+            {
+              dragging: draggingId === node.id,
+              disabled: node.disabled,
+              selected: selectedId === node.id,
+            },
+          ]"
+          role="option"
+          tabindex="0"
+          :aria-selected="String(selectedId === node.id)"
           :data-node-id="node.id"
           :data-stage="node.stageKey || ''"
+          :data-visual="nodeVisual(node)"
           :style="nodeStyle(node)"
           :title="`${node.name} · ${node.subtitle}`"
           @mousedown="onNodeDown(node.id, $event)"
+          @keydown="onNodeKey(node.id, $event)"
           @contextmenu="openMenu($event, node)"
         >
           <span class="sch-ic"><NodeIcon :icon="node.icon" /></span>
@@ -245,6 +345,7 @@ defineExpose({
             <span class="nm">{{ node.name }}</span>
             <span class="sb">{{ node.subtitle }}</span>
           </span>
+          <span v-if="nodePercent(node)" class="sch-pct">{{ nodePercent(node) }}</span>
           <span class="sch-io in" aria-hidden="true" />
           <span class="sch-io out" aria-hidden="true" />
         </div>
@@ -311,6 +412,19 @@ defineExpose({
   stroke-dasharray: 3 4;
 }
 
+/* Work arriving at whatever is running now. The dash flows towards the
+   active card, which is the direction the data is going. */
+.sch-edge.flowing {
+  stroke: var(--run);
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+  animation: sch-flow 0.9s linear infinite;
+}
+
+@keyframes sch-flow {
+  to { stroke-dashoffset: -12; }
+}
+
 .sch-nodes {
   position: absolute;
   top: 0;
@@ -335,6 +449,72 @@ defineExpose({
 
 .sch-node:hover {
   border-color: var(--accent-line);
+}
+
+.sch-node:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent), 0 4px 14px -8px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- The running Job, reflected (step 1.3) ---------------------------- */
+
+/* Not reached yet. Dim rather than hidden — the shape of what is coming is
+   part of what makes a running graph readable. */
+.sch-node.vis-pending {
+  opacity: 0.5;
+}
+
+.sch-node.vis-active {
+  border-color: var(--run-line);
+  box-shadow: 0 0 0 1px var(--run-line), 0 0 22px -4px var(--run);
+  animation: sch-glow 1.6s ease-in-out infinite;
+}
+
+.sch-node.vis-done {
+  border-color: var(--ok-line);
+}
+
+.sch-node.vis-failed {
+  border-color: var(--fail-line);
+  box-shadow: 0 0 0 1px var(--fail-line), 0 0 18px -6px var(--fail);
+}
+
+/* Waiting on a person, not on a worker. */
+.sch-node.vis-blocked {
+  border-color: var(--sched-line);
+}
+
+/* Deliberately not run. Struck through says "this did not happen" in a way
+   that dimming alone does not. */
+.sch-node.vis-skipped {
+  border-style: dashed;
+  border-color: var(--line);
+  opacity: 0.55;
+}
+
+.sch-node.vis-skipped .nm {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+@keyframes sch-glow {
+  0%, 100% { box-shadow: 0 0 0 1px var(--run-line), 0 0 22px -4px var(--run); }
+  50% { box-shadow: 0 0 0 1px var(--run-line), 0 0 10px -6px var(--run); }
+}
+
+/* The card the inspector is open on. */
+.sch-node.selected {
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 2px var(--accent), 0 8px 22px -10px rgba(0, 0, 0, 0.7);
+}
+
+.sch-pct {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--run);
 }
 
 .sch-node.dragging {
@@ -448,6 +628,16 @@ defineExpose({
 
 .sch-legend .d-stage { background: var(--accent); }
 .sch-legend .d-flow { background: var(--faint); }
+
+/* Step 0.3: nothing loops for someone who asked for no motion. The state is
+   still legible — colour, border and the struck-through name carry it — so
+   only the animation goes, never the information. */
+@media (prefers-reduced-motion: reduce) {
+  .sch-edge.flowing,
+  .sch-node.vis-active {
+    animation: none;
+  }
+}
 
 @media (max-width: 820px) {
   .sch-legend {

@@ -31,6 +31,10 @@ vi.mock('../api.js', () => ({
   getWorkflowStages: vi.fn(),
   projectWorkflowBody: vi.fn(),
   listTemplates: vi.fn(),
+  listExecutions: vi.fn(),
+  getExecution: vi.fn(),
+  getExecutionStages: vi.fn(),
+  getJob: vi.fn(),
 }))
 
 const REGISTRY = {
@@ -71,6 +75,55 @@ const PROJECTION = {
   },
 }
 
+/**
+ * Read one of this feature's source files.
+ *
+ * The path goes through a parameter on purpose: Vite rewrites a *literal*
+ * `new URL('./x', import.meta.url)` into an asset URL, which is no longer a
+ * file path by the time `fileURLToPath` sees it.
+ */
+function readSource(relative) {
+  return readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8')
+}
+
+/** A run of the same graph: the snapshot is what a run is drawn from. */
+function execution(overrides = {}) {
+  return {
+    execution_id: 'ex_LIVE01',
+    workflow_id: 'wf_AAA111',
+    status: 'running',
+    workflow_snapshot: WORKFLOW,
+    nodes: {
+      n_start: { status: 'succeeded', artifact_refs: ['demo/one'] },
+      n_speak: { status: 'running' },
+    },
+    ...overrides,
+  }
+}
+
+class FakeEventSource {
+  static instances = []
+  constructor(url) {
+    this.url = url
+    this.close = vi.fn()
+    this.onmessage = null
+    this.onerror = null
+    FakeEventSource.instances.push(this)
+  }
+
+  send(event) {
+    this.onmessage?.({ data: JSON.stringify(event) })
+  }
+
+  static reset() {
+    FakeEventSource.instances = []
+  }
+
+  static latest() {
+    return FakeEventSource.instances[FakeEventSource.instances.length - 1] || null
+  }
+}
+
 function makeRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -81,9 +134,9 @@ function makeRouter() {
   })
 }
 
-async function mountPage() {
+async function mountPage(path = '/schema') {
   const router = makeRouter()
-  await router.push('/schema')
+  await router.push(path)
   await router.isReady()
   const wrapper = mount(SchemaPage, { global: { plugins: [router] } })
   await flushPromises()
@@ -92,12 +145,26 @@ async function mountPage() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  FakeEventSource.reset()
+  globalThis.EventSource = FakeEventSource
   api.getNodeTypes.mockResolvedValue(REGISTRY)
   api.listWorkflows.mockResolvedValue({ workflows: [{ workflow_id: 'wf_AAA111', name: 'Demo' }] })
   api.getWorkflow.mockResolvedValue({ workflow: WORKFLOW })
   api.getWorkflowStages.mockResolvedValue(PROJECTION)
   api.listTemplates.mockResolvedValue({ templates: [] })
   api.projectWorkflowBody.mockResolvedValue(PROJECTION)
+  api.listExecutions.mockResolvedValue({ executions: [{ execution_id: 'ex_LIVE01', status: 'running' }] })
+  api.getExecution.mockResolvedValue({ execution: execution() })
+  api.getExecutionStages.mockResolvedValue(PROJECTION)
+  api.getJob.mockResolvedValue({
+    job: {
+      id: 'job_AAA111',
+      workflow_id: 'wf_AAA111',
+      execution_id: 'ex_LIVE01',
+      current_stage: 'voice',
+      status: 'running',
+    },
+  })
 })
 
 describe('Schema graph (step 1.2)', () => {
@@ -298,29 +365,166 @@ describe('Schema navigation and realign (step 1.2)', () => {
       canvas.vm.onMenuSelect({ action, nodeId: null })
     }
     await flushPromises()
-    // The only calls the whole view is allowed to make are the three reads.
     expect(api.getWorkflow).toHaveBeenCalledTimes(1)
     expect(api.getWorkflowStages).toHaveBeenCalledTimes(1)
-    expect(Object.keys(api)).toEqual([
-      'getNodeTypes',
-      'listWorkflows',
-      'getWorkflow',
-      'getWorkflowStages',
-      'projectWorkflowBody',
-      'listTemplates',
-    ])
+  })
+
+  it('reaches nothing that could change a run', () => {
+    // Read the real client, not the mock: the mock is whatever this file says
+    // it is, and the guarantee is about the shipped module. Schema watches the
+    // engine, so every call it can make is a GET — apart from the projector,
+    // which computes a projection for an unsaved template and stores nothing.
+    const source = readSource('../api.js')
+    const posts = [...source.matchAll(/apiPost\(\s*'([^']+)'/g)].map((m) => m[1])
+    expect(posts).toEqual(['/workflow/stages'])
+    expect(source).not.toMatch(/apiPut|apiDelete/)
+    // The endpoints that would start, stop or approve a run.
+    for (const forbidden of ['/workflow/run', '/stop', '/approve', '/reject', '/test-node']) {
+      expect(source, `api.js reaches ${forbidden}`).not.toContain(forbidden)
+    }
   })
 })
 
-describe('no hardcoded structure (step 1.2)', () => {
+describe('the running job on the graph (step 1.3)', () => {
+  async function mountLivePage(path = '/schema?run=ex_LIVE01') {
+    const mounted = await mountPage(path)
+    await flushPromises()
+    return mounted
+  }
+
+  it('draws the run from its snapshot and reflects each node', async () => {
+    const { wrapper } = await mountLivePage()
+    expect(api.getExecution).toHaveBeenCalledWith('ex_LIVE01')
+    const cards = wrapper.findAll('.sch-node')
+    expect(cards[0].attributes('data-visual')).toBe('done')
+    expect(cards[1].attributes('data-visual')).toBe('active')
+    // Not reached by this run: pending, not missing.
+    expect(cards[2].attributes('data-visual')).toBe('pending')
+  })
+
+  it('still asks the registry what a run’s nodes are', async () => {
+    const { wrapper } = await mountLivePage()
+    expect(api.getNodeTypes).toHaveBeenCalled()
+    // Stage labels and category colours come from the registry and the
+    // projection; arriving by run deep link must not cost a card its identity.
+    const first = wrapper.findAll('.sch-node')[0]
+    expect(first.attributes('data-stage')).toBe('script')
+    expect(first.text()).toContain('Script')
+  })
+
+  it('flows the edges arriving at whatever is running', async () => {
+    const { wrapper } = await mountLivePage()
+    const edges = wrapper.findAll('.sch-edge')
+    expect(edges[0].classes()).toContain('flowing')
+    expect(edges[1].classes()).not.toContain('flowing')
+  })
+
+  it('shows job, stage and percent on the pill', async () => {
+    const { wrapper } = await mountLivePage('/schema?job=job_AAA111')
+    const pill = wrapper.find('.sch-live-pill')
+    expect(pill.exists()).toBe(true)
+    expect(pill.text()).toContain('Job job_AAA111')
+    // Stage named by the projection, and the percent of the graph settled.
+    expect(pill.text()).toContain('Voice')
+    expect(pill.text()).toContain('33%')
+  })
+
+  it('animates as the run advances', async () => {
+    const { wrapper } = await mountLivePage()
+    FakeEventSource.latest().send({
+      sequence: 1,
+      execution_id: 'ex_LIVE01',
+      node_id: 'n_speak',
+      status: 'succeeded',
+    })
+    await flushPromises()
+    expect(wrapper.findAll('.sch-node')[1].attributes('data-visual')).toBe('done')
+    expect(wrapper.find('.sch-live-pill').text()).toContain('67%')
+  })
+
+  it('opens the inspector on a card and keeps it in sync', async () => {
+    api.getExecution.mockResolvedValue({
+      execution: execution({
+        nodes: {
+          n_start: { status: 'succeeded' },
+          n_speak: {
+            status: 'running',
+            resolved_inputs_summary: { text: 'Once upon a time' },
+            cost: { provider_instance_id: 'inst_main', selection_reason: 'default' },
+          },
+        },
+      }),
+    })
+    const { wrapper } = await mountLivePage()
+    const card = wrapper.findAll('.sch-node')[1]
+    await card.trigger('mousedown', { button: 0, clientX: 50, clientY: 50 })
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await flushPromises()
+
+    const panel = wrapper.find('.sch-inspector')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('Narrate')
+    expect(panel.text()).toContain('Running')
+    // The resolved provider is an instance reference — never a credential.
+    expect(panel.text()).toContain('inst_main')
+    expect(panel.text()).toContain('Once upon a time')
+
+    FakeEventSource.latest().send({
+      sequence: 1,
+      execution_id: 'ex_LIVE01',
+      node_id: 'n_speak',
+      status: 'failed',
+      error: { code: 'PROVIDER_FAILED', message: 'upstream refused' },
+    })
+    await flushPromises()
+    expect(wrapper.find('.sch-inspector').text()).toContain('PROVIDER_FAILED')
+    expect(wrapper.find('.sch-inspector').text()).toContain('upstream refused')
+  })
+
+  it('freezes the view without touching the job', async () => {
+    const { wrapper } = await mountLivePage()
+    await wrapper.find('.sch-zbtn.freeze').trigger('click')
+    await flushPromises()
+
+    const source = FakeEventSource.latest()
+    source.send({ sequence: 1, execution_id: 'ex_LIVE01', node_id: 'n_speak', status: 'succeeded' })
+    await flushPromises()
+
+    // The picture is held still...
+    expect(wrapper.findAll('.sch-node')[1].attributes('data-visual')).toBe('active')
+    // ...and the run was never asked to stop: the stream is still open, and
+    // the badge counts what is waiting behind the freeze.
+    expect(source.close).not.toHaveBeenCalled()
+    expect(wrapper.find('.sch-zbtn.freeze').text()).toContain('Frozen · 1')
+    expect(wrapper.text()).toContain('the job is still running')
+
+    await wrapper.find('.sch-zbtn.freeze').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.sch-node')[1].attributes('data-visual')).toBe('done')
+  })
+
+  it('paints nothing live until a run is bound', async () => {
+    const { wrapper } = await mountPage()
+    expect(wrapper.find('.sch-live-pill').exists()).toBe(false)
+    expect(wrapper.find('.sch-zbtn.freeze').exists()).toBe(false)
+    for (const card of wrapper.findAll('.sch-node')) {
+      expect(card.attributes('data-visual')).toBe('pending')
+    }
+  })
+})
+
+describe('no hardcoded structure (steps 1.2, 1.3)', () => {
   const SOURCES = [
     '../graph.js',
+    '../live.js',
     '../api.js',
     '../SchemaPage.vue',
     '../components/SchemaCanvas.vue',
     '../components/SchemaContextMenu.vue',
+    '../components/SchemaInspector.vue',
     '../composables/useSchemaGraph.js',
     '../composables/useSchemaCanvas.js',
+    '../composables/useSchemaLive.js',
   ]
 
   /** Registry keys and stage names a hardcoded list would have to name. */
@@ -332,7 +536,7 @@ describe('no hardcoded structure (step 1.2)', () => {
   ]
 
   it.each(SOURCES)('%s names no node type and no stage key', (relative) => {
-    const source = readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8')
+    const source = readSource(relative)
     for (const key of FORBIDDEN) {
       expect(source, `${relative} hardcodes ${key}`).not.toContain(key)
     }

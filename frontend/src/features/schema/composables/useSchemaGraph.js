@@ -10,6 +10,9 @@
  * fetched and projected through `POST /api/workflow/stages`, which is the same
  * projector the saved-workflow route runs.
  *
+ * Step 1.3 adds a fourth source that is still the same truth: an execution's
+ * `workflow_snapshot`, which is what a *run* is drawn from.
+ *
  * Read-only throughout. Nothing in this module starts, advances or cancels an
  * execution — that is Production's job, and Schema watching the graph must
  * never become a second way to run it.
@@ -18,9 +21,12 @@
 import { computed, ref, shallowRef } from 'vue'
 
 import {
+  getExecution,
+  getExecutionStages,
   getNodeTypes,
   getWorkflow,
   getWorkflowStages,
+  listExecutions,
   listTemplates,
   listWorkflows,
   projectWorkflowBody,
@@ -30,11 +36,15 @@ import { buildSchemaGraph } from '../graph.js'
 export function useSchemaGraph() {
   const registry = shallowRef(null)
   const workflows = ref([])
+  /** Runs of the selected workflow — what the Run picker offers (step 1.3). */
+  const runs = ref([])
   const selectedWorkflowId = ref('')
   const workflowDocument = shallowRef(null)
   const projection = shallowRef(null)
   /** Set when the graph on screen is a built-in template rather than a save. */
   const templateId = ref('')
+  /** Set when the graph on screen is a run's snapshot rather than a save. */
+  const executionId = ref('')
 
   /**
    * Counted rather than boolean: `load` nests `selectWorkflow` inside itself,
@@ -71,6 +81,60 @@ export function useSchemaGraph() {
     return match?.name || selectedWorkflowId.value
   })
 
+  /**
+   * Draw a run (step 1.3).
+   *
+   * The structure comes from the execution's `workflow_snapshot`, not from the
+   * saved workflow: a workflow edited since the run started would otherwise
+   * animate nodes this execution never had, and hide nodes it did.
+   *
+   * @param {object} execution  execution record
+   * @param {object} [runProjection]  StageProjection for the same run
+   */
+  function showExecution(execution, runProjection = null) {
+    if (!execution?.workflow_snapshot) return null
+    templateId.value = ''
+    error.value = ''
+    workflowDocument.value = execution.workflow_snapshot
+    executionId.value = execution.execution_id || ''
+    if (execution.workflow_id) selectedWorkflowId.value = execution.workflow_id
+    projection.value = runProjection || null
+    stageError.value = runProjection ? '' : stageError.value
+    return workflowDocument.value
+  }
+
+  /**
+   * Fetch a run and draw it. Returns the execution record so the caller can
+   * hand it to `useSchemaLive` — this composable owns structure, never status.
+   */
+  async function selectExecution(id) {
+    if (!id) return null
+    pending.value += 1
+    error.value = ''
+    try {
+      const [executionData, stagesData] = await Promise.all([
+        getExecution(id),
+        // Same survivable failure as a saved workflow's projection: without it
+        // the cards lose their stage label, not their place on the canvas.
+        Promise.resolve(getExecutionStages(id)).catch((err) => {
+          stageError.value = err?.message || String(err)
+          return null
+        }),
+      ])
+      const execution = executionData?.execution || executionData || null
+      if (!execution?.workflow_snapshot) {
+        throw new Error('That run has no workflow snapshot to draw')
+      }
+      showExecution(execution, stagesData?.projection || null)
+      return execution
+    } catch (err) {
+      error.value = err?.message || String(err)
+      throw err
+    } finally {
+      pending.value -= 1
+    }
+  }
+
   async function loadRegistry() {
     if (registry.value) return registry.value
     registry.value = await getNodeTypes()
@@ -86,6 +150,21 @@ export function useSchemaGraph() {
       workflows.value = []
     }
     return workflows.value
+  }
+
+  async function refreshRuns(workflowId) {
+    if (!workflowId) {
+      runs.value = []
+      return runs.value
+    }
+    try {
+      const data = await listExecutions({ workflowId })
+      runs.value = data?.executions || []
+    } catch {
+      // No listing costs the Run picker, not the canvas.
+      runs.value = []
+    }
+    return runs.value
   }
 
   async function loadProjection(loader) {
@@ -105,6 +184,7 @@ export function useSchemaGraph() {
     pending.value += 1
     error.value = ''
     templateId.value = ''
+    executionId.value = ''
     try {
       const data = await getWorkflow(workflowId)
       workflowDocument.value = data?.workflow || data || null
@@ -136,6 +216,7 @@ export function useSchemaGraph() {
       workflowDocument.value = first.workflow
       templateId.value = first.template_id || 'template'
       selectedWorkflowId.value = ''
+      executionId.value = ''
       await loadProjection(() => projectWorkflowBody(first.workflow))
       return workflowDocument.value
     } catch (err) {
@@ -188,10 +269,12 @@ export function useSchemaGraph() {
   return {
     registry,
     workflows,
+    runs,
     selectedWorkflowId,
     workflowDocument,
     projection,
     templateId,
+    executionId,
     loading,
     error,
     stageError,
@@ -202,7 +285,10 @@ export function useSchemaGraph() {
     load,
     loadRegistry,
     refreshWorkflows,
+    refreshRuns,
     selectWorkflow,
     loadTemplateGraph,
+    showExecution,
+    selectExecution,
   }
 }

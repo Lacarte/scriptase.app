@@ -130,6 +130,10 @@ export function nodeRecordsFromExecution(execution) {
       outputs_summary: record.outputs_summary ?? {},
       attempt_errors: Array.isArray(record.attempt_errors) ? [...record.attempt_errors] : [],
       from_sample_data: Boolean(record.from_sample_data),
+      // Which provider instance actually ran, and why (contracts §1.4). An
+      // instance *reference* — credentials never reach an execution record.
+      // Schema's node inspector (step 1.3) reads it as "resolved provider".
+      cost: record.cost ?? null,
     }
   }
   return out
