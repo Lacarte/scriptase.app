@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { createPinia } from 'pinia'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import App from './App.vue'
 import { API_BASE, APP_NAME } from './shared/constants.js'
@@ -140,6 +142,14 @@ describe('scaffold', () => {
     expect(brand.find('.logo').exists()).toBe(true)
     expect(brand.find('.name').text()).toBe(APP_NAME)
     expect(brand.find('.tag').text()).toBe('Studio')
+  })
+
+  it('keeps the prototype nav breakpoint and non-shrinking button icons (step 6.1)', () => {
+    const shellSource = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+    const sharedSource = readFileSync(resolve(process.cwd(), 'src/styles/shared.css'), 'utf8')
+
+    expect(shellSource).toMatch(/@media \(max-width: 860px\)/)
+    expect(sharedSource).toMatch(/\.btn svg\s*\{[^}]*flex:\s*none/s)
   })
 
   it('labels its icon-only controls and reports the nav collapse state', async () => {

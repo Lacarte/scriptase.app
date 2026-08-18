@@ -39,7 +39,7 @@ const navItems = [
  */
 const windowLinks = [{ target: 'editor', label: 'Editor' }]
 
-/** Below 820px the destinations collapse behind one toggle (step 0.3). */
+/** Below 860px the destinations collapse behind one toggle (prototype shell). */
 const navOpen = ref(false)
 
 function pathFor(target) {
@@ -346,19 +346,40 @@ a {
   flex: 1;
 }
 
-/* Icon-only controls: a hit area, no chrome until you touch them. */
-.nav-toggle,
-.help-btn {
+/* Icon-only controls keep the prototype's distinct shapes: the navigation
+   toggle is a compact panel, while help is a circular utility control. */
+.nav-toggle {
   display: none;
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--r-s);
-  background: transparent;
+  margin-left: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.16s, color 0.14s, border-color 0.16s;
+}
+
+.nav-toggle:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.help-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
   color: var(--muted);
   font-family: var(--mono);
   font-size: 14px;
@@ -367,15 +388,10 @@ a {
   transition: background 0.16s, color 0.14s, border-color 0.16s;
 }
 
-.nav-toggle:hover,
 .help-btn:hover {
-  background: var(--panel);
-  border-color: var(--line);
+  background: var(--panel-2);
+  border-color: var(--line-2);
   color: var(--text);
-}
-
-.help-btn {
-  display: inline-flex;
 }
 
 /* Reads as "leaves this page" — it opens its own window, never navigates. */
@@ -409,11 +425,11 @@ a {
 }
 
 /* ================================================================
-   Below 820px the destinations collapse behind one toggle (step 0.3).
+   Below 860px the destinations collapse behind one toggle.
    Six nowrap links cannot share a 375px bar without forcing a
    horizontal scrollbar on every view underneath.
    ================================================================ */
-@media (max-width: 820px) {
+@media (max-width: 860px) {
   .topbar {
     gap: 10px;
     padding: 0 12px;
@@ -426,7 +442,6 @@ a {
   .nav-toggle {
     display: inline-flex;
     order: 3;
-    margin-left: auto;
   }
 
   .help-btn {

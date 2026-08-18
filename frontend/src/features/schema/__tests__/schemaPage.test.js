@@ -490,6 +490,8 @@ describe('the running job on the graph (step 1.3)', () => {
     await flushPromises()
     expect(wrapper.find('.sch-inspector').text()).toContain('PROVIDER_FAILED')
     expect(wrapper.find('.sch-inspector').text()).toContain('upstream refused')
+    expect(wrapper.find('.si-sec.err').element.children[1].className).toBe('si-err-msg')
+    expect(wrapper.find('.si-sec.err').element.children[2].className).toBe('si-err-code')
   })
 
   it('freezes the view without touching the job', async () => {

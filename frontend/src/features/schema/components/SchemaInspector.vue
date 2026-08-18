@@ -137,8 +137,8 @@ function isEmpty(value) {
 
       <section v-if="model.error" class="si-sec err" aria-label="Node error">
         <h3 class="si-h">Error</h3>
-        <p class="si-err-code">{{ model.error.code || 'ERROR' }}</p>
         <p class="si-err-msg">{{ model.error.message || '' }}</p>
+        <p class="si-err-code">{{ model.error.code || 'ERROR' }}</p>
       </section>
 
       <section v-if="!isEmpty(model.input)" class="si-sec" aria-label="Node input">
@@ -410,7 +410,7 @@ function isEmpty(value) {
 }
 
 .si-err-code {
-  margin: 11px 11px 0;
+  margin: 0 11px 11px;
   padding: 7px 9px;
   border-radius: 5px;
   background: var(--fail-dim);

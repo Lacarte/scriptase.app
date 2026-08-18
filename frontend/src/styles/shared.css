@@ -162,6 +162,10 @@ pre {
   transform: none;
 }
 
+.btn svg {
+  flex: none;
+}
+
 /* The duotone appears here and on active states — nowhere else. */
 .btn.primary,
 .gen-btn {
