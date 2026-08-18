@@ -35,3 +35,16 @@ export function deleteScript(id, expectedVersion) {
 export function generateScript(options) {
   return apiPost('/story/generate', options)
 }
+
+export function generateNarration(id, options) {
+  return apiPost(`/scripts/${id}/narration`, options)
+}
+
+export function listNarrationVoices(provider) {
+  return apiGet('/tts/voices', { provider })
+}
+
+export function narrationAudioUrl(id, artifactId) {
+  const query = artifactId ? `?artifact_id=${encodeURIComponent(artifactId)}` : ''
+  return `/api/scripts/${encodeURIComponent(id)}/narration/audio${query}`
+}

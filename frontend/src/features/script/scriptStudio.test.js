@@ -14,6 +14,9 @@ vi.mock('./api.js', () => ({
   updateScript: vi.fn(),
   deleteScript: vi.fn(),
   generateScript: vi.fn(),
+  generateNarration: vi.fn(),
+  listNarrationVoices: vi.fn(),
+  narrationAudioUrl: vi.fn((id, artifactId) => `/api/scripts/${id}/narration/audio?artifact_id=${artifactId}`),
 }))
 
 vi.mock('@/features/channels/api.js', () => ({
@@ -39,6 +42,12 @@ const CHANNEL = {
     brief: 'Open with a reversal and land on one memorable thought.',
     sections: ['Hook', 'Turn', 'Why', 'Landing'],
   },
+  audio_defaults: {
+    voice: 'Alex',
+    remove_silence: true,
+    speed: 1.1,
+  },
+  provider_defaults: { tts: 'inworld' },
 }
 
 const SUMMARY = {
@@ -88,6 +97,10 @@ beforeEach(() => {
   channelApi.listChannels.mockResolvedValue({ channels: [CHANNEL_SUMMARY], total: 1 })
   channelApi.getChannel.mockResolvedValue({ channel: CHANNEL })
   scriptApi.getScript.mockResolvedValue({ script: DOCUMENT, narration_audio: null })
+  scriptApi.listNarrationVoices.mockResolvedValue([
+    { id: 'Alex', label: 'Alex' },
+    { id: 'Ashley', label: 'Ashley' },
+  ])
   scriptApi.generateScript.mockResolvedValue({
     story_text: 'The room goes quiet. Everyone reaches for a word. Silence removes the performance. The pause says enough.',
   })
@@ -182,6 +195,44 @@ describe('Script Studio step 3.2', () => {
       body: pasted,
       origin: 'paste',
     }))
+  })
+})
+
+describe('Script Studio step 3.3 narration', () => {
+  it('defaults to Channel voice and shows processing values as inherited', async () => {
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('[aria-label="Narration voice"]').element.value).toBe('Alex')
+    expect(wrapper.get('[aria-label="Remove silence override"]').classes()).toContain('inherited')
+    expect(wrapper.get('[aria-label="Narration speed override"]').classes()).toContain('inherited')
+    expect(wrapper.text()).toContain('Inherited · On')
+    expect(wrapper.text()).toContain('Inherited · 1.10×')
+  })
+
+  it('generates with explicit overrides and renders the returned audio player', async () => {
+    const ready = {
+      ...DOCUMENT,
+      version: 3,
+      narration: {
+        state: 'ready', voice: 'Ashley', remove_silence: false, speed: 1.25,
+        duration_s: 12.4, audio_artifact_id: 'art_AAAAAA',
+      },
+    }
+    scriptApi.generateNarration.mockResolvedValue({ script: ready, narration_audio: {} })
+    const wrapper = await mountPage()
+
+    await wrapper.get('[aria-label="Narration voice"]').setValue('Ashley')
+    await wrapper.get('[aria-label="Remove silence override"]').setValue(false)
+    await wrapper.get('[aria-label="Narration speed override"]').setValue(1.25)
+    await wrapper.get('.narration-button').trigger('click')
+    await flushPromises()
+
+    expect(scriptApi.generateNarration).toHaveBeenCalledWith('scr_AAAAAA', {
+      voice: 'Ashley', remove_silence: false, speed: 1.25, expected_version: 1,
+    })
+    expect(wrapper.get('audio').attributes('src')).toContain('art_AAAAAA')
+    expect(wrapper.get('[aria-label="Remove silence override"]').classes()).not.toContain('inherited')
+    expect(wrapper.text()).toContain('Regenerate narration')
   })
 })
 

@@ -44,6 +44,8 @@ class Narration(BaseModel):
 
     state: NarrationState = "none"
     voice: str = ""
+    remove_silence: bool | None = None
+    speed: float | None = Field(default=None, ge=0.5, le=2.0)
     duration_s: float | None = Field(default=None, ge=0)
     audio_artifact_id: str | None = None
 

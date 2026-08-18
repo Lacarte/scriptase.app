@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+import math
+import os
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 
+from scriptase.artifacts.store import ArtifactNotFound, absolute_path, get_artifact
+from scriptase.scripts.narration import generate_narration
 from scriptase.scripts.models import SCRIPT_ID_RE
 from scriptase.scripts.store import (
     ScriptConflict,
@@ -171,6 +175,71 @@ def scripts_delete(script_id: str):
     except (ScriptNotFound, ScriptConflict, ScriptValidationError, ValueError) as exc:
         return _store_error(exc)
     return "", 204
+
+
+@scripts_bp.post("/api/scripts/<script_id>/narration")
+def scripts_generate_narration(script_id: str):
+    if not SCRIPT_ID_RE.fullmatch(script_id or ""):
+        return _error("BAD_REQUEST", "script_id must match scr_[A-Z0-9]{6}", 400)
+    body, error = _json_body()
+    if error:
+        return error
+    try:
+        voice = body.get("voice")
+        if voice is not None and not isinstance(voice, str):
+            raise ValueError("voice must be a string or null")
+        remove_silence = body.get("remove_silence")
+        if remove_silence is not None and not isinstance(remove_silence, bool):
+            raise ValueError("remove_silence must be true, false, or null")
+        speed = body.get("speed")
+        if speed is not None:
+            if isinstance(speed, bool):
+                raise ValueError("speed must be a number or null")
+            speed = float(speed)
+            if not math.isfinite(speed) or not 0.5 <= speed <= 2.0:
+                raise ValueError("speed must be between 0.5 and 2.0")
+        document, artifact = generate_narration(
+            script_id,
+            voice=voice,
+            remove_silence=remove_silence,
+            speed=speed,
+            expected_version=_expected_version(body),
+        )
+        return jsonify({
+            **_detail(document),
+            "narration_audio": artifact.to_document(),
+        })
+    except (ScriptNotFound, ScriptConflict, ScriptValidationError, ValueError) as exc:
+        return _store_error(exc)
+    except Exception as exc:
+        return _error(
+            getattr(exc, "code", "NARRATION_GENERATION_FAILED"),
+            getattr(exc, "message", None) or "Narration generation failed",
+            502,
+        )
+
+
+@scripts_bp.get("/api/scripts/<script_id>/narration/audio")
+def scripts_narration_audio(script_id: str):
+    if not SCRIPT_ID_RE.fullmatch(script_id or ""):
+        return _error("BAD_REQUEST", "script_id must match scr_[A-Z0-9]{6}", 400)
+    try:
+        document = get_script(script_id)
+        artifact_id = request.args.get("artifact_id") or document.narration.audio_artifact_id
+        if not artifact_id:
+            return _error("NOT_FOUND", "Script has no narration audio", 404)
+        artifact = get_artifact(artifact_id)
+        if artifact.kind != "audio" or artifact.job_id != script_id:
+            return _error("NOT_FOUND", "Narration audio not found", 404)
+        # Resolve a server-owned managed reference only; no browser path is accepted.
+        absolute = absolute_path(artifact)
+        if not os.path.isfile(absolute):
+            return _error("NOT_FOUND", "Narration audio file not found", 404)
+        return send_file(absolute, mimetype=artifact.mime, conditional=True)
+    except (ScriptNotFound, ScriptValidationError, ArtifactNotFound, ValueError) as exc:
+        if isinstance(exc, ArtifactNotFound):
+            return _error("NOT_FOUND", "Narration audio not found", 404)
+        return _store_error(exc)
 
 
 __all__ = ["scripts_bp"]

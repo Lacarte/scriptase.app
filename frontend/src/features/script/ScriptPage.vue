@@ -6,9 +6,12 @@ import { getChannel, listChannels } from '@/features/channels/api.js'
 import { useToast } from '@/shared/composables/useToast.js'
 import {
   createScript,
+  generateNarration,
   generateScript,
   getScript,
+  listNarrationVoices,
   listScripts,
+  narrationAudioUrl,
   updateScript,
 } from './api.js'
 import { applyTemplateOutline } from './generation.js'
@@ -26,12 +29,15 @@ const loadingDetail = ref(false)
 const saving = ref(false)
 const creating = ref(false)
 const generating = ref(false)
+const generatingNarration = ref(false)
+const voices = ref([])
 const error = ref('')
 const dirty = ref(false)
 const searchInput = ref(null)
 let searchTimer = null
 
 const form = reactive({ title: '', body: '' })
+const narrationForm = reactive({ voice: '', removeSilence: null, speed: null })
 const draft = reactive({
   mode: 'auto',
   channelId: '',
@@ -57,6 +63,14 @@ const liveWordCount = computed(() => wordCount(form.body))
 const liveDuration = computed(() => Math.round(liveWordCount.value / 2.5))
 const pasteWordCount = computed(() => wordCount(draft.body))
 const pasteDuration = computed(() => Math.round(pasteWordCount.value / 2.5))
+const scriptChannel = computed(() => selected.value ? channelDetails[selected.value.channel_id] : null)
+const channelAudio = computed(() => scriptChannel.value?.audio_defaults || {})
+const activeRemoveSilence = computed(() => narrationForm.removeSilence ?? channelAudio.value.remove_silence ?? true)
+const activeSpeed = computed(() => narrationForm.speed ?? channelAudio.value.speed ?? 1)
+const audioUrl = computed(() => {
+  const artifactId = selected.value?.narration?.audio_artifact_id
+  return artifactId ? narrationAudioUrl(selected.value.id, artifactId) : ''
+})
 
 function wordCount(value) {
   const text = String(value || '').trim()
@@ -126,8 +140,13 @@ async function openScript(summary) {
   try {
     const payload = await getScript(summary.id)
     selected.value = payload.script
+    const channel = await loadChannelDetail(payload.script.channel_id)
     form.title = payload.script.title
     form.body = payload.script.body
+    narrationForm.voice = payload.script.narration.voice || channel?.audio_defaults?.voice || ''
+    narrationForm.removeSilence = payload.script.narration.remove_silence ?? null
+    narrationForm.speed = payload.script.narration.speed ?? null
+    await loadVoices(channel)
     dirty.value = false
     creating.value = false
   } catch (exc) {
@@ -178,6 +197,59 @@ async function loadChannelDetail(channelId) {
   } catch (exc) {
     error.value = exc.message || 'Could not load the Channel template'
     return null
+  }
+}
+
+async function loadVoices(channel) {
+  const provider = channel?.audio_defaults?.tts_provider_instance_id
+    || channel?.provider_defaults?.tts
+    || undefined
+  try {
+    const items = await listNarrationVoices(provider)
+    voices.value = Array.isArray(items) ? items : []
+  } catch {
+    voices.value = []
+  }
+  const chosen = narrationForm.voice || channel?.audio_defaults?.voice || ''
+  if (chosen && !voices.value.some(item => item.id === chosen)) {
+    voices.value.unshift({ id: chosen, label: chosen })
+  }
+  narrationForm.voice = chosen
+}
+
+async function makeNarration() {
+  if (!selected.value || generatingNarration.value) return
+  if (dirty.value) {
+    toast.warning('Save the script edits before generating narration')
+    return
+  }
+  generatingNarration.value = true
+  error.value = ''
+  try {
+    const payload = await generateNarration(selected.value.id, {
+      voice: narrationForm.voice || undefined,
+      remove_silence: narrationForm.removeSilence,
+      speed: narrationForm.speed,
+      expected_version: selected.value.version,
+    })
+    selected.value = payload.script
+    narrationForm.voice = payload.script.narration.voice
+    narrationForm.removeSilence = payload.script.narration.remove_silence ?? null
+    narrationForm.speed = payload.script.narration.speed ?? null
+    await loadLibrary()
+    toast.success('Narration ready')
+  } catch (exc) {
+    error.value = exc.message || 'Could not generate narration'
+    // The backend restores the last playable take after a failed provider
+    // call, which advances the optimistic version. Refresh before retrying.
+    try {
+      const payload = await getScript(selected.value.id)
+      selected.value = payload.script
+    } catch {
+      /* Keep the actionable generation error visible. */
+    }
+  } finally {
+    generatingNarration.value = false
   }
 }
 
@@ -440,16 +512,43 @@ onBeforeUnmount(() => {
             <label for="script-body" class="section-label">Script</label>
             <textarea id="script-body" v-model="form.body" class="script-area" :class="{ dirty }" spellcheck="true" @input="markDirty" />
           </div>
-          <aside class="narration-preview panel">
+          <aside class="narration-preview panel" aria-label="Narration controls">
             <div class="narration-head"><span>◖</span><strong>Narration</strong></div>
-            <div class="narration-state">
-              <strong>{{ selected.narration.state === 'ready' ? 'Narration ready' : 'No narration yet' }}</strong>
-              <span>{{ selected.narration.state === 'ready' ? 'Production can reuse this audio.' : 'Narration controls arrive in step 3.3.' }}</span>
+            <div class="narration-state" :class="{ ready: selected.narration.state === 'ready' }">
+              <strong>{{ generatingNarration ? 'Generating narration…' : selected.narration.state === 'ready' ? 'Narration ready' : 'No narration yet' }}</strong>
+              <span>{{ selected.narration.state === 'ready' ? 'This take is saved and ready for Production.' : 'Choose a voice and create the first take.' }}</span>
             </div>
-            <dl>
-              <div><dt>Voice</dt><dd>{{ selected.narration.voice || 'Channel default' }}</dd></div>
-              <div><dt>Duration</dt><dd>{{ selected.narration.duration_s ? formatDuration(selected.narration.duration_s) : '—' }}</dd></div>
-            </dl>
+            <audio v-if="audioUrl" :key="audioUrl" class="narration-player" controls preload="metadata" :src="audioUrl">
+              Your browser does not support audio playback.
+            </audio>
+            <div class="narration-controls">
+              <label>Voice
+                <select v-model="narrationForm.voice" aria-label="Narration voice">
+                  <option v-if="!voices.length" :value="narrationForm.voice">{{ narrationForm.voice || 'Channel default' }}</option>
+                  <option v-for="voice in voices" :key="voice.id" :value="voice.id">{{ voice.label || voice.id }}</option>
+                </select>
+              </label>
+              <label>Remove silence
+                <select v-model="narrationForm.removeSilence" :class="{ inherited: narrationForm.removeSilence === null }" aria-label="Remove silence override">
+                  <option :value="null">Inherited · {{ channelAudio.remove_silence ? 'On' : 'Off' }}</option>
+                  <option :value="true">On · Override</option>
+                  <option :value="false">Off · Override</option>
+                </select>
+              </label>
+              <label>Speed
+                <select v-model="narrationForm.speed" :class="{ inherited: narrationForm.speed === null }" aria-label="Narration speed override">
+                  <option :value="null">Inherited · {{ Number(channelAudio.speed || 1).toFixed(2) }}×</option>
+                  <option v-for="value in [0.75, 0.9, 1, 1.1, 1.25, 1.5]" :key="value" :value="value">{{ value.toFixed(2) }}× · Override</option>
+                </select>
+              </label>
+              <div class="active-processing" aria-label="Active narration processing">
+                Active: {{ activeRemoveSilence ? 'trim silence' : 'keep silence' }} · {{ Number(activeSpeed).toFixed(2) }}×
+              </div>
+              <div v-if="selected.narration.duration_s" class="take-duration">Duration {{ formatDuration(selected.narration.duration_s) }}</div>
+              <button class="btn primary narration-button" type="button" :disabled="generatingNarration || dirty" @click="makeNarration">
+                {{ generatingNarration ? 'Generating…' : selected.narration.state === 'ready' ? 'Regenerate narration' : 'Generate narration' }}
+              </button>
+            </div>
           </aside>
         </div>
 
@@ -510,9 +609,15 @@ onBeforeUnmount(() => {
 .narration-state { display: flex; flex-direction: column; gap: 3px; margin: 15px; padding: 12px; border-radius: var(--r-s); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
 .narration-state strong { font-size: 13px; }
 .narration-state span { color: var(--muted); font-size: 11px; line-height: 1.4; }
-.narration-preview dl { margin: 0 15px 15px; }
-.narration-preview dl div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line-soft); font-size: 12px; }
-.narration-preview dt { color: var(--muted); }.narration-preview dd { margin: 0; }
+.narration-state.ready { box-shadow: inset 3px 0 0 var(--ok), inset 0 0 0 1px var(--line); }
+.narration-player { display: block; width: calc(100% - 30px); height: 36px; margin: 0 15px 14px; }
+.narration-controls { display: flex; flex-direction: column; gap: 10px; padding: 0 15px 15px; }
+.narration-controls label { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 11px; }
+.narration-controls select { width: 100%; }
+.narration-controls select.inherited { border-style: dashed; color: var(--muted); }
+.active-processing { padding: 7px 9px; border-radius: 5px; background: var(--accent-dim); color: var(--accent); font: 10px var(--mono); }
+.take-duration { color: var(--muted); font: 10px var(--mono); }
+.narration-button { width: 100%; justify-content: center; }
 .document-foot { display: flex; align-items: center; gap: 9px; padding: 14px 30px; border-top: 1px solid var(--line-soft); background: var(--bg-2); }
 .foot-spacer { flex: 1; }.dirty-note { color: var(--warn); font: 11px var(--mono); }
 .create-body { flex: 1; width: min(800px, 100%); box-sizing: border-box; padding: 24px 30px; }
