@@ -27,6 +27,8 @@ function makeItem(overrides = {}) {
   return {
     project_id: 'pm_ONE',
     project_name: 'One',
+    channel_id: 'ch_A',
+    channel_name: 'Alpha Channel',
     video_name: 'one.mp4',
     video_relpath: 'pm_ONE/one.mp4',
     size_bytes: 1024,
@@ -46,6 +48,8 @@ const ITEMS = [
   makeItem(),
   makeItem({
     project_id: 'pm_TWO',
+    channel_id: 'ch_B',
+    channel_name: 'Beta Channel',
     video_name: 'two.mp4',
     video_relpath: 'pm_TWO/two.mp4',
     size_bytes: 4096,
@@ -131,6 +135,18 @@ describe('library projection', () => {
     lib.filterDuration.value = ''
 
     lib.searchQuery.value = 'two'
+    expect(lib.filteredItems.value.map(i => i.project_id)).toEqual(['pm_TWO'])
+  })
+
+  it('derives channel options and filters the gallery by channel', async () => {
+    const lib = useExportLibrary()
+    await lib.fetchLibrary()
+
+    expect(lib.channelOptions.value).toEqual([
+      { value: 'ch_A', label: 'Alpha Channel' },
+      { value: 'ch_B', label: 'Beta Channel' },
+    ])
+    lib.filterChannel.value = 'ch_B'
     expect(lib.filteredItems.value.map(i => i.project_id)).toEqual(['pm_TWO'])
   })
 
@@ -264,23 +280,25 @@ describe('ExportCard', () => {
     expect(text).toContain('0:20')
 
     const labels = wrapper.findAll('.dl-btn').map(b => b.text())
-    expect(labels).toEqual(['Video', 'Project ZIP', 'Delete'])
+    expect(labels).toEqual(['Editor', 'Export', 'Project ZIP', 'Delete'])
   })
 
   it('hides the ZIP button when the export has none', () => {
     const wrapper = mount(ExportCard, { props: { item: makeItem({ zip_download_url: '' }) } })
-    expect(wrapper.findAll('.dl-btn').map(b => b.text())).toEqual(['Video', 'Delete'])
+    expect(wrapper.findAll('.dl-btn').map(b => b.text())).toEqual(['Editor', 'Export', 'Delete'])
   })
 
   it('emits the item for each action', async () => {
     const wrapper = mount(ExportCard, { props: { item: makeItem() } })
-    const [video, zip, del] = wrapper.findAll('.dl-btn')
+    const [editor, video, zip, del] = wrapper.findAll('.dl-btn')
 
+    await editor.trigger('click')
     await video.trigger('click')
     await zip.trigger('click')
     await del.trigger('click')
 
-    expect(wrapper.emitted('download-video')[0][0].project_id).toBe('pm_ONE')
+    expect(wrapper.emitted('editor')[0][0].project_id).toBe('pm_ONE')
+    expect(wrapper.emitted('export')[0][0].project_id).toBe('pm_ONE')
     expect(wrapper.emitted('download-zip')).toHaveLength(1)
     expect(wrapper.emitted('trash')).toHaveLength(1)
   })
@@ -391,6 +409,19 @@ describe('ExportLibraryPage', () => {
     expect(wrapper.find('.archive-strip').exists()).toBe(false)
     expect(wrapper.findComponent(ExportCard).text()).toContain('two.mp4')
     expect(wrapper.text()).toContain('Found in archive · 1')
+  })
+
+  it('opens a gallery item in the Editor with a durable project deep-link', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
+    const wrapper = await mountPage()
+
+    await wrapper.findComponent(ExportCard).findAll('.dl-btn')[0].trigger('click')
+
+    expect(open).toHaveBeenCalledWith(
+      '/editor?project=pm_ONE',
+      'scriptase-editor-pm_ONE',
+      expect.stringContaining('popup=yes'),
+    )
   })
 
   it('opens the delete dialog before trashing anything', async () => {

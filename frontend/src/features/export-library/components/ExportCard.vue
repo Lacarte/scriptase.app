@@ -10,7 +10,7 @@ const props = defineProps({
   highlighted: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['download-video', 'download-zip', 'play', 'trash'])
+const emit = defineEmits(['editor', 'export', 'download-zip', 'play', 'trash'])
 
 const rootEl = ref(null)
 const videoEl = ref(null)
@@ -206,6 +206,10 @@ onMounted(() => {
         </span>
       </div>
 
+      <p v-if="item.channel_name || item.channel_id" class="channel-name">
+        {{ item.channel_name || item.channel_id }}
+      </p>
+
       <!-- Filename -->
       <p class="filename" :title="item.video_name || ''">{{ item.video_name || '' }}</p>
 
@@ -319,17 +323,23 @@ onMounted(() => {
 
       <!-- Actions -->
       <div class="actions">
-        <button class="dl-btn" @click="emit('download-video', item)">
+        <button class="dl-btn" @click="emit('editor', item)">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+          Editor
+        </button>
+        <button class="dl-btn dl-btn--accent" @click="emit('export', item)">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          Video
+          Export
         </button>
         <button
           v-if="item.zip_download_url"
-          class="dl-btn dl-btn--accent"
+          class="dl-btn"
           @click="emit('download-zip', item)"
         >
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

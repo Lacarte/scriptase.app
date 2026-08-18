@@ -1381,6 +1381,14 @@ describe('ProductionPage', () => {
 
     expect(wrapper.findAll('.job-row')).toHaveLength(1)
     expect(wrapper.find('.calendar-cell').exists()).toBe(true)
+    const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
+    const libraryButton = wrapper.findAll('.job-row-actions button').find(button => button.text() === 'Library')
+    await libraryButton.trigger('click')
+    expect(open).toHaveBeenCalledWith(
+      '/library?project=job_NEW001',
+      'scriptase-library-job_NEW001',
+      expect.stringContaining('popup=yes'),
+    )
     await wrapper.find('.job-search input').setValue('Hidden History')
     expect(wrapper.findAll('.job-row')).toHaveLength(1)
     expect(wrapper.find('.job-row').text()).toContain('Hidden History')

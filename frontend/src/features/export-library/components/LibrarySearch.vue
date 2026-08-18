@@ -9,14 +9,16 @@ const props = defineProps({
   filterStyle: { type: String, default: '' },
   filterRatio: { type: String, default: '' },
   filterDuration: { type: String, default: '' },
+  filterChannel: { type: String, default: '' },
   sortOptions: { type: Array, default: () => [] },
   durationFilters: { type: Array, default: () => [] },
   styleOptions: { type: Array, default: () => [] },
   ratioOptions: { type: Array, default: () => [] },
+  channelOptions: { type: Array, default: () => [] },
   filteredCount: { type: Number, default: 0 },
 })
 
-const emit = defineEmits(['update:sortBy', 'update:filterStyle', 'update:filterRatio', 'update:filterDuration', 'search', 'clear'])
+const emit = defineEmits(['update:sortBy', 'update:filterStyle', 'update:filterRatio', 'update:filterDuration', 'update:filterChannel', 'search', 'clear'])
 
 const searchQuery = ref('')
 const searchFocused = ref(false)
@@ -27,7 +29,7 @@ function styleLabel(id) {
 }
 
 const hasFilters = computed(() =>
-  props.filterStyle || props.filterRatio || props.filterDuration || searchQuery.value.trim()
+  props.filterStyle || props.filterRatio || props.filterDuration || props.filterChannel || searchQuery.value.trim()
 )
 
 const activeFilterCount = computed(() => {
@@ -35,6 +37,7 @@ const activeFilterCount = computed(() => {
   if (props.filterStyle) c++
   if (props.filterRatio) c++
   if (props.filterDuration) c++
+  if (props.filterChannel) c++
   if (searchQuery.value.trim()) c++
   return c
 })
@@ -99,6 +102,7 @@ function clearAll() {
   emit('update:filterStyle', '')
   emit('update:filterRatio', '')
   emit('update:filterDuration', '')
+  emit('update:filterChannel', '')
   emit('clear')
 }
 </script>
@@ -113,7 +117,7 @@ function clearAll() {
           v-model="searchQuery"
           class="search-input"
           type="text"
-          placeholder="Search projects, styles, prompts..."
+          placeholder="Search videos, projects, or channels..."
           aria-label="Search exports"
           data-shortcut-search
           @focus="searchFocused = true"
@@ -141,6 +145,11 @@ function clearAll() {
       </div>
 
       <div class="filter-pills">
+        <select class="f-select" :class="{ active: filterChannel }" :value="filterChannel" aria-label="Filter by channel" @change="emit('update:filterChannel', $event.target.value)">
+          <option value="">All channels</option>
+          <option v-for="channel in channelOptions" :key="channel.value" :value="channel.value">{{ channel.label }}</option>
+        </select>
+
         <select class="f-select" :value="sortBy" @change="emit('update:sortBy', $event.target.value)">
           <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>

@@ -67,6 +67,7 @@ export function useExportLibrary() {
   const filterStyle = ref('')
   const filterRatio = ref('')
   const filterDuration = ref('')
+  const filterChannel = ref('')
   const searchQuery = ref('')
 
   /* ── Derived option lists from data ──────────────── */
@@ -88,6 +89,17 @@ export function useExportLibrary() {
     return ['', ...Array.from(set).sort()]
   })
 
+  const channelOptions = computed(() => {
+    const channels = new Map()
+    for (const item of items.value) {
+      if (!item.channel_id) continue
+      channels.set(item.channel_id, item.channel_name || item.channel_id)
+    }
+    return [...channels.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  })
+
   /* ── Filtered + sorted items ─────────────────────── */
 
   const filteredItems = computed(() => {
@@ -100,8 +112,14 @@ export function useExportLibrary() {
         (i.project_id || '').toLowerCase().includes(q) ||
         (i.project_name || '').toLowerCase().includes(q) ||
         (i.video_name || '').toLowerCase().includes(q) ||
+        (i.channel_name || '').toLowerCase().includes(q) ||
+        (i.channel_id || '').toLowerCase().includes(q) ||
         (i.style || '').toLowerCase().includes(q)
       )
+    }
+
+    if (filterChannel.value) {
+      list = list.filter(i => i.channel_id === filterChannel.value)
     }
 
     // Style filter
@@ -283,6 +301,7 @@ export function useExportLibrary() {
     filterStyle,
     filterRatio,
     filterDuration,
+    filterChannel,
     searchQuery,
     filteredItems,
 
@@ -291,6 +310,7 @@ export function useExportLibrary() {
     DURATION_FILTERS,
     styleOptions,
     ratioOptions,
+    channelOptions,
 
     // Sync
     syncing: readonly(syncing),

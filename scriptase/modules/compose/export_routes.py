@@ -200,6 +200,22 @@ def export_library_list():
     video_exts = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
     items = []
 
+    # Production uses its Job id as the project id by default. Joining that
+    # compact, secret-free metadata here keeps the gallery filterable without
+    # making the browser issue one request per video.
+    jobs_by_project = {}
+    try:
+        from scriptase.jobs.store import list_jobs
+
+        for production_job in list_jobs(limit=1000):
+            jobs_by_project[production_job.id] = {
+                "job_id": production_job.id,
+                "channel_id": production_job.channel_id,
+                "channel_name": str(production_job.channel_snapshot.get("name") or ""),
+            }
+    except Exception as error:
+        logger.debug("Could not enrich export library with Job metadata: {}", error)
+
     def _normalize_completed_at(value):
         """Normalize export completion stamps to ISO strings."""
         if value in (None, ""):
@@ -233,6 +249,8 @@ def export_library_list():
             meta_width = 0
             meta_height = 0
             meta_completed_at = ""
+            meta_channel_id = ""
+            meta_channel_name = ""
             meta_dirty = False  # whether sidecar needs update
             if os.path.isfile(meta_path):
                 try:
@@ -245,6 +263,8 @@ def export_library_list():
                     meta_width = meta.get("width", 0)
                     meta_height = meta.get("height", 0)
                     meta_completed_at = _normalize_completed_at(meta.get("completed_at"))
+                    meta_channel_id = str(meta.get("channel_id") or "")
+                    meta_channel_name = str(meta.get("channel_name") or "")
                 except Exception as error:
                     logger.debug("Could not read export metadata {}: {}", meta_path, error)
                     project_id = ""
@@ -352,10 +372,14 @@ def export_library_list():
 
             completed_at = meta_completed_at or mtime_iso
             resolution_label = f"{meta_width}x{meta_height}" if meta_width and meta_height else ""
+            job_metadata = jobs_by_project.get(pid, {})
 
             items.append({
                 "project_id": pid,
                 "project_name": project_name or pid,
+                "job_id": job_metadata.get("job_id", ""),
+                "channel_id": meta_channel_id or job_metadata.get("channel_id", ""),
+                "channel_name": meta_channel_name or job_metadata.get("channel_name", ""),
                 "video_name": fname,
                 "video_relpath": rel_video,
                 "folder_relpath": rel_folder if rel_folder != "." else "",

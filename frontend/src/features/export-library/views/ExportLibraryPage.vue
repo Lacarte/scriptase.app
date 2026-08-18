@@ -8,6 +8,7 @@ import LibrarySearch from '../components/LibrarySearch.vue'
 import { useExportLibrary, aspectRatioFromDimensions } from '../composables/useExportLibrary.js'
 import { formatBytes, fmtDuration } from '@/shared/utils/format.js'
 import ArchiveCalendar from '@/shared/components/ArchiveCalendar.vue'
+import { openAppWindow } from '@/shared/utils/openWindow.js'
 
 defineOptions({ name: 'ExportLibraryPage' })
 
@@ -22,12 +23,14 @@ const {
   filterStyle,
   filterRatio,
   filterDuration,
+  filterChannel,
   searchQuery,
   filteredItems,
   SORT_OPTIONS,
   DURATION_FILTERS,
   styleOptions,
   ratioOptions,
+  channelOptions,
   fetchLibrary,
   downloadVideo,
   downloadZip,
@@ -83,9 +86,14 @@ async function confirmTrash() {
 }
 
 function clearFilters() {
+  filterChannel.value = ''
   filterStyle.value = ''
   filterRatio.value = ''
   filterDuration.value = ''
+}
+
+function openEditor(item) {
+  openAppWindow('editor', { query: { project: item.project_id || '' } })
 }
 
 function itemKey(item) {
@@ -313,15 +321,18 @@ const extendedStats = computed(() => {
       :filter-style="filterStyle"
       :filter-ratio="filterRatio"
       :filter-duration="filterDuration"
+      :filter-channel="filterChannel"
       :sort-options="SORT_OPTIONS"
       :duration-filters="DURATION_FILTERS"
       :style-options="styleOptions"
       :ratio-options="ratioOptions"
+      :channel-options="channelOptions"
       :filtered-count="filteredItems.length"
       @update:sort-by="sortBy = $event"
       @update:filter-style="filterStyle = $event"
       @update:filter-ratio="filterRatio = $event"
       @update:filter-duration="filterDuration = $event"
+      @update:filter-channel="filterChannel = $event"
       @search="searchQuery = $event"
       @clear="clearFilters"
     />
@@ -340,7 +351,7 @@ const extendedStats = computed(() => {
       :search-query="searchQuery"
       timestamp-key="modified_at"
       item-key="video_relpath"
-      :search-keys="['project_id', 'project_name', 'video_name', 'style']"
+      :search-keys="['project_id', 'project_name', 'video_name', 'channel_id', 'channel_name', 'style']"
       noun="video"
       layout="grid"
     >
@@ -350,7 +361,8 @@ const extendedStats = computed(() => {
           :highlighted="highlightedItemKey === itemKey(item)"
           :ref="(el) => setCardRef(el, item)"
           @play="handlePlay"
-          @download-video="downloadVideo"
+          @editor="openEditor"
+          @export="downloadVideo"
           @download-zip="downloadZip"
           @trash="handleTrash"
         />

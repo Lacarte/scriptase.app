@@ -568,6 +568,10 @@ function openExportLibrary() {
   openAppWindow('library', { query: { project: projectId.value || '' } })
 }
 
+function openJobInLibrary(job) {
+  openAppWindow('library', { query: { project: job?.project_id || job?.id || '' } })
+}
+
 function openWorkflowCanvas() {
   const query = {}
   if (workflowId.value || selectedWorkflowId.value) {
@@ -859,6 +863,7 @@ onMounted(async () => {
               </span>
             </button>
             <span class="job-row-actions">
+              <button v-if="['completed', 'succeeded'].includes(item.status)" type="button" class="ghost" @click="openJobInLibrary(item)">Library</button>
               <button v-if="item.status === 'failed'" type="button" class="primary" :disabled="Boolean(jobActionRunning)" @click="runJobAction('retry', item)">Retry</button>
               <button type="button" class="ghost" :disabled="Boolean(jobActionRunning)" @click="runJobAction('duplicate', item)">Duplicate</button>
               <button type="button" class="danger" :disabled="Boolean(jobActionRunning)" @click="runJobAction('remove', item)">Remove</button>
