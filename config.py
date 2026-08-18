@@ -63,6 +63,8 @@ MUSIC_DIR = os.path.join(OUTPUT_DIR, "musics")
 THUMBNAILS_DIR = os.path.join(OUTPUT_DIR, "thumbnails")
 # Channel profiles (step 1.1). One JSON document per channel id.
 CHANNELS_DIR = os.path.join(OUTPUT_DIR, "channels")
+# Script Studio documents (phase 3.1). One JSON document per stable script id.
+SCRIPTS_DIR = os.path.join(OUTPUT_DIR, "scripts")
 # Artifact index (step 1.2). Metadata only — blob files stay under the
 # per-module trees (tts/, scenes/, …) for V2 import compatibility.
 ARTIFACTS_DIR = os.path.join(OUTPUT_DIR, "artifacts")
@@ -152,7 +154,7 @@ RUNTIME_DIRS = (
     OUTPUT_DIR, SETTINGS_DIR, LOG_DIR, TMP_DIR, TRASH_DIR, WORKFLOWS_DIR,
     WORKFLOW_EXECUTIONS_DIR, BRANDING_DIR, ALIGN_DIR, SCENES_DIR, STORIES_DIR,
     ANIMATOR_DIR, STORYBOARD_DIR, SEGMENTER_DIR, CAPTIONS_DIR, TTS_DIR,
-    EXPORT_DIR, PROJECTS_DIR, MUSIC_DIR, THUMBNAILS_DIR, CHANNELS_DIR,
+    EXPORT_DIR, PROJECTS_DIR, MUSIC_DIR, THUMBNAILS_DIR, CHANNELS_DIR, SCRIPTS_DIR,
     ARTIFACTS_DIR, JOBS_DIR, SCENE_RECORDS_DIR, ISSUES_DIR, REPAIR_HISTORY_DIR,
     MODELS_DIR, TTS_CACHE_DIR,
 )

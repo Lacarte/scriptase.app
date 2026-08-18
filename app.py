@@ -248,12 +248,14 @@ def register_blueprints(app: Flask) -> None:
     from scriptase.modules.tts import tts_bp
     from scriptase.modules.video import animation_bp, animator_bp
     from scriptase.providers.routes import providers_bp
+    from scriptase.scripts import scripts_bp
 
     app.register_blueprint(workflows_bp)
     app.register_blueprint(providers_bp)
     app.register_blueprint(channels_bp)
     app.register_blueprint(jobs_bp)
     app.register_blueprint(artifacts_bp)
+    app.register_blueprint(scripts_bp)
     app.register_blueprint(migration_bp)
 
     for blueprint in (
