@@ -193,7 +193,7 @@ function openEditor() {
 }
 
 function openExports() {
-  openAppWindow('exports', { query: { project: store.editorProjectId || '' } })
+  openAppWindow('library', { query: { project: store.editorProjectId || '' } })
 }
 </script>
 
@@ -221,7 +221,7 @@ function openExports() {
         <button
           class="execution-open"
           @click="openExports"
-        >Export Library ↗</button>
+        >Library ↗</button>
         <button
           type="button"
           class="execution-collapse-toggle"

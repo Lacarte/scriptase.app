@@ -24,13 +24,13 @@ function featureMap(features) {
 
 describe('buildRouteUrl', () => {
   it('drops empty query values so a page never reads "" as an id', () => {
-    expect(buildRouteUrl('/exports', { project: '' })).toBe('/exports')
-    expect(buildRouteUrl('/exports', { project: null, export: undefined })).toBe('/exports')
+    expect(buildRouteUrl('/library', { project: '' })).toBe('/library')
+    expect(buildRouteUrl('/library', { project: null, export: undefined })).toBe('/library')
     expect(buildRouteUrl('/editor', { project: 'pm_ABC123' })).toBe('/editor?project=pm_ABC123')
   })
 
   it('encodes query values', () => {
-    expect(buildRouteUrl('/exports', { export: 'a b&c' })).toBe('/exports?export=a+b%26c')
+    expect(buildRouteUrl('/library', { export: 'a b&c' })).toBe('/library?export=a+b%26c')
   })
 })
 
@@ -41,8 +41,8 @@ describe('windowNameFor', () => {
   })
 
   it('falls back to a stable name when no project is known', () => {
-    expect(windowNameFor('exports', '')).toBe('scriptase-exports-default')
-    expect(windowNameFor('exports', undefined)).toBe('scriptase-exports-default')
+    expect(windowNameFor('library', '')).toBe('scriptase-library-default')
+    expect(windowNameFor('library', undefined)).toBe('scriptase-library-default')
   })
 })
 
@@ -71,11 +71,11 @@ describe('openAppWindow', () => {
 
   it('opens the export library without a project when none is bound', () => {
     const win = fakeWindow()
-    openAppWindow('exports', { query: { project: '' }, win })
+    openAppWindow('library', { query: { project: '' }, win })
 
     const [url, name] = win.open.mock.calls[0]
-    expect(url).toBe('/exports')
-    expect(name).toBe('scriptase-exports-default')
+    expect(url).toBe('/library')
+    expect(name).toBe('scriptase-library-default')
   })
 
   it('clamps to the available screen so a small display still gets a usable window', () => {
@@ -92,7 +92,7 @@ describe('openAppWindow', () => {
 
   it('returns null when a popup blocker refuses the window', () => {
     const win = { open: vi.fn(() => null), screen: { availWidth: 1920, availHeight: 1080 } }
-    expect(openAppWindow('exports', { win })).toBeNull()
+    expect(openAppWindow('library', { win })).toBeNull()
   })
 
   it('rejects an unknown target rather than opening an arbitrary URL', () => {

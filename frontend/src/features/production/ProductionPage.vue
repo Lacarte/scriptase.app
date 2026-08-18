@@ -444,16 +444,17 @@ onShortcut((event) => {
 })
 
 /**
- * Editor and Exports open beside Production, never over it (step 14.4). A Job
+ * Editor and Library open beside Production, never over it (step 14.4). A Job
  * keeps running while you cut the timeline, and the SSE stream this page owns
- * would be torn down by a route change.
+ * would be torn down by a route change — which is why these stay windows even
+ * though Library is a nav destination in its own right (step 1.1).
  */
 function openTimelineEditor() {
   openAppWindow('editor', { query: { project: projectId.value || '' } })
 }
 
 function openExportLibrary() {
-  openAppWindow('exports', { query: { project: projectId.value || '' } })
+  openAppWindow('library', { query: { project: projectId.value || '' } })
 }
 
 function openWorkflowCanvas() {
@@ -665,10 +666,10 @@ onMounted(async () => {
         <button
           type="button"
           class="ghost"
-          title="Open the Export Library in its own window"
+          title="Open the Library in its own window"
           @click="openExportLibrary"
         >
-          Exports ↗
+          Library ↗
         </button>
       </div>
     </header>

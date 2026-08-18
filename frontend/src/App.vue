@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { APP_NAME } from './shared/constants.js'
 import { APP_WINDOW_TARGETS, openAppWindow } from './shared/utils/openWindow.js'
+import NavIcon from './shared/components/NavIcon.vue'
 import ShortcutsSheet from './shared/components/ShortcutsSheet.vue'
 import ToastContainer from './shared/components/ToastContainer.vue'
 import WelcomeOverlay from './shared/components/WelcomeOverlay.vue'
@@ -15,22 +16,34 @@ import {
 const route = useRoute()
 const fullHeight = computed(() => Boolean(route.meta?.fullHeight))
 
+/**
+ * The prototype's six destinations, ordered create, run, monitor, output,
+ * configure (step 1.1). This is the app's information architecture — nothing
+ * else belongs in the first rank.
+ */
 const navItems = [
-  { to: '/production', label: 'Production' },
-  { to: '/workflow', label: 'Workflow' },
-  { to: '/channels', label: 'Channels' },
-  { to: '/settings/providers', label: 'Settings' },
+  { to: '/script', icon: 'script', label: 'Script' },
+  { to: '/production', icon: 'production', label: 'Production' },
+  { to: '/schema', icon: 'schema', label: 'Schema' },
+  { to: '/library', icon: 'library', label: 'Library' },
+  { to: '/channels', icon: 'channels', label: 'Channels' },
+  { to: '/providers', icon: 'providers', label: 'Providers' },
 ]
 
 /**
- * Editor and Exports leave the app running (step 14.4). They keep a real
- * `href` so middle-click, "copy link", and a pasted URL all still work — the
- * click handler only upgrades a plain click to a sized window.
+ * The editable canvas is no longer a destination but is still reachable until
+ * step 1.5 removes it, once Schema carries projection, inspection and testing.
  */
-const windowLinks = [
-  { target: 'editor', label: 'Editor' },
-  { target: 'exports', label: 'Exports' },
-]
+const secondaryLinks = [{ to: '/workflow', label: 'Workflow' }]
+
+/**
+ * The Editor leaves the app running (step 14.4). It keeps a real `href` so
+ * middle-click, "copy link", and a pasted URL all still work — the click
+ * handler only upgrades a plain click to a sized window. The Library lost its
+ * window link here when it became a destination; Production and Workflow still
+ * open it in a window rather than tearing down their SSE stream.
+ */
+const windowLinks = [{ target: 'editor', label: 'Editor' }]
 
 /** Below 820px the destinations collapse behind one toggle (step 0.3). */
 const navOpen = ref(false)
@@ -104,10 +117,27 @@ onBeforeUnmount(() => {
               :aria-selected="String(isActive)"
               :aria-current="isActive ? 'page' : undefined"
               @click.exact.prevent="goto(navigate)"
-            >{{ item.label }}</a>
+            >
+              <NavIcon :name="item.icon" />
+              <span>{{ item.label }}</span>
+            </a>
           </router-link>
         </div>
         <div class="nav-windows">
+          <router-link
+            v-for="link in secondaryLinks"
+            :key="link.to"
+            v-slot="{ href, navigate, isActive }"
+            :to="link.to"
+            custom
+          >
+            <a
+              class="secondary-link"
+              :href="href"
+              :class="{ 'router-link-active': isActive }"
+              @click.exact.prevent="goto(navigate)"
+            >{{ link.label }}</a>
+          </router-link>
           <a
             v-for="link in windowLinks"
             :key="link.target"
@@ -226,11 +256,34 @@ nav a:hover {
   color: var(--text);
 }
 
+/* Each destination carries its glyph; the label stays the accessible name. */
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.nav-tab:hover :deep(.nav-icon) {
+  opacity: 1;
+}
+
 /* Active is the second and last place the accent appears in the shell. */
 nav a.router-link-active {
   color: var(--text);
   background: linear-gradient(180deg, rgba(106, 140, 255, 0.12), rgba(106, 140, 255, 0.05));
   box-shadow: inset 0 0 0 1px var(--accent-line), 0 4px 14px -8px rgba(106, 140, 255, 0.6);
+}
+
+.nav-tab.router-link-active :deep(.nav-icon) {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* Reachable, but demoted out of the first rank until step 1.5 drops it. */
+.secondary-link {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
 }
 
 /* Icon-only controls: a hit area, no chrome until you touch them. */

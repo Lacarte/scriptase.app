@@ -171,7 +171,7 @@ describe('ExecutionPanel deep inspection', () => {
 
     const buttons = wrapper.findAll('.execution-open')
     expect(buttons.map((b) => b.text())).toEqual([
-      'Open in Timeline Editor ↗', 'Export Library ↗',
+      'Open in Timeline Editor ↗', 'Library ↗',
     ])
 
     await buttons[0].trigger('click')
@@ -179,7 +179,7 @@ describe('ExecutionPanel deep inspection', () => {
 
     expect(open.mock.calls.map((call) => call.slice(0, 2))).toEqual([
       ['/editor?project=pm_ABC123', 'scriptase-editor-pm_ABC123'],
-      ['/exports?project=pm_ABC123', 'scriptase-exports-pm_ABC123'],
+      ['/library?project=pm_ABC123', 'scriptase-library-pm_ABC123'],
     ])
     expect(open.mock.calls[0][2]).toContain('popup=yes')
     expect(push).not.toHaveBeenCalled()

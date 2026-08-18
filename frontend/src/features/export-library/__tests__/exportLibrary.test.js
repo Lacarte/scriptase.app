@@ -335,9 +335,9 @@ describe('ExportLibraryPage', () => {
   async function mountPage(query = {}) {
     const router = createRouter({
       history: createMemoryHistory(),
-      routes: [{ path: '/exports', name: 'export-library', component: ExportLibraryPage }],
+      routes: [{ path: '/library', name: 'library', component: ExportLibraryPage }],
     })
-    await router.push({ path: '/exports', query })
+    await router.push({ path: '/library', query })
     await router.isReady()
     const wrapper = mount(ExportLibraryPage, { global: { plugins: [router] } })
     await flushPromises()

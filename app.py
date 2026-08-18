@@ -328,14 +328,25 @@ def _register_spa_fallback(app: Flask) -> None:
             "or start the Vite dev server on :5173.</p>"
         ), 200
 
-    @app.get("/workflow")
-    @app.get("/workflow/<path:_rest>")
+    # The six destinations (step 1.1), then the routes that stay reachable
+    # without being destinations. A hard reload or a pasted URL is a plain GET
+    # to Flask, so each one needs a handler here or it 404s outside Vite.
+    @app.get("/script")
+    @app.get("/production")
+    @app.get("/schema")
+    @app.get("/library")
     @app.get("/channels")
     @app.get("/channels/<path:_rest>")
-    @app.get("/editor")
-    # /editor and /exports open as their own windows (step 14.4), so a reload
+    @app.get("/providers")
+    @app.get("/workflow")
+    @app.get("/workflow/<path:_rest>")
+    # /editor and /library open as their own windows (step 14.4), so a reload
     # in one of them hits Flask directly rather than an in-app navigation.
+    @app.get("/editor")
+    # Previous paths. They reach the shell so vue-router can redirect them,
+    # rather than the server answering 404 before the app ever loads.
     @app.get("/exports")
+    @app.get("/settings/providers")
     def spa_client_routes(_rest=None):
         if index.is_file():
             return send_from_directory(dist, "index.html")

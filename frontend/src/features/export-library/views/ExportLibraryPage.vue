@@ -185,7 +185,7 @@ const extendedStats = computed(() => {
     <!-- Header -->
     <div class="page-header">
       <div>
-        <h2 class="page-title">Export Library</h2>
+        <h2 class="page-title">Library</h2>
         <p class="page-subtitle">Browse exported videos and download</p>
       </div>
       <div class="header-actions">

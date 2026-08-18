@@ -1,82 +1,13 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { createRouter, createWebHistory } from 'vue-router'
 
 import App from './App.vue'
-import ChannelsPage from './features/channels/ChannelsPage.vue'
-import ChannelEditor from './features/channels/ChannelEditor.vue'
-import ProductionPage from './features/production/ProductionPage.vue'
-import ProvidersSettingsPage from './features/providers/ProvidersSettingsPage.vue'
-import { APP_NAME } from './shared/constants.js'
+import { createAppRouter } from './router.js'
 
 import './styles/theme.css'
 import './styles/shared.css'
 
-const Home = {
-  template: `
-    <section style="max-width:720px;margin:0 auto;padding:2rem 1.25rem;font-family:var(--body);color:var(--text)">
-      <h1 class="page-title" style="font-size:28px">{{ name }}</h1>
-      <p class="page-subtitle" style="font-size:13.5px">
-        Channel-aware, provider-driven, local-first AI video production.
-        Production and Workflow views share one node-based execution.
-      </p>
-      <p style="margin-top:1.5rem;display:flex;gap:.6rem;flex-wrap:wrap">
-        <router-link class="btn primary" to="/production">Open Production →</router-link>
-        <router-link class="btn" to="/workflow">Open Workflow →</router-link>
-        <router-link class="btn" to="/channels">Open Channels →</router-link>
-      </p>
-    </section>
-  `,
-  setup() {
-    return { name: APP_NAME }
-  },
-}
-
-const router = createRouter({
-  history: createWebHistory(),
-  routes: [
-    { path: '/', name: 'home', component: Home },
-    {
-      path: '/production',
-      name: 'production',
-      component: ProductionPage,
-      meta: { title: 'Production' },
-    },
-    {
-      path: '/workflow',
-      name: 'workflow',
-      component: () => import('./features/workflow/views/WorkflowPage.vue'),
-      meta: { title: 'Workflow Builder', fullHeight: true },
-    },
-    {
-      // Lazy on purpose. The ported editor pulls in a 139 KB global
-      // stylesheet whose generic class names (.modal-*, .btn-secondary,
-      // .toggle-slider) would otherwise bleed into every other view.
-      path: '/editor',
-      name: 'editor',
-      component: () => import('./features/editor/views/EditorPage.vue'),
-      meta: { title: 'Timeline Editor', fullHeight: true },
-    },
-    {
-      path: '/exports',
-      name: 'export-library',
-      component: () => import('./features/export-library/views/ExportLibraryPage.vue'),
-      meta: { title: 'Export Library' },
-    },
-    { path: '/channels', name: 'channels', component: ChannelsPage },
-    { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
-    {
-      path: '/settings/providers',
-      name: 'provider-settings',
-      component: ProvidersSettingsPage,
-      meta: { title: 'Provider Settings' },
-    },
-  ],
-  linkActiveClass: 'router-link-active',
-  linkExactActiveClass: 'router-link-active',
-})
-
 const app = createApp(App)
 app.use(createPinia())
-app.use(router)
+app.use(createAppRouter())
 app.mount('#app')

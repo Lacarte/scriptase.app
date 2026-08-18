@@ -1523,13 +1523,13 @@ describe('ProductionPage', () => {
 
     const buttons = wrapper.findAll('.page-header .actions button')
     const editorButton = buttons.find((b) => b.text().includes('Timeline Editor'))
-    const exportsButton = buttons.find((b) => b.text().includes('Exports'))
+    const exportsButton = buttons.find((b) => b.text().includes('Library'))
     await editorButton.trigger('click')
     await exportsButton.trigger('click')
 
     expect(open.mock.calls.map((call) => call.slice(0, 2))).toEqual([
       ['/editor?project=pm_ABC123', 'scriptase-editor-pm_ABC123'],
-      ['/exports?project=pm_ABC123', 'scriptase-exports-pm_ABC123'],
+      ['/library?project=pm_ABC123', 'scriptase-library-pm_ABC123'],
     ])
     expect(open.mock.calls[0][2]).toContain('popup=yes')
     // Production is still on Production, still bound to the same run.

@@ -11,17 +11,22 @@ import {
   shortcutsSheetOpen,
 } from './shared/composables/useShortcuts.js'
 
+/** The prototype's order: create, run, monitor, output, configure. */
+const DESTINATIONS = ['Script', 'Production', 'Schema', 'Library', 'Channels', 'Providers']
+
 async function mountShell(path = '/') {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: '/', component: { template: `<div>${APP_NAME}</div>` } },
+      { path: '/script', component: { template: '<div>script</div>' } },
       { path: '/production', component: { template: '<div>production</div>' } },
-      { path: '/workflow', component: { template: '<div>workflow</div>' } },
+      { path: '/schema', component: { template: '<div>schema</div>' } },
+      { path: '/library', component: { template: '<div>library</div>' } },
       { path: '/channels', component: { template: '<div>channels</div>' } },
-      { path: '/settings/providers', component: { template: '<div>settings</div>' } },
+      { path: '/providers', component: { template: '<div>providers</div>' } },
+      { path: '/workflow', component: { template: '<div>workflow</div>' } },
       { path: '/editor', component: { template: '<div>editor</div>' } },
-      { path: '/exports', component: { template: '<div>exports</div>' } },
     ],
   })
   router.push(path)
@@ -49,42 +54,73 @@ describe('scaffold', () => {
   it('mounts the app shell with navigation', async () => {
     const { wrapper } = await mountShell()
     expect(wrapper.text()).toContain(APP_NAME)
-    expect(wrapper.text()).toContain('Production')
-    expect(wrapper.text()).toContain('Workflow')
-    expect(wrapper.text()).toContain('Channels')
-    expect(wrapper.text()).toContain('Settings')
+    for (const label of DESTINATIONS) {
+      expect(wrapper.text()).toContain(label)
+    }
   })
 
-  it('opens Editor and Exports in their own windows without navigating (step 14.4)', async () => {
+  it('opens the Editor in its own window without navigating (step 14.4)', async () => {
     const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
     const { router, wrapper } = await mountShell()
 
     const links = wrapper.findAll('nav a.window-link')
-    expect(links.map((a) => a.attributes('href'))).toEqual(['/editor', '/exports'])
+    expect(links.map((a) => a.attributes('href'))).toEqual(['/editor'])
 
     await links[0].trigger('click')
-    await links[1].trigger('click')
 
-    expect(open.mock.calls.map((call) => call[0])).toEqual(['/editor', '/exports'])
+    expect(open.mock.calls.map((call) => call[0])).toEqual(['/editor'])
     expect(open.mock.calls[0][2]).toContain('popup=yes')
     // Production stays put; only the popup moved.
     expect(router.currentRoute.value.path).toBe('/')
   })
 
-  it('exposes the destinations as a labelled tablist (step 0.3)', async () => {
+  it('renders the six destinations in the prototype order (step 1.1)', async () => {
     const { wrapper } = await mountShell('/channels')
 
     const tablist = wrapper.find('[role="tablist"]')
     expect(tablist.attributes('aria-label')).toBe('Main sections')
 
     const tabs = wrapper.findAll('[role="tab"]')
-    expect(tabs.map((tab) => tab.text())).toEqual([
-      'Production',
-      'Workflow',
-      'Channels',
-      'Settings',
+    expect(tabs.map((tab) => tab.text())).toEqual(DESTINATIONS)
+    expect(tabs.map((tab) => tab.attributes('href'))).toEqual([
+      '/script',
+      '/production',
+      '/schema',
+      '/library',
+      '/channels',
+      '/providers',
     ])
+  })
 
+  it('gives every destination its own glyph (step 1.1)', async () => {
+    const { wrapper } = await mountShell()
+
+    const tabs = wrapper.findAll('[role="tab"]')
+    for (const tab of tabs) {
+      const icon = tab.find('svg.nav-icon')
+      expect(icon.exists()).toBe(true)
+      // Decorative: the label beside it is the accessible name.
+      expect(icon.attributes('aria-hidden')).toBe('true')
+    }
+
+    // Six distinct glyphs, not one repeated six times.
+    const shapes = tabs.map((tab) => tab.find('svg.nav-icon').html())
+    expect(new Set(shapes).size).toBe(DESTINATIONS.length)
+  })
+
+  it('keeps the retired canvas reachable outside the first rank (step 1.5 removes it)', async () => {
+    const { wrapper } = await mountShell()
+
+    const secondary = wrapper.find('nav a.secondary-link')
+    expect(secondary.text()).toBe('Workflow')
+    expect(secondary.attributes('href')).toBe('/workflow')
+    expect(secondary.attributes('role')).toBeUndefined()
+  })
+
+  it('marks the active destination (step 0.3)', async () => {
+    const { wrapper } = await mountShell('/channels')
+
+    const tabs = wrapper.findAll('[role="tab"]')
     const current = tabs.filter((tab) => tab.attributes('aria-current') === 'page')
     expect(current).toHaveLength(1)
     expect(current[0].text()).toBe('Channels')

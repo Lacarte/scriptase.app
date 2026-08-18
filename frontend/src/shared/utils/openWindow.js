@@ -19,7 +19,7 @@
 /** Editor needs timeline width; the library is a card grid. */
 export const APP_WINDOW_TARGETS = {
   editor: { path: '/editor', width: 1600, height: 950 },
-  exports: { path: '/exports', width: 1280, height: 900 },
+  library: { path: '/library', width: 1280, height: 900 },
 }
 
 /**
@@ -61,7 +61,7 @@ function centeredFeatures(width, height, screen) {
 }
 
 /**
- * @param {'editor'|'exports'} target
+ * @param {'editor'|'library'} target
  * @param {object}   [options]
  * @param {object}   [options.query]  route query, e.g. `{ project: 'pm_ABC123' }`
  * @param {string}   [options.key]    window identity; defaults to `query.project`
