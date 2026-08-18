@@ -254,9 +254,15 @@ class LoggedResult:
 
 
 AGENT_BLOCKERS = (
-    "you've hit your limit",
-    "you have hit your limit",
-    "usage limit reached",
+    # Vendors word exhaustion differently and a near-miss reads as a generic
+    # crash, so match on the distinctive fragment rather than a whole sentence.
+    # Two escapes so far: agy's "Individual quota reached" and codex's "You've
+    # hit your usage limit" — the latter is NOT a superstring of "you've hit
+    # your limit", because of the word in the middle.
+    "hit your limit",
+    "hit your usage limit",
+    "usage limit",
+    "purchase more credits",
     "rate limit exceeded",
     "quota exceeded",
     # agy says "Individual quota reached. Please upgrade your subscription" —
@@ -625,6 +631,23 @@ def agent_cmd(agent: str, prompt: str) -> str:
 # The loop
 # ---------------------------------------------------------------------------
 
+def run_reviewer(agent: str, prompt: str, log_file: Path, *, fallback: str = "none") -> LoggedResult:
+    """Run the reviewer, degrading to the fallback when its account is limited.
+
+    The reviewer bypassed run_agent entirely, so a usage-limited reviewer halted
+    a step whose build had already passed. Codex hitting a three-day lockout
+    stopped step 6.2 with its work committed and its board green.
+    """
+    result = run_logged(agent_cmd(agent, prompt), log_file)
+    if fallback != "none" and fallback != agent and agent_limit_reached(result):
+        say(f"reviewer {agent} is limited — falling back to {fallback} for the review",
+            icon="!")
+        with log_file.open("a", encoding="utf-8") as log:
+            log.write(f"\n===== REVIEWER LIMIT FALLBACK :: {agent} -> {fallback}\n")
+        return run_logged(agent_cmd(fallback, prompt), log_file)
+    return result
+
+
 def run_step(step: Step, state: dict, args, *, review: bool = True, push: bool = True) -> bool:
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = LOG_DIR / f"{stamp}_step_{step.id.replace('.', '-')}.log"
@@ -717,7 +740,8 @@ def run_step(step: Step, state: dict, args, *, review: bool = True, push: bool =
             f"for real bugs and fixes what it finds", icon="▶")
         stage = time.monotonic()
         post_build_commit = head_commit()
-        result = run_logged(agent_cmd(args.reviewer, review_prompt(step, baseline, post_build_commit)), log_file)
+        result = run_reviewer(args.reviewer, review_prompt(step, baseline, post_build_commit),
+                              log_file, fallback=args.coding_fallback)
         say(f"reviewer finished in {elapsed(stage)}")
         if not agent_run_ok(result, state, step.id, "reviewer agent"):
             return False
@@ -798,10 +822,10 @@ def run_phase(phase: int, steps: list[Step], plan: Plan, state: dict, args,
             f"{baseline}..{head_commit()}, smoke-tests the app, and fixes bugs", icon="▶")
         stage = time.monotonic()
         review_steps = steps or plan.phase_steps(phase)
-        result = run_logged(agent_cmd(args.reviewer,
-                                      phase_review_prompt(phase, title, review_steps,
-                                                          baseline, head_commit())),
-                            log_file)
+        result = run_reviewer(args.reviewer,
+                              phase_review_prompt(phase, title, review_steps,
+                                                  baseline, head_commit()),
+                              log_file, fallback=args.coding_fallback)
         say(f"phase reviewer finished in {elapsed(stage)}")
         if not agent_run_ok(result, state, f"phase-{phase}", "phase reviewer"):
             return False
