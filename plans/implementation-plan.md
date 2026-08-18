@@ -304,6 +304,92 @@ after this step narration requires a working Inworld key and there is no offline
 
 ---
 
+## Phase 6 — Prototype fidelity pass
+
+Phase 0 ported the prototype's `:root` tokens and restyled the shipped views onto
+them. It did not port the component styling: the prototype carries **1,101 class
+rules** across `prototype/scriptase-prototype.html`, and the app re-invented that
+layer instead of reproducing it. The result reads as a different product wearing
+the same palette — same colours, different spacing, structure and density.
+
+This phase ports the remaining layer view by view. The prototype's HTML sections
+are thin shells; its DOM is built in JS, so the target is the **rendered
+structure and its class names**, not the markup as written. Each step ports one
+family, and the criterion is mechanical: the prototype's classes for that family
+exist in the app and carry the prototype's declarations.
+
+Two things stay as they are. The Editor keeps its own teal identity (`ed-*`, 103
+rules) — it mirrors the ported ScriptToScene editor and is deliberately outside
+the system. And no step may hardcode data the backend owns; fidelity is a
+presentation change, never a second source of truth.
+
+### 6.1 Shared primitives
+
+Port the cross-cutting families every view depends on: `topnav`, `btn`, `badge`,
+`seg`, `stat`, `toast`, `welcome`, and the `si-*` status-indicator set — roughly
+135 rules. These come first because every later step composes them, and because
+divergence here is what makes the whole app read as off.
+
+**Done when:** every shared class in the prototype resolves in the app with matching declarations, and the six nav destinations render with the prototype's spacing, weight and active treatment.
+
+### 6.2 Production
+
+Port `job-*` (65 rules) and `srstage-*` (18) — the job row, its expanded detail,
+the stage rail, status bars and counters. The row must keep its backend-projected
+stage list; only presentation changes.
+
+**Done when:** a job row, its expanded detail and the stage rail match the prototype's layout and density, and the stage list still comes from the backend projection.
+
+### 6.3 Script studio
+
+Port `s1-*` (151 rules) — the largest family. The library rail, script editor,
+create flow with its template preview chips, the narration panel with its player,
+and the virality gauge with per-dimension bars.
+
+**Done when:** the studio's three columns, template chips, narration panel and virality gauge match the prototype, and the channel template preview still reads from the selected Channel.
+
+### 6.4 Channels
+
+Port `ch-*` (128 rules) — the channel list and the editor's field groups:
+identity, look and voice, script template with its section outline, narration
+processing, music, thumbnail, and the nine-position watermark picker.
+
+**Done when:** the Channels list and editor match the prototype, including the 3x3 watermark picker, and every field still round-trips through the Channel API.
+
+### 6.5 Providers
+
+Port `pv-*` (97 rules) — the capability rail, the provider detail header with its
+connection state, the capability chip set, and the simulate console's
+request/response panes.
+
+**Done when:** the Providers page matches the prototype, and the simulate console still contacts no real endpoint while keeping secrets masked.
+
+### 6.6 Schema
+
+Port `sch-*` (91 rules) — node cards by role, the status treatments (pending,
+active, done, failed, skipped), animated edges, the status pill, the node
+inspector and the error panel.
+
+**Done when:** node states and edge animation match the prototype, and the graph still renders from the registry with no hardcoded node list.
+
+### 6.7 Library
+
+Port `lib-*` (32) and `exp-*` (39) — the gallery cards with hover preview, the
+detail and pipeline-timing panels, the search and filter row, and the stats bar.
+
+**Done when:** the Library gallery matches the prototype, and the 48-hour calendar it shares with Production still collapses older items.
+
+### 6.8 Fidelity gate
+
+A test that fails when the app drifts from the prototype: extract the class
+families from `prototype/scriptase-prototype.html` and assert every one the app
+claims to implement is present. Cheap to run, and it turns "looks different" from
+a judgement call into a check.
+
+**Done when:** the gate passes, and deleting a ported rule from the app makes it fail.
+
+---
+
 ## Step count and sequencing
 
 | Phase | Steps | Notes |
@@ -314,8 +400,9 @@ after this step narration requires a working Inworld key and there is no offline
 | 3 — Script studio | 3.1–3.4 (4) | 3.1 before the rest; needs 2.1 and 2.3. |
 | 4 — Batch orchestrator | 4.1–4.5 (5) | 4.2 and 4.3 are engine changes. 4.3 needs 3.1. |
 | 5 — Library and Providers | 5.1–5.3 (3) | 5.1 reuses 4.4's calendar. 5.3 retires non-prototype providers. |
+| **6 — Prototype fidelity pass** | 6.1–6.8 (8) | **6.1 first** — every later step composes the shared primitives. |
 
-**24 steps across 6 phases.**
+**32 steps across 7 phases.** Phases 0–5 are delivered; Phase 6 is the fidelity pass.
 
 Critical path: **0.1 → 1.1 → 1.2 → 1.3 → 1.4 → 1.5**, then
 **2.1 → 2.3 → 3.1 → 3.2 → 3.3 → 4.1 → 4.2 → 4.3**. Phase 5 is independent of that chain
