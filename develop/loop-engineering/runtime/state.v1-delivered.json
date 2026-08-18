@@ -1,0 +1,1240 @@
+{
+  "done": [
+    "0.1",
+    "0.2",
+    "0.3",
+    "0.4",
+    "1.1",
+    "1.2",
+    "1.3",
+    "1.4",
+    "1.5",
+    "1.6",
+    "1.7",
+    "2.1",
+    "2.2",
+    "2.3",
+    "2.4",
+    "2.5",
+    "2.6",
+    "3.1",
+    "3.2",
+    "3.3",
+    "3.4",
+    "3.5",
+    "4.1",
+    "4.2",
+    "4.3",
+    "5.1",
+    "5.2",
+    "5.3",
+    "5.4",
+    "6.1",
+    "6.2",
+    "7.1",
+    "7.2",
+    "7.3",
+    "7.4",
+    "8.1",
+    "8.2",
+    "8.3",
+    "8.4",
+    "9.1",
+    "9.2",
+    "9.3",
+    "10.1",
+    "10.2",
+    "10.3",
+    "10.4",
+    "11.1",
+    "11.2",
+    "11.3",
+    "11.4",
+    "11.5",
+    "12.1",
+    "12.2",
+    "12.3",
+    "12.4",
+    "12.5",
+    "13.1",
+    "13.2",
+    "13.3",
+    "14.1",
+    "14.2",
+    "14.3",
+    "14.4",
+    "15.1",
+    "15.2",
+    "15.3",
+    "15.4",
+    "16.1",
+    "16.2",
+    "16.3"
+  ],
+  "history": [
+    {
+      "ts": "2026-08-13T23:30:34",
+      "step": "phase-0",
+      "event": "start",
+      "detail": "fatal: Needed a single revision"
+    },
+    {
+      "ts": "2026-08-13T23:30:34",
+      "step": "0.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-13T23:38:58",
+      "step": "0.1",
+      "event": "validation_red",
+      "detail": "pytest FAILED:\n......................F.s                                                [100%]\n================================== FAILURES ===================================\n_________________ test_gitignore_covers_every_generated_tree __________________\ntests\\test_scaffold.py:88: in test_gitignore_covers_every_generated_tree\n    assert not missing, f\"not covered by .gitignore: {missing}\"\nE   Asse"
+    },
+    {
+      "ts": "2026-08-13T23:43:28",
+      "step": "0.1",
+      "event": "validation_red",
+      "detail": "vitest FAILED:\n> scriptase-frontend@0.1.0 test\n> vitest run\n\n'vitest' is not recognized as an internal or external command,\noperable program or batch file."
+    },
+    {
+      "ts": "2026-08-13T23:46:10",
+      "step": "0.1",
+      "event": "validation_red",
+      "detail": "vitest FAILED:\n> scriptase-frontend@0.1.0 test\n> vitest run\n\n'vitest' is not recognized as an internal or external command,\noperable program or batch file."
+    },
+    {
+      "ts": "2026-08-13T23:48:51",
+      "step": "0.1",
+      "event": "halt",
+      "detail": "validation still red after max fix attempts"
+    },
+    {
+      "ts": "2026-08-13T23:54:59",
+      "step": "0.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T00:56:38",
+      "step": "0.2",
+      "event": "halt",
+      "detail": "builder agent exited with code 1"
+    },
+    {
+      "ts": "2026-08-14T07:53:18",
+      "step": "0.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T07:53:19",
+      "step": "0.3",
+      "event": "halt",
+      "detail": "builder agent exited with code 1"
+    },
+    {
+      "ts": "2026-08-14T07:54:37",
+      "step": "0.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T07:55:36",
+      "step": "0.3",
+      "event": "halt",
+      "detail": "builder agent completed without producing any code or commit changes"
+    },
+    {
+      "ts": "2026-08-14T07:55:54",
+      "step": "0.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T08:49:04",
+      "step": "0.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T08:51:09",
+      "step": "0.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T09:04:05",
+      "step": "0.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T09:05:28",
+      "step": "0.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T09:05:39",
+      "step": "0.3",
+      "event": "halt",
+      "detail": "builder agent exited with code 1"
+    },
+    {
+      "ts": "2026-08-14T09:05:56",
+      "step": "0.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T09:13:55",
+      "step": "0.3",
+      "event": "done",
+      "detail": "aaec9b2"
+    },
+    {
+      "ts": "2026-08-14T09:13:55",
+      "step": "0.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T09:24:08",
+      "step": "0.4",
+      "event": "done",
+      "detail": "3f24459"
+    },
+    {
+      "ts": "2026-08-14T09:33:18",
+      "step": "phase-0",
+      "event": "done",
+      "detail": "b36fa12"
+    },
+    {
+      "ts": "2026-08-14T09:33:18",
+      "step": "phase-1",
+      "event": "start",
+      "detail": "b36fa12"
+    },
+    {
+      "ts": "2026-08-14T09:33:18",
+      "step": "1.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T09:38:22",
+      "step": "1.1",
+      "event": "done",
+      "detail": "f77f526"
+    },
+    {
+      "ts": "2026-08-14T09:38:22",
+      "step": "1.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T09:44:13",
+      "step": "1.2",
+      "event": "done",
+      "detail": "b8ec3c7"
+    },
+    {
+      "ts": "2026-08-14T09:44:13",
+      "step": "1.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T09:54:20",
+      "step": "1.3",
+      "event": "done",
+      "detail": "454e6e9"
+    },
+    {
+      "ts": "2026-08-14T09:54:20",
+      "step": "1.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T10:00:08",
+      "step": "1.4",
+      "event": "done",
+      "detail": "06a8f73"
+    },
+    {
+      "ts": "2026-08-14T10:00:08",
+      "step": "1.5",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T10:10:25",
+      "step": "1.5",
+      "event": "done",
+      "detail": "d469775"
+    },
+    {
+      "ts": "2026-08-14T10:10:25",
+      "step": "1.6",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T10:19:41",
+      "step": "1.6",
+      "event": "done",
+      "detail": "e78e9d5"
+    },
+    {
+      "ts": "2026-08-14T10:19:41",
+      "step": "1.7",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T10:27:53",
+      "step": "1.7",
+      "event": "done",
+      "detail": "6c61308"
+    },
+    {
+      "ts": "2026-08-14T10:35:58",
+      "step": "phase-1",
+      "event": "done",
+      "detail": "a29892a"
+    },
+    {
+      "ts": "2026-08-14T10:35:58",
+      "step": "phase-2",
+      "event": "start",
+      "detail": "a29892a"
+    },
+    {
+      "ts": "2026-08-14T10:35:58",
+      "step": "2.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T10:43:00",
+      "step": "2.1",
+      "event": "done",
+      "detail": "966eaf1"
+    },
+    {
+      "ts": "2026-08-14T10:43:00",
+      "step": "2.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T10:49:52",
+      "step": "2.2",
+      "event": "done",
+      "detail": "d0ade22"
+    },
+    {
+      "ts": "2026-08-14T10:49:52",
+      "step": "2.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T10:59:36",
+      "step": "2.3",
+      "event": "done",
+      "detail": "906815b"
+    },
+    {
+      "ts": "2026-08-14T10:59:36",
+      "step": "2.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T11:10:17",
+      "step": "2.4",
+      "event": "done",
+      "detail": "a018ebd"
+    },
+    {
+      "ts": "2026-08-14T11:10:17",
+      "step": "2.5",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T11:22:18",
+      "step": "2.5",
+      "event": "done",
+      "detail": "3f12296"
+    },
+    {
+      "ts": "2026-08-14T11:22:18",
+      "step": "2.6",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T11:39:33",
+      "step": "2.6",
+      "event": "done",
+      "detail": "8cb1e57"
+    },
+    {
+      "ts": "2026-08-14T11:45:30",
+      "step": "phase-2",
+      "event": "done",
+      "detail": "6d45088"
+    },
+    {
+      "ts": "2026-08-14T11:45:30",
+      "step": "phase-3",
+      "event": "start",
+      "detail": "6d45088"
+    },
+    {
+      "ts": "2026-08-14T11:45:30",
+      "step": "3.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T11:57:46",
+      "step": "3.1",
+      "event": "done",
+      "detail": "0447f2e"
+    },
+    {
+      "ts": "2026-08-14T11:57:46",
+      "step": "3.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T12:09:55",
+      "step": "3.2",
+      "event": "done",
+      "detail": "b9f8dbf"
+    },
+    {
+      "ts": "2026-08-14T12:09:56",
+      "step": "3.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T12:15:57",
+      "step": "3.3",
+      "event": "done",
+      "detail": "1e5228a"
+    },
+    {
+      "ts": "2026-08-14T12:15:57",
+      "step": "3.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T12:32:43",
+      "step": "3.4",
+      "event": "done",
+      "detail": "8b39f7e"
+    },
+    {
+      "ts": "2026-08-14T12:32:43",
+      "step": "3.5",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T12:43:09",
+      "step": "3.5",
+      "event": "done",
+      "detail": "8b31447"
+    },
+    {
+      "ts": "2026-08-14T12:51:27",
+      "step": "phase-3",
+      "event": "done",
+      "detail": "2d6f8ac"
+    },
+    {
+      "ts": "2026-08-14T12:51:27",
+      "step": "phase-4",
+      "event": "start",
+      "detail": "2d6f8ac"
+    },
+    {
+      "ts": "2026-08-14T12:51:27",
+      "step": "4.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T13:03:21",
+      "step": "4.1",
+      "event": "validation_red",
+      "detail": "pytest FAILED:\nTraceback (most recent call last):\n  File \"D:\\@Workspace\\@Development\\@Projects\\SCRIPTASE.app\\venv\\lib\\site-packages\\loguru\\_handler.py\", line 206, in emit\n    self._sink.write(str_record)\n  File \"D:\\@Workspace\\@Development\\@Projects\\SCRIPTASE.app\\venv\\lib\\site-packages\\loguru\\_simple_sinks.py\", line 16, in write\n    self._stream.write(message)\nValueError: I/O operation on closed fi"
+    },
+    {
+      "ts": "2026-08-14T13:10:34",
+      "step": "4.1",
+      "event": "done",
+      "detail": "40f461e"
+    },
+    {
+      "ts": "2026-08-14T13:10:34",
+      "step": "4.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T13:24:48",
+      "step": "4.2",
+      "event": "done",
+      "detail": "b654396"
+    },
+    {
+      "ts": "2026-08-14T13:24:48",
+      "step": "4.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T13:36:50",
+      "step": "4.3",
+      "event": "done",
+      "detail": "5196581"
+    },
+    {
+      "ts": "2026-08-14T13:43:57",
+      "step": "phase-4",
+      "event": "done",
+      "detail": "455ef66"
+    },
+    {
+      "ts": "2026-08-14T13:43:57",
+      "step": "phase-5",
+      "event": "start",
+      "detail": "455ef66"
+    },
+    {
+      "ts": "2026-08-14T13:43:57",
+      "step": "5.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T13:53:11",
+      "step": "5.1",
+      "event": "done",
+      "detail": "c2510cb"
+    },
+    {
+      "ts": "2026-08-14T13:53:11",
+      "step": "5.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T14:11:28",
+      "step": "5.2",
+      "event": "done",
+      "detail": "ce32ad3"
+    },
+    {
+      "ts": "2026-08-14T14:11:28",
+      "step": "5.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T14:20:30",
+      "step": "5.3",
+      "event": "done",
+      "detail": "1b9ee5a"
+    },
+    {
+      "ts": "2026-08-14T14:20:30",
+      "step": "5.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T14:27:03",
+      "step": "5.4",
+      "event": "done",
+      "detail": "75c6f66"
+    },
+    {
+      "ts": "2026-08-14T14:33:42",
+      "step": "phase-5",
+      "event": "done",
+      "detail": "2386e9b"
+    },
+    {
+      "ts": "2026-08-14T14:33:42",
+      "step": "phase-6",
+      "event": "start",
+      "detail": "2386e9b"
+    },
+    {
+      "ts": "2026-08-14T14:33:42",
+      "step": "6.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T14:43:09",
+      "step": "6.1",
+      "event": "done",
+      "detail": "a50285c"
+    },
+    {
+      "ts": "2026-08-14T14:43:09",
+      "step": "6.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T14:54:23",
+      "step": "6.2",
+      "event": "done",
+      "detail": "238f791"
+    },
+    {
+      "ts": "2026-08-14T14:59:09",
+      "step": "phase-6",
+      "event": "done",
+      "detail": "0ce54cc"
+    },
+    {
+      "ts": "2026-08-14T14:59:09",
+      "step": "phase-7",
+      "event": "start",
+      "detail": "0ce54cc"
+    },
+    {
+      "ts": "2026-08-14T14:59:09",
+      "step": "7.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T15:08:11",
+      "step": "7.1",
+      "event": "done",
+      "detail": "5f4358e"
+    },
+    {
+      "ts": "2026-08-14T15:08:11",
+      "step": "7.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T15:16:53",
+      "step": "7.2",
+      "event": "done",
+      "detail": "c23fe26"
+    },
+    {
+      "ts": "2026-08-14T15:16:53",
+      "step": "7.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T15:30:09",
+      "step": "7.3",
+      "event": "done",
+      "detail": "4e05d9d"
+    },
+    {
+      "ts": "2026-08-14T15:30:09",
+      "step": "7.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T15:40:07",
+      "step": "7.4",
+      "event": "done",
+      "detail": "d100447"
+    },
+    {
+      "ts": "2026-08-14T15:44:26",
+      "step": "phase-7",
+      "event": "done",
+      "detail": "601c651"
+    },
+    {
+      "ts": "2026-08-14T15:44:26",
+      "step": "phase-8",
+      "event": "start",
+      "detail": "601c651"
+    },
+    {
+      "ts": "2026-08-14T15:44:26",
+      "step": "8.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T15:50:34",
+      "step": "8.1",
+      "event": "done",
+      "detail": "d3155f6"
+    },
+    {
+      "ts": "2026-08-14T15:50:34",
+      "step": "8.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T16:00:01",
+      "step": "8.2",
+      "event": "done",
+      "detail": "3273b5e"
+    },
+    {
+      "ts": "2026-08-14T16:00:01",
+      "step": "8.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T16:11:20",
+      "step": "8.3",
+      "event": "done",
+      "detail": "13347b4"
+    },
+    {
+      "ts": "2026-08-14T16:11:20",
+      "step": "8.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T16:19:21",
+      "step": "8.4",
+      "event": "done",
+      "detail": "e4e20fc"
+    },
+    {
+      "ts": "2026-08-14T16:25:48",
+      "step": "phase-8",
+      "event": "done",
+      "detail": "4794263"
+    },
+    {
+      "ts": "2026-08-14T16:25:48",
+      "step": "phase-9",
+      "event": "start",
+      "detail": "4794263"
+    },
+    {
+      "ts": "2026-08-14T16:25:48",
+      "step": "9.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T16:37:21",
+      "step": "9.1",
+      "event": "done",
+      "detail": "cf50652"
+    },
+    {
+      "ts": "2026-08-14T16:37:21",
+      "step": "9.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T16:47:12",
+      "step": "9.2",
+      "event": "done",
+      "detail": "e0789b5"
+    },
+    {
+      "ts": "2026-08-14T16:47:12",
+      "step": "9.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T16:58:54",
+      "step": "9.3",
+      "event": "done",
+      "detail": "b768b65"
+    },
+    {
+      "ts": "2026-08-14T17:08:35",
+      "step": "phase-9",
+      "event": "done",
+      "detail": "d2d906e"
+    },
+    {
+      "ts": "2026-08-14T17:08:35",
+      "step": "phase-10",
+      "event": "start",
+      "detail": "d2d906e"
+    },
+    {
+      "ts": "2026-08-14T17:08:35",
+      "step": "10.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T17:22:14",
+      "step": "10.1",
+      "event": "done",
+      "detail": "1208558"
+    },
+    {
+      "ts": "2026-08-14T17:22:14",
+      "step": "10.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T17:36:31",
+      "step": "10.2",
+      "event": "done",
+      "detail": "ee038bb"
+    },
+    {
+      "ts": "2026-08-14T17:36:31",
+      "step": "10.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T17:45:55",
+      "step": "10.3",
+      "event": "done",
+      "detail": "7d0bd5c"
+    },
+    {
+      "ts": "2026-08-14T17:45:55",
+      "step": "10.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-14T17:56:47",
+      "step": "10.4",
+      "event": "done",
+      "detail": "2b1a7fe"
+    },
+    {
+      "ts": "2026-08-14T18:10:12",
+      "step": "phase-10",
+      "event": "done",
+      "detail": "859ec8d"
+    },
+    {
+      "ts": "2026-08-15T07:07:30",
+      "step": "phase-11",
+      "event": "start",
+      "detail": "126fdb0"
+    },
+    {
+      "ts": "2026-08-15T07:07:30",
+      "step": "11.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T07:28:19",
+      "step": "11.1",
+      "event": "done",
+      "detail": "021bd20"
+    },
+    {
+      "ts": "2026-08-15T07:28:19",
+      "step": "11.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T07:47:32",
+      "step": "11.2",
+      "event": "done",
+      "detail": "4fa742e"
+    },
+    {
+      "ts": "2026-08-15T07:47:32",
+      "step": "11.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T08:12:50",
+      "step": "11.3",
+      "event": "done",
+      "detail": "fe8bbb3"
+    },
+    {
+      "ts": "2026-08-15T08:12:50",
+      "step": "11.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T08:27:47",
+      "step": "11.4",
+      "event": "done",
+      "detail": "8d36a35"
+    },
+    {
+      "ts": "2026-08-15T08:27:47",
+      "step": "11.5",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T08:37:37",
+      "step": "11.5",
+      "event": "done",
+      "detail": "fcc34b8"
+    },
+    {
+      "ts": "2026-08-15T08:45:28",
+      "step": "phase-11",
+      "event": "done",
+      "detail": "6f38adc"
+    },
+    {
+      "ts": "2026-08-15T08:45:32",
+      "step": "phase-12",
+      "event": "start",
+      "detail": "6f38adc"
+    },
+    {
+      "ts": "2026-08-15T08:45:32",
+      "step": "12.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T09:06:29",
+      "step": "12.1",
+      "event": "done",
+      "detail": "c5e4d22"
+    },
+    {
+      "ts": "2026-08-15T09:06:29",
+      "step": "12.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T09:23:44",
+      "step": "12.2",
+      "event": "done",
+      "detail": "85922f8"
+    },
+    {
+      "ts": "2026-08-15T09:23:45",
+      "step": "12.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T09:39:13",
+      "step": "12.3",
+      "event": "done",
+      "detail": "bec523a"
+    },
+    {
+      "ts": "2026-08-15T09:39:13",
+      "step": "12.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T10:20:56",
+      "step": "12.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T10:21:05",
+      "step": "12.4",
+      "event": "halt",
+      "detail": "builder agent exited with code 1"
+    },
+    {
+      "ts": "2026-08-15T10:21:26",
+      "step": "12.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T10:21:33",
+      "step": "12.4",
+      "event": "halt",
+      "detail": "builder agent exited with code 1"
+    },
+    {
+      "ts": "2026-08-15T10:41:02",
+      "step": "12.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T11:41:09",
+      "step": "12.4",
+      "event": "halt",
+      "detail": "builder agent blocked: agent timed out"
+    },
+    {
+      "ts": "2026-08-15T17:57:10",
+      "step": "12.5",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T18:06:06",
+      "step": "12.5",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T18:36:13",
+      "step": "12.5",
+      "event": "done",
+      "detail": "11b09f4"
+    },
+    {
+      "ts": "2026-08-15T19:37:49",
+      "step": "phase-12",
+      "event": "done",
+      "detail": "3974084"
+    },
+    {
+      "ts": "2026-08-15T19:37:55",
+      "step": "phase-13",
+      "event": "start",
+      "detail": "3974084"
+    },
+    {
+      "ts": "2026-08-15T19:37:55",
+      "step": "13.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T20:01:30",
+      "step": "13.1",
+      "event": "done",
+      "detail": "c45b32d"
+    },
+    {
+      "ts": "2026-08-15T20:01:30",
+      "step": "13.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T20:20:50",
+      "step": "13.2",
+      "event": "done",
+      "detail": "a969d60"
+    },
+    {
+      "ts": "2026-08-15T20:20:50",
+      "step": "13.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T20:38:06",
+      "step": "13.3",
+      "event": "done",
+      "detail": "5f0eb5a"
+    },
+    {
+      "ts": "2026-08-15T20:48:22",
+      "step": "phase-13",
+      "event": "done",
+      "detail": "93f60c9"
+    },
+    {
+      "ts": "2026-08-15T20:48:25",
+      "step": "phase-14",
+      "event": "start",
+      "detail": "93f60c9"
+    },
+    {
+      "ts": "2026-08-15T20:48:25",
+      "step": "14.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T20:59:20",
+      "step": "14.1",
+      "event": "done",
+      "detail": "fc9d5a6"
+    },
+    {
+      "ts": "2026-08-15T20:59:20",
+      "step": "14.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T21:23:19",
+      "step": "14.2",
+      "event": "done",
+      "detail": "d6f0e41"
+    },
+    {
+      "ts": "2026-08-15T21:23:19",
+      "step": "14.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T21:46:34",
+      "step": "14.3",
+      "event": "done",
+      "detail": "b01f774"
+    },
+    {
+      "ts": "2026-08-15T21:46:34",
+      "step": "14.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T21:59:20",
+      "step": "14.4",
+      "event": "done",
+      "detail": "a170438"
+    },
+    {
+      "ts": "2026-08-15T22:09:52",
+      "step": "phase-14",
+      "event": "done",
+      "detail": "e2aabde"
+    },
+    {
+      "ts": "2026-08-15T22:09:55",
+      "step": "phase-15",
+      "event": "start",
+      "detail": "e2aabde"
+    },
+    {
+      "ts": "2026-08-15T22:09:55",
+      "step": "15.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T22:22:51",
+      "step": "15.1",
+      "event": "done",
+      "detail": "bb7447e"
+    },
+    {
+      "ts": "2026-08-15T22:22:51",
+      "step": "15.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T22:47:08",
+      "step": "15.2",
+      "event": "done",
+      "detail": "8698c70"
+    },
+    {
+      "ts": "2026-08-15T22:47:08",
+      "step": "15.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T23:09:04",
+      "step": "15.3",
+      "event": "done",
+      "detail": "4da1a2e"
+    },
+    {
+      "ts": "2026-08-15T23:09:04",
+      "step": "15.4",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-15T23:49:28",
+      "step": "15.4",
+      "event": "done",
+      "detail": "8deaa44"
+    },
+    {
+      "ts": "2026-08-15T23:58:40",
+      "step": "phase-15",
+      "event": "done",
+      "detail": "345b7ad"
+    },
+    {
+      "ts": "2026-08-15T23:58:43",
+      "step": "phase-16",
+      "event": "start",
+      "detail": "345b7ad"
+    },
+    {
+      "ts": "2026-08-15T23:58:43",
+      "step": "16.1",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-16T00:20:17",
+      "step": "16.1",
+      "event": "done",
+      "detail": "0dd02c3"
+    },
+    {
+      "ts": "2026-08-16T00:20:17",
+      "step": "16.2",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-16T00:52:54",
+      "step": "16.2",
+      "event": "done",
+      "detail": "113834a"
+    },
+    {
+      "ts": "2026-08-16T00:52:54",
+      "step": "16.3",
+      "event": "start",
+      "detail": ""
+    },
+    {
+      "ts": "2026-08-16T01:36:37",
+      "step": "16.3",
+      "event": "done",
+      "detail": "8434a29"
+    },
+    {
+      "ts": "2026-08-16T01:48:53",
+      "step": "phase-16",
+      "event": "done",
+      "detail": "e186d93"
+    }
+  ]
+}

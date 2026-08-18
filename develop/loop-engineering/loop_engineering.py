@@ -189,8 +189,9 @@ def load_state() -> dict:
         state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
         state.setdefault("done", [])
         state.setdefault("history", [])
+        state.setdefault("epoch", "")
         return state
-    return {"done": [], "history": []}
+    return {"done": [], "history": [], "epoch": ""}
 
 
 def save_state(state: dict) -> None:
@@ -208,9 +209,17 @@ def record(state: dict, step_id: str, event: str, detail: str = "") -> None:
     save_state(state)
 
 
-def steps_done_in_git() -> set[str]:
-    """Steps already delivered, inferred from commit subjects."""
-    out = run_capture(["git", "log", "--oneline", "-200"], cwd=ROOT)
+def steps_done_in_git(epoch: str = "") -> set[str]:
+    """Steps already delivered, inferred from commit subjects.
+
+    `epoch` is the commit the CURRENT plan started from. Step ids are only
+    unique within one plan: this repo carries commits for `step 0.1` through
+    `step 16.3` from a delivered plan, so a renumbered follow-up plan that also
+    starts at 0.1 would be marked complete before it began. Scanning only
+    `epoch..HEAD` scopes detection to the plan actually in flight.
+    """
+    rng = f"{epoch}..HEAD" if epoch else "-200"
+    out = run_capture(["git", "log", "--oneline", rng], cwd=ROOT)
     done = set()
     for line in out.splitlines():
         for match in COMMIT_STEP_RE.finditer(line):
@@ -785,7 +794,7 @@ def main() -> None:
     state = load_state()
 
     if args.sync_git or not state["done"]:
-        found = steps_done_in_git() & {s.id for s in plan.steps}
+        found = steps_done_in_git(state.get("epoch", "")) & {s.id for s in plan.steps}
         state["done"] = sorted(set(state["done"]) | found,
                                key=lambda i: (int(i.split(".")[0]), int(i.split(".")[1])))
         save_state(state)
