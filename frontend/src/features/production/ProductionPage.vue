@@ -40,6 +40,7 @@ import {
 } from './sourceModes.js'
 import { statusLabel } from './stageStatus.js'
 import { onShortcut } from '@/shared/composables/useShortcuts.js'
+import { channelAccent, channelInitials } from '@/shared/utils/channelIdentity.js'
 import { openAppWindow } from '@/shared/utils/openWindow.js'
 import ArchiveCalendar from '@/shared/components/ArchiveCalendar.vue'
 
@@ -1038,8 +1039,15 @@ onMounted(async () => {
             <div class="job-main" @click="toggleJobExpand(item)">
               <div class="job-id mono">{{ item.id }}</div>
               <div class="job-ch">
-                <div class="nm">{{ item.channel_name || item.channel_id }}</div>
-                <div class="src">{{ sourceModeLabel(item.source_mode) }}</div>
+                <span
+                  class="ch-avatar"
+                  :style="{ background: channelAccent(item.channel_id) }"
+                  aria-hidden="true"
+                >{{ channelInitials(item.channel_name || item.channel_id) }}</span>
+                <div class="job-ch-txt">
+                  <div class="nm">{{ item.channel_name || item.channel_id }}</div>
+                  <div class="src">{{ sourceModeLabel(item.source_mode) }}</div>
+                </div>
               </div>
               <div class="job-title">
                 <div class="t">
@@ -1551,10 +1559,12 @@ onMounted(async () => {
 
 .job-id { flex: none; width: 92px; font-family: var(--mono); font-size: 11px; letter-spacing: .2px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* The prototype's `display: flex; align-items: center; gap: 9px` here sits a
-   `.ch-avatar` beside this text column. With no avatar until step 6.4, a flex
-   row would put `.nm` and `.src` side by side, so it lands with the avatar. */
-.job-ch { flex: none; width: 150px; min-width: 0; }
+/* The prototype's flex row: the shared `.ch-avatar` beside a text column
+   (step 6.4). The avatar is derived from the channel id, so a job row and the
+   Channels rail always show the same plate for the same channel. */
+.job-ch { flex: none; width: 150px; min-width: 0; display: flex; align-items: center; gap: 9px; }
+.job-ch .ch-avatar { width: 28px; height: 28px; font-size: 12px; border-radius: 7px; }
+.job-ch .job-ch-txt { min-width: 0; }
 .job-ch .nm { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .job-ch .src { margin-top: 1px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

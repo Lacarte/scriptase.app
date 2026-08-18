@@ -45,8 +45,20 @@ export const routes = [
     component: () => import('./features/export-library/views/ExportLibraryPage.vue'),
     meta: { title: 'Library' },
   },
-  { path: '/channels', name: 'channels', component: ChannelsPage },
-  { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
+  // Both routes are the prototype's one `chview` screen — a rail beside a
+  // detail pane that scrolls on its own, so the shell is bounded (step 6.4).
+  {
+    path: '/channels',
+    name: 'channels',
+    component: ChannelsPage,
+    meta: { title: 'Channels', fullHeight: true },
+  },
+  {
+    path: '/channels/:id',
+    name: 'channel-edit',
+    component: ChannelEditor,
+    meta: { title: 'Channels', fullHeight: true },
+  },
   {
     path: '/providers',
     name: 'providers',

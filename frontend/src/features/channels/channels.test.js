@@ -73,6 +73,32 @@ describe('ChannelsPage', () => {
     expect(wrapper.text()).toContain('Custom Brand')
     expect(wrapper.text()).toContain('starter')
     expect(wrapper.text()).toContain('81 presets')
+    // Step 6.4 — the prototype's rail rows, and its empty detail beside them.
+    expect(wrapper.findAll('.ch-litem')).toHaveLength(2)
+    expect(wrapper.find('.ch-empty').exists()).toBe(true)
+  })
+
+  /**
+   * Step 6.4 — the avatar is derived, not stored: `ChannelProfile` carries no
+   * colour or code, and inventing them would be a second source of truth.
+   */
+  it('draws each rail row with a stable derived avatar', async () => {
+    const router = makeRouter([
+      { path: '/', name: 'channels', component: ChannelsPage },
+      { path: '/channels/:id', name: 'channel-edit', component: { template: '<div />' } },
+    ])
+    router.push('/')
+    await router.isReady()
+
+    const wrapper = mount(ChannelsPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const avatars = wrapper.findAll('.ch-litem .ch-avatar')
+    expect(avatars).toHaveLength(2)
+    expect(avatars[0].text()).toBe('CS')
+    expect(avatars[1].text()).toBe('CB')
+    // Two different ids must not collapse onto one plate colour by accident.
+    expect(avatars[0].attributes('style')).not.toBe(avatars[1].attributes('style'))
   })
 
   it('creates a channel and navigates to the editor', async () => {
@@ -258,6 +284,8 @@ describe('ChannelEditor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // The editor renders the same rail as the index (step 6.4).
+    api.listChannels.mockResolvedValue({ channels: [], starter_mappings: {}, seed: null })
     api.getChannel.mockResolvedValue({ channel: structuredClone(sample) })
     api.listBrandingAssets.mockResolvedValue({ assets: [] })
     api.listMusicAssets.mockResolvedValue([
@@ -294,26 +322,30 @@ describe('ChannelEditor', () => {
     await flushPromises()
 
     expect(api.getChannel).toHaveBeenCalledWith('ch_AAAAAA')
-    expect(wrapper.text()).toContain('Cinematic Stoicism')
+    // The name is the hero's own input, as in the prototype — not a heading.
+    expect(wrapper.get('.ch-name-input').element.value).toBe('Cinematic Stoicism')
     expect(wrapper.text()).toContain('Painterly chiaroscuro')
     expect(api.composeVisualPrompt).toHaveBeenCalled()
+    expect(wrapper.find('.ch-dirty').classes()).not.toContain('show')
 
     const textInputs = wrapper.findAll('input[type="text"]')
     const values = textInputs.map((input) => input.element.value)
     expect(values).toContain('extreme close-up')
     expect(values).toContain('hook')
-    expect(wrapper.findAll('.section-chip')).toHaveLength(5)
-    expect(wrapper.findAll('.watermark-position')).toHaveLength(9)
+    // Step 6.4 — the prototype's numbered section rows and 3x3 picker.
+    expect(wrapper.findAll('.ch-tpl-sec')).toHaveLength(5)
+    expect(wrapper.findAll('.ch-wm-cell')).toHaveLength(9)
     expect(
-      wrapper.findAll('.section-chip input').map((input) => input.element.value),
+      wrapper.findAll('.ch-tpl-sec input').map((input) => input.element.value),
     ).toEqual(['Hook', 'Turn', 'Why', 'Reframe', 'Landing'])
 
-    const turnChip = wrapper.findAll('.section-chip')[1]
-    await turnChip.find('button[aria-label="Move Turn down"]').trigger('click')
+    const turnRow = wrapper.findAll('.ch-tpl-sec')[1]
+    await turnRow.find('button[aria-label="Move Turn down"]').trigger('click')
 
-    // First text input is the channel name.
+    // First text input is the channel name, in the hero.
+    expect(textInputs[0].classes()).toContain('ch-name-input')
     await textInputs[0].setValue('Stoicism Nightly')
-    await wrapper.get('button.primary').trigger('click')
+    await wrapper.get('[data-testid="channel-save"]').trigger('click')
     await flushPromises()
 
     expect(api.updateChannel).toHaveBeenCalled()
@@ -343,5 +375,72 @@ describe('ChannelEditor', () => {
       review: null,
     })
     expect(wrapper.text()).toContain('Saved')
+  })
+
+  /**
+   * Step 6.4 — the picker writes `WATERMARK_POSITIONS` values straight through.
+   * The prototype spells its cells `tl`…`br`; translating them here would put a
+   * second vocabulary between the control and the field it validates against.
+   */
+  it('writes the backend watermark position the picker cell names', async () => {
+    const router = makeRouter([
+      { path: '/channels', name: 'channels', component: { template: '<div />' } },
+      { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
+    ])
+    router.push('/channels/ch_AAAAAA')
+    await router.isReady()
+
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const cells = wrapper.findAll('.ch-wm-cell')
+    expect(cells.map((cell) => cell.attributes('aria-label'))).toEqual([
+      'Top left', 'Top center', 'Top right',
+      'Left', 'Center', 'Right',
+      'Bottom left', 'Bottom center', 'Bottom right',
+    ])
+    expect(cells[8].attributes('aria-checked')).toBe('true')
+
+    await cells[4].trigger('click')
+    expect(cells[4].attributes('aria-checked')).toBe('true')
+    expect(wrapper.find('.ch-dirty').classes()).toContain('show')
+
+    await wrapper.get('[data-testid="channel-save"]').trigger('click')
+    await flushPromises()
+
+    const [, draft] = api.updateChannel.mock.calls[0]
+    expect(draft.branding.position).toBe('center')
+  })
+
+  /**
+   * Step 6.4 — neither block has a control in this editor, and both used to be
+   * flattened on every save: cadence was never sent, fallbacks were sent empty.
+   */
+  it('carries cadence and fallback policies through an unrelated save', async () => {
+    const scheduled = structuredClone(sample)
+    scheduled.cadence = { enabled: true, cron: '0 9 * * 1' }
+    scheduled.fallback_policies = {
+      image: { primary: 'inst_image_1', fallbacks: ['inst_image_2'] },
+    }
+    api.getChannel.mockResolvedValue({ channel: scheduled })
+
+    const router = makeRouter([
+      { path: '/channels', name: 'channels', component: { template: '<div />' } },
+      { path: '/channels/:id', name: 'channel-edit', component: ChannelEditor },
+    ])
+    router.push('/channels/ch_AAAAAA')
+    await router.isReady()
+
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="channel-save"]').trigger('click')
+    await flushPromises()
+
+    const [, draft] = api.updateChannel.mock.calls[0]
+    expect(draft.cadence).toEqual({ enabled: true, cron: '0 9 * * 1' })
+    expect(draft.fallback_policies).toEqual({
+      image: { primary: 'inst_image_1', fallbacks: ['inst_image_2'] },
+    })
   })
 })

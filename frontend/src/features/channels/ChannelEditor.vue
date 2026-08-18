@@ -3,9 +3,16 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
+  channelAccent,
+  channelInitials,
+} from '@/shared/utils/channelIdentity.js'
+
+import ChannelRail from './ChannelRail.vue'
+import {
   composeVisualPrompt,
   deleteChannel,
   getChannel,
+  getChannelDefaults,
   listBrandingAssets,
   listMusicAssets,
   updateChannel,
@@ -21,12 +28,16 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
 const success = ref('')
+const dirty = ref(false)
 const brandingAssets = ref([])
 const musicAssets = ref([])
 const uploadBusy = ref(false)
-const draggedSection = ref(null)
 const promptPreview = ref('')
 const promptPreviewLoading = ref(false)
+const logoInput = ref(null)
+const thumbnailInput = ref(null)
+const previewAudio = ref(null)
+const playingRef = ref('')
 let promptPreviewRequest = 0
 
 const channelId = computed(() => route.params.id)
@@ -125,6 +136,17 @@ const form = reactive({
   },
 })
 
+/**
+ * Blocks with no control in this editor. They are held outside `form` — plain,
+ * unwrapped, never rendered — and written back verbatim, so that pressing Save
+ * cannot silently erase a cadence schedule (step 9.2) or a stage fallback
+ * chain configured elsewhere.
+ */
+const carried = { cadence: null, fallback_policies: {} }
+
+const accent = computed(() => channelAccent(meta.id))
+const initials = computed(() => channelInitials(form.name))
+
 const logoPreviewUrl = computed(() => {
   const refId = form.branding.logo_asset_id
   if (!refId) return ''
@@ -138,17 +160,90 @@ const thumbnailPreviewUrl = computed(() => {
   return refId ? `/output/${refId}` : ''
 })
 
+const heroAvatarStyle = computed(() => ({
+  background: thumbnailPreviewUrl.value
+    ? `center/cover url("${thumbnailPreviewUrl.value}")`
+    : accent.value,
+}))
+
+/**
+ * The nine watermark cells, in the prototype's reading order. The labels are
+ * the backend's own `WATERMARK_POSITIONS` values, so the picker writes exactly
+ * what `Branding.position` validates — no `tl`/`br` translation table.
+ */
 const POSITIONS = [
-  'top-left',
-  'top-center',
-  'top-right',
-  'middle-left',
-  'center',
-  'middle-right',
-  'bottom-left',
-  'bottom-center',
-  'bottom-right',
+  { id: 'top-left', label: 'Top left' },
+  { id: 'top-center', label: 'Top center' },
+  { id: 'top-right', label: 'Top right' },
+  { id: 'middle-left', label: 'Left' },
+  { id: 'center', label: 'Center' },
+  { id: 'middle-right', label: 'Right' },
+  { id: 'bottom-left', label: 'Bottom left' },
+  { id: 'bottom-center', label: 'Bottom center' },
+  { id: 'bottom-right', label: 'Bottom right' },
 ]
+
+const ASPECT_RATIOS = ['9:16', '16:9', '1:1', '4:5']
+const SPEEDS = [0.9, 1, 1.1, 1.15, 1.25, 1.5]
+
+const positionLabel = computed(
+  () => POSITIONS.find((p) => p.id === form.branding.position)?.label || 'Top right',
+)
+
+const aspectOptions = computed(() => {
+  const current = form.export_defaults.aspect_ratio
+  return current && !ASPECT_RATIOS.includes(current)
+    ? [current, ...ASPECT_RATIOS]
+    : ASPECT_RATIOS
+})
+
+/** A saved channel may carry any float in 0.25–4.0; never drop it from the list. */
+const speedOptions = computed(() => {
+  const current = Number(form.audio_defaults.speed)
+  return SPEEDS.includes(current) ? SPEEDS : [current, ...SPEEDS].sort((a, b) => a - b)
+})
+
+/** Where the watermark sits inside the aspect-ratio preview frame. */
+const watermarkFrameStyle = computed(() => ({
+  '--fr': form.export_defaults.aspect_ratio.replace(':', '/') || '9/16',
+  background: `linear-gradient(160deg, ${accent.value}, ${accent.value}44)`,
+}))
+
+const watermarkPreviewStyle = computed(() => {
+  const [vertical, horizontal] = form.branding.position === 'center'
+    ? ['middle', 'center']
+    : form.branding.position.split('-')
+  const style = { position: 'absolute' }
+  if (vertical === 'top') style.top = '8px'
+  else if (vertical === 'bottom') style.bottom = '8px'
+  else style.top = '50%'
+  if (horizontal === 'left') style.left = '8px'
+  else if (horizontal === 'right') style.right = '8px'
+  else style.left = '50%'
+  const tx = horizontal === 'center' ? '-50%' : '0'
+  const ty = vertical === 'middle' ? '-50%' : '0'
+  if (tx !== '0' || ty !== '0') style.transform = `translate(${tx}, ${ty})`
+  return style
+})
+
+/** The prototype's inherit strip, read from the fields the backend does have. */
+const inheritedChips = computed(() => [
+  ['Image', form.visual_direction.style],
+  ['Tone', form.content.tone],
+  ['Mood', form.content.mood],
+  ['Voice', form.audio_defaults.voice],
+  ['Captions', form.captions.preset],
+  ['Aspect', form.export_defaults.aspect_ratio],
+].filter(([, value]) => value))
+
+const trackName = (refId) =>
+  musicAssets.value.find((track) => track.ref === refId)?.filename
+  || refId.split('/').pop()
+
+function markDirty() {
+  dirty.value = true
+  success.value = ''
+}
 
 async function refreshPromptPreview() {
   const requestId = ++promptPreviewRequest
@@ -291,6 +386,11 @@ function applyDocument(doc) {
     currency: 'USD',
     ...(doc.budget || {}),
   })
+  carried.cadence = doc.cadence ? structuredClone(doc.cadence) : null
+  carried.fallback_policies = doc.fallback_policies
+    ? structuredClone(doc.fallback_policies)
+    : {}
+  dirty.value = false
 }
 
 function draftPayload() {
@@ -300,7 +400,7 @@ function draftPayload() {
   }
   const emptyToEmpty = (v) => (v == null ? '' : v)
 
-  return {
+  const payload = {
     name: form.name,
     branding: {
       ...form.branding,
@@ -359,7 +459,7 @@ function draftPayload() {
       video: emptyToNull(form.provider_defaults.video),
       review: emptyToNull(form.provider_defaults.review),
     },
-    fallback_policies: {},
+    fallback_policies: structuredClone(carried.fallback_policies || {}),
     review_policy: {
       ...form.review_policy,
       max_repairs: Number(form.review_policy.max_repairs) || 0,
@@ -385,6 +485,8 @@ function draftPayload() {
     },
     default_workflow_id: emptyToNull(form.default_workflow_id),
   }
+  if (carried.cadence) payload.cadence = structuredClone(carried.cadence)
+  return payload
 }
 
 async function load() {
@@ -461,6 +563,7 @@ async function onLogoFile(event) {
       asset,
       ...brandingAssets.value.filter((a) => a.ref !== asset.ref),
     ]
+    markDirty()
     success.value = 'Logo uploaded — save the channel to keep the reference.'
   } catch (err) {
     error.value = err.message || String(err)
@@ -479,6 +582,7 @@ async function onThumbnailFile(event) {
     const asset = await uploadChannelThumbnail(file)
     form.branding.thumbnail_asset_id = asset.ref
     brandingAssets.value = [asset, ...brandingAssets.value.filter((a) => a.ref !== asset.ref)]
+    markDirty()
     success.value = 'Thumbnail uploaded — save the channel to keep the reference.'
   } catch (err) {
     error.value = err.message || String(err)
@@ -497,6 +601,7 @@ async function onMusicFile(event) {
     const asset = await uploadMusicTrack(file)
     musicAssets.value = [asset, ...musicAssets.value.filter((a) => a.ref !== asset.ref)]
     if (!form.music_library.tracks.includes(asset.ref)) form.music_library.tracks.push(asset.ref)
+    markDirty()
     success.value = 'Track uploaded and added to this channel.'
   } catch (err) {
     error.value = err.message || String(err)
@@ -509,24 +614,58 @@ function toggleTrack(refId) {
   const index = form.music_library.tracks.indexOf(refId)
   if (index >= 0) form.music_library.tracks.splice(index, 1)
   else form.music_library.tracks.push(refId)
+  markDirty()
 }
 
-function selectExistingLogo(refId) {
-  form.branding.logo_asset_id = refId
-  form.branding.enabled = true
+/**
+ * Audition a bed. `path` is the managed URL the library hands back
+ * (`/output/musics/…` or `/assets/sounds/music/…`) — never a disk path — and
+ * one element serves every row, so starting a track stops the last one.
+ */
+function togglePlay(track) {
+  const element = previewAudio.value
+  if (!element || !track.path) return
+  if (playingRef.value === track.ref) {
+    element.pause()
+    playingRef.value = ''
+    return
+  }
+  element.src = track.path
+  playingRef.value = track.ref
+  try {
+    element.play()?.catch(() => { playingRef.value = '' })
+  } catch {
+    playingRef.value = ''
+  }
 }
 
-function clearLogo() {
-  form.branding.logo_asset_id = null
-  form.branding.enabled = false
+function pickThumbnail() {
+  thumbnailInput.value?.click()
+}
+
+function pickLogo() {
+  logoInput.value?.click()
+}
+
+function clearAsset(key) {
+  form.branding[key] = null
+  if (key === 'logo_asset_id') form.branding.enabled = false
+  markDirty()
+}
+
+function setPosition(id) {
+  form.branding.position = id
+  markDirty()
 }
 
 function addPatternRow() {
   form.visual_direction.pattern.push({ narrative_role: '', shot: '' })
+  markDirty()
 }
 
 function removePatternRow(index) {
   form.visual_direction.pattern.splice(index, 1)
+  markDirty()
 }
 
 function movePattern(index, delta) {
@@ -535,14 +674,17 @@ function movePattern(index, delta) {
   const list = form.visual_direction.pattern
   const [row] = list.splice(index, 1)
   list.splice(next, 0, row)
+  markDirty()
 }
 
 function addTemplateSection() {
   form.script_template.sections.push('New section')
+  markDirty()
 }
 
 function removeTemplateSection(index) {
   form.script_template.sections.splice(index, 1)
+  markDirty()
 }
 
 function moveTemplateSection(index, delta) {
@@ -550,15 +692,26 @@ function moveTemplateSection(index, delta) {
   if (next < 0 || next >= form.script_template.sections.length) return
   const [section] = form.script_template.sections.splice(index, 1)
   form.script_template.sections.splice(next, 0, section)
+  markDirty()
 }
 
-function dropTemplateSection(targetIndex) {
-  const sourceIndex = draggedSection.value
-  draggedSection.value = null
-  if (sourceIndex == null || sourceIndex === targetIndex) return
-  const [section] = form.script_template.sections.splice(sourceIndex, 1)
-  const adjustedTarget = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
-  form.script_template.sections.splice(adjustedTarget, 0, section)
+/**
+ * The house outline comes from `/api/channels/defaults`, which is the same
+ * blank draft the backend builds a new Channel from. Hardcoding the five
+ * section names here would be a second source of truth for them.
+ */
+async function resetTemplateSections() {
+  error.value = ''
+  try {
+    const defaults = await getChannelDefaults()
+    const sections = defaults?.draft?.script_template?.sections
+    if (Array.isArray(sections) && sections.length) {
+      form.script_template.sections = [...sections]
+      markDirty()
+    }
+  } catch (err) {
+    error.value = err.message || String(err)
+  }
 }
 
 watch(channelId, () => {
@@ -569,643 +722,804 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="editor">
-    <header class="page-header">
-      <div>
-        <router-link class="back" :to="{ name: 'channels' }">← Channels</router-link>
-        <h1 v-if="!loading">{{ form.name || 'Channel' }}</h1>
-        <h1 v-else>Loading…</h1>
-        <p v-if="meta.id" class="meta-line">
-          <code>{{ meta.id }}</code>
-          · v{{ meta.version }}
-          · schema {{ meta.schema_version }}
-          <span v-if="meta.updated_at"> · updated {{ meta.updated_at }}</span>
-        </p>
-      </div>
-      <div class="actions">
-        <button type="button" class="danger ghost" :disabled="saving || loading" @click="onDelete">
-          Delete
-        </button>
-        <button type="button" class="primary" :disabled="saving || loading" @click="onSave">
-          {{ saving ? 'Saving…' : 'Save' }}
-        </button>
-      </div>
-    </header>
+  <section class="chview" aria-label="Channel editor">
+    <ChannelRail />
 
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <p v-if="success" class="success">{{ success }}</p>
+    <main class="ch-detail">
+      <div v-if="loading" class="ch-empty"><h3>Loading…</h3></div>
 
-    <form v-if="!loading" class="form" @submit.prevent="onSave">
-      <fieldset>
-        <legend>Identity</legend>
-        <label>
-          Name
-          <input v-model="form.name" type="text" required maxlength="120" />
-        </label>
-        <label>
-          Default workflow id
-          <input v-model="form.default_workflow_id" type="text" placeholder="optional" />
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Branding</legend>
-        <p class="hint">
-          Logo upload uses the managed branding library
-          (<code>POST /api/workflow/branding</code>). Never paste a filesystem path.
-        </p>
-        <div class="logo-row">
-          <div class="logo-preview" v-if="logoPreviewUrl">
-            <img :src="logoPreviewUrl" alt="Channel logo preview" />
-          </div>
-          <div class="logo-preview empty" v-else>No logo</div>
-          <div class="logo-controls">
-            <label class="check">
-              <input v-model="form.branding.enabled" type="checkbox" />
-              Show logo on video
-            </label>
-            <label>
-              Upload logo
-              <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="uploadBusy" @change="onLogoFile" />
-            </label>
-            <label>
-              Or pick existing
-              <select
-                :value="form.branding.logo_asset_id || ''"
-                @change="selectExistingLogo($event.target.value || null)"
-              >
-                <option value="">—</option>
-                <option v-for="asset in brandingAssets" :key="asset.ref" :value="asset.ref">
-                  {{ asset.filename }}
-                </option>
-              </select>
-            </label>
-            <button type="button" class="ghost" @click="clearLogo">Clear logo</button>
-            <div class="watermark-picker" role="radiogroup" aria-label="Watermark position">
-              <button
-                v-for="p in POSITIONS"
-                :key="p"
-                type="button"
-                class="watermark-position"
-                :class="{ active: form.branding.position === p }"
-                role="radio"
-                :aria-checked="form.branding.position === p"
-                :aria-label="p"
-                @click="form.branding.position = p"
-              ><span></span></button>
-            </div>
-            <small class="picker-value">Watermark: {{ form.branding.position }}</small>
-            <div class="grid-2">
-              <label>
-                Size (0–1)
-                <input v-model.number="form.branding.size" type="number" min="0" max="1" step="0.01" />
-              </label>
-              <label>
-                Opacity
-                <input v-model.number="form.branding.opacity" type="number" min="0" max="1" step="0.05" />
-              </label>
-              <label>
-                Margin
-                <input v-model.number="form.branding.margin" type="number" min="0" max="0.5" step="0.01" />
-              </label>
-            </div>
-          </div>
-        </div>
-        <div class="thumbnail-row">
-          <div class="logo-preview thumbnail-preview" v-if="thumbnailPreviewUrl">
-            <img :src="thumbnailPreviewUrl" alt="Channel thumbnail preview" />
-          </div>
-          <div class="logo-preview thumbnail-preview empty" v-else>No thumbnail</div>
-          <div class="logo-controls">
-            <label>
-              Upload channel thumbnail
-              <input type="file" accept="image/png,image/jpeg,image/webp" :disabled="uploadBusy" @change="onThumbnailFile" />
-            </label>
-            <label>
-              Or pick existing
-              <select v-model="form.branding.thumbnail_asset_id">
-                <option :value="null">—</option>
-                <option v-for="asset in brandingAssets" :key="asset.ref" :value="asset.ref">
-                  {{ asset.filename }}
-                </option>
-              </select>
-            </label>
-          </div>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Content</legend>
-        <div class="grid-2">
-          <label>Niche <input v-model="form.content.niche" type="text" /></label>
-          <label>Language <input v-model="form.content.language" type="text" /></label>
-          <label>Audience / category <input v-model="form.content.audience" type="text" /></label>
-          <label>Tone <input v-model="form.content.tone" type="text" /></label>
-          <label>Mood <input v-model="form.content.mood" type="text" /></label>
-          <label>Script style <input v-model="form.content.script_style" type="text" /></label>
-          <label>Hook style <input v-model="form.content.hook_style" type="text" /></label>
-          <label>CTA style <input v-model="form.content.cta_style" type="text" /></label>
-          <label>
-            Duration target (s)
-            <input v-model="form.content.duration_target" type="number" min="1" max="600" />
-          </label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Script template</legend>
-        <p class="hint">
-          This house structure guides Auto and Idea scripts. Drag the chips or use
-          their arrow controls to change the section order.
-        </p>
-        <label>
-          Structure brief
-          <textarea
-            v-model="form.script_template.brief"
-            rows="4"
-            required
-            placeholder="Describe the story shape in plain language."
-          ></textarea>
-        </label>
-        <div class="section-outline" aria-label="Ordered script sections">
-          <div
-            v-for="(section, index) in form.script_template.sections"
-            :key="index"
-            class="section-chip"
-            draggable="true"
-            @dragstart="draggedSection = index"
-            @dragend="draggedSection = null"
-            @dragover.prevent
-            @drop.prevent="dropTemplateSection(index)"
+      <template v-else>
+        <!-- ── Hero ─────────────────────────────────────────────────── -->
+        <div class="ch-hero" :style="{ '--hero-color': accent }">
+          <button
+            type="button"
+            class="ch-hero-av ch-avatar"
+            :style="heroAvatarStyle"
+            title="Channel thumbnail — click to upload"
+            aria-label="Upload channel thumbnail"
+            @click="pickThumbnail"
           >
-            <span class="drag-handle" aria-hidden="true">⋮⋮</span>
-            <span class="section-number">{{ index + 1 }}</span>
+            {{ thumbnailPreviewUrl ? '' : initials }}
+            <span class="av-edit" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+            </span>
+          </button>
+          <input
+            ref="thumbnailInput"
+            type="file"
+            class="hidden-file"
+            accept="image/png,image/jpeg,image/webp"
+            :disabled="uploadBusy"
+            @change="onThumbnailFile"
+          />
+
+          <div class="ch-hero-main">
             <input
-              v-model="form.script_template.sections[index]"
+              v-model="form.name"
+              class="ch-name-input"
               type="text"
               required
-              maxlength="80"
-              :aria-label="`Section ${index + 1} name`"
+              maxlength="120"
+              aria-label="Channel name"
+              @input="markDirty"
             />
-            <div class="chip-actions">
-              <button
-                type="button"
-                class="ghost"
-                :disabled="index === 0"
-                :aria-label="`Move ${section} up`"
-                @click="moveTemplateSection(index, -1)"
-              >↑</button>
-              <button
-                type="button"
-                class="ghost"
-                :disabled="index === form.script_template.sections.length - 1"
-                :aria-label="`Move ${section} down`"
-                @click="moveTemplateSection(index, 1)"
-              >↓</button>
-              <button
-                type="button"
-                class="ghost danger"
-                :disabled="form.script_template.sections.length === 1"
-                :aria-label="`Remove ${section}`"
-                @click="removeTemplateSection(index)"
-              >×</button>
+            <div class="ch-hero-sub">
+              <span>{{ form.content.language || 'en' }}</span>
+              <span class="dot-sep" />
+              <span>{{ form.export_defaults.aspect_ratio }}</span>
+              <template v-if="form.content.duration_target">
+                <span class="dot-sep" />
+                <span>{{ form.content.duration_target }}s</span>
+              </template>
+              <span class="dot-sep" />
+              <span>{{ meta.id }}</span>
+              <span class="dot-sep" />
+              <span>schema {{ meta.schema_version }}</span>
+            </div>
+          </div>
+
+          <!-- The prototype counts videos and published uploads. Neither is a
+               Channel field, so these are the counters this document owns. -->
+          <div class="ch-hero-stats">
+            <div class="ch-stat">
+              <div class="n">{{ form.script_template.sections.length }}</div>
+              <div class="l">Sections</div>
+            </div>
+            <div class="ch-stat">
+              <div class="n">{{ form.music_library.tracks.length }}</div>
+              <div class="l">Tracks</div>
+            </div>
+            <div class="ch-stat">
+              <div class="n">{{ meta.version }}</div>
+              <div class="l">Revision</div>
             </div>
           </div>
         </div>
-        <button type="button" class="ghost" @click="addTemplateSection">
-          + Add section
-        </button>
-      </fieldset>
 
-      <fieldset>
-        <legend>Visual direction</legend>
-        <p class="hint">
-          <code>pattern</code> is a structured ordered list of narrative role → shot —
-          never free text. That is what makes Scene Director deterministic.
-        </p>
-        <label>Style <input v-model="form.visual_direction.style" type="text" /></label>
-        <label>
-          Visual style prompt
-          <textarea
-            v-model="form.visual_direction.style_prompt"
-            rows="4"
-            placeholder="Describe the Channel's house look, materials, color treatment, and rendering style."
-          ></textarea>
-        </label>
-        <div class="prompt-preview" aria-live="polite">
-          <span class="prompt-preview-label">Composed prompt example</span>
-          <p>{{ promptPreviewLoading && !promptPreview ? 'Composing…' : promptPreview }}</p>
-        </div>
-        <div class="pattern-table">
-          <div class="pattern-head">
-            <span>Narrative role</span>
-            <span>Shot</span>
-            <span></span>
+        <p v-if="error" class="banner error ch-alert" role="alert">{{ error }}</p>
+        <p v-if="success" class="banner ok ch-alert">{{ success }}</p>
+
+        <form class="ch-body" @submit.prevent="onSave">
+          <!-- ── Identity ───────────────────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 12 0v1" /></svg>
+              Identity
+            </h3>
+            <div class="desc">
+              How the channel presents itself. Language and niche flow into every job.
+            </div>
+            <div class="ch-grid">
+              <div class="ch-field">
+                <label for="ch-language">Language</label>
+                <input id="ch-language" v-model="form.content.language" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-niche">Niche</label>
+                <input id="ch-niche" v-model="form.content.niche" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-audience">Audience</label>
+                <input id="ch-audience" v-model="form.content.audience" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-workflow">Default workflow id</label>
+                <input id="ch-workflow" v-model="form.default_workflow_id" class="ch-input mono" type="text" placeholder="optional" @input="markDirty" />
+              </div>
+            </div>
+          </section>
+
+          <!-- ── Look & voice ───────────────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="13.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="10.5" r="2.5" /><circle cx="8.5" cy="7.5" r="2.5" /><circle cx="6.5" cy="12.5" r="2.5" /><path d="M12 2a10 10 0 1 0 0 20 2 2 0 0 0 0-4 2 2 0 0 1 0-4h2a4 4 0 0 0 4-4 10 10 0 0 0-10-8z" /></svg>
+              Look &amp; voice
+            </h3>
+            <div class="desc">
+              Inherited by Script Studio and the production pipeline. Change once here,
+              every job follows.
+            </div>
+            <div class="ch-grid">
+              <div class="ch-field">
+                <label for="ch-style">Image style</label>
+                <input id="ch-style" v-model="form.visual_direction.style" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-voice">Narration voice</label>
+                <input id="ch-voice" v-model="form.audio_defaults.voice" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-tone">Tone</label>
+                <input id="ch-tone" v-model="form.content.tone" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-mood">Mood</label>
+                <input id="ch-mood" v-model="form.content.mood" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-script-style">Script style</label>
+                <input id="ch-script-style" v-model="form.content.script_style" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-hook">Hook style</label>
+                <input id="ch-hook" v-model="form.content.hook_style" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-cta">CTA style</label>
+                <input id="ch-cta" v-model="form.content.cta_style" class="ch-input" type="text" @input="markDirty" />
+              </div>
+            </div>
+            <div class="ch-field wide">
+              <label for="ch-style-prompt">
+                Visual style prompt
+                <span class="note">· prepended to every scene's image prompt</span>
+              </label>
+              <textarea
+                id="ch-style-prompt"
+                v-model="form.visual_direction.style_prompt"
+                class="ch-input"
+                rows="3"
+                placeholder="Describe the Channel's house look, materials, color treatment, and rendering style."
+                @input="markDirty"
+              ></textarea>
+            </div>
+            <div class="ch-imgprev" aria-live="polite">
+              <div class="ch-imgprev-h">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+                Example image prompt
+              </div>
+              <code class="ch-imgprev-code">{{
+                promptPreviewLoading && !promptPreview ? 'Composing…' : promptPreview
+              }}</code>
+            </div>
+          </section>
+
+          <!-- ── Visual direction ───────────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 7h20M7 7v14M2 12h5M2 17h5" /><rect x="7" y="7" width="15" height="14" rx="2" /></svg>
+              Visual direction
+            </h3>
+            <div class="desc">
+              <code>pattern</code> is a structured ordered list of narrative role → shot —
+              never free text. That is what makes Scene Director deterministic.
+            </div>
+            <div class="pattern-table">
+              <div class="pattern-head">
+                <span>Narrative role</span>
+                <span>Shot</span>
+                <span></span>
+              </div>
+              <div
+                v-for="(row, index) in form.visual_direction.pattern"
+                :key="index"
+                class="pattern-row"
+              >
+                <input v-model="row.narrative_role" class="ch-input" type="text" placeholder="hook" :aria-label="`Narrative role ${index + 1}`" @input="markDirty" />
+                <input v-model="row.shot" class="ch-input" type="text" placeholder="extreme close-up" :aria-label="`Shot ${index + 1}`" @input="markDirty" />
+                <div class="pattern-actions">
+                  <button type="button" class="ch-tpl-mv" :disabled="index === 0" :aria-label="`Move role ${index + 1} up`" @click="movePattern(index, -1)">↑</button>
+                  <button type="button" class="ch-tpl-mv" :disabled="index === form.visual_direction.pattern.length - 1" :aria-label="`Move role ${index + 1} down`" @click="movePattern(index, 1)">↓</button>
+                  <button type="button" class="ch-tpl-x" :aria-label="`Remove role ${index + 1}`" @click="removePatternRow(index)">✕</button>
+                </div>
+              </div>
+            </div>
+            <div class="ch-tpl-actions">
+              <button type="button" class="btn xs" @click="addPatternRow">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                Add role
+              </button>
+            </div>
+            <div class="ch-grid spaced">
+              <div class="ch-field">
+                <label for="ch-palette">Palette</label>
+                <input id="ch-palette" v-model="form.visual_direction.palette" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-lighting">Lighting</label>
+                <input id="ch-lighting" v-model="form.visual_direction.lighting" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-camera">Camera</label>
+                <input id="ch-camera" v-model="form.visual_direction.camera" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-character">Character style</label>
+                <input id="ch-character" v-model="form.visual_direction.character_style" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-continuity">Continuity</label>
+                <input id="ch-continuity" v-model="form.visual_direction.continuity" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-negative">Negative prompt</label>
+                <input id="ch-negative" v-model="form.visual_direction.negative_prompt" class="ch-input" type="text" @input="markDirty" />
+              </div>
+            </div>
+          </section>
+
+          <!-- ── Script template ────────────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7V4h16v3M9 20h6M12 4v16" /></svg>
+              Script template
+            </h3>
+            <div class="desc">
+              How Script Studio writes for this channel. Used when a job auto-generates
+              or expands an idea into a script — pasted scripts are left as they are.
+            </div>
+            <div class="ch-field wide">
+              <label for="ch-brief">Structure brief</label>
+              <textarea
+                id="ch-brief"
+                v-model="form.script_template.brief"
+                class="ch-input"
+                rows="4"
+                required
+                placeholder="Describe the story shape in plain language."
+                @input="markDirty"
+              ></textarea>
+            </div>
+            <div class="ch-field wide">
+              <label>
+                Section outline
+                <span class="note">· the beats, in order</span>
+              </label>
+              <div class="ch-tpl-sections">
+                <div
+                  v-for="(section, index) in form.script_template.sections"
+                  :key="index"
+                  class="ch-tpl-sec"
+                >
+                  <span class="ch-tpl-num">{{ index + 1 }}</span>
+                  <input
+                    v-model="form.script_template.sections[index]"
+                    class="ch-input"
+                    type="text"
+                    required
+                    maxlength="80"
+                    :aria-label="`Section ${index + 1} name`"
+                    @input="markDirty"
+                  />
+                  <button type="button" class="ch-tpl-mv" :disabled="index === 0" :aria-label="`Move ${section} up`" @click="moveTemplateSection(index, -1)">↑</button>
+                  <button type="button" class="ch-tpl-mv" :disabled="index === form.script_template.sections.length - 1" :aria-label="`Move ${section} down`" @click="moveTemplateSection(index, 1)">↓</button>
+                  <button type="button" class="ch-tpl-x" :disabled="form.script_template.sections.length === 1" :aria-label="`Remove ${section}`" @click="removeTemplateSection(index)">✕</button>
+                </div>
+              </div>
+              <div class="ch-tpl-actions">
+                <button type="button" class="btn xs" @click="addTemplateSection">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                  Add section
+                </button>
+                <button type="button" class="btn xs ghost" @click="resetTemplateSections">
+                  Reset to default
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ── Production defaults ────────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>
+              Production defaults
+            </h3>
+            <div class="desc">Starting values for new jobs — still overridable per job.</div>
+            <div class="ch-grid">
+              <div class="ch-field">
+                <label for="ch-aspect">Aspect ratio</label>
+                <select id="ch-aspect" v-model="form.export_defaults.aspect_ratio" class="ch-select" @change="markDirty">
+                  <option v-for="ratio in aspectOptions" :key="ratio" :value="ratio">{{ ratio }}</option>
+                </select>
+              </div>
+              <div class="ch-field">
+                <label for="ch-duration">Target length (seconds)</label>
+                <input id="ch-duration" v-model="form.content.duration_target" class="ch-input" type="number" min="1" max="600" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-resolution">Resolution</label>
+                <input id="ch-resolution" v-model="form.export_defaults.resolution" class="ch-input" type="text" placeholder="1080x1920" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-fps">FPS</label>
+                <input id="ch-fps" v-model="form.export_defaults.fps" class="ch-input" type="number" min="1" max="120" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-profile">Encode profile</label>
+                <input id="ch-profile" v-model="form.export_defaults.profile" class="ch-input" type="text" @input="markDirty" />
+              </div>
+            </div>
+          </section>
+
+          <!-- ── Music library ──────────────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+              Music library
+            </h3>
+            <div class="desc">
+              A reusable bed list for this channel. Uploads are validated and stored as
+              managed assets — this is a library, not a folder on your disk.
+            </div>
+            <div class="ch-field wide">
+              <label for="ch-folder">Collection label</label>
+              <div class="ch-path-row">
+                <input id="ch-folder" v-model="form.music_library.folder" class="ch-input mono" type="text" placeholder="e.g. Documentary beds" @input="markDirty" />
+                <label class="btn sm upload-btn">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+                  Upload track
+                  <input type="file" class="hidden-file" accept="audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/flac" :disabled="uploadBusy" @change="onMusicFile" />
+                </label>
+              </div>
+            </div>
+            <div class="ch-tracklist" role="group" aria-label="Channel music tracks">
+              <button
+                v-for="track in musicAssets"
+                :key="track.ref"
+                type="button"
+                class="ch-track"
+                :class="{ sel: form.music_library.tracks.includes(track.ref) }"
+                :aria-pressed="form.music_library.tracks.includes(track.ref)"
+                @click="toggleTrack(track.ref)"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+                {{ track.filename }}
+                <span class="tspan">{{ track.category || track.source }}</span>
+                <span
+                  v-if="track.path"
+                  class="ch-track-play"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`${playingRef === track.ref ? 'Stop' : 'Play'} ${track.filename}`"
+                  @click.stop="togglePlay(track)"
+                  @keydown.enter.stop.prevent="togglePlay(track)"
+                  @keydown.space.stop.prevent="togglePlay(track)"
+                >
+                  <svg v-if="playingRef === track.ref" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" /><rect x="14" y="5" width="4" height="14" /></svg>
+                  <svg v-else width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>
+                </span>
+              </button>
+              <p v-if="!musicAssets.length" class="desc">
+                No tracks in the managed library yet.
+              </p>
+            </div>
+            <audio ref="previewAudio" class="hidden-file" @ended="playingRef = ''"></audio>
+            <p v-if="form.music_library.tracks.length" class="ch-wm-note">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+              <b>{{ form.music_library.tracks.length }}</b>
+              &nbsp;selected: {{ form.music_library.tracks.map(trackName).join(', ') }}
+            </p>
+          </section>
+
+          <!-- ── Narration processing ───────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" /><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4" /></svg>
+              Narration processing
+            </h3>
+            <div class="desc">
+              Applied to every job's narration. An individual script can override this
+              in Script Studio.
+            </div>
+            <div class="ch-narr-row">
+              <div class="ch-narr-item">
+                <div class="ch-narr-txt">
+                  <div class="t">Remove silence</div>
+                  <div class="d">Trim dead air &amp; long pauses from the voiceover</div>
+                </div>
+                <button
+                  type="button"
+                  class="s1-toggle"
+                  :class="{ on: form.audio_defaults.remove_silence }"
+                  role="switch"
+                  :aria-checked="form.audio_defaults.remove_silence"
+                  aria-label="Remove silence"
+                  @click="form.audio_defaults.remove_silence = !form.audio_defaults.remove_silence; markDirty()"
+                ></button>
+              </div>
+              <div class="ch-narr-item">
+                <div class="ch-narr-txt">
+                  <div class="t">Speed up audio</div>
+                  <div class="d">Time-stretch narration to tighten pacing</div>
+                </div>
+                <select v-model.number="form.audio_defaults.speed" class="ch-select narr-select" aria-label="Narration speed" @change="markDirty">
+                  <option v-for="speed in speedOptions" :key="speed" :value="speed">{{ speed }}×</option>
+                </select>
+              </div>
+            </div>
+            <div class="ch-grid spaced">
+              <div class="ch-field">
+                <label for="ch-tts-instance">TTS provider instance id</label>
+                <input id="ch-tts-instance" v-model="form.audio_defaults.tts_provider_instance_id" class="ch-input mono" type="text" placeholder="instance id only — never a key" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-music-profile">Music profile</label>
+                <input id="ch-music-profile" v-model="form.audio_defaults.music_profile" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-loudness">Loudness (LUFS)</label>
+                <input id="ch-loudness" v-model="form.audio_defaults.loudness" class="ch-input" type="number" step="0.5" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-ducking">Music ducking (0–1)</label>
+                <input id="ch-ducking" v-model="form.audio_defaults.ducking" class="ch-input" type="number" min="0" max="1" step="0.05" @input="markDirty" />
+              </div>
+            </div>
+          </section>
+
+          <!-- ── Captions ───────────────────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M7 15h4M14 15h3" /></svg>
+              Captions
+            </h3>
+            <div class="desc">
+              Captions are a local service, not a provider domain — the preset names a
+              built-in treatment.
+            </div>
+            <div class="ch-grid">
+              <div class="ch-field">
+                <label for="ch-cap-preset">Preset</label>
+                <input id="ch-cap-preset" v-model="form.captions.preset" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-cap-position">Position</label>
+                <input id="ch-cap-position" v-model="form.captions.position" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-cap-font">Font treatment</label>
+                <input id="ch-cap-font" v-model="form.captions.font_treatment" class="ch-input" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-cap-anim">Animation</label>
+                <input id="ch-cap-anim" v-model="form.captions.animation" class="ch-input" type="text" @input="markDirty" />
+              </div>
+            </div>
+          </section>
+
+          <!-- ── Brand assets ───────────────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+              Brand assets
+            </h3>
+            <div class="desc">
+              Optional. The thumbnail identifies the channel in lists; the logo is burned
+              onto exports as a watermark. Both upload through the managed branding
+              library — never a filesystem path.
+            </div>
+            <div class="ch-grid">
+              <div class="ch-field">
+                <label>Thumbnail</label>
+                <div class="ch-asset-drop" role="button" tabindex="0" @click="pickThumbnail" @keydown.enter.prevent="pickThumbnail" @keydown.space.prevent="pickThumbnail">
+                  <img v-if="thumbnailPreviewUrl" :src="thumbnailPreviewUrl" class="ch-asset-img" alt="Channel thumbnail preview" />
+                  <div v-else class="ch-asset-ph" :style="{ background: `${accent}22`, color: accent }">{{ initials }}</div>
+                  <div class="ch-asset-meta">
+                    <div class="t">{{ thumbnailPreviewUrl ? 'Thumbnail set' : 'Add thumbnail' }}</div>
+                    <div class="d">{{ thumbnailPreviewUrl ? 'Click to replace' : 'PNG / JPG · used in lists' }}</div>
+                  </div>
+                  <button v-if="thumbnailPreviewUrl" type="button" class="ch-asset-x" aria-label="Remove thumbnail" @click.stop="clearAsset('thumbnail_asset_id')">✕</button>
+                </div>
+              </div>
+              <div class="ch-field">
+                <label>Logo · watermark</label>
+                <div class="ch-asset-drop" role="button" tabindex="0" @click="pickLogo" @keydown.enter.prevent="pickLogo" @keydown.space.prevent="pickLogo">
+                  <div v-if="logoPreviewUrl" class="ch-asset-img wm-check">
+                    <img :src="logoPreviewUrl" alt="Channel logo preview" />
+                  </div>
+                  <div v-else class="ch-asset-ph placeholder-logo">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
+                  </div>
+                  <div class="ch-asset-meta">
+                    <div class="t">{{ logoPreviewUrl ? 'Logo set' : 'Add logo' }}</div>
+                    <div class="d">{{ logoPreviewUrl ? 'Watermark on export' : 'PNG w/ transparency' }}</div>
+                  </div>
+                  <button v-if="logoPreviewUrl" type="button" class="ch-asset-x" aria-label="Remove logo" @click.stop="clearAsset('logo_asset_id')">✕</button>
+                </div>
+              </div>
+            </div>
+            <input
+              ref="logoInput"
+              type="file"
+              class="hidden-file"
+              accept="image/png,image/jpeg,image/webp"
+              :disabled="uploadBusy"
+              @change="onLogoFile"
+            />
+
+            <div class="ch-wm-pos-wrap">
+              <span class="ch-field-label">
+                Watermark position
+                <span class="note">· {{ positionLabel }}</span>
+              </span>
+              <div class="ch-wm-editor">
+                <div class="ch-wm-frame" :style="watermarkFrameStyle">
+                  <div class="ch-wm-preview" :style="watermarkPreviewStyle">
+                    <img v-if="logoPreviewUrl" :src="logoPreviewUrl" alt="" />
+                    <span v-else class="wm-dot"></span>
+                  </div>
+                </div>
+                <div class="ch-wm-grid" role="radiogroup" aria-label="Watermark position">
+                  <button
+                    v-for="position in POSITIONS"
+                    :key="position.id"
+                    type="button"
+                    class="ch-wm-cell"
+                    :class="{ sel: form.branding.position === position.id }"
+                    role="radio"
+                    :aria-checked="form.branding.position === position.id"
+                    :aria-label="position.label"
+                    :title="position.label"
+                    @click="setPosition(position.id)"
+                  ><span class="dot"></span></button>
+                </div>
+              </div>
+              <p class="ch-wm-note">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                Burned in at <b>&nbsp;{{ positionLabel }}&nbsp;</b> on export when the
+                watermark is enabled.
+              </p>
+              <div class="ch-grid spaced">
+                <div class="ch-field">
+                  <label class="check">
+                    <input v-model="form.branding.enabled" type="checkbox" @change="markDirty" />
+                    Show the logo on video
+                  </label>
+                </div>
+                <div class="ch-field">
+                  <label for="ch-wm-size">Size (0–1)</label>
+                  <input id="ch-wm-size" v-model.number="form.branding.size" class="ch-input" type="number" min="0" max="1" step="0.01" @input="markDirty" />
+                </div>
+                <div class="ch-field">
+                  <label for="ch-wm-opacity">Opacity</label>
+                  <input id="ch-wm-opacity" v-model.number="form.branding.opacity" class="ch-input" type="number" min="0" max="1" step="0.05" @input="markDirty" />
+                </div>
+                <div class="ch-field">
+                  <label for="ch-wm-margin">Margin</label>
+                  <input id="ch-wm-margin" v-model.number="form.branding.margin" class="ch-input" type="number" min="0" max="0.5" step="0.01" @input="markDirty" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ── Provider defaults ──────────────────────────────────── -->
+          <section class="ch-section">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="7" width="20" height="10" rx="2" /><path d="M6 12h.01M10 12h.01" /></svg>
+              Provider defaults
+            </h3>
+            <div class="desc">
+              Instance references only. Credentials resolve at runtime from the provider
+              instance store and never enter a Channel document.
+            </div>
+            <div class="ch-grid">
+              <div class="ch-field">
+                <label for="ch-pd-script">Script</label>
+                <input id="ch-pd-script" v-model="form.provider_defaults.script" class="ch-input mono" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-pd-tts">TTS</label>
+                <input id="ch-pd-tts" v-model="form.provider_defaults.tts" class="ch-input mono" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-pd-director">Scene director</label>
+                <input id="ch-pd-director" v-model="form.provider_defaults.scene_director" class="ch-input mono" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-pd-image">Image</label>
+                <input id="ch-pd-image" v-model="form.provider_defaults.image" class="ch-input mono" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-pd-video">Video</label>
+                <input id="ch-pd-video" v-model="form.provider_defaults.video" class="ch-input mono" type="text" @input="markDirty" />
+              </div>
+              <div class="ch-field">
+                <label for="ch-pd-review">Review</label>
+                <input id="ch-pd-review" v-model="form.provider_defaults.review" class="ch-input mono" type="text" @input="markDirty" />
+              </div>
+            </div>
+          </section>
+
+          <!-- ── What a job inherits ────────────────────────────────── -->
+          <div class="ch-preview">
+            <div class="pt">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12h16M4 12l4-4M4 12l4 4" /></svg>
+              What a job inherits from this channel
+            </div>
+            <div class="ch-preview-chips">
+              <span v-for="[key, value] in inheritedChips" :key="key" class="ch-pchip">
+                <span class="k">{{ key }}</span> {{ value }}
+              </span>
+              <span v-if="!inheritedChips.length" class="ch-pchip">
+                <span class="k">Nothing set yet</span>
+              </span>
+            </div>
           </div>
-          <div
-            v-for="(row, index) in form.visual_direction.pattern"
-            :key="index"
-            class="pattern-row"
+        </form>
+
+        <div class="ch-foot">
+          <div class="ch-dirty" :class="{ show: dirty }">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+            Unsaved changes
+          </div>
+          <div class="spacer"></div>
+          <button type="button" class="btn danger sm" :disabled="saving" @click="onDelete">
+            Delete
+          </button>
+          <!-- The rail's New button is also `.btn.primary`, so the save
+               control is addressed by test id rather than by class. -->
+          <button
+            type="button"
+            class="btn primary sm"
+            data-testid="channel-save"
+            :disabled="saving"
+            @click="onSave"
           >
-            <input v-model="row.narrative_role" type="text" placeholder="hook" />
-            <input v-model="row.shot" type="text" placeholder="extreme close-up" />
-            <div class="pattern-actions">
-              <button type="button" class="ghost" title="Move up" @click="movePattern(index, -1)">↑</button>
-              <button type="button" class="ghost" title="Move down" @click="movePattern(index, 1)">↓</button>
-              <button type="button" class="ghost danger" @click="removePatternRow(index)">✕</button>
-            </div>
-          </div>
-          <button type="button" class="ghost" @click="addPatternRow">+ Add role</button>
+            {{ saving ? 'Saving…' : 'Save changes' }}
+          </button>
         </div>
-        <div class="grid-2">
-          <label>Palette <input v-model="form.visual_direction.palette" type="text" /></label>
-          <label>Lighting <input v-model="form.visual_direction.lighting" type="text" /></label>
-          <label>Camera <input v-model="form.visual_direction.camera" type="text" /></label>
-          <label>Character style <input v-model="form.visual_direction.character_style" type="text" /></label>
-          <label>Continuity <input v-model="form.visual_direction.continuity" type="text" /></label>
-          <label>Negative prompt <input v-model="form.visual_direction.negative_prompt" type="text" /></label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Narration &amp; audio defaults</legend>
-        <p class="hint">
-          Narration processing is inherited by every script until that script overrides it.
-        </p>
-        <div class="grid-2">
-          <label>Voice <input v-model="form.audio_defaults.voice" type="text" /></label>
-          <label>Speed <input v-model.number="form.audio_defaults.speed" type="number" min="0.25" max="4" step="0.05" /></label>
-          <label class="check narration-check">
-            <input v-model="form.audio_defaults.remove_silence" type="checkbox" />
-            <span>
-              Remove silence
-              <small>Trim dead air and compress long pauses in the voiceover.</small>
-            </span>
-          </label>
-          <label>
-            TTS provider instance id
-            <input
-              v-model="form.audio_defaults.tts_provider_instance_id"
-              type="text"
-              placeholder="instance id only — never a key"
-            />
-          </label>
-          <label>Music profile <input v-model="form.audio_defaults.music_profile" type="text" /></label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Music library</legend>
-        <p class="hint">
-          Build a reusable track list for this channel. Uploads are validated and stored as managed assets.
-        </p>
-        <div class="grid-2">
-          <label>
-            Folder label
-            <input v-model="form.music_library.folder" type="text" placeholder="e.g. Documentary bed" />
-          </label>
-          <label>
-            Upload track
-            <input type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/flac" :disabled="uploadBusy" @change="onMusicFile" />
-          </label>
-        </div>
-        <div class="track-list" aria-label="Channel music tracks">
-          <label v-for="track in musicAssets" :key="track.ref" class="track-row">
-            <input
-              type="checkbox"
-              :checked="form.music_library.tracks.includes(track.ref)"
-              @change="toggleTrack(track.ref)"
-            />
-            <span>{{ track.filename }}</span>
-            <small>{{ track.category || track.source }}</small>
-          </label>
-          <p v-if="!musicAssets.length" class="hint">No tracks in the managed library yet.</p>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Provider defaults (instance ids)</legend>
-        <p class="hint">
-          Instance references only. Credentials resolve at runtime from the provider
-          instance store and never enter a Channel document.
-        </p>
-        <div class="grid-2">
-          <label>Script <input v-model="form.provider_defaults.script" type="text" /></label>
-          <label>TTS <input v-model="form.provider_defaults.tts" type="text" /></label>
-          <label>Scene director <input v-model="form.provider_defaults.scene_director" type="text" /></label>
-          <label>Image <input v-model="form.provider_defaults.image" type="text" /></label>
-          <label>Video <input v-model="form.provider_defaults.video" type="text" /></label>
-          <label>Review <input v-model="form.provider_defaults.review" type="text" /></label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Export defaults</legend>
-        <div class="grid-2">
-          <label>Aspect ratio <input v-model="form.export_defaults.aspect_ratio" type="text" /></label>
-          <label>Resolution <input v-model="form.export_defaults.resolution" type="text" /></label>
-          <label>FPS <input v-model="form.export_defaults.fps" type="number" min="1" max="120" /></label>
-          <label>Profile <input v-model="form.export_defaults.profile" type="text" /></label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Captions</legend>
-        <div class="grid-2">
-          <label>Preset <input v-model="form.captions.preset" type="text" /></label>
-          <label>Position <input v-model="form.captions.position" type="text" /></label>
-          <label>Font treatment <input v-model="form.captions.font_treatment" type="text" /></label>
-          <label>Animation <input v-model="form.captions.animation" type="text" /></label>
-        </div>
-      </fieldset>
-
-      <div class="form-footer">
-        <button type="submit" class="primary" :disabled="saving">
-          {{ saving ? 'Saving…' : 'Save channel' }}
-        </button>
-      </div>
-    </form>
+      </template>
+    </main>
   </section>
 </template>
 
 <style scoped>
-/* Channel editor — the prototype's `.ch-body` section stack. Each fieldset
-   is a raised, lit panel; every control is the recessed field primitive with
-   a mono/uppercase eyebrow; the accent duotone is reserved for the primary
-   action and the focus ring. */
-
-.editor {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 24px 20px 48px;
-  font-family: var(--body);
-  font-size: 13px;
-  color: var(--text);
+/* The prototype's `.body.chview` and its `ch-*` editor. Where the prototype
+   writes a literal rgba, the port uses the token that already names it. */
+.chview {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
+.ch-detail { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; }
 
-.back {
-  display: inline-block;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.3px;
+.ch-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
   color: var(--muted);
-  text-decoration: none;
-  transition: color 0.14s;
+  padding: 40px;
 }
+.ch-empty h3 { font-family: var(--display); font-size: 16px; color: var(--text); }
 
-.back:hover {
-  color: var(--accent);
-}
-
-h1 {
-  margin: 6px 0 5px;
-  font-family: var(--display);
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.4px;
-  color: var(--text);
-}
-
-.meta-line {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* A recessed well for the identity readout. */
-.meta-line code {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text-2);
-  background: var(--bg-2);
-  border: 1px solid var(--line-soft);
-  padding: 1px 6px;
-  border-radius: 5px;
-}
-
-.actions {
+/* ── Hero ─────────────────────────────────────────────────────────── */
+.ch-hero {
+  padding: 26px 32px 22px;
+  border-bottom: 1px solid var(--line-soft);
   display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  flex-shrink: 0;
-}
-
-/* The template carries bare .primary / .ghost / .danger rather than .btn,
-   so the shared button primitive is restated here on the element itself. */
-button {
-  border: 1px solid var(--line);
-  background: var(--panel-grad);
-  color: var(--text);
-  border-radius: var(--r-s);
-  padding: 9px 14px;
-  font-family: var(--body);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  white-space: nowrap;
-  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
-  transition: background 0.16s, border-color 0.16s, color 0.14s,
-    box-shadow 0.16s, transform 0.12s var(--ease-spring);
+  gap: 20px;
+  position: relative;
+  overflow: hidden;
 }
 
-button:hover:not(:disabled) {
-  background: var(--panel-grad2);
-  border-color: var(--line-2);
-  transform: translateY(-1px);
-  box-shadow: var(--hairline-top), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
+/* The channel's own colour bleeding in from the top-left corner. */
+.ch-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .10;
+  background: radial-gradient(420px 200px at 12% -30%, var(--hero-color, var(--accent)), transparent 70%);
+  pointer-events: none;
 }
 
-button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: var(--hairline-top), inset 0 2px 4px rgba(0, 0, 0, 0.35);
+.ch-hero-av {
+  width: 66px;
+  height: 66px;
+  border-radius: 16px;
+  font-size: 26px;
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18),
+    inset 0 0 0 1px rgba(255, 255, 255, .14),
+    0 10px 24px -10px rgba(0, 0, 0, .6);
 }
 
-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
-}
-
-button.primary {
-  background: var(--accent-grad);
-  border-color: transparent;
+.ch-hero-av .av-edit {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, .45);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity .15s;
   color: #fff;
-  font-weight: 600;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast);
 }
 
-button.primary:hover:not(:disabled) {
-  filter: brightness(1.07) saturate(1.05);
-  border-color: transparent;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast-lg);
-}
+.ch-hero-av:hover .av-edit,
+.ch-hero-av:focus-visible .av-edit { opacity: 1; }
 
-button.ghost {
+.ch-hero-main { flex: 1; min-width: 0; z-index: 1; }
+
+.ch-name-input {
+  width: 100%;
   background: transparent;
-  box-shadow: none;
-}
-
-button.ghost:hover:not(:disabled) {
-  background: var(--panel);
-  box-shadow: var(--hairline-top);
-}
-
-/* Ordered after .ghost so the danger wash wins on the `.danger.ghost` rows. */
-button.danger {
-  color: var(--fail);
-  border-color: var(--fail-line);
-}
-
-button.danger:hover:not(:disabled) {
-  background: var(--fail-dim);
-  border-color: var(--fail-line-2);
-}
-
-/* A section is a raised panel lit from above. */
-fieldset {
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  margin: 0 0 16px;
-  padding: 16px 18px 18px;
-  background: var(--panel-grad);
-  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
-  transition: border-color 0.18s;
-}
-
-fieldset:hover {
-  border-color: var(--line-2);
-}
-
-legend {
-  padding: 0 6px;
-  font-family: var(--display);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
+  border: none;
+  outline: none;
   color: var(--text);
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 26px;
+  letter-spacing: -.5px;
+  padding: 0;
+}
+.ch-name-input:focus { color: #fff; }
+
+.ch-hero-sub {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  flex-wrap: wrap;
 }
 
-/* The field eyebrow. The control is a sibling text node's peer inside the
-   same <label>, so `text-transform` and `letter-spacing` are reset on the
-   controls below — otherwise typed values would render uppercased. */
-label {
+.ch-hero-stats { display: flex; gap: 26px; z-index: 1; }
+.ch-stat { text-align: right; }
+.ch-stat .n { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.5px; }
+.ch-stat .l {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.ch-alert { margin: 16px 32px 0; }
+
+/* ── Sections and fields ──────────────────────────────────────────── */
+.ch-body {
+  padding: 24px 32px 40px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 12px;
+  gap: 26px;
+  max-width: 920px;
 }
 
-label.check {
-  flex-direction: row;
+.ch-section h3 {
+  font-family: var(--display);
+  font-size: 13px;
+  margin-bottom: 4px;
+  display: flex;
   align-items: center;
   gap: 9px;
-  font-family: var(--body);
-  font-size: 13px;
-  letter-spacing: 0.1px;
-  text-transform: none;
-  color: var(--text-2);
 }
-
-.narration-check small {
-  display: block;
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--accent);
-  cursor: pointer;
-  flex: none;
-}
-
-input[type="text"],
-input[type="number"],
-input[type="file"],
-textarea,
-select {
-  width: 100%;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  color: var(--text);
-  font-family: var(--body);
-  font-size: 13px;
-  letter-spacing: 0.1px;
-  text-transform: none;
-  padding: 9px 11px;
-  transition: border-color 0.16s, box-shadow 0.16s;
-}
-
-select {
-  cursor: pointer;
-}
-
-input::placeholder {
-  color: var(--faint);
-}
-
-input[type="text"]:focus,
-input[type="number"]:focus,
-input[type="file"]:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: var(--accent-line-2);
-  box-shadow: 0 0 0 3px var(--accent-ring);
-}
-
-input[type="file"] {
-  padding: 7px 9px;
-  font-size: 12px;
-  color: var(--text-2);
-  cursor: pointer;
-}
-
-input[type="file"]:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 14px;
-}
-
-.hint {
-  color: var(--muted);
-  font-size: 12px;
-  margin: 0 0 14px;
-  line-height: 1.5;
-}
-
-.hint code {
+.ch-section h3 svg { color: var(--muted); flex: none; }
+.ch-section .desc { color: var(--muted); font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
+.ch-section .desc code {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0;
   color: var(--text-2);
   background: var(--bg-2);
   border: 1px solid var(--line-soft);
@@ -1213,296 +1527,430 @@ input[type="file"]:disabled {
   border-radius: 5px;
 }
 
-.prompt-preview {
-  margin: 0 0 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--accent-line);
-  border-radius: var(--r-s);
-  background: var(--accent-dim);
-}
+.ch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ch-grid.spaced { margin-top: 14px; }
 
-.prompt-preview-label {
-  display: block;
-  margin-bottom: 7px;
-  color: var(--accent);
+.ch-field { display: flex; flex-direction: column; gap: 8px; }
+.ch-field.wide { margin-top: 14px; }
+.ch-field > label {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.8px;
+  letter-spacing: .8px;
   text-transform: uppercase;
-}
-
-.prompt-preview p {
-  margin: 0;
-  color: var(--text-2);
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.6;
-}
-
-.logo-row {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.logo-preview {
-  width: 120px;
-  height: 120px;
-  border-radius: var(--r);
-  border: 1px dashed var(--line);
+  color: var(--muted);
   display: flex;
   align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: var(--bg-2);
-  box-shadow: var(--hairline-top);
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 11px;
-  flex-shrink: 0;
-  transition: border-color 0.14s, background 0.14s;
+  gap: 7px;
 }
-
-.logo-preview:hover {
-  border-color: var(--accent-line-2);
-}
-
-.logo-preview img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.logo-controls {
-  flex: 1;
-  min-width: 220px;
-}
-
-.thumbnail-row {
-  display: flex;
-  gap: 16px;
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-}
-
-.thumbnail-preview {
-  width: 160px;
-  height: 90px;
-}
-
-.thumbnail-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.watermark-picker {
-  display: grid;
-  grid-template-columns: repeat(3, 34px);
-  gap: 5px;
-  width: max-content;
-  margin: 10px 0 6px;
-  padding: 7px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--bg-2);
-}
-
-.watermark-position {
-  position: relative;
-  width: 34px;
-  height: 28px;
-  padding: 0;
-  border-color: var(--line);
-  border-radius: 5px;
-  background: var(--bg);
-}
-
-.watermark-position span {
-  position: absolute;
-  width: 7px;
-  height: 5px;
-  border-radius: 2px;
-  background: var(--muted);
-}
-
-.watermark-position:nth-child(3n + 1) span { left: 4px; }
-.watermark-position:nth-child(3n + 2) span { left: 50%; transform: translateX(-50%); }
-.watermark-position:nth-child(3n) span { right: 4px; }
-.watermark-position:nth-child(-n + 3) span { top: 4px; }
-.watermark-position:nth-child(n + 4):nth-child(-n + 6) span { top: 50%; transform: translateY(-50%); }
-.watermark-position:nth-child(5) span { transform: translate(-50%, -50%); }
-.watermark-position:nth-child(n + 7) span { bottom: 4px; }
-
-.watermark-position.active {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-}
-
-.watermark-position.active span { background: var(--accent); }
-
-.picker-value {
-  display: block;
-  margin-bottom: 10px;
-  color: var(--muted);
-  font-family: var(--mono);
-}
-
-.track-list {
-  display: grid;
-  gap: 5px;
-  max-height: 220px;
-  margin-top: 12px;
-  overflow: auto;
-}
-
-.track-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+.ch-field > label .note { color: var(--faint); text-transform: none; letter-spacing: 0; }
+.ch-field > label.check {
+  flex-direction: row;
   align-items: center;
   gap: 9px;
-  margin: 0;
-  padding: 8px 10px;
+  font-family: var(--body);
+  font-size: 13px;
+  letter-spacing: .1px;
+  text-transform: none;
+  color: var(--text-2);
+}
+
+.ch-select,
+.ch-input {
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-s);
-  background: var(--bg-2);
+  color: var(--text);
+  font-size: 13px;
+  padding: 9px 11px;
+  font-family: var(--body);
+  width: 100%;
+  transition: border-color .16s, box-shadow .16s;
 }
 
-.track-row small { color: var(--muted); }
+.ch-input.mono { font-family: var(--mono); font-size: 12px; }
+textarea.ch-input { resize: vertical; line-height: 1.5; }
+.ch-input::placeholder { color: var(--faint); }
 
-.pattern-table {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
+.ch-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2379828d' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
 }
 
-.section-outline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+.ch-select:focus,
+.ch-input:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-.section-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 190px;
-  padding: 4px 5px 4px 8px;
-  border: 1px solid var(--accent-line);
-  border-radius: 999px;
-  background: var(--accent-dim);
-  cursor: grab;
-}
+input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex: none; }
 
-.section-chip:active {
-  cursor: grabbing;
-}
+/* The real file inputs stay operable behind the surfaces that trigger them. */
+.hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.upload-btn { flex: none; cursor: pointer; position: relative; }
 
-.drag-handle,
-.section-number {
-  color: var(--accent);
+/* ── Inherited preview strip ──────────────────────────────────────── */
+.ch-preview {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: linear-gradient(180deg, var(--panel), var(--bg-2));
+  padding: 14px 16px;
+}
+.ch-preview .pt {
   font-family: var(--mono);
   font-size: 10px;
-}
-
-.section-chip input[type="text"] {
-  min-width: 72px;
-  padding: 4px 2px;
-  border: 0;
-  background: transparent;
-  font-weight: 600;
-}
-
-.chip-actions {
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
   display: flex;
-  gap: 2px;
-}
-
-.chip-actions button {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  box-shadow: none;
-  font-family: var(--mono);
-  font-size: 11px;
-}
-
-.pattern-head,
-.pattern-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
 }
+.ch-preview-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.ch-pchip {
+  font-size: 11.5px;
+  color: var(--text-2);
+  border: 1px solid var(--line-soft);
+  background: var(--bg-2);
+  border-radius: 20px;
+  padding: 4px 11px 4px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ch-pchip .k { color: var(--muted); font-size: 10px; }
 
+/* ── Music ────────────────────────────────────────────────────────── */
+.ch-path-row { display: flex; gap: 8px; }
+.ch-path-row .ch-input { flex: 1; }
+
+.ch-tracklist { margin-top: 12px; display: flex; flex-direction: column; gap: 5px; max-height: 260px; overflow-y: auto; }
+.ch-track {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: var(--r-s);
+  border: 1px solid var(--line-soft);
+  background: var(--bg-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.ch-track:hover { border-color: var(--line-2); background: var(--panel); color: var(--text); }
+.ch-track.sel { border-color: var(--accent-line-2); background: var(--accent-wash); color: var(--text); }
+.ch-track svg { color: var(--muted); flex: none; }
+.ch-track.sel svg { color: var(--accent); }
+.ch-track .tspan { margin-left: auto; color: var(--faint); flex: none; }
+
+/* Nested inside the row's button, so it is a focusable span rather than a
+   second <button> — auditioning a bed must not also select it. */
+.ch-track-play {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--raise);
+  color: var(--text-2);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex: none;
+  transition: background .12s, color .12s;
+}
+.ch-track-play:hover { background: var(--accent); color: #fff; }
+
+/* ── Narration processing ─────────────────────────────────────────── */
+.ch-narr-row { display: flex; flex-direction: column; gap: 10px; }
+.ch-narr-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+  box-shadow: var(--hairline-top);
+}
+.ch-narr-item .ch-narr-txt { flex: 1; min-width: 0; }
+.ch-narr-item .ch-narr-txt .t { font-size: 13px; font-weight: 600; }
+.ch-narr-item .ch-narr-txt .d { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.narr-select { width: 120px; flex: none; }
+
+/* `.s1-toggle` is the prototype's own choice here — it puts Script Studio's
+   switch in this row. It lives in styles/shared.css for that reason. */
+
+/* ── Script template outline & the pattern table ──────────────────── */
+.ch-tpl-sections { display: flex; flex-direction: column; gap: 6px; }
+.ch-tpl-sec { display: flex; align-items: center; gap: 6px; }
+.ch-tpl-sec .ch-input { flex: 1; }
+.ch-tpl-num {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-dim);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.ch-tpl-mv,
+.ch-tpl-x {
+  flex: none;
+  width: 26px;
+  height: 30px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.ch-tpl-mv:hover:not(:disabled),
+.ch-tpl-x:hover:not(:disabled) { background: var(--panel-2); color: var(--text); }
+.ch-tpl-mv:disabled,
+.ch-tpl-x:disabled { opacity: .3; cursor: not-allowed; }
+.ch-tpl-x:hover:not(:disabled) { color: var(--fail); border-color: var(--fail-line-2); background: var(--fail-dim); }
+.ch-tpl-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+.pattern-table { display: flex; flex-direction: column; gap: 6px; }
+.pattern-head,
+.pattern-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
 .pattern-head {
   font-family: var(--mono);
   font-size: 10px;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: .8px;
 }
+.pattern-actions { display: flex; gap: 6px; }
 
-.pattern-actions {
-  display: flex;
-  gap: 4px;
+/* ── Composed image prompt ────────────────────────────────────────── */
+.ch-imgprev {
+  margin-top: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+  box-shadow: var(--hairline-top);
+  overflow: hidden;
 }
-
-.pattern-actions button {
-  padding: 0;
-  width: 30px;
-  height: 32px;
-  flex: none;
+.ch-imgprev-h {
   font-family: var(--mono);
-  font-size: 12px;
-  border-radius: 6px;
-}
-
-.pattern-actions button.ghost:not(.danger) {
+  font-size: 9.5px;
+  letter-spacing: .5px;
+  text-transform: uppercase;
   color: var(--muted);
-}
-
-.pattern-actions button.ghost:not(.danger):hover:not(:disabled) {
-  color: var(--text);
-}
-
-.error {
-  background: var(--fail-dim);
-  border: 1px solid var(--fail-line);
-  border-radius: var(--r-s);
-  color: var(--fail-text);
-  padding: 11px 13px;
-  font-size: 12.5px;
-  line-height: 1.55;
-  margin-bottom: 12px;
-}
-
-.success {
-  background: var(--ok-dim);
-  border: 1px solid var(--ok-line);
-  border-radius: var(--r-s);
-  color: var(--ok);
-  padding: 11px 13px;
-  font-size: 12.5px;
-  line-height: 1.55;
-  margin-bottom: 12px;
-}
-
-.form-footer {
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--line-soft);
   display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
+  align-items: center;
+  gap: 7px;
+}
+.ch-imgprev-h svg { color: var(--accent); }
+.ch-imgprev-code {
+  display: block;
+  padding: 10px 11px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-@media (max-width: 640px) {
-  .grid-2,
-  .pattern-head,
-  .pattern-row {
-    grid-template-columns: 1fr;
-  }
+/* ── Brand asset drops ────────────────────────────────────────────── */
+.ch-asset-drop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r);
+  background: var(--bg-2);
+  cursor: pointer;
+  position: relative;
+  transition: border-color .13s, background .13s;
+}
+.ch-asset-drop:hover { border-color: var(--accent-line-2); background: var(--panel); }
+
+.ch-asset-img {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+}
+
+/* A transparent PNG needs a checkerboard behind it or it reads as empty. */
+.ch-asset-img.wm-check {
+  display: grid;
+  place-items: center;
+  background-color: #1a1e24;
+  background-image:
+    linear-gradient(45deg, #242a31 25%, transparent 25%),
+    linear-gradient(-45deg, #242a31 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #242a31 75%),
+    linear-gradient(-45deg, transparent 75%, #242a31 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+}
+.ch-asset-img.wm-check img { max-width: 40px; max-height: 40px; }
+
+.ch-asset-ph {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 15px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+}
+.ch-asset-ph.placeholder-logo { background: var(--raise); color: var(--muted); }
+
+.ch-asset-meta { flex: 1; min-width: 0; }
+.ch-asset-meta .t { font-size: 12.5px; font-weight: 600; }
+.ch-asset-meta .d { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.ch-asset-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: none;
+  background: var(--raise);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+.ch-asset-x:hover { background: var(--fail-dim); color: var(--fail); }
+
+.ch-wm-note {
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--ok);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ch-wm-note b { color: var(--text); font-weight: 600; }
+
+/* ── Watermark position picker ────────────────────────────────────── */
+.ch-wm-pos-wrap { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+
+.ch-field-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 11px;
+}
+.ch-field-label .note { color: var(--faint); text-transform: none; letter-spacing: 0; }
+
+.ch-wm-editor { display: flex; align-items: center; gap: 18px; }
+
+/* The frame takes the channel's export aspect, so the picker shows where the
+   mark actually lands rather than where it lands on a square. */
+.ch-wm-frame {
+  position: relative;
+  width: 96px;
+  aspect-ratio: var(--fr, 9/16);
+  max-height: 150px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 8px 20px -10px rgba(0, 0, 0, .7);
+}
+
+.ch-wm-preview { z-index: 2; }
+.ch-wm-preview img { display: block; max-width: 26px; max-height: 16px; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .6)); }
+.ch-wm-preview .wm-dot {
+  display: block;
+  width: 16px;
+  height: 10px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .75);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+}
+
+.ch-wm-grid { display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 34px); gap: 5px; }
+.ch-wm-cell {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 7px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: border-color .12s, background .12s, box-shadow .12s;
+  padding: 0;
+}
+.ch-wm-cell:hover { border-color: var(--line-2); background: var(--panel-2); }
+.ch-wm-cell .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--faint); transition: background .12s, width .12s, height .12s; }
+.ch-wm-cell:hover .dot { background: var(--text-2); }
+.ch-wm-cell.sel {
+  border-color: var(--accent-line-2);
+  background: var(--accent-dim);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.ch-wm-cell.sel .dot { background: var(--accent); width: 10px; height: 10px; }
+
+/* ── Footer ───────────────────────────────────────────────────────── */
+.ch-foot {
+  padding: 14px 32px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+}
+.ch-foot .spacer { flex: 1; }
+
+.ch-dirty {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--warn);
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+.ch-dirty.show { display: flex; }
+
+@media (max-width: 1000px) {
+  .ch-grid { grid-template-columns: 1fr; }
+  .ch-hero { flex-wrap: wrap; }
+  .ch-hero-stats { width: 100%; justify-content: flex-start; gap: 30px; }
+  .pattern-head, .pattern-row { grid-template-columns: 1fr; }
+  .pattern-head { display: none; }
+}
+
+/* The prototype hides the rail here. It is the only way back to the list on
+   this route, so it stacks above the editor instead. */
+@media (max-width: 820px) {
+  .chview { display: block; overflow-y: auto; }
+  .ch-rail { border-right: 0; border-bottom: 1px solid var(--line); }
+  .ch-hero, .ch-body, .ch-foot { padding-left: 18px; padding-right: 18px; }
 }
 </style>

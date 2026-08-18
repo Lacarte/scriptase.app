@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 
 import { getChannel, listChannels } from '@/features/channels/api.js'
 import { useToast } from '@/shared/composables/useToast.js'
+import { channelAccent, channelInitials } from '@/shared/utils/channelIdentity.js'
 import {
   createScript,
   generateNarration,
@@ -182,15 +183,6 @@ function formatDate(value) {
 
 function channelFor(id) {
   return channels.value.find(channel => channel.id === id)
-}
-
-function initials(name) {
-  return String(name || 'S')
-    .split(/\s+/)
-    .slice(0, 2)
-    .map(part => part[0])
-    .join('')
-    .toUpperCase()
 }
 
 function scriptDraft(document, body = document.body) {
@@ -616,7 +608,7 @@ onBeforeUnmount(() => {
           @click="openScript(script)"
         >
           <span class="row1">
-            <span class="cavatar">{{ initials(channelFor(script.channel_id)?.name) }}</span>
+            <span class="ch-avatar" :style="{ background: channelAccent(script.channel_id) }">{{ channelInitials(channelFor(script.channel_id)?.name) }}</span>
             <span class="ctitle">{{ script.title }}</span>
           </span>
           <span class="row2">
@@ -731,7 +723,7 @@ onBeforeUnmount(() => {
       <template v-else-if="selected">
         <div class="s1-doc-head">
           <div class="s1-doc-eyebrow">
-            <span class="cavatar">{{ initials(channelFor(selected.channel_id)?.name) }}</span>
+            <span class="ch-avatar" :style="{ background: channelAccent(selected.channel_id) }">{{ channelInitials(channelFor(selected.channel_id)?.name) }}</span>
             {{ channelFor(selected.channel_id)?.name || 'Channel' }}
             <span class="dot-sep" />
             {{ selected.id }}
@@ -992,10 +984,10 @@ onBeforeUnmount(() => {
 .s1-card:hover { border-color: var(--line-2); background: var(--panel-2); transform: translateY(-1px); }
 .s1-card.sel { border-color: var(--accent-line-2); background: var(--accent-wash); box-shadow: var(--hairline-top), inset 0 0 0 1px var(--accent-line); }
 .s1-card .row1 { display: flex; align-items: center; gap: 8px; }
-.s1-card .cavatar {
-  width: 20px; height: 20px; border-radius: 5px; font-size: 9px; display: grid; place-items: center;
-  color: #fff; font-family: var(--display); font-weight: 600; flex: none; background: var(--accent-grad);
-}
+/* Step 6.4 answered the colour question 6.3 left open: the plate is the
+   shared `.ch-avatar`, tinted from the channel id, so the same channel reads
+   the same here, in a job row and in the Channels rail. */
+.s1-card .ch-avatar { width: 20px; height: 20px; border-radius: 5px; font-size: 9px; }
 .s1-card .ctitle { font-size: 13px; font-weight: 600; letter-spacing: -.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .s1-card .row2 { display: flex; align-items: center; gap: 7px; margin-top: 7px; }
 .s1-card .meta { font-family: var(--mono); font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -1024,10 +1016,7 @@ onBeforeUnmount(() => {
 
 .s1-doc-head { padding: 22px 30px 18px; border-bottom: 1px solid var(--line-soft); }
 .s1-doc-eyebrow { display: flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .5px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; }
-.s1-doc-eyebrow .cavatar {
-  width: 18px; height: 18px; border-radius: 5px; font-size: 8px; display: grid; place-items: center;
-  color: #fff; font-family: var(--display); font-weight: 600; flex: none; background: var(--accent-grad);
-}
+.s1-doc-eyebrow .ch-avatar { width: 18px; height: 18px; border-radius: 5px; font-size: 8px; }
 .s1-title-input {
   width: 100%; background: transparent; border: none; outline: none; color: var(--text);
   font-family: var(--display); font-weight: 600; font-size: 24px; letter-spacing: -.5px; padding: 0;
@@ -1157,21 +1146,8 @@ input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow:
 }
 .s1-proc-reset:hover { color: var(--text-2); border-color: var(--line-2); }
 
-.s1-toggle {
-  width: 38px; height: 22px; border-radius: 20px; background: var(--raise);
-  box-shadow: inset 0 0 0 1px var(--line); position: relative; cursor: pointer; flex: none;
-  transition: background .16s;
-}
-.s1-toggle::after {
-  content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
-  border-radius: 50%; background: var(--muted); transition: transform .16s, background .16s;
-}
-.s1-toggle.on { background: var(--run-dim); box-shadow: inset 0 0 0 1px var(--run-line); }
-.s1-toggle.on::after { transform: translateX(16px); background: var(--run); }
-.s1-toggle.sm { width: 34px; height: 20px; }
-.s1-toggle.sm::after { width: 14px; height: 14px; }
-.s1-toggle.sm.on::after { transform: translateX(14px); }
-.s1-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* `.s1-toggle` itself lives in styles/shared.css: the prototype reuses it in
+   the Channel editor's narration rows, so step 6.4 made it cross-cutting. */
 
 /* ── Document footer ───────────────────────────────────────────────── */
 .s1-doc-foot { display: flex; align-items: center; gap: 10px; padding: 14px 30px; border-top: 1px solid var(--line-soft); background: var(--bg-2); }

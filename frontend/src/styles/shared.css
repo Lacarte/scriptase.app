@@ -453,6 +453,55 @@ pre {
   box-shadow: inset 0 0 0 1px var(--run-line);
 }
 
+/* ================================================================
+   Channel avatar — shared because a Channel is referenced from four
+   places (step 6.4): the Channels rail, its editor hero, a Production
+   job row and a Script library card. The prototype sizes it per context
+   with a descendant rule, so only the base lands here.
+
+   The inner light is the prototype's premium-polish pass; it is what
+   makes the plate read as an object rather than a coloured square.
+   ================================================================ */
+.ch-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 15px;
+  color: #fff;
+  background-size: cover;
+  background-position: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* The name and one metadata line that sit beside an avatar. */
+.ch-meta {
+  min-width: 0;
+}
+
+.ch-meta .nm {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ch-meta .row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
 /* The mono identity tag on a project / channel / instance reference. */
 .project-badge,
 .module-project-badge {
@@ -565,6 +614,54 @@ pre {
 .search-field input::placeholder {
   color: var(--faint);
 }
+
+/* ================================================================
+   Switch — the prototype's `s1-toggle`. It keeps that name because the
+   prototype gives the same control to Script Studio's narration panel
+   and to the Channel editor's narration rows (step 6.4), so it is
+   cross-cutting rather than either view's.
+
+   It reads in the `run` blue, not the accent: it reports a processing
+   state, and the accent already means "selected" beside it.
+   ================================================================ */
+.s1-toggle {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: none;
+  border: none;
+  border-radius: 20px;
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: pointer;
+  transition: background 0.16s;
+}
+
+.s1-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.16s, background 0.16s;
+}
+
+.s1-toggle.on {
+  background: var(--run-dim);
+  box-shadow: inset 0 0 0 1px var(--run-line);
+}
+
+.s1-toggle.on::after {
+  transform: translateX(16px);
+  background: var(--run);
+}
+
+.s1-toggle.sm { width: 34px; height: 20px; }
+.s1-toggle.sm::after { width: 14px; height: 14px; }
+.s1-toggle.sm.on::after { transform: translateX(14px); }
 
 /* ================================================================
    Progress

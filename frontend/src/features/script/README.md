@@ -32,7 +32,9 @@ Two of them live outside this folder because they are not this view's:
 per script is the point there — so `.sel` follows the checkbox rather than a
 single cursor. `.dot-sep`, `.tts-tag`, `.tts-ready` and `.tts-only` are
 cross-cutting and live in `styles/shared.css`, since both the library card and
-that picker carry them.
+that picker carry them. `.s1-toggle` joined them in step 6.4 — the prototype
+gives the same switch to the Channel editor's narration rows, so it keeps this
+view's name without being this view's rule.
 
 Where the prototype writes a literal rgba, the port uses the token that already
 names it (`--accent-line-2`, `--accent-ring`, `--accent-wash`, `--line-2`,
@@ -98,9 +100,9 @@ Accounted for so they do not read as drift:
   reads only `?create=1` from the route, and duplication has no endpoint; both
   are features, not styling. The footer keeps the prototype's spacer and layout
   with Save alone.
-- **The channel avatar's colour.** `cavatar` takes `--accent-grad` and the
-  Channel's initials because `ChannelProfile` carries no colour or code. The
-  `ch-*` family in step 6.4 owns that question.
+- ~~**The channel avatar's colour.**~~ Answered in step 6.4: `cavatar` became
+  the shared `.ch-avatar`, tinted from a hash of the channel id so the same
+  channel reads the same here, in a job row and in the Channels rail.
 - **The 820px breakpoint** hides the rail in the prototype, whose library also
   lives in a modal. There is no modal here, so the rail stacks above the
   document instead of disappearing.

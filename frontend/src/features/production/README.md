@@ -94,8 +94,11 @@ list container here). The `.st-preparing`, `.st-stopping`, `.st-stopped` and
 `.st-draft` spines are absent for the same reason: `JobStatus` has no such
 members. `.job.kb-focus` and `.job:focus-visible` ring a row the prototype's
 arrow-key navigation has landed on; the row is not a tab stop here — the
-chevron is the control and takes the shared `:focus-visible`. The channel
-avatar arrives with the `ch-*` family in step 6.4.
+chevron is the control and takes the shared `:focus-visible`.
+
+The channel avatar landed with the `ch-*` family in step 6.4: `.job-ch` is now
+the prototype's flex row seating a shared `.ch-avatar`, whose colour is derived
+from the channel id so a job row and the Channels rail agree.
 
 The quick actions on a completed row are icon plus label, and the label
 collapses below 1240px so the row keeps its width, returning at 820px where

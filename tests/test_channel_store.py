@@ -147,6 +147,37 @@ class ChannelCrudTests(ChannelStoreTestBase):
         trash_entries = os.listdir(channel_store._trash_dir)
         self.assertTrue(any(created.id in name for name in trash_entries))
 
+    def test_music_library_survives_create_and_update(self):
+        """Step 6.4 — the ported music panel is read-write, not write-only.
+
+        Both constructors used to omit ``music_library``, so every save silently
+        reset the folder and track list to empty.
+        """
+        draft = self._draft()
+        draft["music_library"] = {
+            "folder": "Cinematic beds",
+            "tracks": ["musics/bed_12345678.mp3"],
+        }
+        created = create_channel(draft)
+        self.assertEqual(created.music_library.folder, "Cinematic beds")
+        self.assertEqual(created.music_library.tracks, ["musics/bed_12345678.mp3"])
+        self.assertEqual(
+            get_channel(created.id).music_library.tracks,
+            ["musics/bed_12345678.mp3"],
+        )
+
+        draft["music_library"]["tracks"].append("musics/swell_87654321.mp3")
+        updated = update_channel(
+            created.id, draft, expected_version=created.version
+        )
+        self.assertEqual(
+            updated.music_library.tracks,
+            ["musics/bed_12345678.mp3", "musics/swell_87654321.mp3"],
+        )
+        self.assertEqual(
+            get_channel(created.id).music_library.folder, "Cinematic beds"
+        )
+
     def test_update_without_expected_version_still_bumps(self):
         created = create_channel(self._draft())
         updated = update_channel(created.id, self._draft(name="Renamed"))
