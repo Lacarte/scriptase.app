@@ -4,7 +4,7 @@ import { Handle, Position } from '@vue-flow/core'
 import { useWorkflowStore } from '../stores/workflow.js'
 import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
 import { PORT_COLORS } from '../constants.js'
-import NodeIcon from './NodeIcon.vue'
+import NodeIcon from '@/shared/components/NodeIcon.vue'
 
 // Generic card for every node type — rendering is driven entirely by the
 // registry definition carried in `data` (Automa BlockBasic pattern).

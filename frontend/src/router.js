@@ -56,7 +56,8 @@ export const routes = [
     path: '/schema',
     name: 'schema',
     component: SchemaPage,
-    meta: { title: 'Schema' },
+    // The canvas fills the shell rather than scrolling inside it (step 1.2).
+    meta: { title: 'Schema', fullHeight: true },
   },
   {
     path: '/library',

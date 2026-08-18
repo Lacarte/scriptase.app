@@ -4,7 +4,7 @@ import { useWorkflowStore } from '../stores/workflow.js'
 import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
 import { shouldDisplayField } from '../schema.js'
 import ConfigField from './ConfigField.vue'
-import NodeIcon from './NodeIcon.vue'
+import NodeIcon from '@/shared/components/NodeIcon.vue'
 import { expressionOptions } from '../expressions.js'
 
 const store = useWorkflowStore()

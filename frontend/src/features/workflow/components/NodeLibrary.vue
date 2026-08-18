@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useWorkflowStore } from '../stores/workflow.js'
 import { DRAG_MIME } from '../constants.js'
-import NodeIcon from './NodeIcon.vue'
+import NodeIcon from '@/shared/components/NodeIcon.vue'
 
 const store = useWorkflowStore()
 const query = ref('')
