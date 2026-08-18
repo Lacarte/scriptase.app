@@ -1,5 +1,18 @@
 {
   "done": [],
-  "history": [],
+  "history": [
+    {
+      "ts": "2026-08-17T23:42:07",
+      "step": "phase-0",
+      "event": "start",
+      "detail": "0fb8389"
+    },
+    {
+      "ts": "2026-08-17T23:42:07",
+      "step": "0.1",
+      "event": "start",
+      "detail": ""
+    }
+  ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
 }
