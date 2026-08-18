@@ -19,6 +19,8 @@ import {
   getNodeTypes,
   listExecutions,
   listWorkflows,
+  pauseJob,
+  resumeJob,
   runWorkflow,
   testJobNode,
 } from './api.js'
@@ -77,6 +79,8 @@ const jobCostError = ref('')
 const nodeTypes = ref({})
 /** Last Test Node result shown in the detail panel. */
 const testResult = ref(null)
+const pauseActionRunning = ref(false)
+const pauseActionError = ref('')
 
 /** Free-text stage filter — the input `/` focuses (step 0.3). */
 const stageFilter = ref('')
@@ -177,6 +181,24 @@ async function refreshJobCost(jobId) {
     jobCostError.value = err?.message || String(err)
   } finally {
     jobCostLoading.value = false
+  }
+}
+
+async function toggleJobPause() {
+  if (!activeJobId.value || pauseActionRunning.value) return
+  pauseActionRunning.value = true
+  pauseActionError.value = ''
+  try {
+    const paused = executionStatus.value === 'paused'
+    const data = paused
+      ? await resumeJob(activeJobId.value)
+      : await pauseJob(activeJobId.value)
+    const execution = data?.execution_id || data?.job?.execution_id || executionId.value
+    if (execution) await hydrateFromExecution(execution)
+  } catch (err) {
+    pauseActionError.value = err?.message || String(err)
+  } finally {
+    pauseActionRunning.value = false
   }
 }
 
@@ -648,6 +670,18 @@ onMounted(async () => {
           New Job
         </button>
         <button
+          v-if="activeJobId && ['running', 'paused'].includes(executionStatus)"
+          type="button"
+          class="ghost"
+          :disabled="pauseActionRunning"
+          :aria-label="executionStatus === 'paused' ? 'Resume job' : 'Pause job'"
+          @click="toggleJobPause"
+        >
+          {{ pauseActionRunning
+            ? (executionStatus === 'paused' ? 'Resuming…' : 'Pausing…')
+            : (executionStatus === 'paused' ? 'Resume' : 'Pause') }}
+        </button>
+        <button
           type="button"
           class="ghost"
           :disabled="!workflowId && !selectedWorkflowId"
@@ -730,6 +764,7 @@ onMounted(async () => {
     </div>
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="pauseActionError" class="error" role="alert">{{ pauseActionError }}</p>
     <p v-if="streamError && !error" class="stream-warn" role="status">{{ streamError }}</p>
 
     <!-- Step 9.3: Job cost accounting (generations + cost by stage / instance) -->

@@ -340,14 +340,15 @@ class JobCrudTests(JobStoreTestBase):
             {
                 "queued",
                 "running",
+                "paused",
                 "awaiting_approval",
                 "completed",
                 "failed",
                 "cancelled",
             },
         )
-        # No separate "paused" member — status_reason carries the reason.
-        self.assertNotIn("paused", JOB_STATUSES)
+        # User pause is distinct from an approval checkpoint (step 4.2).
+        self.assertIn("paused", JOB_STATUSES)
 
 
 class SnapshotAndMigrationUnitTests(unittest.TestCase):

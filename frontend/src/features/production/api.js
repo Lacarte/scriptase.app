@@ -136,6 +136,19 @@ export function startJob(jobId, opts = {}) {
   })
 }
 
+/** Pause at a safe node boundary while retaining the serial queue slot. */
+export function pauseJob(jobId, { timeout = 120 } = {}) {
+  return apiPost(`/jobs/${encodeURIComponent(jobId)}/pause`, { timeout })
+}
+
+/** Resume the same execution from its durable pause snapshot. */
+export function resumeJob(jobId, opts = {}) {
+  return apiPost(`/jobs/${encodeURIComponent(jobId)}/resume`, {
+    wait: Boolean(opts.wait),
+    timeout: opts.timeout,
+  })
+}
+
 /**
  * Test a node in isolation without advancing the Job (step 4.2).
  *

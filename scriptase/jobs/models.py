@@ -22,11 +22,11 @@ JOB_ID_RE = re.compile(r"^job_[A-Z0-9]{6}$")
 # Schema version of the on-disk document format (migrations.py).
 JOB_SCHEMA_VERSION = 3
 
-# contracts.md §6 status vocabulary.
-# ``paused`` is not a member — use ``awaiting_approval`` + ``status_reason``.
+# Step 4.2 adds an operator-controlled pause distinct from approval checkpoints.
 JobStatus = Literal[
     "queued",
     "running",
+    "paused",
     "awaiting_approval",
     "completed",
     "failed",
@@ -36,6 +36,7 @@ JobStatus = Literal[
 JOB_STATUSES: tuple[str, ...] = (
     "queued",
     "running",
+    "paused",
     "awaiting_approval",
     "completed",
     "failed",

@@ -104,6 +104,7 @@ _STATUS_PRIORITY: dict[str, int] = {
     "failed": 0,
     "cancelled": 1,
     "awaiting_approval": 2,
+    "paused": 2,
     "running": 3,
     "queued": 3,
     "waiting": 3,

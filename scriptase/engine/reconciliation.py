@@ -11,8 +11,8 @@ staging directories that nobody will clean. On the next boot this module:
 4. Removes stale project lockfiles (dead owner pid)
 5. Removes orphaned ``workflows/.staging`` directories
 
-``awaiting_approval`` is intentionally preserved: step 2.6 released the
-worker and wrote resume state so the next process can approve and continue.
+Durable approval and user pauses are intentionally preserved. Both release
+the worker and write resume state; user pause additionally retains its slot.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ _INTERRUPTED_QUEUE_STATUSES = frozenset({"pending", "running"})
 _INTERRUPTED_NODE_STATUSES = frozenset({"running", "queued", "waiting"})
 
 # Durable pause — must not be collapsed into a failure on reboot.
-AWAITING_APPROVAL_STATUS = "awaiting_approval"
+DURABLE_PAUSE_STATUSES = frozenset({"awaiting_approval", "paused"})
 
 PROCESS_INTERRUPTED_CODE = "PROCESS_INTERRUPTED"
 PROCESS_INTERRUPTED_MESSAGE = (
@@ -125,11 +125,10 @@ def fail_interrupted_execution(
 ) -> dict[str, Any]:
     """Mark a mid-run execution record as failed and persist it.
 
-    Idempotent for already-terminal documents. Does not touch
-    ``awaiting_approval``.
+    Idempotent for terminal documents and durable pauses.
     """
     status = str(record.get("status") or "")
-    if status in TERMINAL_STATUSES or status == AWAITING_APPROVAL_STATUS:
+    if status in TERMINAL_STATUSES or status in DURABLE_PAUSE_STATUSES:
         return record
 
     finished_at = now_iso()
@@ -195,7 +194,7 @@ def reconcile_executions(
         if not isinstance(record, dict):
             continue
         status = str(record.get("status") or "")
-        if status in TERMINAL_STATUSES or status == AWAITING_APPROVAL_STATUS:
+        if status in TERMINAL_STATUSES or status in DURABLE_PAUSE_STATUSES:
             continue
         # running / queued / any other non-terminal status cannot stay live.
         try:
@@ -244,7 +243,7 @@ def reconcile_jobs() -> list[str]:
     * ``running`` → ``failed`` (always)
     * ``queued`` **with** an ``execution_id`` → ``failed`` (was started)
     * ``queued`` without ``execution_id`` → leave (not yet started by the user)
-    * ``awaiting_approval`` → leave (durable pause; step 2.6)
+    * ``awaiting_approval`` / ``paused`` → leave (durable resume state)
     * terminal statuses → leave
     """
     # Local import keeps the engine free of a hard jobs package cycle at
@@ -262,7 +261,7 @@ def reconcile_jobs() -> list[str]:
     finished_at = now_iso()
     for job in candidates:
         status = job.status
-        if status in JOB_TERMINAL or status == AWAITING_APPROVAL_STATUS:
+        if status in JOB_TERMINAL or status in DURABLE_PAUSE_STATUSES:
             continue
         if status == "queued" and not job.execution_id:
             continue

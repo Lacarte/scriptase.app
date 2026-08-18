@@ -45,6 +45,7 @@ from .persistence import (
     generate_execution_id,
     list_queue_records,
     load_execution,
+    load_queue_record,
     save_execution,
     save_queue_record,
 )
@@ -55,6 +56,7 @@ from .validation import validate_workflow, validation_errors
 
 # Non-terminal durable pause — must never be treated as a finished run.
 AWAITING_APPROVAL_STATUS = "awaiting_approval"
+PAUSED_STATUS = "paused"
 
 
 class ExecutionRequestError(ValueError):
@@ -68,6 +70,7 @@ class ExecutionRequestError(ValueError):
 class ActiveExecution:
     scheduler: WorkflowScheduler
     stop_event: threading.Event
+    pause_event: threading.Event
     queue_record: QueueRecord
     thread: threading.Thread | None = None
 
@@ -199,6 +202,64 @@ class ExecutionManager:
         self._running_count = 0
         # execution_id → (position, waiting_total) last broadcast (step 13.1).
         self._queue_positions: dict[str, tuple[int, int]] = {}
+        # A user-paused execution owns its global slot even though its worker
+        # thread has exited. Rebuilt from queue documents on process startup.
+        self._paused_reservations: dict[str, str] = {}
+        self._restore_pause_reservations()
+
+    def _restore_pause_reservations(self) -> None:
+        paused: dict[str, str] = {}
+        if os.path.isdir(self.queue_root):
+            queue_files = os.listdir(self.queue_root)
+        else:
+            queue_files = []
+        for filename in queue_files:
+            execution_id = filename[:-5] if filename.endswith(".json") else ""
+            if not execution_id:
+                continue
+            try:
+                record = load_queue_record(execution_id, root=self.queue_root)
+            except (OSError, ValueError, TypeError):
+                continue
+            if str(record.get("status") or "") != PAUSED_STATUS:
+                continue
+            project_id = str(record.get("project_id") or "")
+            if project_id:
+                paused[execution_id] = project_id
+
+        # The execution document is authoritative. If a process stopped in
+        # the tiny window between persisting it and updating the queue mirror,
+        # repair the mirror here so the retained slot is not lost.
+        if os.path.isdir(self.execution_root):
+            for filename in os.listdir(self.execution_root):
+                execution_id = filename[:-5] if filename.endswith(".json") else ""
+                if not execution_id or ".workflow_snapshot." in filename:
+                    continue
+                try:
+                    execution = load_execution(execution_id, root=self.execution_root)
+                except (OSError, ValueError, TypeError):
+                    continue
+                if str(execution.get("status") or "") != PAUSED_STATUS:
+                    continue
+                project_id = str(execution.get("project_id") or "")
+                if not project_id:
+                    continue
+                paused[execution_id] = project_id
+                try:
+                    queue_record = load_queue_record(execution_id, root=self.queue_root)
+                    if queue_record.get("status") != PAUSED_STATUS:
+                        queue_record["status"] = PAUSED_STATUS
+                        queue_record["finished_at"] = None
+                        save_queue_record(queue_record, root=self.queue_root)
+                except (OSError, ValueError, TypeError):
+                    pass
+
+        for execution_id, project_id in paused.items():
+            if project_id in self._running_projects:
+                continue
+            self._paused_reservations[execution_id] = project_id
+            self._running_projects.add(project_id)
+            self._running_count += 1
 
     @property
     def running_count(self) -> int:
@@ -299,6 +360,7 @@ class ExecutionManager:
         execution_id = generate_execution_id(root=self.execution_root)
         stream = self.events.create(execution_id)
         stop_event = threading.Event()
+        pause_event = threading.Event()
         queue_record = QueueRecord(
             execution_id=execution_id,
             workflow_id=snapshot["workflow_id"],
@@ -328,6 +390,10 @@ class ExecutionManager:
                 queue_record.status = AWAITING_APPROVAL_STATUS
                 queue_record.finished_at = None
                 save_queue_record(queue_record, root=self.queue_root)
+            elif event.get("node_id") is None and event.get("status") == PAUSED_STATUS:
+                queue_record.status = PAUSED_STATUS
+                queue_record.finished_at = None
+                save_queue_record(queue_record, root=self.queue_root)
             stream.emit(event)
 
         scheduler = WorkflowScheduler(
@@ -338,6 +404,7 @@ class ExecutionManager:
             run_mode=run_mode,
             scope_node_ids=scope,
             stop_requested=stop_event.is_set,
+            pause_requested=pause_event.is_set,
             on_event=emit,
             executor_resolver=self.executor_resolver,
             force=force,
@@ -355,7 +422,10 @@ class ExecutionManager:
         stream.emit({"type": "execution_status", "node_id": None, "status": "queued"})
         save_queue_record(queue_record, root=self.queue_root)
         handle = ActiveExecution(
-            scheduler=scheduler, stop_event=stop_event, queue_record=queue_record
+            scheduler=scheduler,
+            stop_event=stop_event,
+            pause_event=pause_event,
+            queue_record=queue_record,
         )
         self.active.set(execution_id, handle)
         self._enqueue(resolved_project, handle)
@@ -583,11 +653,14 @@ class ExecutionManager:
             }
             waiting = len(positions)
             running = self._running_count
+            paused_ids = tuple(self._paused_reservations)
         # Outside the queue lock: ``active`` carries its own lock.
         for execution_id, handle in self.active.items():
             record = getattr(handle, "queue_record", None)
-            if record is not None and record.status == "running":
+            if record is not None and record.status in {"running", PAUSED_STATUS}:
                 positions.setdefault(execution_id, 0)
+        for execution_id in paused_ids:
+            positions.setdefault(execution_id, 0)
         return {
             "positions": positions,
             "waiting": waiting,
@@ -605,6 +678,11 @@ class ExecutionManager:
             handle.thread = threading.current_thread()
             self._run(handle, self.events.create(handle.scheduler.execution_id))
         finally:
+            if handle.scheduler.record.status == PAUSED_STATUS:
+                with self._queue_lock:
+                    self._paused_reservations[handle.scheduler.execution_id] = project_id
+                    self._broadcast_positions_locked()
+                return
             with self._queue_lock:
                 self._running_projects.discard(project_id)
                 self._running_count = max(0, self._running_count - 1)
@@ -643,6 +721,12 @@ class ExecutionManager:
                 handle.queue_record.finished_at = None
                 save_queue_record(handle.queue_record, root=self.queue_root)
                 return
+            if status == PAUSED_STATUS:
+                # User pause is non-terminal and retains the global queue slot.
+                handle.queue_record.status = PAUSED_STATUS
+                handle.queue_record.finished_at = None
+                save_queue_record(handle.queue_record, root=self.queue_root)
+                return
             handle.queue_record.status = (
                 "done" if status in {"succeeded", "partial"}
                 else "cancelled" if status == "cancelled"
@@ -668,6 +752,8 @@ class ExecutionManager:
         # Cancelling a durable pause is a terminal decision, not a live stop.
         if record.get("status") == AWAITING_APPROVAL_STATUS:
             return self._cancel_awaiting_approval(execution_id, record)
+        if record.get("status") == PAUSED_STATUS:
+            return self._cancel_user_pause(execution_id, record)
         handle = self.active.get(execution_id)
         if handle is None:
             raise ExecutionRequestError("EXECUTION_NOT_ACTIVE", "Execution is not active")
@@ -680,6 +766,124 @@ class ExecutionManager:
             "type": "execution_status", "node_id": None, "status": "cancelling"
         })
         return "cancelling"
+
+    def pause(self, execution_id: str) -> str:
+        """Request a durable pause at the next safe node boundary."""
+        record = load_execution(execution_id, root=self.execution_root)
+        status = str(record.get("status") or "")
+        if status in TERMINAL_STATUSES:
+            raise ExecutionRequestError("EXECUTION_TERMINAL", "Execution is already terminal")
+        if status == PAUSED_STATUS:
+            return PAUSED_STATUS
+        if status != "running":
+            raise ExecutionRequestError(
+                "EXECUTION_NOT_RUNNING", "Only a running execution can be paused"
+            )
+        handle = self.active.get(execution_id)
+        if handle is None or handle.thread is None:
+            raise ExecutionRequestError("EXECUTION_NOT_ACTIVE", "Execution is not active")
+        handle.pause_event.set()
+        self.events.create(execution_id).emit({
+            "type": "execution_status",
+            "node_id": None,
+            "status": "pausing",
+            "status_reason": "user_pause",
+        })
+        return "pausing"
+
+    def resume(self, execution_id: str) -> str:
+        """Resume a user-paused execution in its retained queue slot."""
+        record = load_execution(execution_id, root=self.execution_root)
+        if record.get("status") in TERMINAL_STATUSES:
+            raise ExecutionRequestError("EXECUTION_TERMINAL", "Execution is already terminal")
+        if record.get("status") != PAUSED_STATUS:
+            raise ExecutionRequestError("EXECUTION_NOT_PAUSED", "Execution is not paused")
+        try:
+            resume_state = load_resume_state(execution_id, root=resume_root(self.output_dir))
+        except ApprovalError as exc:
+            raise ExecutionRequestError(exc.code, exc.message, details=exc.details) from exc
+
+        existing = self._record_from_document(record)
+        existing.status = "queued"
+        existing.finished_at = None
+        existing.approval = None
+        snapshot = deepcopy(resume_state.workflow_snapshot)
+        stop_event = threading.Event()
+        pause_event = threading.Event()
+        queue_record = QueueRecord(
+            execution_id=execution_id,
+            workflow_id=str(snapshot.get("workflow_id") or existing.workflow_id),
+            project_id=resume_state.project_id or existing.project_id,
+            source="manual",
+            requested_run_mode=resume_state.run_mode or existing.run_mode,
+            target_node_ids=[],
+            requested_at=now_iso(),
+            status="running",
+            started_at=existing.started_at or now_iso(),
+        )
+        stream = self.events.create(execution_id)
+
+        def emit(event: dict[str, Any]) -> None:
+            status = event.get("status") if event.get("node_id") is None else None
+            if status in TERMINAL_STATUSES:
+                queue_record.status = (
+                    "done" if status in {"succeeded", "partial"}
+                    else "cancelled" if status == "cancelled" else "failed"
+                )
+                queue_record.finished_at = now_iso()
+                save_queue_record(queue_record, root=self.queue_root)
+            elif status == AWAITING_APPROVAL_STATUS:
+                queue_record.status = AWAITING_APPROVAL_STATUS
+                queue_record.finished_at = None
+                save_queue_record(queue_record, root=self.queue_root)
+            elif status == PAUSED_STATUS:
+                queue_record.status = PAUSED_STATUS
+                queue_record.finished_at = None
+                save_queue_record(queue_record, root=self.queue_root)
+            stream.emit(event)
+
+        scheduler = WorkflowScheduler(
+            snapshot,
+            project_id=resume_state.project_id,
+            execution_id=execution_id,
+            output_dir=self.output_dir,
+            run_mode=resume_state.run_mode,
+            scope_node_ids=list(resume_state.scope_node_ids),
+            stop_requested=stop_event.is_set,
+            pause_requested=pause_event.is_set,
+            on_event=emit,
+            executor_resolver=self.executor_resolver,
+            force=resume_state.force,
+            input_overrides=resume_state.input_overrides,
+            resume_state=resume_state,
+            existing_record=existing,
+        )
+        handle = ActiveExecution(
+            scheduler=scheduler,
+            stop_event=stop_event,
+            pause_event=pause_event,
+            queue_record=queue_record,
+        )
+        save_execution(scheduler.record, root=self.execution_root, secrets=scheduler.redactor.secrets)
+        save_queue_record(queue_record, root=self.queue_root)
+        self.active.set(execution_id, handle)
+        project_id = resume_state.project_id
+        with self._queue_lock:
+            if execution_id not in self._paused_reservations:
+                self._paused_reservations[execution_id] = project_id
+                self._running_projects.add(project_id)
+                self._running_count += 1
+            self._paused_reservations.pop(execution_id, None)
+            worker = threading.Thread(
+                target=self._pool_worker,
+                args=(project_id, handle),
+                name=f"workflow-pool-{execution_id}",
+                daemon=True,
+            )
+            worker.start()
+            handle.thread = worker
+            self._broadcast_positions_locked()
+        return "resuming"
 
     def approve(
         self,
@@ -834,6 +1038,7 @@ class ExecutionManager:
                 snapshot["extensions"] = extensions
 
         stop_event = threading.Event()
+        pause_event = threading.Event()
         queue_record = QueueRecord(
             execution_id=execution_id,
             workflow_id=str(snapshot.get("workflow_id") or existing.workflow_id),
@@ -873,6 +1078,7 @@ class ExecutionManager:
             run_mode=resume_state.run_mode,
             scope_node_ids=list(resume_state.scope_node_ids),
             stop_requested=stop_event.is_set,
+            pause_requested=pause_event.is_set,
             on_event=emit,
             executor_resolver=self.executor_resolver,
             force=resume_state.force,
@@ -890,7 +1096,10 @@ class ExecutionManager:
         })
 
         handle = ActiveExecution(
-            scheduler=scheduler, stop_event=stop_event, queue_record=queue_record
+            scheduler=scheduler,
+            stop_event=stop_event,
+            pause_event=pause_event,
+            queue_record=queue_record,
         )
         self.active.set(execution_id, handle)
         self._enqueue(resume_state.project_id, handle)
@@ -999,6 +1208,41 @@ class ExecutionManager:
             "type": "execution_finished",
             "node_id": None,
             "status": "cancelled",
+        })
+        return "cancelled"
+
+    def _cancel_user_pause(
+        self,
+        execution_id: str,
+        record: dict[str, Any],
+    ) -> str:
+        """Cancel a durable user pause and release its retained pool slot."""
+        timestamp = now_iso()
+        record["status"] = "cancelled"
+        record["finished_at"] = timestamp
+        save_execution(record, root=self.execution_root)
+        try:
+            queue_record = load_queue_record(execution_id, root=self.queue_root)
+            queue_record["status"] = "cancelled"
+            queue_record["finished_at"] = timestamp
+            save_queue_record(queue_record, root=self.queue_root)
+        except (OSError, ValueError, TypeError):
+            pass
+        self.active.pop(execution_id, None)
+        try:
+            delete_resume_state(execution_id, root=resume_root(self.output_dir))
+        except Exception:
+            pass
+        with self._queue_lock:
+            project_id = self._paused_reservations.pop(execution_id, None)
+            if project_id:
+                self._running_projects.discard(project_id)
+                self._running_count = max(0, self._running_count - 1)
+                self._mark_ready_locked(project_id)
+                self._dispatch_locked()
+                self._broadcast_positions_locked()
+        self.events.create(execution_id).emit({
+            "type": "execution_finished", "node_id": None, "status": "cancelled"
         })
         return "cancelled"
 

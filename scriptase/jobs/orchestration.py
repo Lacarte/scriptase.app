@@ -58,6 +58,8 @@ _EXECUTION_TO_JOB_STATUS: dict[str, str] = {
     "queued": "queued",
     "running": "running",
     "cancelling": "running",
+    "pausing": "running",
+    "paused": "paused",
     "awaiting_approval": "awaiting_approval",
     "succeeded": "completed",
     "partial": "completed",
@@ -480,11 +482,13 @@ def start_job(
     job = get_job(job_id)
     if job.status in TERMINAL_STATUSES:
         raise JobTerminal(job.id, job.status)
-    if job.execution_id and job.status == "running":
+    if job.execution_id and job.status in {
+        "queued", "running", "paused", "awaiting_approval"
+    }:
         raise JobOrchestrationError(
             "JOB_ALREADY_RUNNING",
-            f"Job {job.id} is already linked to execution {job.execution_id}",
-            details={"execution_id": job.execution_id},
+            f"Job {job.id} is already linked to active execution {job.execution_id}",
+            details={"execution_id": job.execution_id, "status": job.status},
         )
 
     source_workflow = workflow if workflow is not None else load_job_workflow(job)
@@ -589,7 +593,9 @@ def sync_job_from_execution(
         if isinstance(approval, Mapping):
             reason = approval.get("reason")
         status_reason = str(reason or "approval")
-    elif job_status in {"running", "queued"} and job.status == "awaiting_approval":
+    elif job_status == "paused":
+        status_reason = "user_pause"
+    elif job_status in {"running", "queued"} and job.status in {"awaiting_approval", "paused"}:
         # Resumed past the checkpoint — clear the pause reason.
         status_reason = None
     elif job_status in TERMINAL_STATUSES:
@@ -722,6 +728,75 @@ def approve_job(
         target=_finalize_job_async,
         args=(job.id, job.execution_id, active_manager),
         name=f"job-approve-finalize-{job.id}",
+        daemon=True,
+    )
+    thread.start()
+    return job
+
+
+def pause_job(
+    job_id: str,
+    *,
+    manager: ExecutionManager | None = None,
+    timeout: float = 120.0,
+) -> Job:
+    """Pause a running Job at the next safe node boundary."""
+    job = get_job(job_id)
+    if job.status in TERMINAL_STATUSES:
+        raise JobTerminal(job.id, job.status)
+    if not job.execution_id:
+        raise JobOrchestrationError("JOB_NOT_STARTED", f"Job {job_id} has no execution_id")
+    job = sync_job_from_execution(job.id, manager=manager)
+    if job.status == "paused":
+        return job
+    if job.status != "running":
+        raise JobOrchestrationError(
+            "JOB_NOT_RUNNING",
+            f"Job {job.id} is not running (status={job.status})",
+            details={"status": job.status, "execution_id": job.execution_id},
+        )
+    active_manager = manager or execution_manager
+    try:
+        active_manager.pause(job.execution_id)
+    except ExecutionRequestError as exc:
+        raise JobOrchestrationError(exc.code, str(exc), details=exc.details) from exc
+    _wait_for_execution(active_manager, job.execution_id, timeout=timeout)
+    return sync_job_from_execution(job.id, manager=active_manager)
+
+
+def resume_job(
+    job_id: str,
+    *,
+    manager: ExecutionManager | None = None,
+    wait: bool = False,
+    timeout: float = 120.0,
+) -> Job:
+    """Resume a paused Job from its persisted execution snapshot."""
+    job = get_job(job_id)
+    if job.status in TERMINAL_STATUSES:
+        raise JobTerminal(job.id, job.status)
+    if not job.execution_id:
+        raise JobOrchestrationError("JOB_NOT_STARTED", f"Job {job_id} has no execution_id")
+    job = sync_job_from_execution(job.id, manager=manager)
+    if job.status != "paused":
+        raise JobOrchestrationError(
+            "JOB_NOT_PAUSED",
+            f"Job {job.id} is not paused (status={job.status})",
+            details={"status": job.status, "execution_id": job.execution_id},
+        )
+    active_manager = manager or execution_manager
+    try:
+        active_manager.resume(job.execution_id)
+    except ExecutionRequestError as exc:
+        raise JobOrchestrationError(exc.code, str(exc), details=exc.details) from exc
+    job = update_job(job.id, status="running", status_reason=None)
+    if wait:
+        _wait_for_execution(active_manager, job.execution_id, timeout=timeout)
+        return sync_job_from_execution(job.id, manager=active_manager)
+    thread = threading.Thread(
+        target=_finalize_job_async,
+        args=(job.id, job.execution_id, active_manager),
+        name=f"job-resume-finalize-{job.id}",
         daemon=True,
     )
     thread.start()
@@ -1190,7 +1265,7 @@ def _wait_for_execution(
     *,
     timeout: float,
 ) -> None:
-    """Block until the execution is terminal **or** durably awaiting approval.
+    """Block until the execution is terminal or durably paused.
 
     ``awaiting_approval`` releases the worker, so the active handle may already
     be gone while the record still shows the pause — treat that as settled.
@@ -1218,7 +1293,9 @@ def _wait_for_execution(
         except FileNotFoundError:
             return
         status = str(record.get("status") or "")
-        if status in {"succeeded", "failed", "cancelled", "partial", "awaiting_approval"}:
+        if status in {
+            "succeeded", "failed", "cancelled", "partial", "awaiting_approval", "paused"
+        }:
             return
         if time.monotonic() >= deadline:
             raise JobOrchestrationError(
@@ -1351,7 +1428,9 @@ __all__ = [
     "kind_for_artifact_ref",
     "load_job_workflow",
     "prepare_workflow_for_job",
+    "pause_job",
     "reject_job",
+    "resume_job",
     "review_node_ids",
     "run_job_repair_cycles",
     "start_job",

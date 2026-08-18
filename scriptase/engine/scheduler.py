@@ -574,6 +574,7 @@ class WorkflowScheduler:
         run_mode: str = "full",
         scope_node_ids: list[str] | None = None,
         stop_requested: Callable[[], bool] | None = None,
+        pause_requested: Callable[[], bool] | None = None,
         force: bool = False,
         sleeper: Callable[[float], None] = time.sleep,
         # Step 11.3: regenerate only these nodes, leaving the rest of the scope
@@ -640,6 +641,7 @@ class WorkflowScheduler:
         self.run_mode = run_mode
         self.scope_node_ids = list(scope_node_ids or [node["id"] for node in workflow.get("nodes", [])])
         self.stop_requested = stop_requested or (lambda: False)
+        self.pause_requested = pause_requested or (lambda: False)
         self.force = force
         self.force_node_ids = set(force_node_ids or [])
         self.sleeper = sleeper
@@ -728,6 +730,7 @@ class WorkflowScheduler:
         exclusive_running = False
         approval_outcome: _NodeOutcome | None = None
         approval_node_id: str | None = None
+        user_paused = False
 
         def finish(node_id: str) -> None:
             completed.add(node_id)
@@ -745,10 +748,12 @@ class WorkflowScheduler:
                 while ready or running:
                     if self.stop_requested():
                         cancelled = True
+                    if self.pause_requested():
+                        user_paused = True
 
                     # Once a checkpoint fires, drain in-flight work but do not
                     # schedule anything new — then release the worker.
-                    if approval_outcome is not None:
+                    if approval_outcome is not None or user_paused:
                         if not running:
                             break
                     else:
@@ -864,6 +869,26 @@ class WorkflowScheduler:
                 ordered_outputs,
                 ordered_errors,
                 persisted,
+            )
+
+        # A user pause is cooperative at the node boundary. Any provider call
+        # already in flight finishes and promotes its artifact before this
+        # durable snapshot is written; no downstream node is admitted.
+        if user_paused and not cancelled and not stopped and len(completed) < len(graph.nodes):
+            persisted = self._enter_user_pause(
+                statuses,
+                node_outputs,
+                node_output_fingerprints,
+            )
+            executed = [node_id for node_id in order if node_id in completed]
+            ordered_outputs = {
+                node_id: node_outputs[node_id] for node_id in order if node_id in node_outputs
+            }
+            ordered_errors = {
+                node_id: errors[node_id] for node_id in order if node_id in errors
+            }
+            return ScheduleResult(
+                "paused", executed, statuses, ordered_outputs, ordered_errors, persisted
             )
 
         handled = any(
@@ -1504,6 +1529,45 @@ class WorkflowScheduler:
             "node_id": node_id,
             "status": "awaiting_approval",
             "approval": approval_summary(checkpoint),
+        })
+        return persisted
+
+    def _enter_user_pause(
+        self,
+        statuses: dict[str, str],
+        node_outputs: dict[str, dict[str, Any]],
+        node_output_fingerprints: dict[str, str],
+    ) -> dict[str, Any]:
+        """Persist a restart-safe operator pause without inventing a checkpoint."""
+        resume = ResumeState(
+            execution_id=self.execution_id,
+            checkpoint_id="",
+            checkpoint_node_id="",
+            workflow_snapshot=deepcopy(self.workflow),
+            project_id=self.project_id,
+            run_mode=self.run_mode,
+            scope_node_ids=list(self.scope_node_ids),
+            node_statuses={key: str(value) for key, value in statuses.items()},
+            node_outputs={
+                key: deepcopy(value)
+                for key, value in node_outputs.items()
+                if isinstance(value, Mapping)
+            },
+            node_output_fingerprints=dict(node_output_fingerprints),
+            force=self.force,
+            input_overrides=deepcopy(self.input_overrides),
+            has_outputs=False,
+        )
+        save_resume_state(resume, root=approval_resume_root(self.output_dir))
+        self.record.status = "paused"
+        self.record.finished_at = None
+        self.record.approval = None
+        persisted = self._persist()
+        self._emit({
+            "type": "execution_status",
+            "node_id": None,
+            "status": "paused",
+            "status_reason": "user_pause",
         })
         return persisted
 

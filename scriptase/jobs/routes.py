@@ -45,7 +45,9 @@ from scriptase.jobs.models import JOB_ID_RE, JOB_STATUSES
 from scriptase.jobs.orchestration import (
     JobOrchestrationError,
     approve_job,
+    pause_job,
     reject_job,
+    resume_job,
     start_job,
     sync_job_from_execution,
     run_node_test,
@@ -128,7 +130,11 @@ def _store_error(exc: Exception):
     if isinstance(exc, JobOrchestrationError):
         status = 409 if exc.code in {
             "JOB_ALREADY_RUNNING",
+            "JOB_NOT_RUNNING",
+            "JOB_NOT_PAUSED",
             "JOB_NOT_AWAITING",
+            "EXECUTION_NOT_RUNNING",
+            "EXECUTION_NOT_PAUSED",
             "EXECUTION_NOT_AWAITING",
             "CHECKPOINT_NOT_AWAITING",
             "APPROVAL_EXPIRED",
@@ -530,6 +536,63 @@ def jobs_test_node(job_id: str):
     response = jsonify(payload)
     response.status_code = 202
     return response
+
+
+@jobs_bp.route("/api/jobs/<job_id>/pause", methods=["POST"])
+def jobs_pause(job_id: str):
+    """Durably pause the running Job at the next safe node boundary."""
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    body, error = _json_body(allow_empty=True)
+    if error:
+        return error
+    try:
+        timeout = float(body.get("timeout", 120.0)) if body else 120.0
+    except (TypeError, ValueError):
+        return _error("BAD_REQUEST", "timeout must be a number", 400)
+    if timeout <= 0 or timeout > 3600:
+        return _error("BAD_REQUEST", "timeout must be between 0 and 3600 seconds", 400)
+    try:
+        document = pause_job(job_id, timeout=timeout)
+    except (
+        JobNotFound, JobTerminal, JobValidationError, JobOrchestrationError, ValueError
+    ) as exc:
+        return _store_error(exc)
+    return jsonify({
+        "job": _job_public(document),
+        "execution_id": document.execution_id,
+        "status": document.status,
+        **_queue_view(document.execution_id),
+    })
+
+
+@jobs_bp.route("/api/jobs/<job_id>/resume", methods=["POST"])
+def jobs_resume(job_id: str):
+    """Resume the same execution from a durable user pause."""
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    body, error = _json_body(allow_empty=True)
+    if error:
+        return error
+    wait = bool(body.get("wait", False)) if body else False
+    try:
+        timeout = float(body.get("timeout", 120.0)) if body else 120.0
+    except (TypeError, ValueError):
+        return _error("BAD_REQUEST", "timeout must be a number", 400)
+    if timeout <= 0 or timeout > 3600:
+        return _error("BAD_REQUEST", "timeout must be between 0 and 3600 seconds", 400)
+    try:
+        document = resume_job(job_id, wait=wait, timeout=timeout)
+    except (
+        JobNotFound, JobTerminal, JobValidationError, JobOrchestrationError, ValueError
+    ) as exc:
+        return _store_error(exc)
+    return jsonify({
+        "job": _job_public(document),
+        "execution_id": document.execution_id,
+        "status": document.status,
+        **_queue_view(document.execution_id),
+    })
 
 
 @jobs_bp.route("/api/jobs/<job_id>/approve", methods=["POST"])

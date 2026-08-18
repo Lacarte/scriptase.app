@@ -568,7 +568,7 @@ Job
 - execution_mode           # manual | assisted | automatic
 - source                   { mode, topic, idea, pasted_script, references[],
                              remove_silence?, speed? } # null = inherit Channel
-- status                   # queued | running | awaiting_approval |
+- status                   # queued | running | paused | awaiting_approval |
                            # completed | failed | cancelled
 - status_reason            # nullable free-text code: approval | budget | user_pause | …
 - current_stage
@@ -587,9 +587,9 @@ Rules:
   Secrets resolve from the instance at runtime and never enter a Job.
 - Job status **derives** from the execution record so the two cannot disagree.
 - A Job is an orchestration object, not a node. It never appears in the node registry.
-- **`paused` vs `awaiting_approval` (resolved):** one status value `awaiting_approval` with
-  `status_reason` distinguishing approval checkpoints, budget ceilings, and explicit user
-  pause. No separate `paused` enum member.
+- **`paused` vs `awaiting_approval` (revised at step 4.2):** `paused` is an explicit
+  operator action and holds the serial queue slot; `awaiting_approval` is a policy/checkpoint
+  state and releases it. Both persist a resume point and survive restart.
 
 `source.mode` values for the Script stage: `automatic | topic | idea | paste | manual`.
 
@@ -924,6 +924,8 @@ Rules:
 - The state survives a process restart and resumes from exactly where it paused.
 - Manual mode approves explicitly; Automatic mode pauses only on configured unrecoverable
   conditions.
+- A user `paused` execution releases its worker thread but retains its global queue slot.
+  Resume continues the same execution from the next unfinished node with prior artifacts.
 
 ---
 
@@ -1028,7 +1030,7 @@ decision freeze.
 |---|---|---|
 | Artifact store layout | Keep V2 per-module dirs; add artifact index alongside | 1.2 |
 | Scene rebind threshold | IoU ≥ 0.6 and span ratio ≤ 1.5× (configurable defaults) | 1.6 |
-| Job `paused` vs `awaiting_approval` | Single status + `status_reason` | 2.6 / 1.4 |
+| Job `paused` vs `awaiting_approval` | Separate states; user pause holds queue slot | 4.2 |
 | Cost currency normalisation | Record as reported; convert at report time | 9.3 |
 | Error-code rename for domains | None — domains alias, codes do not | — |
 | Per-unit provenance runtime | Shape frozen in §1.7 / §2; runtime fallback | 8.3 |
