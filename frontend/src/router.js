@@ -44,7 +44,7 @@ export const routes = [
     path: '/script',
     name: 'script',
     component: ScriptPage,
-    meta: { title: 'Script' },
+    meta: { title: 'Script', fullHeight: true },
   },
   {
     path: '/production',
