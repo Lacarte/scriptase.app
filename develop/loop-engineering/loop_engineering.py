@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import queue
 import re
 import shutil
@@ -815,6 +816,115 @@ def pick_targets(plan: Plan, state: dict, args) -> list[Step]:
     return pending
 
 
+def step_pace(state: dict) -> tuple[float, int]:
+    """Median minutes per completed step, and how many samples back it."""
+    starts, durations = {}, []
+    for event in state.get("history", []):
+        stamp = dt.datetime.fromisoformat(event["ts"])
+        step_id = str(event.get("step", ""))
+        if "." not in step_id:
+            continue
+        if event["event"] == "start":
+            starts[step_id] = stamp
+        elif event["event"] in ("done", "salvaged") and step_id in starts:
+            minutes = (stamp - starts.pop(step_id)).total_seconds() / 60
+            if 0 < minutes < 240:
+                durations.append(minutes)
+    if not durations:
+        return 0.0, 0
+    durations.sort()
+    return durations[len(durations) // 2], len(durations)
+
+
+def run_doctor(plan: Plan, state: dict) -> bool:
+    """Pre-flight the environment before spending agent time on it.
+
+    Every halt this loop has suffered was an environment problem discovered
+    late: a missing permission allowlist burned three fix attempts, an agent
+    that could not authenticate headlessly burned an hour, a read-only agent
+    sandbox would have produced nothing for twenty minutes, and a batch file
+    saved with LF endings closed the console instantly. All of them are
+    checkable in seconds.
+    """
+    ok = True
+
+    def check(label: str, passed: bool, detail: str = "", fatal: bool = True) -> None:
+        nonlocal ok
+        if passed:
+            say(f"{label}: {detail or 'ok'}", icon="✓")
+        else:
+            say(f"{label}: {detail}", icon="✗" if fatal else "!")
+            if fatal:
+                ok = False
+
+    print("\n" + "=" * 72)
+    say("DOCTOR — checking the environment before any agent runs", icon="▶")
+
+    check("venv python", PYTHON.is_file(), str(PYTHON) if PYTHON.is_file()
+          else f"missing — create it: python -m venv {ROOT / 'venv'}")
+
+    node = shutil.which("node")
+    check("node", bool(node), node or "not on PATH — install Node 18+")
+    check("npm", bool(shutil.which("npm")), shutil.which("npm") or "not on PATH")
+
+    modules = ROOT / "frontend" / "node_modules"
+    check("frontend deps", modules.is_dir(),
+          "installed" if modules.is_dir() else "missing — run: cd frontend && npm install")
+
+    check("git repo", (ROOT / ".git").is_dir(), "present" if (ROOT / ".git").is_dir()
+          else "not a git repository; progress detection needs commits")
+
+    dirty = run_capture(["git", "status", "--porcelain"], cwd=ROOT).strip()
+    check("working tree", True,
+          "clean" if not dirty else f"{len(dirty.splitlines())} uncommitted file(s) — "
+          "the guard will absorb them into a baseline commit", fatal=False)
+
+    check("plan parses", bool(plan.steps),
+          f"{len(plan.steps)} steps in {len(plan.phases)} phases")
+    missing_done = [s.id for s in plan.steps if not s.done_when.strip()]
+    check("done-when lines", not missing_done,
+          "every step has one" if not missing_done else f"missing on {missing_done}")
+
+    check("plan epoch", bool(state.get("epoch")),
+          state.get("epoch", "")[:12] or "unset — step ids from an earlier plan may be "
+          "mistaken for this one's", fatal=False)
+
+    # A .bat saved with LF endings closes the console the moment a label is used.
+    bat = ROOT / "develop" / "loop-engineering" / "run.bat"
+    if bat.is_file():
+        raw = bat.read_bytes()
+        lf_only = raw.count(b"\n") - raw.count(b"\r\n")
+        check("run.bat line endings", lf_only == 0,
+              "CRLF" if lf_only == 0 else f"{lf_only} bare LF lines — cmd.exe will exit mid-script")
+
+    allowlist = ROOT / ".claude" / "settings.local.json"
+    check("permission allowlist", allowlist.is_file(),
+          "present" if allowlist.is_file() else
+          "missing — headless agents cannot answer prompts and a denied npm test "
+          "silently cripples the builder", fatal=False)
+
+    if os.environ.get("CLAUDECODE"):
+        check("nested session", False,
+              "running inside Claude Code — the claude builder cannot launch here; "
+              "use a normal terminal or --builder codex", fatal=False)
+
+    for agent in AGENT_CHOICES:
+        found = agent_executable(agent) or shutil.which(agent)
+        check(f"agent {agent}", True, found or "not installed", fatal=False)
+
+    median, samples = step_pace(state)
+    if samples:
+        remaining = sum(1 for s in plan.steps if s.id not in set(state["done"]))
+        eta = median * remaining
+        say(f"pace: {median:.0f} min/step over {samples} samples — "
+            f"{remaining} left ≈ {eta / 60:.1f}h", icon="·")
+
+    print()
+    say("doctor: ready to run" if ok else "doctor: fix the items above first",
+        icon="✓" if ok else "✗")
+    return ok
+
+
 def print_status(plan: Plan, state: dict) -> None:
     done = set(state["done"])
     unfinished_reviews = unfinished_phase_baselines(state)
@@ -832,10 +942,24 @@ def print_status(plan: Plan, state: dict) -> None:
     nxt = next((s for s in plan.steps if s.id not in done), None)
     print(f"\nNext step: {nxt.id} — {nxt.title}" if nxt else "\nAll steps complete.")
 
+    # "When will it be done?" is answerable from this run's own history.
+    median, samples = step_pace(state)
+    if nxt and samples:
+        remaining = sum(1 for s in plan.steps if s.id not in done)
+        eta_minutes = median * remaining
+        finish = dt.datetime.now() + dt.timedelta(minutes=eta_minutes)
+        print(f"Pace: {median:.0f} min/step over {samples} completed step(s) — "
+              f"{remaining} left ≈ {eta_minutes / 60:.1f}h, finishing about "
+              f"{finish:%H:%M}")
+
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--status", action="store_true", help="show plan progress and exit")
+    ap.add_argument("--doctor", action="store_true",
+                    help="check the environment (venv, node, agents, plan, allowlist) and exit")
+    ap.add_argument("--skip-doctor", action="store_true",
+                    help="start even if the pre-flight environment check fails")
     ap.add_argument("--all", action="store_true", help="run every remaining step, phase by phase, to the end of the plan")
     ap.add_argument("--by-phase", action="store_true",
                     help="phase-level cycle: build all steps of a phase, then ONE "
@@ -884,9 +1008,18 @@ def main() -> None:
     if args.by_phase and not (args.all or args.phase is not None or args.until):
         args.all = True  # --by-phase alone means: run everything, phase by phase
 
+    if args.doctor:
+        sys.exit(0 if run_doctor(plan, state) else 1)
+
     if args.status or not (args.all or args.phase is not None or args.until or args.steps):
         print_status(plan, state)
         return
+
+    # An unattended run should never discover a missing venv or an unusable
+    # agent an hour in. --dry-run skips it because it spends nothing anyway.
+    if not args.dry_run and not args.skip_doctor and not run_doctor(plan, state):
+        sys.exit("Refusing to start: the environment is not ready (see doctor above). "
+                 "Re-run with --skip-doctor to override.")
 
     targets = pick_targets(plan, state, args)
     unfinished_reviews = unfinished_phase_baselines(state) if args.by_phase else {}

@@ -376,7 +376,7 @@ def generate_provider_author_guide() -> str:
         "- [Provider Reference](providers.md) — full catalog generated from the hub.",
         "- [Provider template notes](provider-template/README.md) — short scaffold layout notes.",
         "- Normative machine contracts: "
-        "[`contracts.md`](../_dev/loop-engineering/phases-plans/contracts.md) §19–§36.",
+        "[`contracts.md`](../plans/contracts.md) §19–§36.",
         "",
         "Regenerate this guide after any domain or provider change:",
         "",

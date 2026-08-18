@@ -8,7 +8,7 @@ it for real.
 
 ```
 Read the codebase first. I want to [GOAL — e.g. "add X feature"].
-Write three documents in _dev/loop-engineering/phases-plans/:
+Write three documents in plans/:
 
 1. proposition-final.md — the authoritative spec: objective, architectural
    decisions, what must be preserved, data schemas, API surface, security
@@ -31,7 +31,7 @@ containing `step N.M`.
 ## 2. Gate the plan before building
 
 ```
-Review _dev/loop-engineering/phases-plans/implementation-plan.md against
+Review plans/implementation-plan.md against
 proposition-final.md and the real repository. Check every step's
 inputs/outputs against actual code, resolve contradictions in favor of
 working behavior, freeze the machine contracts (schemas, API shapes, error
@@ -47,11 +47,11 @@ problems here — cheapest bugs you'll ever fix.
 Hands-free (the orchestrator):
 
 ```bat
-_dev\loop-engineering\run.bat --status            &:: see progress + next step
-_dev\loop-engineering\run.bat --dry-run --phase 2 &:: preview
-_dev\loop-engineering\run.bat --phase 2           &:: execute until phase 2 done
-_dev\loop-engineering\run.bat --all               &:: run to the end, step-level cycles
-_dev\loop-engineering\run.bat --by-phase          &:: run to the end, PHASE-level cycles
+develop\loop-engineering\run.bat --status            &:: see progress + next step
+develop\loop-engineering\run.bat --dry-run --phase 2 &:: preview
+develop\loop-engineering\run.bat --phase 2           &:: execute until phase 2 done
+develop\loop-engineering\run.bat --all               &:: run to the end, step-level cycles
+develop\loop-engineering\run.bat --by-phase          &:: run to the end, PHASE-level cycles
 ```
 
 `--by-phase` is the "one shot" overnight mode: the builder implements every
@@ -74,7 +74,7 @@ and seed state with `--mark-done-through` / `--sync-git`.
 **Watch it live** — in a second terminal:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File _dev\loop-engineering\watch.ps1
+powershell -ExecutionPolicy Bypass -File develop\loop-engineering\watch.ps1
 ```
 
 The orchestrator streams agent output into its own console and
@@ -105,7 +105,7 @@ The one-liner that ties it together for a brand-new goal:
 
 ```
 Plan first: transform [GOAL] into
-_dev/loop-engineering/phases-plans/implementation-plan.md using the
+plans/implementation-plan.md using the
 phase/step/Done-when format the loop orchestrator parses, gate it against
 the real code, then execute it step by step — validate and commit after
 each step.

@@ -1,7 +1,7 @@
 # Loop Engineering
 
 Plan-aware orchestrator that executes the workflow-builder upgrade
-([phases-plans/implementation-plan.md](phases-plans/implementation-plan.md))
+([../../plans/implementation-plan.md](../../plans/implementation-plan.md))
 step by step: **execute → validate → correct → review → commit**, until the
 selected phase or step range is complete.
 
@@ -28,13 +28,13 @@ opens a foreground, topmost Windows dialog with the result. Pass
 `--no-finish-notification` to suppress both notifications in automation or CI.
 
 ```bat
-_dev\loop-engineering\run.bat --status            &:: where am I? what's next?
-_dev\loop-engineering\run.bat --dry-run --phase 2 &:: what would run
-_dev\loop-engineering\run.bat --phase 2           &:: finish phase 2
-_dev\loop-engineering\run.bat --steps 1           &:: exactly one step
-_dev\loop-engineering\run.bat --all               &:: everything, step-level cycles
-_dev\loop-engineering\run.bat --by-phase          &:: everything, PHASE-level cycles
-_dev\loop-engineering\run.bat --all --no-finish-notification &:: silent finish
+develop\loop-engineering\run.bat --status            &:: where am I? what's next?
+develop\loop-engineering\run.bat --dry-run --phase 2 &:: what would run
+develop\loop-engineering\run.bat --phase 2           &:: finish phase 2
+develop\loop-engineering\run.bat --steps 1           &:: exactly one step
+develop\loop-engineering\run.bat --all               &:: everything, step-level cycles
+develop\loop-engineering\run.bat --by-phase          &:: everything, PHASE-level cycles
+develop\loop-engineering\run.bat --all --no-finish-notification &:: silent finish
 ```
 
 `--by-phase` is the "one shot" mode: the selected builder handles every step of a phase
