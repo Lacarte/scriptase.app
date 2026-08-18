@@ -25,7 +25,6 @@ async function mountShell(path = '/') {
       { path: '/library', component: { template: '<div>library</div>' } },
       { path: '/channels', component: { template: '<div>channels</div>' } },
       { path: '/providers', component: { template: '<div>providers</div>' } },
-      { path: '/workflow', component: { template: '<div>workflow</div>' } },
       { path: '/editor', component: { template: '<div>editor</div>' } },
     ],
   })
@@ -108,13 +107,11 @@ describe('scaffold', () => {
     expect(new Set(shapes).size).toBe(DESTINATIONS.length)
   })
 
-  it('keeps the retired canvas reachable outside the first rank (step 1.5 removes it)', async () => {
+  it('has no editable-canvas navigation entry (step 1.5)', async () => {
     const { wrapper } = await mountShell()
 
-    const secondary = wrapper.find('nav a.secondary-link')
-    expect(secondary.text()).toBe('Workflow')
-    expect(secondary.attributes('href')).toBe('/workflow')
-    expect(secondary.attributes('role')).toBeUndefined()
+    expect(wrapper.find('nav a[href="/workflow"]').exists()).toBe(false)
+    expect(wrapper.find('.secondary-link').exists()).toBe(false)
   })
 
   it('marks the active destination (step 0.3)', async () => {

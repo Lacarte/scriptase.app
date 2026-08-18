@@ -71,10 +71,18 @@ describe('routes (step 1.1)', () => {
 
   it('still routes the paths that survive unchanged', async () => {
     const router = makeRouter()
-    for (const path of ['/', '/channels/ch_ABC123', '/workflow', '/editor']) {
+    for (const path of ['/', '/channels/ch_ABC123', '/editor']) {
       await router.push(path)
       expect(router.currentRoute.value.matched).not.toHaveLength(0)
     }
+  })
+
+  it('retires the editable canvas route (step 1.5)', () => {
+    const router = makeRouter()
+
+    expect(routes.some((route) => route.path === '/workflow')).toBe(false)
+    expect(router.resolve('/workflow').matched).toHaveLength(0)
+    expect(() => router.resolve({ name: 'workflow' })).toThrow()
   })
 
   it('has no route left pointing at a renamed path', () => {

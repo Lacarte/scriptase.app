@@ -76,14 +76,6 @@ export const routes = [
 
   // ---- Reachable, but not destinations --------------------------------
   {
-    // Retired from the nav's first rank by step 1.1 and removed entirely by
-    // step 1.5, once Schema carries projection, inspection and node testing.
-    path: '/workflow',
-    name: 'workflow',
-    component: () => import('./features/workflow/views/WorkflowPage.vue'),
-    meta: { title: 'Workflow Builder', fullHeight: true },
-  },
-  {
     // Lazy on purpose. The ported editor pulls in a 139 KB global
     // stylesheet whose generic class names (.modal-*, .btn-secondary,
     // .toggle-slider) would otherwise bleed into every other view.

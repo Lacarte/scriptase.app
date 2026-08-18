@@ -31,17 +31,11 @@ const navItems = [
 ]
 
 /**
- * The editable canvas is no longer a destination but is still reachable until
- * step 1.5 removes it, once Schema carries projection, inspection and testing.
- */
-const secondaryLinks = [{ to: '/workflow', label: 'Workflow' }]
-
-/**
  * The Editor leaves the app running (step 14.4). It keeps a real `href` so
  * middle-click, "copy link", and a pasted URL all still work — the click
  * handler only upgrades a plain click to a sized window. The Library lost its
- * window link here when it became a destination; Production and Workflow still
- * open it in a window rather than tearing down their SSE stream.
+ * window link here when it became a destination; Production still opens it in
+ * a window rather than tearing down its SSE stream.
  */
 const windowLinks = [{ target: 'editor', label: 'Editor' }]
 
@@ -124,20 +118,6 @@ onBeforeUnmount(() => {
           </router-link>
         </div>
         <div class="nav-windows">
-          <router-link
-            v-for="link in secondaryLinks"
-            :key="link.to"
-            v-slot="{ href, navigate, isActive }"
-            :to="link.to"
-            custom
-          >
-            <a
-              class="secondary-link"
-              :href="href"
-              :class="{ 'router-link-active': isActive }"
-              @click.exact.prevent="goto(navigate)"
-            >{{ link.label }}</a>
-          </router-link>
           <a
             v-for="link in windowLinks"
             :key="link.target"
@@ -277,13 +257,6 @@ nav a.router-link-active {
 .nav-tab.router-link-active :deep(.nav-icon) {
   opacity: 1;
   color: var(--accent);
-}
-
-/* Reachable, but demoted out of the first rank until step 1.5 drops it. */
-.secondary-link {
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 12px;
 }
 
 /* Icon-only controls: a hit area, no chrome until you touch them. */
