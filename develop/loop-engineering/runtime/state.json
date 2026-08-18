@@ -423,6 +423,12 @@
       "step": "6.3",
       "event": "halt",
       "detail": "builder agent exited with code 1"
+    },
+    {
+      "ts": "2026-08-18T14:28:05",
+      "step": "6.3",
+      "event": "start",
+      "detail": ""
     }
   ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
