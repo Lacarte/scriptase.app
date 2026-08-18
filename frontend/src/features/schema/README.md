@@ -77,10 +77,11 @@ is reached.
 
 ## Freeze view
 
-Freeze holds **this view** still. The stream stays open, `liveRecords` keeps
-moving, and only `records` — what the canvas and the inspector draw — is held.
-The badge counts how far behind the view has fallen, and unfreezing shows where
-the run actually got to rather than where it was.
+Freeze holds **this view** still. The stream stays open, `liveRecords` and
+`liveExecutionStatus` keep moving, and only `records` / `executionStatus` —
+what the canvas, inspector and pill draw — are held. The badge counts how far
+behind the view has fallen, and unfreezing shows where the run actually got to
+rather than where it was.
 
 Pausing production is the Production row's job, and this feature has no
 endpoint that could do it even by mistake.

@@ -312,21 +312,26 @@ describe('useSchemaLive (step 1.3)', () => {
 
     host.vm.live.setFrozen(true)
     const held = unref(host.vm.live.records)
+    expect(unref(host.vm.live.executionStatus)).toBe('running')
 
     source.send(frame({ node_id: 'n_two', status: 'succeeded' }))
     source.send(frame({ node_id: 'n_three', status: 'running' }))
+    // Non-terminal status change — the pill would flip if status were not frozen.
+    source.send(frame({ node_id: null, status: 'paused' }))
 
-    // The view is exactly where it was left...
+    // The view is exactly where it was left — cards and pill status alike.
     expect(unref(host.vm.live.records)).toBe(held)
     expect(unref(host.vm.live.records).n_two.status).toBe('running')
     expect(unref(host.vm.live.records).n_three).toBeUndefined()
+    expect(unref(host.vm.live.executionStatus)).toBe('running')
 
     // ...while the run kept going underneath it, on an open stream.
     expect(unref(host.vm.live.liveRecords).n_two.status).toBe('succeeded')
     expect(unref(host.vm.live.liveRecords).n_three.status).toBe('running')
+    expect(unref(host.vm.live.liveExecutionStatus)).toBe('paused')
     expect(source.closed).toBe(false)
     expect(source.close).not.toHaveBeenCalled()
-    expect(unref(host.vm.live.behind)).toBe(2)
+    expect(unref(host.vm.live.behind)).toBe(3)
 
     // Nothing was asked of the backend: freezing is a view state, and this
     // module has no endpoint that could stop, pause or cancel a run.
@@ -336,6 +341,7 @@ describe('useSchemaLive (step 1.3)', () => {
     host.vm.live.setFrozen(false)
     expect(unref(host.vm.live.records).n_two.status).toBe('succeeded')
     expect(unref(host.vm.live.records).n_three.status).toBe('running')
+    expect(unref(host.vm.live.executionStatus)).toBe('paused')
     expect(unref(host.vm.live.behind)).toBe(0)
   })
 

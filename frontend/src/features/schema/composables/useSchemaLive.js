@@ -8,9 +8,9 @@
  * ## Freeze view
  *
  * Freezing stops *this view* repainting. The stream stays open, events keep
- * arriving, and `liveRecords` keeps moving underneath — only `records`, what
- * the canvas and the inspector draw, is held still. Unfreezing shows the run
- * where it actually is, not where it was.
+ * arriving, and `liveRecords` / `liveExecutionStatus` keep moving underneath —
+ * only `records` and `executionStatus` (canvas, inspector, pill) are held
+ * still. Unfreezing shows the run where it actually is, not where it was.
  *
  * That distinction is the whole point: pausing production is the Production
  * row's job, and this module has no endpoint that could do it even by mistake
@@ -38,13 +38,14 @@ export function useSchemaLive(options = {}) {
   const jobId = ref('')
   const job = shallowRef(null)
   const executionId = ref('')
-  const executionStatus = ref('')
   const streamError = ref('')
 
   /** Everything the stream has said. Never stops moving while a run is live. */
   const liveRecords = shallowRef({})
-  /** What the canvas and inspector draw. Held still while frozen. */
+  const liveExecutionStatus = ref('')
+  /** What the canvas, inspector and pill draw. Held still while frozen. */
   const records = shallowRef({})
+  const executionStatus = ref('')
 
   const frozen = ref(false)
   /** Updates the run has made since the view was frozen — shown on the badge. */
@@ -68,6 +69,7 @@ export function useSchemaLive(options = {}) {
   function publish() {
     if (frozen.value) return
     records.value = liveRecords.value
+    executionStatus.value = liveExecutionStatus.value
     behind.value = 0
   }
 
@@ -94,7 +96,7 @@ export function useSchemaLive(options = {}) {
     // so the attached snapshot is the authority, not what we already had.
     if (event.snapshot && typeof event.snapshot === 'object') {
       liveRecords.value = nodeRecordsFromExecution(event.snapshot)
-      if (event.snapshot.status) executionStatus.value = event.snapshot.status
+      if (event.snapshot.status) liveExecutionStatus.value = event.snapshot.status
     }
 
     if (event.node_id) {
@@ -107,7 +109,7 @@ export function useSchemaLive(options = {}) {
       applyNodeEvent(next, event)
       liveRecords.value = next
     } else if (event.status && event.status !== 'reset') {
-      executionStatus.value = event.status
+      liveExecutionStatus.value = event.status
     }
 
     if (frozen.value) behind.value += 1
@@ -152,12 +154,12 @@ export function useSchemaLive(options = {}) {
   function attach(execution, opts = {}) {
     if (!execution) return null
     executionId.value = execution.execution_id || executionId.value
-    executionStatus.value = execution.status || ''
+    liveExecutionStatus.value = execution.status || ''
     liveRecords.value = nodeRecordsFromExecution(execution)
     frozen.value = false
     behind.value = 0
     publish()
-    if (isTerminalExecutionStatus(executionStatus.value)) {
+    if (isTerminalExecutionStatus(liveExecutionStatus.value)) {
       closeStream()
       return null
     }
@@ -172,7 +174,7 @@ export function useSchemaLive(options = {}) {
     const execution = data?.execution || data
     if (!execution) return null
     liveRecords.value = nodeRecordsFromExecution(execution)
-    if (execution.status) executionStatus.value = execution.status
+    if (execution.status) liveExecutionStatus.value = execution.status
     publish()
     return execution
   }
@@ -199,6 +201,7 @@ export function useSchemaLive(options = {}) {
     jobId.value = ''
     job.value = null
     executionId.value = ''
+    liveExecutionStatus.value = ''
     executionStatus.value = ''
     streamError.value = ''
     liveRecords.value = {}
@@ -214,6 +217,7 @@ export function useSchemaLive(options = {}) {
     job,
     executionId,
     executionStatus,
+    liveExecutionStatus,
     streamError,
     records,
     liveRecords,

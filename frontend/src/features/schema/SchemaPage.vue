@@ -116,19 +116,20 @@ const stageNow = computed(() => {
 })
 
 /**
- * The prototype's four pill tones, named from the engine's status rather than
- * from a second ladder. `paused` is the prototype's word for "waiting, not
- * working", which is what an approval gate is.
+ * Prototype `sch-live` tones. `paused` covers both a Production pause and an
+ * approval gate; `cancelled` stays unmapped so it reads neutral like the
+ * prototype, not as "waiting".
  */
 const PILL_TONE = Object.freeze({
   running: 'on',
   queued: 'on',
   waiting: 'on',
+  paused: 'paused',
+  awaiting_approval: 'paused',
   succeeded: 'done',
+  partial: 'done',
   failed: 'fail',
   invalid: 'fail',
-  awaiting_approval: 'paused',
-  cancelled: 'paused',
 })
 
 /**
@@ -139,14 +140,17 @@ const pill = computed(() => {
   if (!bound.value) {
     return { name: '', text: 'Idle · no active job', tone: '' }
   }
+  const status = String(liveStatus.value || '')
+  const tone = PILL_TONE[status] || ''
   const bits = []
   if (stageNow.value) bits.push(stageNow.value)
   bits.push(`${progress.value.percent}%`)
-  if (!liveRunning.value) bits.push(statusLabel(liveStatus.value))
+  // Terminal runs and durable pauses name their status; an active run does not.
+  if (!liveRunning.value || tone === 'paused') bits.push(statusLabel(status))
   return {
     name: liveJobId.value ? `Job ${liveJobId.value}` : `Run ${liveExecutionId.value}`,
     text: bits.join(' · '),
-    tone: PILL_TONE[String(liveStatus.value || '')] || '',
+    tone,
   }
 })
 

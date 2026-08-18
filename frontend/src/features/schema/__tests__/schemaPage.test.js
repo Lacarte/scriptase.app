@@ -442,6 +442,27 @@ describe('the running job on the graph (step 1.3)', () => {
     expect(pill.classes()).toContain('on')
   })
 
+  it('tones a Production-paused run as paused, not idle', async () => {
+    api.getExecution.mockResolvedValue({
+      execution: execution({ status: 'paused' }),
+    })
+    const { wrapper } = await mountLivePage()
+    const pill = wrapper.find('.sch-live')
+    expect(pill.classes()).toContain('paused')
+    expect(pill.text()).toContain('Paused')
+  })
+
+  it('does not paint a cancelled run as paused', async () => {
+    api.getExecution.mockResolvedValue({
+      execution: execution({ status: 'cancelled' }),
+    })
+    const { wrapper } = await mountLivePage()
+    const pill = wrapper.find('.sch-live')
+    expect(pill.classes()).not.toContain('paused')
+    expect(pill.classes()).not.toContain('on')
+    expect(pill.text()).toContain('Cancelled')
+  })
+
   it('animates as the run advances', async () => {
     const { wrapper } = await mountLivePage()
     FakeEventSource.latest().send({
@@ -502,20 +523,26 @@ describe('the running job on the graph (step 1.3)', () => {
     await flushPromises()
 
     const source = FakeEventSource.latest()
+    const pillBefore = wrapper.find('.sch-live').classes()
     source.send({ sequence: 1, execution_id: 'ex_LIVE01', node_id: 'n_speak', status: 'succeeded' })
+    source.send({ sequence: 2, execution_id: 'ex_LIVE01', node_id: null, status: 'paused' })
     await flushPromises()
 
-    // The picture is held still...
+    // The picture is held still — cards and pill tone alike.
     expect(wrapper.findAll('.sch-node')[1].attributes('data-visual')).toBe('active')
+    expect(wrapper.find('.sch-live').classes()).toEqual(pillBefore)
+    expect(wrapper.find('.sch-live').classes()).toContain('on')
     // ...and the run was never asked to stop: the stream is still open, and
     // the badge counts what is waiting behind the freeze.
     expect(source.close).not.toHaveBeenCalled()
-    expect(wrapper.find('.sch-pause').text()).toContain('Frozen · 1')
+    expect(wrapper.find('.sch-pause').text()).toContain('Frozen · 2')
     expect(wrapper.text()).toContain('the job is still running')
 
     await wrapper.find('.sch-pause').trigger('click')
     await flushPromises()
     expect(wrapper.findAll('.sch-node')[1].attributes('data-visual')).toBe('done')
+    expect(wrapper.find('.sch-live').classes()).toContain('paused')
+    expect(wrapper.find('.sch-live').text()).toContain('Paused')
   })
 
   it('paints nothing live until a run is bound', async () => {
