@@ -373,6 +373,12 @@
       "step": "5.3",
       "event": "validation_red",
       "detail": "pytest FAILED:\nTraceback (most recent call last):\n  File \"D:\\@Workspace\\@Development\\@Projects\\SCRIPTASE.app\\venv\\lib\\site-packages\\loguru\\_handler.py\", line 206, in emit\n    self._sink.write(str_record)\n  File \"D:\\@Workspace\\@Development\\@Projects\\SCRIPTASE.app\\venv\\lib\\site-packages\\loguru\\_simple_sinks.py\", line 16, in write\n    self._stream.write(message)\nValueError: I/O operation on closed fi"
+    },
+    {
+      "ts": "2026-08-18T10:02:37",
+      "step": "6.1",
+      "event": "start",
+      "detail": ""
     }
   ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
