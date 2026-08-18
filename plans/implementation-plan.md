@@ -835,6 +835,261 @@ the Repair Router — live as of 11.3 — routes a weak hook back to Script.
 
 ---
 
+## Phase 17 — Adopt the prototype design system
+
+`prototype/scriptase-prototype.html` is the visual and behavioural target. It defines a
+complete "machined control-room" system — tinted ink elevation layers, a blue→violet duotone
+accent used only on primary and active states, layered shadows with a top hairline so
+surfaces read as lit, and spring easing. The app currently uses an unrelated token set
+(`--bg-dark`, `--accent-primary`, …). Swap it wholesale: a half-themed app looks broken.
+
+### 17.1 Port the token set and primitives
+
+Replace `frontend/src/styles/theme.css` with the prototype's `:root` block — the ink scale
+(`--bg`, `--bg-2`, `--panel`, `--panel-2`, `--raise`, `--line`, `--line-soft`, text ramp),
+the duotone accent pair and `--accent-grad`, status colours (`--run`, `--ok`, `--fail`,
+`--warn`, `--queue`, `--sched`) with their dim partners, `--panel-grad` and `--panel-grad2`,
+`--hairline-top`, the three radii, `--shadow` / `--shadow-sm` / `--glow`, `--ease-spring`,
+and the three font stacks. Keep the current names as deprecated aliases mapped onto the new
+values so nothing goes unstyled mid-phase.
+
+**Done when:** every prototype token exists in the theme, the production build succeeds, and no view renders with an unresolved custom property.
+
+### 17.2 Restyle the shipped views onto the new system
+
+Bring Production, Channels, Providers and the export library onto the new primitives: raised
+panels use the panel gradient plus the top hairline, the duotone accent appears only on
+primary and active states, and status badges use the status ramp. The Editor keeps its own
+teal identity deliberately — it mirrors the ported ScriptToScene editor and is excluded from
+this sweep.
+
+**Done when:** no component references a deprecated alias, the four views match the prototype visually, and the Editor retains its distinct teal theme.
+
+### 17.3 The UX floor
+
+The prototype treats these as baseline rather than extras: an animated first-run welcome
+overlay with an Enter Studio button, auto-skipped on deep links; keyboard control (arrow keys
+through the job list, Enter to expand, Space to select, E for editor, R to run, slash for
+search, question mark for the shortcuts sheet, Escape to close); a five-second Undo toast for
+destructive actions instead of a confirm dialog; focus-visible rings on every control;
+reduced-motion honoured by disabling pulses, flows and spinners; tablist semantics with
+aria-current on the nav; aria-labels on icon-only buttons; live-region toasts; and a
+responsive collapse below 820px with no horizontal overflow.
+
+**Done when:** every listed affordance works, reduced-motion disables all looping animation, and a 375px viewport shows no horizontal scrollbar.
+
+---
+
+## Phase 18 — Information architecture and the Schema view
+
+The prototype's nav is Script, Production, Schema, Library, Channels, Providers — ordered
+create, run, monitor, output, configure. Schema is a read-only projection of the running job;
+it never executes anything, which is the one rule the whole project hangs off.
+
+### 18.1 The six-destination nav and routes
+
+Rename the exports route to `/library`, add `/script` and `/schema`, promote provider
+settings to a top-level `/providers`, and render the nav in the prototype's order with an
+icon per item. Keep redirects from every previous path so existing links and the editor's
+deep links survive.
+
+**Done when:** all six destinations route correctly, the nav matches the prototype's order and labels, and every previous route redirects rather than returning a 404.
+
+### 18.2 The Schema graph, projected from the engine
+
+A read-only canvas rendering the workflow as nodes and edges on a virtual grid. Structure
+comes from the backend node registry and the stage projection, never a hardcoded array in the
+frontend. Drag to reposition and right-click to realign (auto-layout, snap to grid, reset,
+fit and centre); two-finger scroll pans and pinch or Ctrl+wheel zooms anchored to the cursor.
+Positions are cosmetic; structure is fixed.
+
+**Done when:** the graph renders from the registry, all navigation and realign actions work, and no frontend file contains a hardcoded node or edge list.
+
+### 18.3 Live animation and the node inspector
+
+Each node reflects the running job: pending dim, active with a glow and live percent, done
+green, failed red, and skipped dashed and struck through. Edges into the active node animate
+with a flowing dash, and a pill shows job, stage and percent. Clicking a node opens a panel
+with its input, output and error for the current job plus status and resolved provider.
+Freeze view stops the canvas repainting and must never pause execution — pausing production
+is the Production row's job.
+
+**Done when:** a running job animates the graph live, the inspector stays in sync as stages advance, and Freeze view demonstrably leaves the job running.
+
+### 18.4 Node actions in the inspector, including test with a provider override
+
+Retiring the editable canvas would otherwise delete step 13.3's capability, so it moves here.
+The inspector carries a Test action with input bindings and a one-shot provider-instance
+override, reusing the existing test panel and the `provider_instance_id` parameter from 13.2.
+Failures surface as the prototype specifies: the node glows red with an inline tooltip, a
+panel lists node, stage, job, reason and error code with Locate node and Retry, and a topbar
+badge counts errors across jobs.
+
+**Done when:** any node can be tested from the inspector against a chosen instance without advancing the bound Job, and a failed node is locatable from the topbar badge in one click.
+
+### 18.5 Retire the editable canvas
+
+With Schema carrying projection, inspection and per-node testing, remove the editable canvas
+route from the UI. The engine stays authoritative and workflows remain editable through the
+API and templates, so this removes a surface rather than a capability. Delete the route and
+its nav entry; leave the node registry, templates and every backend contract untouched.
+
+**Done when:** the editable canvas route is gone, the Full Video template still loads and runs, and the backend workflow API and its tests are unchanged.
+
+---
+
+## Phase 19 — Channel becomes the format, not just the look
+
+The prototype's inherit-with-override pattern: set the house style once on the Channel, and
+let a single script or job diverge without changing it. Four field groups, each shipping its
+`type_version` migration in the same step.
+
+### 19.1 Script template
+
+Add a script template to the Channel: a plain-language structure brief plus an ordered
+section outline such as Hook, Turn, Why, Reframe, Landing. Seed every starter Channel with a
+sensible template and ship a default for Channels that lack one.
+
+**Done when:** a Channel round-trips its brief and ordered sections, existing Channels migrate to the default template, and the editor renders the sections as reorderable chips.
+
+### 19.2 Visual style prompt and prompt composition
+
+Add a visual style prompt to the Channel's visual direction. The per-scene image prompt
+composes as scene subject plus channel visual style plus mood plus aspect — the script
+decides what is in frame, the Channel decides how it looks. Compose in exactly one place,
+consumed by both Scene Director and the image provider, and show a live example of the
+composed prompt in the Channel editor.
+
+**Done when:** two Channels produce visibly different composed prompts from the same scene subject, and the composition lives in a single module with no duplicated string building.
+
+### 19.3 Narration processing
+
+Add remove-silence and speed to the Channel's audio defaults, applied within the TTS stage as
+parameters rather than as separate nodes. A script may override them, and the UI shows
+"inherited" until changed. The active values appear as a compact badge on the Schema TTS
+node.
+
+**Done when:** a Channel's narration settings reach TTS, a per-script override wins over them, and the Schema TTS badge reflects whichever is active.
+
+### 19.4 Music library, thumbnail and the watermark picker
+
+Add a music folder with its track list, a channel thumbnail, and a logo with a nine-position
+watermark picker. Uploads go through the existing managed-asset endpoint with type and size
+validation — never a browser-supplied filesystem path.
+
+**Done when:** a Channel stores a track list, thumbnail and positioned logo, and the export applies the watermark at the chosen position across 9:16, 16:9 and 1:1.
+
+---
+
+## Phase 20 — The Script studio
+
+A new subsystem in which scripts are first-class artifacts owning their text and their
+narration, so a Job built from one skips Script and TTS entirely.
+
+### 20.1 Script model and store
+
+Persist a script with id, title, body, channel, origin (auto, paste, idea or manual), created
+date, word count, estimated duration, and a narration block carrying state (none, generating,
+ready), voice, duration and an audio artifact reference. Reuse the artifact store from step
+1.2 for the audio rather than introducing a second one.
+
+**Done when:** a script round-trips through create, read, update, delete and list, and its narration audio resolves through the artifact store.
+
+### 20.2 The studio surface
+
+Browse and search the library, open and edit a script, and create one by Auto, Paste or
+Topic to Idea. Auto and Idea follow the selected Channel's template from 19.1 and show a
+preview naming the template with its section chips; pasted and hand-written scripts are left
+untouched.
+
+**Done when:** all three create modes work, generated scripts visibly follow the Channel's section outline, and Paste requires no script provider at all.
+
+### 20.3 Narration in the studio
+
+Generate and regenerate narration for a script with an inline player, a voice picker
+defaulting to the Channel's voice, and per-script overrides of remove-silence and speed shown
+as inherited until changed.
+
+**Done when:** a script gains playable narration, regenerating supersedes the previous audio without erasing it, and an overridden value is visibly distinct from an inherited one.
+
+### 20.4 The virality panel
+
+Surface the Phase 16 deterministic scorer per script as an overall gauge plus the
+per-dimension breakdown, run on demand and cached. Advisory only — it never blocks saving a
+script.
+
+**Done when:** scoring a script shows an overall grade with per-dimension detail, re-scoring identical text returns an identical result, and no cloud provider is required.
+
+---
+
+## Phase 21 — Production as a batch orchestrator
+
+### 21.1 Batch job creation
+
+Configure a job as Channel, then script source, then execution mode, and add many to a batch
+before running. The script source accepts an existing studio script, and the flow supports
+selecting several scripts to create one job each.
+
+**Done when:** five selected scripts become five queued jobs in one flow, each carrying its own channel snapshot.
+
+### 21.2 Serial drain with a first-class pause
+
+The queue drains one job at a time, which step 13.1 already defaults to. Add Pause and Resume
+as a real job state: a paused job holds its queue slot so nothing advances past it, and
+resumes from the same stage rather than restarting. Model pause in the engine, not as a
+stop-then-recreate.
+
+**Done when:** pausing the running job stops the queue advancing, resuming continues from the same stage with prior artifacts intact, and a paused job survives a process restart.
+
+### 21.3 Jobs reuse a script's narration
+
+When a job's source is a studio script with ready narration, Script and TTS are skipped: the
+stage projection reports them as skipped for that job, and Schema renders them dashed and
+struck through. The audio comes from the script's artifact instead of being regenerated.
+
+**Done when:** a job built from a narrated script runs without invoking any script or TTS provider, and both stages report as skipped in Production and Schema.
+
+### 21.4 The forty-eight hour archive calendar
+
+Recent jobs show as full rows or cards; anything older packs into a date strip that expands
+on click and remains searchable by name. One component serves both Production and the
+Library.
+
+**Done when:** a single component drives both views, older items collapse into the date strip, and search finds a collapsed item without expanding it first.
+
+### 21.5 Failure handling and advisories
+
+A failure is scoped to one job and never stops the batch — the queue keeps draining. The row
+shows a red bar, a failed badge, the failing stage, and an error banner with the stage rail.
+Offer Retry, Retry Failed, Duplicate and Remove. Retry must invoke the Phase 8 Repair Router
+to repair the smallest responsible scope, not restart from stage zero as the prototype
+simplifies. Add the language-mismatch advisory when a script's language differs from its
+Channel's.
+
+**Done when:** one job failing leaves the rest draining, Retry repairs the failed scope rather than restarting, and a language mismatch warns before the job runs.
+
+---
+
+## Phase 22 — Library and Providers
+
+### 22.1 The Library gallery
+
+Every finished video as a searchable gallery, filterable by channel, with per-item Editor and
+Export actions, reusing the calendar from 21.4. A Library button on a finished Production row
+deep-links to that video.
+
+**Done when:** a finished job deep-links from Production into the Library, and filtering by channel and searching by name both work.
+
+### 22.2 Providers page with a simulate console
+
+One provider per capability with connection status, configuration, Test connection, and a
+Simulate request console showing a per-kind dummy request and response round-trip for API,
+extension and n8n providers. Keys stay masked and are never returned by any response.
+
+**Done when:** each provider kind simulates a round-trip without touching a real endpoint, and a redaction test proves no response carries a credential.
+
+---
+
 ## Step count and sequencing
 
 | Phase | Steps | Notes |
@@ -856,13 +1111,23 @@ the Repair Router — live as of 11.3 — routes a weak hook back to Script.
 | **14 — Editor and export library** | 14.1–14.4 (4) | 14.1 first; 14.2/14.3 parallel after it. |
 | **15 — Chromium and extensions** | 15.1–15.4 (4) | 15.2 is the port blocker; 15.4 is optional-degrading. |
 | **16 — Virality analyzer** | 16.1–16.3 (3) | 16.3 depends on 11.3 being live. |
+| **17 — Prototype design system** | 17.1–17.3 (3) | 17.1 first; 17.2 depends on it. |
+| **18 — IA and the Schema view** | 18.1–18.5 (5) | **18.4 before 18.5** — it rescues 13.3's capability. |
+| **19 — Channel as format** | 19.1–19.4 (4) | Each ships its own migration. 19.1 gates 20.2. |
+| **20 — Script studio** | 20.1–20.4 (4) | 20.1 before the rest; needs 19.1 and 19.3. |
+| **21 — Batch orchestrator** | 21.1–21.5 (5) | 21.2 and 21.3 are engine changes. 21.3 needs 20.1. |
+| **22 — Library and Providers** | 22.1–22.2 (2) | 22.1 reuses 21.4's calendar. |
 
-**70 steps across 17 phases** — 46 delivered (Phases 0–10), 24 remaining (Phases 11–16).
+**93 steps across 23 phases** — 70 delivered (Phases 0–16), 23 remaining (Phases 17–22).
+
+Phases 17–22 rebuild the front end against `prototype/scriptase-prototype.html`, the clickable UI/UX reference. It is a projection reference, not an engine: the node engine stays authoritative and every new view reads from it.
 
 Phase 0–10 critical path (complete):
 0.1 → 0.2 → 0.3 → 0.4 → 1.1 → 1.2 → 1.4 → 1.5 → 2.2 → 2.3 → 3.1 → 1.6 → 5.1 → 7.2 → 8.1 → 8.3 → 9.1.
 
 Phase 11–16 critical path: **11.1 → 11.2 → 11.3 → 12.3 → 12.4 → 13.2 → 13.3 → 16.2 → 16.3**.
+Phase 17–22 critical path: **17.1 → 18.1 → 18.2 → 18.3 → 18.4 → 18.5**, then **19.1 → 19.3 → 20.1 → 20.2 → 20.3 → 21.1 → 21.2 → 21.3**. Phase 22 is independent of that chain once 21.4 exists.
+
 Phases 14 and 15 are independent of that chain and can run in any order — 14 is a frontend
 port over an already-finished backend, 15 is launcher and extension work that touches no app
 code.
