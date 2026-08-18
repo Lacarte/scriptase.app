@@ -62,7 +62,8 @@ class DomainCatalogTests(unittest.TestCase):
                 spec.package,
             )
             self.assertTrue(os.path.isabs(spec.providers_base))
-            self.assertTrue(spec.default_provider)
+            if spec.default_provider is not None:
+                self.assertIn(spec.default_provider, spec.catalog_provider_ids)
             self.assertIn('test_connection', spec.capability_vocabulary)
 
     def test_get_domain_rejects_unknown(self):
@@ -82,14 +83,17 @@ class SingleSourceOfDomainTruthTests(unittest.TestCase):
         for domain_id, spec in DOMAINS.items():
             block = defaults['domains'][domain_id]
             self.assertEqual(block['selected_instance_id'], spec.default_provider)
-            self.assertEqual(
-                block['instances'][spec.default_provider]['type'],
-                spec.default_provider,
-            )
-            self.assertEqual(
-                block['instances'][spec.default_provider]['settings'],
-                {},
-            )
+            if spec.default_provider is None:
+                self.assertEqual(block['instances'], {})
+            else:
+                self.assertEqual(
+                    block['instances'][spec.default_provider]['type'],
+                    spec.default_provider,
+                )
+                self.assertEqual(
+                    block['instances'][spec.default_provider]['settings'],
+                    {},
+                )
 
     def test_validate_settings_accepts_every_catalog_domain(self):
         issues = settings_manager.validate_settings(settings_manager._default_settings())
@@ -120,22 +124,20 @@ class HubSurfaceTests(unittest.TestCase):
         self.assertEqual(hub.list('music'), [])
 
     def test_catalog_serializes_every_domain(self):
-        payload = hub.catalog(selected={'tts': 'kokoro'})
+        payload = hub.catalog(selected={'tts': 'inworld'})
         self.assertEqual(list(payload), list(DOMAINS))
-        self.assertEqual(payload['tts']['selected'], 'kokoro')
+        self.assertEqual(payload['tts']['selected'], 'inworld')
         self.assertIsNone(payload['video']['selected'])
         self.assertEqual(
             [p['id'] for p in payload['script']['providers']],
-            # Discovery order is sorted folder names; scaffold_check is the
-            # step-16.2 demo package (folder drop, no hub/registry edit).
-            ['gemini', 'random_template', 'scaffold_check'],
+            [],
         )
         self.assertEqual([p['id'] for p in payload['scene_director']['providers']], ['n8n'])
 
     def test_shipped_domains_resolve_their_providers(self):
-        self.assertIsNotNone(hub.get('tts', 'kokoro'))
+        self.assertIsNotNone(hub.get('tts', 'inworld'))
         self.assertIsNotNone(hub.get('image', 'gemini_ws'))
-        self.assertIsNotNone(hub.get('video', 'kie_ai'))
+        self.assertIsNotNone(hub.get('video', 'grok_automa'))
         self.assertIsNone(hub.get('tts', 'no_such_provider'))
 
 
@@ -281,8 +283,8 @@ class ProviderRoutesUseTheHubTests(unittest.TestCase):
         domains = resp.get_json()['domains']
         # Flask sorts JSON keys, so compare membership rather than order here.
         self.assertEqual(set(domains), set(DOMAINS))
-        self.assertEqual(domains['tts']['selected'], 'kokoro')
-        self.assertIn('kokoro', [p['id'] for p in domains['tts']['providers']])
+        self.assertEqual(domains['tts']['selected'], 'inworld')
+        self.assertEqual([p['id'] for p in domains['tts']['providers']], ['inworld'])
 
     def test_unknown_domain_is_rejected(self):
         resp = self.client.get('/api/providers/music/anything/settings')
@@ -293,9 +295,9 @@ class ProviderRoutesUseTheHubTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_known_provider_returns_its_manifest(self):
-        resp = self.client.get('/api/providers/tts/kokoro/settings')
+        resp = self.client.get('/api/providers/tts/inworld/settings')
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.get_json()['manifest']['id'], 'kokoro')
+        self.assertEqual(resp.get_json()['manifest']['id'], 'inworld')
 
 
 class NewDomainIsDataOnlyTests(unittest.TestCase):

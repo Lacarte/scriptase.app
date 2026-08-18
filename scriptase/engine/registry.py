@@ -348,8 +348,11 @@ _NODE_TYPES = {
     },
     "tts.generate": {
         # v2: `engine` became `provider_id` (contracts.md §41.3 M1).
-        "type_version": 2,
-        "migrations": {1: "scriptase.engine.config_migrations:tts_generate_1_to_2"},
+        "type_version": 3,
+        "migrations": {
+            1: "scriptase.engine.config_migrations:tts_generate_1_to_2",
+            2: "scriptase.engine.config_migrations:tts_generate_2_to_3",
+        },
         "display_name": "Text to Speech",
         "description": "Generate narration audio from the script.",
         "category": "audio",
@@ -359,15 +362,12 @@ _NODE_TYPES = {
         "config_schema": [
             _provider_field("tts"),
             {"name": "voice", "label": "Voice", "type": "options",
-             "options_source": "tts_voices", "default": "af_heart"},
+             "options_source": "tts_voices", "default": "Ashley"},
             {"name": "speed", "label": "Speed", "type": "number",
              "default": 1.0, "min": 0.5, "max": 2.0, "step": 0.1},
             _provider_options_field("tts"),
         ],
-        # Kokoro owns a process-wide model singleton which is not safe to use
-        # alongside another TTS adapter invocation.  The scheduler treats
-        # this node type as exclusive (including with another provider) so
-        # the registry contract remains conservative and deterministic.
+        # TTS execution remains serialized conservatively across providers.
         "capabilities": {"retry": True, "cancel": False, "parallel_safe": False},
         "executor": "scriptase.engine.adapters.tts:generate",
     },
@@ -428,8 +428,11 @@ _NODE_TYPES = {
     "storyboard.generate": {
         # v2: `provider` became `provider_id`; the two gemini_ws-gated fields
         # moved into per-run provider options (contracts.md §41.3 M2).
-        "type_version": 2,
-        "migrations": {1: "scriptase.engine.config_migrations:storyboard_generate_1_to_2"},
+        "type_version": 3,
+        "migrations": {
+            1: "scriptase.engine.config_migrations:storyboard_generate_1_to_2",
+            2: "scriptase.engine.config_migrations:storyboard_generate_2_to_3",
+        },
         "display_name": "Storyboard",
         "description": "Reference images per scene (never timeline media — see contracts D4).",
         "category": "assets",
@@ -451,8 +454,11 @@ _NODE_TYPES = {
     "animator.generate": {
         # v2: `provider` became `provider_id`; the gated mode/quality/duration/
         # auto_type fields moved into per-run provider options (§41.3 M3).
-        "type_version": 2,
-        "migrations": {1: "scriptase.engine.config_migrations:animator_generate_1_to_2"},
+        "type_version": 3,
+        "migrations": {
+            1: "scriptase.engine.config_migrations:animator_generate_1_to_2",
+            2: "scriptase.engine.config_migrations:animator_generate_2_to_3",
+        },
         "display_name": "Animator",
         "description": "Timeline media (video/image) per scene via the asset grabber.",
         "category": "assets",

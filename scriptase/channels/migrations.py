@@ -91,6 +91,76 @@ def _add_channel_media_library(data: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+_PROTOTYPE_PROVIDER_REPLACEMENTS: dict[str, dict[str, str | None]] = {
+    "script": {
+        "builtin": None,
+        "gemini": None,
+        "random_template": None,
+        "scaffold_check": None,
+    },
+    "tts": {"kokoro": "inworld"},
+    "scene_director": {"builtin": "n8n"},
+    "image": {
+        "gemini": "gemini_ws",
+        "wavespeed": "gemini_ws",
+        "webhook": "gemini_ws",
+        "direct": "gemini_ws",
+        "wavespeed_direct": "gemini_ws",
+        "wavespeed_webhook": "gemini_ws",
+    },
+    "video": {
+        "grok": "grok_automa",
+        "midjourney": "grok_automa",
+        "kie-ai": "grok_automa",
+        "kie_ai": "grok_automa",
+    },
+    "review": {"semantic": None},
+}
+
+
+def _replacement(domain: str, value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    return _PROTOTYPE_PROVIDER_REPLACEMENTS.get(domain, {}).get(value, value)
+
+
+@_register(6)
+def _restrict_provider_references(data: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite direct retired-provider ids in a Channel (step 5.3).
+
+    Named instance ids are intentionally left alone: settings migration v10
+    changes their provider type in place, so their stable references remain
+    valid. Only default instance ids equal a retired type id and need rewriting.
+    """
+    migrated = deepcopy(data)
+    defaults = migrated.get("provider_defaults")
+    if isinstance(defaults, dict):
+        for domain in tuple(defaults):
+            defaults[domain] = _replacement(domain, defaults[domain])
+
+    audio = migrated.get("audio_defaults")
+    if isinstance(audio, dict):
+        audio["tts_provider_instance_id"] = _replacement(
+            "tts", audio.get("tts_provider_instance_id")
+        )
+
+    policies = migrated.get("fallback_policies")
+    if isinstance(policies, dict):
+        for domain, policy in policies.items():
+            if not isinstance(policy, dict):
+                continue
+            policy["primary"] = _replacement(domain, policy.get("primary"))
+            fallbacks = policy.get("fallbacks")
+            if isinstance(fallbacks, list):
+                rewritten: list[str] = []
+                for item in fallbacks:
+                    replacement = _replacement(domain, item)
+                    if isinstance(replacement, str) and replacement and replacement not in rewritten:
+                        rewritten.append(replacement)
+                policy["fallbacks"] = rewritten
+    return migrated
+
+
 # Future schema changes register the next consecutive target here and land in
 # the same step that changes the model (CLAUDE.md non-negotiable).
 

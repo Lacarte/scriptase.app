@@ -47,35 +47,24 @@ from scriptase.engine.validation import validate_workflow, validation_errors
 # contracts.md §40.3 — the complete accepted-input alias table (both directions
 # of the frozen map, input column only after 16.1 retired the emit column).
 DOCUMENTED_ALIASES = {
-    ("script", "builtin"): "gemini",
-    ("script", "gemini"): "gemini",
     ("scene_director", "builtin"): "n8n",
     ("scene_director", "n8n"): "n8n",
-    ("tts", "kokoro"): "kokoro",
     ("tts", "inworld"): "inworld",
     ("image", "gemini"): "gemini_ws",
     ("image", "gemini_ws"): "gemini_ws",
-    ("image", "webhook"): "wavespeed_webhook",
-    ("image", "wavespeed_webhook"): "wavespeed_webhook",
-    ("image", "direct"): "wavespeed_direct",
-    ("image", "wavespeed_direct"): "wavespeed_direct",
     ("video", "grok"): "grok_automa",
     ("video", "midjourney"): "grok_automa",
     ("video", "grok_automa"): "grok_automa",
-    ("video", "kie-ai"): "kie_ai",
-    ("video", "kie_ai"): "kie_ai",
 }
 
 # contracts.md §40.1 — legacy request / config field names and their v2 target.
 LEGACY_SELECTION_FIELDS = (
     # (surface, legacy_key, example_value, domain, canonical)
-    ("node_config_tts", "engine", "kokoro", "tts", "kokoro"),
-    ("node_config_storyboard", "provider", "webhook", "image", "wavespeed_webhook"),
+    ("node_config_tts", "engine", "inworld", "tts", "inworld"),
+    ("node_config_storyboard", "provider", "gemini", "image", "gemini_ws"),
     ("node_config_animator", "provider", "grok", "video", "grok_automa"),
     ("http_override", "provider_override", "gemini", "image", "gemini_ws"),
-    ("http_legacy", "provider", "kie-ai", "video", "kie_ai"),
     ("pipeline", "tts_provider", "inworld", "tts", "inworld"),
-    ("pipeline", "storyboard_provider", "direct", "image", "wavespeed_direct"),
     ("pipeline", "animator_provider_override", "midjourney", "video", "grok_automa"),
     ("preflight", "storyboard_provider", "gemini", "image", "gemini_ws"),
     ("preflight", "asset_provider", "grok", "video", "grok_automa"),
@@ -177,7 +166,7 @@ class SelectionAliasAndSettingsFormatTests(unittest.TestCase):
         self.assertEqual(resolve_secret_refs({"api_key": key})["api_key"], "sk-keep")
         # Every catalog domain is present after the upgrade.
         self.assertEqual(set(once["domains"]), set(DOMAINS))
-        self.assertEqual(once["domains"]["script"]["selected_instance_id"], "gemini")
+        self.assertIsNone(once["domains"]["script"]["selected_instance_id"])
         self.assertEqual(
             once["domains"]["scene_director"]["selected_instance_id"], "n8n"
         )
@@ -281,14 +270,15 @@ class NodeConfigMigrationMatrixTests(unittest.TestCase):
         }
         result = migrate_workflow(document)
         by_id = {node["id"]: node for node in result.document["nodes"]}
-        self.assertEqual(by_id["n_tts"]["type_version"], 2)
-        self.assertEqual(by_id["n_tts"]["configuration"]["provider_id"], "kokoro")
+        self.assertEqual(by_id["n_tts"]["type_version"], 3)
+        self.assertEqual(by_id["n_tts"]["configuration"]["provider_id"], "inworld")
+        self.assertEqual(by_id["n_tts"]["configuration"]["voice"], "Ashley")
         self.assertNotIn("engine", by_id["n_tts"]["configuration"])
-        self.assertEqual(by_id["n_sb"]["type_version"], 2)
+        self.assertEqual(by_id["n_sb"]["type_version"], 3)
         self.assertEqual(
-            by_id["n_sb"]["configuration"]["provider_id"], "wavespeed_webhook"
+            by_id["n_sb"]["configuration"]["provider_id"], "gemini_ws"
         )
-        self.assertEqual(by_id["n_an"]["type_version"], 2)
+        self.assertEqual(by_id["n_an"]["type_version"], 3)
         self.assertEqual(by_id["n_an"]["configuration"]["provider_id"], "grok_automa")
         # Source document is never mutated.
         self.assertEqual(document["nodes"][0]["type_version"], 1)
@@ -333,7 +323,6 @@ class BuiltInTemplateMatrixTests(unittest.TestCase):
             [item["template_id"] for item in templates],
             [
                 "full_video",
-                "text_to_video",
                 "narration_only",
                 "storyboard_only",
                 "reexport_existing_project",
@@ -366,7 +355,7 @@ class BuiltInTemplateMatrixTests(unittest.TestCase):
                             "storyboard.generate",
                             "animator.generate",
                         }:
-                            self.assertEqual(node["type_version"], 2)
+                            self.assertEqual(node["type_version"], 3)
                             self.assertIn("provider_id", node["configuration"])
                             self.assertNotIn("engine", node["configuration"])
                             self.assertNotIn("provider", node["configuration"])

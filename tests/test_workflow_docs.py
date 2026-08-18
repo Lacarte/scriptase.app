@@ -58,7 +58,6 @@ class NodeReferenceGenerationTests(unittest.TestCase):
     def test_builtin_templates_documented(self):
         for template_id in (
             "full_video",
-            "text_to_video",
             "narration_only",
             "storyboard_only",
             "reexport_existing_project",

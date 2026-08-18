@@ -183,7 +183,7 @@ Field tables are loaded from each domain's request/result models at generation t
 
 ### Script / Story (`script`)
 
-- **Default provider:** `gemini`
+- **Default provider:** `None`
 - **Package:** `scriptase.modules.script.providers`
 - **Providers folder:** `scriptase/modules/script/providers`
 - **Execution shape:** sync document
@@ -255,7 +255,7 @@ Field tables are loaded from each domain's request/result models at generation t
 
 ### Text to Speech (`tts`)
 
-- **Default provider:** `kokoro`
+- **Default provider:** `inworld`
 - **Package:** `scriptase.modules.tts.providers`
 - **Providers folder:** `scriptase/modules/tts/providers`
 - **Execution shape:** sync artifact
@@ -347,7 +347,7 @@ Field tables are loaded from each domain's request/result models at generation t
 
 ### Review (`review`)
 
-- **Default provider:** `semantic`
+- **Default provider:** `None`
 - **Package:** `scriptase.review.providers`
 - **Providers folder:** `scriptase/review/providers`
 - **Execution shape:** sync document
@@ -427,12 +427,12 @@ Snapshot of providers discovered when this guide was generated.
 
 | Domain | Providers |
 |---|---|
-| `script` | `gemini`, `random_template`, `scaffold_check` |
+| `script` | — |
 | `scene_director` | `n8n` |
-| `tts` | `inworld`, `kokoro` |
-| `image` | `gemini_ws`, `wavespeed_direct`, `wavespeed_webhook` |
-| `video` | `grok_automa`, `kie_ai` |
-| `review` | `semantic` |
+| `tts` | `inworld` |
+| `image` | `gemini_ws` |
+| `video` | `grok_automa` |
+| `review` | — |
 | `viral` | `deterministic` |
 
 ## Troubleshooting

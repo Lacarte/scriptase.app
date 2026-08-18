@@ -78,7 +78,12 @@ def _resolve_provider_type(domain, provider_id):
     if err is not None:
         return None, err
     provider = hub.get(domain, provider_id)
-    if provider is not None:
+    # Contract/scaffolder packages may be loadable by internal tests without
+    # being product providers. They are never addressable through the API.
+    if (
+        provider is not None
+        and provider.id in hub.registry(domain).snapshot.providers
+    ):
         return provider, None
     for exclusion in hub.registry(domain).excluded():
         if exclusion["id"] == provider_id:

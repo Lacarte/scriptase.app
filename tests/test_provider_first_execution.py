@@ -166,10 +166,9 @@ class AbstractBaseTests(unittest.TestCase):
     def test_every_shipped_provider_constructs_and_reports_a_job_shape(self):
         """One assertion that spans all seven providers (§21.1 + §33.1)."""
         shipped = [
-            ("tts", "kokoro"), ("tts", "inworld"),
-            ("image", "gemini_ws"), ("image", "wavespeed_direct"),
-            ("image", "wavespeed_webhook"),
-            ("video", "grok_automa"), ("video", "kie_ai"),
+            ("tts", "inworld"),
+            ("image", "gemini_ws"),
+            ("video", "grok_automa"),
         ]
         for domain, provider_id in shipped:
             with self.subTest(provider=f"{domain}/{provider_id}"):

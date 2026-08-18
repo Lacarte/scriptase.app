@@ -640,12 +640,18 @@ class CatalogSnapshot:
     """
 
     providers: dict[str, ProviderInstance] = field(default_factory=dict)
+    # Loadable contract/scaffolder demonstrations that deliberately do not
+    # appear in list/catalogue responses.
+    contract_providers: dict[str, ProviderInstance] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
     exclusions: tuple[ProviderExclusion, ...] = ()
 
     def resolve(self, provider_id: str) -> ProviderInstance | None:
         """Exact id first, then alias — a real id always wins (contracts.md §19.3)."""
         found = self.providers.get(provider_id)
+        if found is not None:
+            return found
+        found = self.contract_providers.get(provider_id)
         if found is not None:
             return found
         canonical = self.aliases.get(provider_id)
@@ -661,6 +667,7 @@ class _CatalogBuilder:
     def __init__(self, domain: str):
         self.domain = domain
         self.providers: dict[str, ProviderInstance] = {}
+        self.contract_providers: dict[str, ProviderInstance] = {}
         self.exclusions: list[ProviderExclusion] = []
 
     def exclude(self, provider_id: str, reason_code: str, message: str) -> None:
@@ -689,6 +696,13 @@ class _CatalogBuilder:
         )
         return True
 
+    def add_contract(self, instance: ProviderInstance) -> bool:
+        """Register a package for contract execution, not product discovery."""
+        if instance.domain != self.domain:
+            return False
+        self.contract_providers[instance.id] = instance
+        return True
+
     def build(self) -> CatalogSnapshot:
         """Resolve aliases last, so a real id always beats an alias (§19.3)."""
         aliases: dict[str, str] = {}
@@ -708,6 +722,7 @@ class _CatalogBuilder:
                 aliases[alias] = provider.id
         return CatalogSnapshot(
             providers=dict(self.providers),
+            contract_providers=dict(self.contract_providers),
             aliases=aliases,
             exclusions=tuple(self.exclusions),
         )
@@ -724,12 +739,16 @@ class ProviderRegistry:
         domain: str,
         valid_domains: frozenset[str] | None = None,
         capability_vocabulary: frozenset[str] | None = None,
+        catalog_provider_ids: frozenset[str] | None = None,
+        contract_provider_ids: frozenset[str] | None = None,
     ):
         allowed = self.VALID_DOMAINS if valid_domains is None else valid_domains
         if domain not in allowed:
             raise ValueError(f"Invalid domain: {domain}. Must be one of {sorted(allowed)}")
         self.domain = domain
         self.capability_vocabulary = capability_vocabulary
+        self.catalog_provider_ids = catalog_provider_ids
+        self.contract_provider_ids = contract_provider_ids or frozenset()
         self._snapshot: CatalogSnapshot = EMPTY_SNAPSHOT
         self._lock = threading.RLock()
         self._discovered = False
@@ -772,8 +791,11 @@ class ProviderRegistry:
             self._snapshot = snapshot
         return [
             provider
-            for provider_id, provider in previous.providers.items()
-            if snapshot.providers.get(provider_id) is not provider
+            for provider_id, provider in {
+                **previous.providers,
+                **previous.contract_providers,
+            }.items()
+            if snapshot.resolve(provider_id) is not provider
         ]
 
     def register(
@@ -841,6 +863,15 @@ class ProviderRegistry:
                 continue
             if entry.startswith('_') or entry.startswith('.'):
                 continue
+            is_contract_provider = entry in self.contract_provider_ids
+            if (
+                self.catalog_provider_ids is not None
+                and entry not in self.catalog_provider_ids
+                and not is_contract_provider
+            ):
+                # Intentionally unregistered from the product catalogue. Keep
+                # the package loadable by direct fixture/contract tests.
+                continue
 
             manifest_file = os.path.join(provider_path, 'manifest.py')
             if not os.path.isfile(manifest_file):
@@ -849,7 +880,10 @@ class ProviderRegistry:
 
             instance = self._load_provider(builder, entry, provider_path, manifest_file)
             if instance is not None:
-                builder.add(instance)
+                if is_contract_provider:
+                    builder.add_contract(instance)
+                else:
+                    builder.add(instance)
 
         return builder.build()
 

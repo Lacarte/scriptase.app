@@ -87,6 +87,8 @@ class ProviderHub:
                 domain=domain,
                 valid_domains=frozenset(self._catalog),
                 capability_vocabulary=spec.capability_vocabulary,
+                catalog_provider_ids=spec.catalog_provider_ids,
+                contract_provider_ids=spec.contract_provider_ids,
             )
             self._registries[domain] = created
             return created

@@ -50,11 +50,17 @@ class DomainSpec:
     label: str
     package: str
     providers_base: str
-    default_provider: str
+    default_provider: str | None
     capability_vocabulary: frozenset[str]
     legacy_selection_key: str | None = None
     request_model: str | None = None
     result_model: str | None = None
+    # Product catalogue allowlist. ``None`` deliberately means unrestricted so
+    # fixture/plugin DomainSpecs keep proving folder-only extensibility.  The
+    # shipped specs use an explicit set (including the empty set) so provider
+    # packages can remain on disk for contract tests without reaching the UI.
+    catalog_provider_ids: frozenset[str] | None = None
+    contract_provider_ids: frozenset[str] = frozenset()
 
 
 def _base(*parts: str) -> str:
@@ -76,10 +82,12 @@ DOMAINS: dict[str, DomainSpec] = {
             providers_base=_base("scriptase", "modules", "script", "providers"),
             # Historical AI path (step 13.2). The 12.3 `builtin` bridge ID remains
             # a permanent *input* alias on the gemini package (contracts.md §40.3).
-            default_provider="gemini",
+            default_provider=None,
             capability_vocabulary=_caps("structured_sections", "language_select", "offline"),
             request_model="scriptase.modules.script.providers.contract:ScriptRequest",
             result_model="scriptase.modules.script.providers.contract:ScriptResultPayload",
+            catalog_provider_ids=frozenset(),
+            contract_provider_ids=frozenset({"scaffold_check"}),
         ),
         DomainSpec(
             id="scene_director",
@@ -92,13 +100,14 @@ DOMAINS: dict[str, DomainSpec] = {
             capability_vocabulary=_caps("chaptering", "coherence_scoring", "sfx_report"),
             request_model="scriptase.modules.scene_director.providers.contract:SceneBlueprintRequest",
             result_model="scriptase.modules.scene_director.providers.contract:SceneBlueprintResultPayload",
+            catalog_provider_ids=frozenset({"n8n"}),
         ),
         DomainSpec(
             id="tts",
             label="Text to Speech",
             package="scriptase.modules.tts.providers",
             providers_base=_base("scriptase", "modules", "tts", "providers"),
-            default_provider="kokoro",
+            default_provider="inworld",
             capability_vocabulary=_caps(
                 "streaming",
                 "voice_list",
@@ -112,6 +121,7 @@ DOMAINS: dict[str, DomainSpec] = {
             legacy_selection_key="sts-tts-provider",
             request_model="scriptase.modules.tts.providers.contract:TTSRequest",
             result_model="scriptase.modules.tts.providers.contract:TTSResultPayload",
+            catalog_provider_ids=frozenset({"inworld"}),
         ),
         DomainSpec(
             id="image",
@@ -136,6 +146,7 @@ DOMAINS: dict[str, DomainSpec] = {
             legacy_selection_key="sts-storyboard-provider",
             request_model="scriptase.modules.image.providers.contract:StoryboardRequest",
             result_model="scriptase.modules.image.providers.contract:StoryboardResultPayload",
+            catalog_provider_ids=frozenset({"gemini_ws"}),
         ),
         DomainSpec(
             id="video",
@@ -156,6 +167,7 @@ DOMAINS: dict[str, DomainSpec] = {
             legacy_selection_key="sts-asset-provider",
             request_model="scriptase.modules.video.providers.contract:AnimatorRequest",
             result_model="scriptase.modules.video.providers.contract:AnimatorResultPayload",
+            catalog_provider_ids=frozenset({"grok_automa"}),
         ),
         # Step 7.3 — sixth domain. Semantic / AI review producing structured
         # ReviewIssue records. Deterministic technical validators (7.1) stay
@@ -165,7 +177,7 @@ DOMAINS: dict[str, DomainSpec] = {
             label="Review",
             package="scriptase.review.providers",
             providers_base=_base("scriptase", "review", "providers"),
-            default_provider="semantic",
+            default_provider=None,
             capability_vocabulary=_caps(
                 "image_review",
                 "video_review",
@@ -174,6 +186,7 @@ DOMAINS: dict[str, DomainSpec] = {
             ),
             request_model="scriptase.review.providers.contract:ReviewRequest",
             result_model="scriptase.review.providers.contract:ReviewResultPayload",
+            catalog_provider_ids=frozenset(),
         ),
         # Step 16.2 — seventh domain, and the only *optional* one: no stage
         # depends on a virality score, so a graph without `script.analyze`
@@ -200,6 +213,7 @@ DOMAINS: dict[str, DomainSpec] = {
             ),
             request_model="scriptase.modules.viral.providers.contract:ViralRequest",
             result_model="scriptase.modules.viral.providers.contract:ViralResultPayload",
+            catalog_provider_ids=frozenset({"deterministic"}),
         ),
     )
 }

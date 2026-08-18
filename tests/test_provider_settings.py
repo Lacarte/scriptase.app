@@ -555,7 +555,7 @@ class MigrationSequencingTests(unittest.TestCase):
         data = json.loads(json.dumps(V1_SETTINGS))
         data['domains']['tts']['selected_provider'] = 'kokoro'
         migrated, _ = apply_migrations(data, {'sts-tts-provider': 'inworld'})
-        self.assertEqual(migrated['domains']['tts']['selected_instance_id'], 'kokoro')
+        self.assertEqual(migrated['domains']['tts']['selected_instance_id'], 'inworld')
 
     def test_migration_is_lossless(self):
         from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
@@ -568,7 +568,10 @@ class MigrationSequencingTests(unittest.TestCase):
         # Domains added to the catalog after the file was written are backfilled.
         self.assertEqual(set(migrated['domains']), set(DOMAINS))
         for domain_id, spec in DOMAINS.items():
-            self.assertTrue(migrated['domains'][domain_id]['selected_instance_id'])
+            self.assertEqual(
+                migrated['domains'][domain_id]['selected_instance_id'],
+                spec.default_provider,
+            )
             self.assertIn('instances', migrated['domains'][domain_id])
 
     def test_an_already_current_document_is_idempotent(self):
@@ -746,7 +749,7 @@ class ProviderApiRedactionTests(unittest.TestCase):
         catalog = self.client.get('/api/providers').get_json()['domains']
         by_id = {p['id']: p for p in catalog['tts']['providers']}
         self.assertEqual(by_id['inworld']['availability'], AVAILABLE)
-        self.assertEqual(by_id['kokoro']['availability'], AVAILABLE)
+        self.assertEqual(set(by_id), {'inworld'})
 
         self.settings['domains']['tts']['instances']['inworld']['settings']['api_key'] = ''
         with patch.dict(os.environ, {}, clear=True):

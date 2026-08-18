@@ -111,10 +111,7 @@ class InstanceSettingsMigrationTests(unittest.TestCase):
             resolve_secret_refs(inworld["settings"]),
             {"api_key": "sk-keep", "voice": "Ashley"},
         )
-        self.assertEqual(
-            tts["instances"]["kokoro"]["settings"],
-            {"voice": "af_bella"},
-        )
+        self.assertNotIn("kokoro", tts["instances"])
 
         image = migrated["domains"]["image"]
         self.assertEqual(image["selected_instance_id"], "gemini_ws")
@@ -423,11 +420,14 @@ class DefaultSettingsShapeTests(unittest.TestCase):
         for domain_id, spec in DOMAINS.items():
             block = defaults["domains"][domain_id]
             self.assertEqual(block["selected_instance_id"], spec.default_provider)
-            self.assertIn(spec.default_provider, block["instances"])
-            self.assertEqual(
-                block["instances"][spec.default_provider]["type"],
-                spec.default_provider,
-            )
+            if spec.default_provider is None:
+                self.assertEqual(block["instances"], {})
+            else:
+                self.assertIn(spec.default_provider, block["instances"])
+                self.assertEqual(
+                    block["instances"][spec.default_provider]["type"],
+                    spec.default_provider,
+                )
             self.assertNotIn("selected_provider", block)
             self.assertNotIn("per_provider", block)
 

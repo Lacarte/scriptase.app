@@ -36,7 +36,8 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 # v7 = secret references (step 3.4): plaintext credentials → {"$secret": ref}.
 # v8 = backfill domains added to the catalog after v6 (step 7.3 `review`).
 # v9 = the same backfill for `viral` (step 16.2). See `migrate_to_v9`.
-SETTINGS_VERSION = 9
+# v10 = prototype-only provider catalogue (step 5.3).
+SETTINGS_VERSION = 10
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -321,6 +322,93 @@ def migrate_to_v9(data: dict, legacy_user: dict) -> dict:
     return migrate_to_v8(data, legacy_user)
 
 
+@_register(10)
+def migrate_to_v10(data: dict, legacy_user: dict) -> dict:
+    """Move configured instances onto the prototype's provider types.
+
+    Default instances are renamed to the remaining type id so Channels that
+    stored the old type id can follow the same deterministic mapping. Named
+    instances keep their id (and therefore their Channel references), but their
+    type changes. Retired provider settings are discarded because settings
+    schemas are provider-specific and must not be reinterpreted as credentials
+    or options for a different service.
+
+    Script and review intentionally have no provider in the prototype
+    catalogue; their stale selections and instances are removed.
+    """
+    domains = data.setdefault("domains", {})
+    if not isinstance(domains, dict):
+        data["domains"] = domains = {}
+
+    for domain_id, spec in DOMAINS.items():
+        block = domains.get(domain_id)
+        if not isinstance(block, dict):
+            block = {}
+
+        target = spec.default_provider
+        raw_instances = block.get("instances")
+        if not isinstance(raw_instances, dict):
+            raw_instances = {}
+
+        instances: dict[str, dict] = {}
+        id_map: dict[str, str] = {}
+
+        # Keep already-supported bindings first so a retired default cannot
+        # overwrite a configured prototype instance at the same destination.
+        if target:
+            ordered = sorted(
+                raw_instances.items(),
+                key=lambda item: 0
+                if isinstance(item[1], dict) and item[1].get("type") == target
+                else 1,
+            )
+            for instance_id, record in ordered:
+                if not isinstance(instance_id, str) or not isinstance(record, dict):
+                    continue
+                provider_type = record.get("type")
+                if not isinstance(provider_type, str) or not provider_type:
+                    provider_type = instance_id
+                supported = provider_type == target
+                destination = instance_id if supported or instance_id != provider_type else target
+                id_map[instance_id] = destination
+                if destination in instances:
+                    continue
+                instances[destination] = {
+                    "type": target,
+                    "label": (
+                        record.get("label")
+                        if supported and isinstance(record.get("label"), str)
+                        else destination
+                    ),
+                    "settings": (
+                        dict(record.get("settings"))
+                        if supported and isinstance(record.get("settings"), dict)
+                        else {}
+                    ),
+                }
+
+            if target not in instances:
+                instances[target] = {
+                    "type": target,
+                    "label": target,
+                    "settings": {},
+                }
+
+        selected = block.get("selected_instance_id")
+        if not isinstance(selected, str) or not selected:
+            selected = None
+        selected = id_map.get(selected, selected)
+        if selected not in instances:
+            selected = target
+
+        domains[domain_id] = {
+            "selected_instance_id": selected,
+            "instances": instances,
+        }
+
+    return data
+
+
 def apply_migrations(data: dict, legacy_user: dict | None = None) -> tuple[dict, bool]:
     """Upgrade `data` to `SETTINGS_VERSION`.
 
@@ -369,4 +457,5 @@ __all__ = [
     "migrate_to_v6",
     "migrate_to_v8",
     "migrate_to_v9",
+    "migrate_to_v10",
 ]

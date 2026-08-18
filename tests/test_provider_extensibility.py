@@ -386,13 +386,15 @@ class CatalogApiTests(FixtureCatalogCase):
 # ---------------------------------------------------------------------------
 
 class OptionSourceTests(SharedCatalogCase):
-    def test_the_provider_dropdown_offers_the_fixture_beside_the_shipped_ones(self):
+    def test_the_provider_dropdown_offers_the_fixture_when_product_has_no_script_provider(self):
         options, _context = options_module.resolve_options("script_providers")
         self.assertIn(
             {"value": "fixture_document", "label": "Fixture Document Generator"},
             options,
         )
-        self.assertGreater(len(options), 1, "the shipped providers must survive")
+        self.assertEqual(options, [
+            {"value": "fixture_document", "label": "Fixture Document Generator"}
+        ])
 
     def test_a_provider_supplies_its_own_voices_through_its_schema(self):
         """§22.4 — declaring `ui.options` is the whole of "offer my voices"."""
@@ -413,10 +415,9 @@ class OptionSourceTests(SharedCatalogCase):
         empty context tuple therefore answers `OPTION_CONTEXT_INVALID` and the
         dropdown renders empty — which is exactly what shipped in 12.4.
         """
-        shipped = ProviderHub()
         named = set()
         for domain in DOMAINS:
-            for provider in shipped.list(domain):
+            for provider in self.hub.list(domain):
                 schema = provider.settings_schema() or {}
                 for prop in (schema.get("properties") or {}).values():
                     source = ((prop or {}).get("ui") or {}).get("options_source")
@@ -728,7 +729,7 @@ class TemplateCompatibilityTests(SharedCatalogCase):
 
         legacy = {
             "tts.generate": ({"engine": "kokoro", "voice": "af_heart", "speed": 1.0},
-                             "kokoro"),
+                             "inworld"),
             "storyboard.generate": ({"provider": "gemini_ws", "aspect_ratio": "9:16",
                                      "prompt_prefix": "cinematic"}, "gemini_ws"),
             "animator.generate": ({"provider": "grok_automa", "mode": "video",
@@ -827,23 +828,26 @@ BRANCH_FREE_SURFACES = AUDITED_SURFACES
 KNOWN_PROVIDER_LITERALS = {
     # Two explanatory comments. Harmless today; listed so a *third* one, or a
     # literal in code, cannot slip in unnoticed.
-    ("scriptase/engine/registry.py", "kokoro"),
     ("scriptase/engine/registry.py", "gemini_ws"),
     ("scriptase/engine/registry.py", "gemini"),
     # A comment naming the provider 13.2 replaces the `builtin` bridge with.
     ("scriptase/engine/adapters/script.py", "gemini"),
     # §19.1 — the domain catalog is where a default provider id belongs.
-    ("scriptase/providers/domains.py", "kokoro"),
+    ("scriptase/providers/domains.py", "inworld"),
     ("scriptase/providers/domains.py", "gemini_ws"),
     ("scriptase/providers/domains.py", "gemini"),
     ("scriptase/providers/domains.py", "grok_automa"),
     # §41.3 — the frozen v1 defaults M1–M3 migrate onto.
     ("scriptase/engine/config_migrations.py", "kokoro"),
+    ("scriptase/engine/config_migrations.py", "inworld"),
     ("scriptase/engine/config_migrations.py", "wavespeed_webhook"),
+    ("scriptase/engine/config_migrations.py", "wavespeed_direct"),
     ("scriptase/engine/config_migrations.py", "wavespeed"),
     ("scriptase/engine/config_migrations.py", "grok_automa"),
     ("scriptase/engine/config_migrations.py", "gemini_ws"),
     ("scriptase/engine/config_migrations.py", "gemini"),
+    ("scriptase/engine/config_migrations.py", "kie_ai"),
+    ("scriptase/engine/config_migrations.py", "kie-ai"),
     # A comment about the removed C1 environment side effect.
     ("scriptase/providers/settings_manager.py", "inworld"),
     # Step 16.1 residual selection-alias table (retired app-config store only).
@@ -856,10 +860,12 @@ KNOWN_PROVIDER_LITERALS = {
     ("scriptase/providers/compatibility.py", "grok_automa"),
     ("scriptase/providers/compatibility.py", "kie_ai"),
     ("scriptase/providers/compatibility.py", "kie-ai"),
+    # Retained compatibility constructor; it is no longer serialized into the
+    # user-facing template catalogue after Kie retirement.
+    ("scriptase/engine/templates.py", "kie_ai"),
     # Step 6.2 — the text_to_video built-in template must pin a text_to_video
     # provider; domain default is image_to_video (grok_automa) and must not
     # be silently substituted at run time.
-    ("scriptase/engine/templates.py", "kie_ai"),
     # V2's `app.py` carried two: an `/api/health` key probing Inworld package
     # availability, and a boot banner printing the frozen `…-gemini-…` /
     # `…-grok-…` WebSocket paths. Step 0.2's application factory has neither —

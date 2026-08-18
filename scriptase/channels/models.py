@@ -24,7 +24,7 @@ CHANNEL_ID_RE = re.compile(r"^ch_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py). Distinct from
 # the content ``version`` field, which bumps on every successful update.
-CHANNEL_SCHEMA_VERSION = 5
+CHANNEL_SCHEMA_VERSION = 6
 
 WATERMARK_POSITIONS = (
     "top-left",

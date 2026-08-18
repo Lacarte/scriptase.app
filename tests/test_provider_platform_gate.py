@@ -117,12 +117,12 @@ FORBIDDEN_PROVIDER_PACKAGES = (
 )
 
 EXPECTED_SHIPPED = {
-    "script": {"gemini", "random_template", "scaffold_check"},
+    "script": set(),
     "scene_director": {"n8n"},
-    "tts": {"kokoro", "inworld"},
-    "image": {"gemini_ws", "wavespeed_webhook", "wavespeed_direct"},
-    "video": {"grok_automa", "kie_ai"},
-    "review": {"semantic"},
+    "tts": {"inworld"},
+    "image": {"gemini_ws"},
+    "video": {"grok_automa"},
+    "review": set(),
     "viral": {"deterministic"},
 }
 
@@ -169,8 +169,9 @@ class DomainCatalogGateTests(unittest.TestCase):
                 ids = {instance.id for instance in hub.list(domain)}
                 self.assertEqual(ids, EXPECTED_SHIPPED[domain], domain)
                 default = DOMAINS[domain].default_provider
-                self.assertIn(default, ids)
-                self.assertIsNotNone(hub.get(domain, default))
+                if default is not None:
+                    self.assertIn(default, ids)
+                    self.assertIsNotNone(hub.get(domain, default))
 
     def test_catalog_payload_covers_every_domain_with_settings_and_health(self):
         catalog = catalog_module.build_catalog()
@@ -182,9 +183,9 @@ class DomainCatalogGateTests(unittest.TestCase):
                 # Public catalog key is `selected` (settings store uses
                 # selected_provider internally).
                 self.assertIn("selected", entry)
-                self.assertTrue(entry["selected"])
+                self.assertEqual(entry["selected"], DOMAINS[domain].default_provider)
                 providers = entry["providers"]
-                self.assertTrue(providers)
+                self.assertEqual(bool(providers), bool(EXPECTED_SHIPPED[domain]))
                 for provider in providers:
                     # Browser-safe public metadata only.
                     self.assertIn("id", provider)
@@ -211,6 +212,8 @@ class DomainCatalogGateTests(unittest.TestCase):
         for domain in AI_DOMAINS:
             with self.subTest(domain=domain):
                 default = DOMAINS[domain].default_provider
+                if default is None:
+                    continue
                 detail = client.get(f"/api/providers/{domain}/{default}")
                 self.assertEqual(detail.status_code, 200, detail.get_json())
                 settings = client.get(f"/api/providers/{domain}/{default}/settings")
@@ -364,7 +367,6 @@ class CompatibilitySmokeTests(unittest.TestCase):
             [item["template_id"] for item in templates],
             [
                 "full_video",
-                "text_to_video",
                 "narration_only",
                 "storyboard_only",
                 "reexport_existing_project",
@@ -421,11 +423,9 @@ class CompatibilitySmokeTests(unittest.TestCase):
 
     def test_default_provider_aliases_still_resolve(self):
         cases = (
-            ("script", "builtin", "gemini"),
             ("scene_director", "builtin", "n8n"),
             ("image", "gemini", "gemini_ws"),
-            ("video", "kie-ai", "kie_ai"),
-            ("tts", "kokoro", "kokoro"),
+            ("video", "grok", "grok_automa"),
         )
         for domain, alias, canonical in cases:
             with self.subTest(domain=domain, alias=alias):

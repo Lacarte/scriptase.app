@@ -324,7 +324,7 @@ class ErrorEnvelopeTests(ProviderApiTestCase):
         ('put', '/api/providers/tts/selection', {}, 400, 'INVALID_REQUEST'),
         ('put', '/api/providers/tts/selection', {'provider_id': 42}, 400,
          'INVALID_REQUEST'),
-        ('put', '/api/providers/tts/kokoro/settings', [], 400, 'INVALID_REQUEST'),
+        ('put', '/api/providers/tts/inworld/settings', [], 400, 'INVALID_REQUEST'),
         ('put', '/api/settings/v2', [], 400, 'INVALID_REQUEST'),
         ('patch', '/api/settings/v2', [], 400, 'INVALID_REQUEST'),
     ]
@@ -377,10 +377,10 @@ class CatalogTests(ProviderApiTestCase):
             for alias in provider['aliases']
         }
         self.assertEqual(aliases['gemini'], ('image', 'gemini_ws'))
-        self.assertEqual(aliases['webhook'], ('image', 'wavespeed_webhook'))
-        self.assertEqual(aliases['direct'], ('image', 'wavespeed_direct'))
         self.assertEqual(aliases['grok'], ('video', 'grok_automa'))
-        self.assertEqual(aliases['kie-ai'], ('video', 'kie_ai'))
+        self.assertEqual(aliases['midjourney'], ('video', 'grok_automa'))
+        self.assertNotIn('webhook', aliases)
+        self.assertNotIn('kie-ai', aliases)
 
         # And a deprecated identity resolves through the API to its canonical id.
         body = self.client.get('/api/providers/image/gemini').get_json()

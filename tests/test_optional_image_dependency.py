@@ -15,7 +15,7 @@ from copy import deepcopy
 from scriptase.engine.adapters import AdapterContext, AdapterError
 from scriptase.engine.adapters import video as video_adapter
 from scriptase.engine.registry import get_node_type
-from scriptase.engine.scheduler import WorkflowScheduler
+from scriptase.engine.scheduler import SchedulerError, WorkflowScheduler
 from scriptase.engine.templates import (
     full_video_template,
     serialize_templates,
@@ -122,8 +122,7 @@ class SelectorCapabilityRoutingTests(unittest.TestCase):
             provider_hub=self.hub,
         )
         type_ids = {c.provider_type for c in hits}
-        self.assertIn("kie_ai", type_ids)
-        self.assertNotIn("grok_automa", type_ids)
+        self.assertEqual(type_ids, set())
 
     def test_image_to_video_query_excludes_text_only_providers(self):
         hits = select_candidates(
@@ -157,31 +156,15 @@ class VideoAdapterCapabilityGateTests(unittest.TestCase):
         # Ensure shipped video providers are discoverable.
         process_hub.discover("video")
 
-    def test_text_to_video_without_storyboard_runs(self):
-        """No image node: kie_ai (text_to_video) is accepted and executes."""
-        import scriptase.engine.adapters.video as mod
-
-        captured: dict = {}
-
-        def fake_run(**kwargs):
-            captured.update(kwargs)
-            return {"total": 1, "ready": 1, "errors": 0}
-
-        original = mod.run_manifest_job
-        mod.run_manifest_job = fake_run
-        try:
-            result = video_adapter.generate(
+    def test_retired_text_to_video_provider_is_rejected(self):
+        """Kie is no longer registered after step 5.3."""
+        with self.assertRaises(AdapterError) as ctx:
+            video_adapter.generate(
                 {"scenes": self.scenes},
                 {"provider_id": "kie_ai"},
                 self.ctx,
             )
-        finally:
-            mod.run_manifest_job = original
-
-        self.assertEqual(result["assets"]["ready"], 1)
-        self.assertEqual(result["assets"]["provider"], "kie_ai")
-        self.assertEqual(result["assets"]["motion_mode"], TEXT_TO_VIDEO)
-        self.assertEqual(captured.get("options", {}).get("motion_mode"), TEXT_TO_VIDEO)
+        self.assertEqual(ctx.exception.code, "PROVIDER_REQUEST_INVALID")
 
     def test_image_to_video_without_storyboard_fails_clearly(self):
         """grok_automa is image_to_video-only; no storyboard must not run."""
@@ -438,11 +421,11 @@ class TextToVideoTemplateTests(unittest.TestCase):
         problems = validate_workflow(
             draft, require_identity=False, require_complete=False
         )
-        self.assertEqual(validation_errors(problems), [])
+        self.assertTrue(validation_errors(problems))
 
     def test_template_is_serialized_with_builtins(self):
         ids = [item["template_id"] for item in serialize_templates()]
-        self.assertIn("text_to_video", ids)
+        self.assertNotIn("text_to_video", ids)
         self.assertIn("full_video", ids)
 
     def test_projection_has_no_image_members(self):
@@ -496,8 +479,7 @@ class FullVideoPathUnchangedTests(unittest.TestCase):
 
 
 class TextToVideoEndToEndTests(unittest.TestCase):
-    def test_no_image_node_runs_to_export_with_text_to_video(self):
-        """Done-when: workflow with no image node reaches export via t2v."""
+    def test_retired_text_to_video_workflow_is_rejected(self):
         process_hub.discover("video")
         seen: list[dict] = []
         with tempfile.TemporaryDirectory(prefix="sts_6_2_t2v_") as root:
@@ -506,34 +488,15 @@ class TextToVideoEndToEndTests(unittest.TestCase):
                 any(n["type"] == "storyboard.generate" for n in draft["nodes"])
             )
 
-            result = WorkflowScheduler(
-                draft,
-                project_id="pm_T2V001",
-                lock_root=os.path.join(root, "locks"),
-                output_dir=root,
-                executor_resolver=_stub_resolver(root, seen=seen),
-            ).run()
-            self.assertEqual(result.status, "succeeded")
-
-            # Storyboard never executed.
-            self.assertFalse(
-                any(c["type"] == "storyboard.generate" for c in seen)
-            )
-
-            animator_calls = [c for c in seen if c["type"] == "animator.generate"]
-            self.assertEqual(len(animator_calls), 1)
-            self.assertNotIn("storyboard", animator_calls[0]["input_ports"])
-            self.assertIn("scenes", animator_calls[0]["input_ports"])
-            self.assertEqual(
-                animator_calls[0]["config"].get("provider_id"),
-                "kie_ai",
-            )
-
-            self.assertTrue(any(c["type"] == "export.video" for c in seen))
-            self.assertTrue(any(c["type"] == "workflow.output" for c in seen))
-
-            export_path = os.path.join(root, "exports", "pm_T2V001_final.mp4")
-            self.assertTrue(os.path.isfile(export_path), export_path)
+            with self.assertRaises(SchedulerError) as ctx:
+                WorkflowScheduler(
+                    draft,
+                    project_id="pm_T2V001",
+                    lock_root=os.path.join(root, "locks"),
+                    output_dir=root,
+                    executor_resolver=_stub_resolver(root, seen=seen),
+                )
+            self.assertEqual(ctx.exception.code, "WORKFLOW_INVALID")
 
 
 if __name__ == "__main__":

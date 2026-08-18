@@ -35,6 +35,18 @@ TTS_V1_DEFAULT_ENGINE = "kokoro"
 STORYBOARD_V1_DEFAULT_PROVIDER = "wavespeed_webhook"
 ANIMATOR_V1_DEFAULT_PROVIDER = "grok_automa"
 
+_PROTOTYPE_PROVIDER_IDS = {
+    "tts": {"kokoro": "inworld"},
+    "image": {
+        "webhook": "gemini_ws",
+        "direct": "gemini_ws",
+        "wavespeed": "gemini_ws",
+        "wavespeed_direct": "gemini_ws",
+        "wavespeed_webhook": "gemini_ws",
+    },
+    "video": {"kie-ai": "grok_automa", "kie_ai": "grok_automa"},
+}
+
 # Keys the node used to own that now belong to the provider's own settings.
 # Only keys actually present are moved: inventing one would write a value the
 # saved workflow never had.
@@ -92,8 +104,39 @@ def animator_generate_1_to_2(config: dict) -> dict:
     return config
 
 
+def _prototype_provider(config: dict, domain: str) -> dict:
+    provider_id = config.get("provider_id")
+    if isinstance(provider_id, str):
+        config["provider_id"] = _PROTOTYPE_PROVIDER_IDS.get(domain, {}).get(
+            provider_id, provider_id
+        )
+    return config
+
+
+def tts_generate_2_to_3(config: dict) -> dict:
+    """Step 5.3: retire Kokoro and normalize its voice onto Inworld."""
+    _prototype_provider(config, "tts")
+    voice = config.get("voice")
+    if isinstance(voice, str) and voice.startswith(("af_", "am_", "bf_", "bm_")):
+        config["voice"] = "Ashley"
+    return config
+
+
+def storyboard_generate_2_to_3(config: dict) -> dict:
+    """Step 5.3: move WaveSpeed selections onto Gemini."""
+    return _prototype_provider(config, "image")
+
+
+def animator_generate_2_to_3(config: dict) -> dict:
+    """Step 5.3: move Kie selections onto Grok."""
+    return _prototype_provider(config, "video")
+
+
 __all__ = [
     "animator_generate_1_to_2",
+    "animator_generate_2_to_3",
     "storyboard_generate_1_to_2",
+    "storyboard_generate_2_to_3",
     "tts_generate_1_to_2",
+    "tts_generate_2_to_3",
 ]

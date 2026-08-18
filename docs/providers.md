@@ -5,7 +5,7 @@
 
 # Provider Reference
 
-Live catalog: **7 domains**, **13 registered providers**.
+Live catalog: **7 domains**, **5 registered providers**.
 
 This document is generated from the domain catalog (`scriptase.providers.domains`) and the process-wide hub (`scriptase.providers.hub`). It is the same discovery surface served by `GET /api/providers`. Music and Captions are deliberately **not** provider domains — they remain local services without a provider dimension.
 
@@ -20,12 +20,12 @@ python -m scriptase.engine.docs --check
 
 | Domain | Label | Default provider | Package | Shape |
 |---|---|---|---|---|
-| `script` | Script / Story | `gemini` | `scriptase.modules.script.providers` | sync document |
+| `script` | Script / Story | `None` | `scriptase.modules.script.providers` | sync document |
 | `scene_director` | Scene Director | `n8n` | `scriptase.modules.scene_director.providers` | sync document |
-| `tts` | Text to Speech | `kokoro` | `scriptase.modules.tts.providers` | sync artifact |
+| `tts` | Text to Speech | `inworld` | `scriptase.modules.tts.providers` | sync artifact |
 | `image` | Image | `gemini_ws` | `scriptase.modules.image.providers` | async multi-asset |
 | `video` | Video | `grok_automa` | `scriptase.modules.video.providers` | async multi-asset |
-| `review` | Review | `semantic` | `scriptase.review.providers` | sync document |
+| `review` | Review | `None` | `scriptase.review.providers` | sync document |
 | `viral` | Virality | `deterministic` | `scriptase.modules.viral.providers` | sync document |
 
 ## Shared capabilities
@@ -49,7 +49,7 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 
 ### Script / Story (`script`)
 
-- **Default provider:** `gemini`
+- **Default provider:** `None`
 - **Package:** `scriptase.modules.script.providers`
 - **Providers folder:** `scriptase/modules/script/providers`
 - **Execution shape:** sync document
@@ -121,7 +121,7 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 
 ### Text to Speech (`tts`)
 
-- **Default provider:** `kokoro`
+- **Default provider:** `inworld`
 - **Package:** `scriptase.modules.tts.providers`
 - **Providers folder:** `scriptase/modules/tts/providers`
 - **Execution shape:** sync artifact
@@ -213,7 +213,7 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 
 ### Review (`review`)
 
-- **Default provider:** `semantic`
+- **Default provider:** `None`
 - **Package:** `scriptase.review.providers`
 - **Providers folder:** `scriptase/review/providers`
 - **Execution shape:** sync document
@@ -293,36 +293,7 @@ Providers are discovered by scanning each domain's `providers/` folder. There is
 
 ### `script` providers
 
-| Id | Label | Kind | Version | Contract | Capabilities |
-|---|---|---|---|---|---|
-| `gemini` | Gemini story generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
-| `random_template` | Random template | `local` | `1.0.0` | v1 | `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections` |
-| `scaffold_check` | Scaffold check | `local` | `1.0.0` | v2 | `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections` |
-
-#### `gemini` — Gemini story generator
-
-AI story generation via the configured n8n/Gemini webhook. Returns hook/build/climax/CTA sections and writes stories/{id}/story.json.
-
-- **Kind:** `webhook`
-- **Version:** `1.0.0` (contract v1)
-- **Aliases:** `builtin`
-- **Capabilities:** `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene`
-
-#### `random_template` — Random template
-
-Picks a curated sample narration from a local catalog. Offline, deterministic when seeded, and free of network or credentials.
-
-- **Kind:** `local`
-- **Version:** `1.0.0` (contract v1)
-- **Capabilities:** `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections`
-
-#### `scaffold_check` — Scaffold check
-
-Scaffolded Scaffold check provider for the script domain. Replace the implementation body; keep the package layout.
-
-- **Kind:** `local`
-- **Version:** `1.0.0` (contract v2)
-- **Capabilities:** `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections`
+_No providers currently registered._
 
 ### `scene_director` providers
 
@@ -344,7 +315,6 @@ AI scene planning via the configured n8n/OpenRouter webhook. Returns scenes, ima
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
 | `inworld` | Inworld | `cloud` | `1.0.0` | v2 | `batch`, `single_scene`, `test_connection`, `voice_list`; off: `model_download`, `speed_control`, `streaming` |
-| `kokoro` | Kokoro | `local` | `1.0.0` | v2 | `batch`, `exclusive_execution`, `model_download`, `single_scene`, `speed_control`, `streaming`, `test_connection`, `voice_blend`, `voice_list` |
 
 #### `inworld` — Inworld
 
@@ -355,21 +325,11 @@ Cloud text-to-speech with named voices and selectable models.
 - **Requires settings:** `api_key`
 - **Capabilities:** `batch`, `single_scene`, `test_connection`, `voice_list`; off: `model_download`, `speed_control`, `streaming`
 
-#### `kokoro` — Kokoro
-
-Offline text-to-speech running in-process from a local model.
-
-- **Kind:** `local`
-- **Version:** `1.0.0` (contract v2)
-- **Capabilities:** `batch`, `exclusive_execution`, `model_download`, `single_scene`, `speed_control`, `streaming`, `test_connection`, `voice_blend`, `voice_list`
-
 ### `image` providers
 
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
 | `gemini_ws` | Gemini (extension) | `extension` | `2.0.0` | v2 | `async_job`, `auto_animate`, `batch`, `progress`, `prompt_prefix`, `push_callbacks`, `single_scene`, `test_connection`, `text_to_image`, `watermark_removal` |
-| `wavespeed_direct` | WaveSpeed Direct | `cloud` | `2.0.0` | v2 | `async_job`, `batch`, `cancel`, `image_edit`, `progress`, `single_scene`, `test_connection`, `text_to_image` |
-| `wavespeed_webhook` | Webhook / WaveSpeed | `cloud` | `2.0.0` | v2 | `async_job`, `batch`, `cancel`, `progress`, `single_scene`, `test_connection`, `text_to_image` |
 
 #### `gemini_ws` — Gemini (extension)
 
@@ -381,32 +341,11 @@ Storyboard frames driven by the browser extension over a WebSocket.
 - **Open URL:** human-driven UI available
 - **Capabilities:** `async_job`, `auto_animate`, `batch`, `progress`, `prompt_prefix`, `push_callbacks`, `single_scene`, `test_connection`, `text_to_image`, `watermark_removal`
 
-#### `wavespeed_direct` — WaveSpeed Direct
-
-Storyboard frames from the WaveSpeed API, called directly.
-
-- **Kind:** `cloud`
-- **Version:** `2.0.0` (contract v2)
-- **Aliases:** `direct`
-- **Requires settings:** `api_key`
-- **Capabilities:** `async_job`, `batch`, `cancel`, `image_edit`, `progress`, `single_scene`, `test_connection`, `text_to_image`
-
-#### `wavespeed_webhook` — Webhook / WaveSpeed
-
-Storyboard frames via a user-supplied n8n webhook.
-
-- **Kind:** `cloud`
-- **Version:** `2.0.0` (contract v2)
-- **Aliases:** `webhook`
-- **Requires settings:** `webhook_url`
-- **Capabilities:** `async_job`, `batch`, `cancel`, `progress`, `single_scene`, `test_connection`, `text_to_image`
-
 ### `video` providers
 
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
 | `grok_automa` | Grok (extension) | `extension` | `2.0.0` | v2 | `async_job`, `batch`, `duration_control`, `image_to_video`, `progress`, `push_callbacks`, `resolution_select`, `single_scene`, `test_connection` |
-| `kie_ai` | Kie AI | `cloud` | `2.0.0` | v2 | `async_job`, `batch`, `progress`, `resolution_select`, `single_scene`, `test_connection`, `text_to_video` |
 
 #### `grok_automa` — Grok (extension)
 
@@ -418,29 +357,9 @@ Animator takes driven by the browser extension over a WebSocket.
 - **Open URL:** human-driven UI available
 - **Capabilities:** `async_job`, `batch`, `duration_control`, `image_to_video`, `progress`, `push_callbacks`, `resolution_select`, `single_scene`, `test_connection`
 
-#### `kie_ai` — Kie AI
-
-Prompt-driven scene assets through the Kie AI API (text-to-video).
-
-- **Kind:** `cloud`
-- **Version:** `2.0.0` (contract v2)
-- **Aliases:** `kie-ai`
-- **Requires settings:** `api_key`
-- **Capabilities:** `async_job`, `batch`, `progress`, `resolution_select`, `single_scene`, `test_connection`, `text_to_video`
-
 ### `review` providers
 
-| Id | Label | Kind | Version | Contract | Capabilities |
-|---|---|---|---|---|---|
-| `semantic` | Semantic reviewer | `local` | `1.0.0` | v2 | `batch`, `image_review`, `single_scene`, `structured_output`, `test_connection`, `text_review`, `video_review` |
-
-#### `semantic` — Semantic reviewer
-
-Offline semantic reviewer that emits structured ReviewIssue findings for text, image, video, and structured subjects. Deterministic heuristics only — no network, no credentials. AI review providers can replace this package without framework changes.
-
-- **Kind:** `local`
-- **Version:** `1.0.0` (contract v2)
-- **Capabilities:** `batch`, `image_review`, `single_scene`, `structured_output`, `test_connection`, `text_review`, `video_review`
+_No providers currently registered._
 
 ### `viral` providers
 

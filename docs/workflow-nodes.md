@@ -164,7 +164,7 @@ Select an existing project (WIP preferred over initial) without rewriting it.
 
 Generate narration audio from the script.
 
-- **Type version:** 2
+- **Type version:** 3
 - **Capabilities:** supports retry, error output, skip-optional; no cancel
 
 **Inputs**
@@ -188,8 +188,8 @@ Generate narration audio from the script.
 
 | Field | Label | Widget | Default | Required | Constraints |
 |---|---|---|---|---|---|
-| `provider_id` | Provider | `provider` | `"kokoro"` | yes | options from `tts_providers` |
-| `voice` | Voice | `options` | `"af_heart"` | no | options from `tts_voices` |
+| `provider_id` | Provider | `provider` | `"inworld"` | yes | options from `tts_providers` |
+| `voice` | Voice | `options` | `"Ashley"` | no | options from `tts_voices` |
 | `speed` | Speed | `number` | `1.0` | no | range 0.5–2.0 |
 | `provider_options` | Provider options | `provider_options` | `{}` | no | — |
 
@@ -315,7 +315,7 @@ Generate a structured narration script with the selected script provider.
 
 | Field | Label | Widget | Default | Required | Constraints |
 |---|---|---|---|---|---|
-| `provider_id` | Provider | `provider` | `"gemini"` | yes | options from `script_providers` |
+| `provider_id` | Provider | `provider` | — | yes | options from `script_providers` |
 | `preset_style` | Visual style | `options` | `"cinematic"` | no | options from `style_templates` |
 | `story_category` | Story category | `string` | `"motivation"` | yes | max length 80 |
 | `duration` | Target duration (seconds) | `number` | `45` | no | range 15–180; integer |
@@ -392,7 +392,7 @@ Quality review of the generated stills and clips. Deterministic technical valida
 
 | Field | Label | Widget | Default | Required | Constraints |
 |---|---|---|---|---|---|
-| `provider_id` | Provider | `provider` | `"semantic"` | yes | options from `review_providers` |
+| `provider_id` | Provider | `provider` | — | yes | options from `review_providers` |
 | `subject` | Review subject | `options` | `"auto"` | no | one of `auto`, `images`, `videos` |
 | `semantic` | Run semantic review | `boolean` | `false` | no | — |
 | `aspect_ratio` | Expected aspect ratio | `options` | `"9:16"` | no | one of `9:16`, `16:9`, `1:1` |
@@ -438,7 +438,7 @@ Score the script for virality before an expensive stage runs. The default provid
 
 Reference images per scene (never timeline media — see contracts D4).
 
-- **Type version:** 2
+- **Type version:** 3
 - **Capabilities:** supports retry, error output, skip-optional; no cancel
 
 **Inputs**
@@ -471,7 +471,7 @@ Reference images per scene (never timeline media — see contracts D4).
 
 Timeline media (video/image) per scene via the asset grabber.
 
-- **Type version:** 2
+- **Type version:** 3
 - **Capabilities:** supports retry, error output, skip-optional; no cancel
 
 **Inputs**
@@ -849,7 +849,6 @@ Echo a JSON value for node-author verification.
 | Template | Name | Nodes | Description |
 |---|---|---|---|
 | `full_video` | Full Video | `trigger.manual`, `project.setup`, `script.input`, `script.analyze`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `storyboard.generate`, `animator.generate`, `captions.generate`, `music.select`, `assemble.project`, `timeline.project`, `export.video`, `workflow.output` | Complete ScriptToScene production workflow |
-| `text_to_video` | Text to Video | `trigger.manual`, `project.setup`, `script.input`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `animator.generate`, `captions.generate`, `music.select`, `assemble.project`, `timeline.project`, `export.video`, `workflow.output` | Complete production without storyboard images — Scene Director prompts drive a text_to_video provider |
 | `narration_only` | Narration Only | `trigger.manual`, `script.input`, `tts.generate`, `workflow.output` | Turn a script into narration audio |
 | `storyboard_only` | Storyboard Only | `trigger.manual`, `script.input`, `tts.generate`, `timing.align`, `segment.run`, `scenes.blueprint`, `storyboard.generate`, `workflow.output` | Generate storyboard images from a script |
 | `reexport_existing_project` | Re-export Existing Project | `trigger.manual`, `project.existing`, `export.video`, `workflow.output` | Render a new export from an existing timeline project |

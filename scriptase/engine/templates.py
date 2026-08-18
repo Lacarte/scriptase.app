@@ -263,7 +263,6 @@ def serialize_templates() -> list[dict]:
     result = []
     for template in (
         full_video_template(),
-        text_to_video_template(),
         narration_only_template(),
         storyboard_only_template(),
         reexport_existing_project_template(),

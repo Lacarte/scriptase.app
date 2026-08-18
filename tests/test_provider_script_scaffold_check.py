@@ -22,7 +22,7 @@ PROVIDER_ID = "scaffold_check"
 PACKAGE_REL = "scriptase/modules/script/providers/scaffold_check"
 
 
-def test_script_scaffold_check_is_discovered_and_api_visible():
+def test_script_scaffold_check_is_discovered_but_not_catalog_visible():
     instance = hub.get(DOMAIN, PROVIDER_ID)
     assert instance is not None, f"{DOMAIN}/{PROVIDER_ID} was not discovered"
     assert instance.id == PROVIDER_ID
@@ -35,7 +35,7 @@ def test_script_scaffold_check_is_discovered_and_api_visible():
     catalog = hub.catalog()
     assert DOMAIN in catalog
     provider_ids = {entry["id"] for entry in catalog[DOMAIN]["providers"]}
-    assert PROVIDER_ID in provider_ids
+    assert PROVIDER_ID not in provider_ids
 
 
 def test_script_scaffold_check_settings_schema_is_ui_configurable():
