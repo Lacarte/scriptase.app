@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Production Batch — Scriptase</title>
+<meta name="description" content="Scriptase — channel-aware, provider-driven AI video production. UI/UX prototype." />
+<title>Scriptase — Studio</title>
 <style>
 /* ============================================================
    Scriptase · Production Batch — control-room prototype
@@ -78,6 +79,38 @@ h1,h2,h3,h4 { font-family: var(--display); font-weight: 600; margin: 0; letter-s
 button { font-family: inherit; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
+/* ---------- Accessibility: keyboard focus rings ---------- */
+:focus { outline: none; }   /* we replace the default with a consistent focus-visible ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* elements that already have their own inset/shadow focus keep a subtler ring */
+a:focus-visible, button:focus-visible, .job:focus-visible, .sch-node:focus-visible,
+.seg-opt:focus-visible, .s1-card:focus-visible, .ch-litem:focus-visible, .pv-litem:focus-visible,
+.lib-card:focus-visible, .cal-cell:focus-visible, .topnav a:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+/* keyboard-highlighted job row (arrow-key navigation) */
+.job.kb-focus { box-shadow: 0 0 0 2px var(--accent); border-color: var(--accent); }
+
+/* screen-reader-only helper */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- Accessibility: respect reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* keep progress fills visible but not animated; kill pulses/flows/spinners entirely */
+  .onair .dot, .badge .bd, .sch-node.s-active, .sch-edge.e-active,
+  .s1-vir-scan .sp, .pv-status-dot.st-connecting, .sch-live.on .dot { animation: none !important; }
+}
+
 /* ============================================================
    App shell
    ============================================================ */
@@ -130,6 +163,25 @@ button { font-family: inherit; }
 .topnav a.active { color: var(--text); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
 .topnav a.active svg { opacity: 1; color: var(--accent); }
 
+/* mobile nav toggle — hidden on desktop */
+.nav-toggle { display: none; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); cursor: pointer; place-items: center; margin-left: 8px; }
+.nav-toggle:hover { background: var(--panel-2); color: var(--text); }
+
+@media (max-width: 860px){
+  .nav-toggle { display: grid; }
+  .brand .tag { display: none; }
+  .topbar { gap: 10px; padding: 0 12px; }
+  /* nav becomes a dropdown panel under the bar */
+  .topnav {
+    position: absolute; top: 56px; left: 0; right: 0; margin: 0; z-index: 40;
+    flex-direction: column; gap: 3px; padding: 8px; background: var(--bg-2);
+    border-bottom: 1px solid var(--line); box-shadow: 0 12px 30px -12px rgba(0,0,0,.6);
+    display: none;
+  }
+  .topnav.open { display: flex; }
+  .topnav a { padding: 11px 12px; font-size: 14px; }
+}
+
 .topbar .spacer { flex: 1; }
 
 /* Live on-air indicator */
@@ -156,6 +208,8 @@ button { font-family: inherit; }
   display: grid; place-items: center; font-size: 12px; font-weight: 600;
   color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line);
 }
+.help-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-family: var(--mono); font-size: 14px; font-weight: 700; cursor: pointer; flex: none; }
+.help-btn:hover { background: var(--panel-2); color: var(--text); border-color: #333b45; }
 
 /* ============================================================
    Body split: config rail + run-sheet
@@ -724,6 +778,9 @@ input.txt::placeholder { color: var(--faint); }
 .toast.out { animation: toastout .22s ease forwards; }
 @keyframes toastout { to { opacity: 0; transform: translateX(20px); } }
 .toast .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.toast .tmsg { flex: 1; }
+.toast-undo { flex: none; margin-left: 6px; border: 1px solid var(--line); background: var(--raise); color: var(--accent); font-weight: 600; font-size: 12px; border-radius: 6px; padding: 4px 11px; cursor: pointer; font-family: var(--body); }
+.toast-undo:hover { background: rgba(91,140,255,.15); border-color: rgba(91,140,255,.4); }
 .toast.ok .dot { background: var(--ok); }
 .toast.info .dot { background: var(--run); }
 .toast.warn .dot { background: var(--warn); }
@@ -740,6 +797,14 @@ input.txt::placeholder { color: var(--faint); }
 .modal-head h3 { font-size: 15px; }
 .modal-body { padding: 4px 20px 18px 68px; color: var(--text-2); font-size: 13px; line-height: 1.55; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 9px; padding: 14px 20px; border-top: 1px solid var(--line-soft); background: var(--bg-2); }
+
+/* keyboard cheat-sheet */
+.keys-modal { width: 420px; }
+.keys-grid { display: flex; flex-direction: column; gap: 4px; }
+.krow { display: flex; align-items: center; gap: 8px; padding: 7px 0; font-size: 13px; color: var(--text-2); border-bottom: 1px solid var(--line-soft); }
+.krow:last-child { border-bottom: none; }
+.krow span:last-child { margin-left: auto; color: var(--text); text-align: right; }
+.kk { font-family: var(--mono); font-size: 11px; min-width: 24px; text-align: center; padding: 3px 7px; border-radius: 5px; background: var(--raise); box-shadow: inset 0 0 0 1px var(--line), 0 1px 0 var(--line); color: var(--text); }
 
 /* Export modal */
 .export-modal { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-l); width: 720px; max-width: 94vw; max-height: 90vh; box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
@@ -813,6 +878,26 @@ input.txt::placeholder { color: var(--faint); }
 @media (max-width: 820px) {
   .body { grid-template-columns: 1fr; }
   .rail { display: none; }
+  /* job rows reflow: title on line 1, stage/status/actions wrap to line 2 */
+  .job-main { flex-wrap: wrap; row-gap: 8px; padding: 12px; }
+  .job-id { width: auto; }
+  .job-title { flex: 1 1 60%; order: 1; min-width: 140px; }
+  .job-check, .drag-handle { order: 0; }
+  .job-id { order: 0; }
+  .job-status { order: 2; width: auto; margin-left: auto; }
+  .job-menu-btn, .job-expand-btn { order: 2; }
+  .job-stage { order: 3; flex: 1 1 100%; width: auto; }
+  .job-elapsed { order: 2; width: auto; display: block; }
+  .job-quick { order: 3; flex: 1 1 100%; }
+  .job-quick .quick-btn { flex: 1; justify-content: center; }
+  .job-quick .quick-btn span { display: inline; }
+  /* toolbar wraps cleanly */
+  .toolbar { row-gap: 8px; }
+  .batch-controls { flex-wrap: wrap; }
+  .summary { flex-wrap: wrap; row-gap: 12px; }
+  /* schema/editor stay full-bleed; give the sheet header a touch less padding */
+  .sheet-head { padding: 12px 14px 0; }
+  .joblist { padding: 12px 14px 60px; }
 }
 
 .kbd { font-family: var(--mono); font-size: 10px; padding: 1px 5px; border-radius: 4px; background: var(--raise); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
@@ -1436,6 +1521,10 @@ input.txt::placeholder { color: var(--faint); }
 .sch-zoom { display: flex; gap: 4px; }
 .sch-zbtn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); cursor: pointer; font-family: var(--mono); font-size: 12px; }
 .sch-zbtn:hover { background: var(--panel-2); color: var(--text); }
+.sch-pause { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); cursor: pointer; font-size: 12px; font-weight: 500; font-family: var(--body); }
+.sch-pause:hover { background: var(--panel-2); color: var(--text); }
+.sch-pause.on { color: var(--warn); border-color: rgba(224,164,74,.4); background: var(--warn-dim); }
+.sch-pause.on svg { color: var(--warn); }
 
 .sch-canvas {
   flex: 1; min-height: 0; position: relative; overflow: hidden; cursor: grab;
@@ -1570,9 +1659,95 @@ input.txt::placeholder { color: var(--faint); }
 .si-none { padding: 11px; font-size: 11.5px; color: var(--muted); }
 .si-err-msg { padding: 10px 11px; font-size: 12px; color: #ffc4c9; line-height: 1.5; }
 .si-err-code { margin: 0 11px 11px; padding: 7px 9px; font-family: var(--mono); font-size: 10.5px; color: var(--fail); background: rgba(240,97,109,.08); border-radius: 5px; word-break: break-word; }
+
+/* ============================================================
+   WELCOME SCREEN
+   ============================================================ */
+.welcome-root {
+  --accent-2:#a78bff;
+  position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; background: var(--bg); overflow: hidden;
+}
+.welcome-root.dismissing { animation: welcomeOut .5s ease forwards; }
+@keyframes welcomeOut { to { opacity: 0; transform: scale(1.04); visibility: hidden; } }
+.welcome-bg { position: absolute; inset: 0; overflow: hidden; }
+.welcome-gradient {
+  position: absolute; inset: -50%; width: 200%; height: 200%;
+  background: linear-gradient(135deg, var(--bg) 0%, var(--panel) 12%, #14243a 22%, rgba(91,140,255,.22) 35%, var(--bg) 45%, #241a40 55%, rgba(167,139,255,.2) 65%, var(--bg) 75%, rgba(91,140,255,.16) 88%, var(--bg) 100%);
+  background-size: 200% 200%; animation: welcomeGradient 12s ease infinite;
+}
+@keyframes welcomeGradient { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.welcome-grid { position: absolute; inset: 0; opacity: .25;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 60px 60px; }
+.welcome-orb { position: absolute; border-radius: 50%; }
+.welcome-orb--blue { top: 20%; left: 15%; width: 300px; height: 300px; background: radial-gradient(circle, rgba(91,140,255,.18), transparent 70%); animation: welcomeFloat 8s ease-in-out infinite; }
+.welcome-orb--purple { bottom: 20%; right: 15%; width: 250px; height: 250px; background: radial-gradient(circle, rgba(167,139,255,.16), transparent 70%); animation: welcomeFloat 10s ease-in-out infinite reverse; }
+.welcome-icon { position: absolute; opacity: .15; }
+@keyframes welcomeSpin { to { transform: rotate(360deg); } }
+@keyframes welcomeFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-18px); } }
+
+.welcome-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 26px; text-align: center; padding: 24px; max-width: 620px;
+  animation: welcomeFadeUp 1s cubic-bezier(.16,1,.3,1) both; }
+@keyframes welcomeFadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.welcome-logo { width: 84px; height: 84px; border-radius: 20px; background: linear-gradient(145deg,#5b8cff,#7a5bff); display: grid; place-items: center;
+  box-shadow: 0 0 48px rgba(91,140,255,.5), inset 0 0 0 1px rgba(255,255,255,.12); position: relative; }
+.wl-mark { width: 30px; height: 30px; border-radius: 6px; background: var(--bg); box-shadow: 0 0 0 3px rgba(255,255,255,.9); transform: rotate(45deg); }
+.welcome-titles { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.welcome-h1 { font-family: var(--display); font-size: clamp(40px,7vw,60px); font-weight: 700; letter-spacing: -.04em; line-height: 1;
+  background: linear-gradient(135deg,#fff 0%,#5b8cff 35%,#a78bff 70%,#fff 100%); background-size: 200% 200%; animation: welcomeTextGrad 6s ease infinite;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+@keyframes welcomeTextGrad { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.welcome-studio { font-family: var(--mono); font-size: 13px; letter-spacing: .35em; text-transform: uppercase; color: var(--accent); }
+.welcome-divider { width: 60px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+.welcome-desc { font-size: 14.5px; line-height: 1.65; color: var(--text-2); }
+.welcome-desc b { color: var(--text); font-weight: 600; }
+.welcome-tagline { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+.welcome-enter-btn { margin-top: 4px; border: none; border-radius: 10px; padding: 13px 30px; font-size: 14px; font-weight: 600; cursor: pointer;
+  background: linear-gradient(180deg,#6a97ff,var(--accent)); color: #fff; box-shadow: 0 10px 28px -8px rgba(91,140,255,.8), inset 0 1px 0 rgba(255,255,255,.25); transition: filter .14s, transform .05s; }
+.welcome-enter-btn:hover { filter: brightness(1.07); }
+.welcome-enter-btn:active { transform: translateY(1px); }
+.welcome-note { font-family: var(--mono); font-size: 10.5px; color: var(--faint); margin-top: 2px; }
+body.welcomed .welcome-root { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .welcome-gradient, .welcome-h1, .welcome-orb, .welcome-icon, .welcome-content { animation: none !important; }
+}
 </style>
 </head>
 <body>
+
+<!-- ============ WELCOME SCREEN ============ -->
+<div class="welcome-root" id="welcome" role="dialog" aria-label="Welcome to Scriptase">
+  <div class="welcome-bg" aria-hidden="true">
+    <div class="welcome-gradient"></div>
+    <div class="welcome-grid"></div>
+    <div class="welcome-orb welcome-orb--blue"></div>
+    <div class="welcome-orb welcome-orb--purple"></div>
+    <!-- floating studio icons -->
+    <svg class="welcome-icon" style="top:12%;left:8%;width:60px;height:60px;animation:welcomeSpin 22s linear infinite, welcomeFloat 8s ease-in-out infinite" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.4"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4.5a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 6 9.6a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 10.4 5h.1A2 2 0 1 1 14.5 5v.09A1.65 1.65 0 0 0 16 6.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 20 10.4v.1a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg>
+    <svg class="welcome-icon" style="top:22%;right:16%;width:52px;height:52px;animation:welcomeFloat 9s ease-in-out 1s infinite" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="1.4"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    <svg class="welcome-icon" style="top:46%;left:6%;width:66px;height:66px;opacity:.1;animation:welcomeFloat 11s ease-in-out 2s infinite" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.3"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+    <svg class="welcome-icon" style="bottom:24%;left:14%;width:48px;height:48px;animation:welcomeFloat 10s ease-in-out 3s infinite, welcomeSpin 40s linear infinite" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="1.4"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+    <svg class="welcome-icon" style="top:56%;right:9%;width:56px;height:56px;animation:welcomeFloat 7s ease-in-out 1.5s infinite" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="8" width="3" height="8" rx="1"/><rect x="5.5" y="5" width="3" height="14" rx="1"/><rect x="10" y="2" width="3" height="20" rx="1"/><rect x="14.5" y="6" width="3" height="12" rx="1"/><rect x="19" y="9" width="3" height="6" rx="1"/></svg>
+    <svg class="welcome-icon" style="bottom:14%;right:22%;width:44px;height:44px;opacity:.1;animation:welcomeFloat 13s ease-in-out 5s infinite" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.4"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+  </div>
+  <div class="welcome-content">
+    <div class="welcome-logo"><div class="wl-mark"></div></div>
+    <div class="welcome-titles">
+      <h1 class="welcome-h1">Scriptase</h1>
+      <p class="welcome-studio">Studio</p>
+    </div>
+    <div class="welcome-divider"></div>
+    <p class="welcome-desc">
+      Channel-aware, provider-driven AI video production — local-first.
+      Pick a channel, choose where the script comes from, and Scriptase orchestrates the whole
+      pipeline: <b>script → narration → timing → scenes → storyboard → animation → export</b>.
+      One node engine runs it; the batch, schema and library are just windows onto it.
+    </p>
+    <p class="welcome-tagline">Script. Narrate. Segment. Visualize. Export.</p>
+    <button class="welcome-enter-btn" id="welcomeEnter" onclick="dismissWelcome()">Enter Studio</button>
+    <p class="welcome-note">Interactive prototype · dummy data · no backend</p>
+  </div>
+</div>
 
 <div class="app">
   <!-- ============ TOP BAR ============ -->
@@ -1582,28 +1757,32 @@ input.txt::placeholder { color: var(--faint); }
       <div class="name">Script<b>ase</b></div>
       <div class="tag">Studio</div>
     </div>
-    <nav class="topnav">
-      <a href="#" id="nav-s1" onclick="goView('s1');return false;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false" onclick="toggleMobileNav()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <nav class="topnav" id="topnav" role="tablist" aria-label="Main sections">
+      <a href="#" id="nav-s1" role="tab" aria-current="false" onclick="goView('s1');return false;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         Script</a>
-      <a href="#" id="nav-batch" class="active" onclick="goView('batch');return false;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
+      <a href="#" id="nav-batch" class="active" role="tab" aria-current="page" onclick="goView('batch');return false;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
         Production</a>
-      <a href="#" id="nav-schema" onclick="goView('schema');return false;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="8" width="7" height="5" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/><path d="M10 5.5h2a2 2 0 0 1 2 2v3M10 18.5h2a2 2 0 0 0 2-2v-3"/></svg>
+      <a href="#" id="nav-schema" role="tab" aria-current="false" onclick="goView('schema');return false;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="8" width="7" height="5" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/><path d="M10 5.5h2a2 2 0 0 1 2 2v3M10 18.5h2a2 2 0 0 0 2-2v-3"/></svg>
         Schema</a>
-      <a href="#" id="nav-library" onclick="goView('library');return false;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      <a href="#" id="nav-library" role="tab" aria-current="false" onclick="goView('library');return false;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         Library</a>
-      <a href="#" id="nav-channels" onclick="goView('channels');return false;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <a href="#" id="nav-channels" role="tab" aria-current="false" onclick="goView('channels');return false;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
         Channels</a>
-      <a href="#" id="nav-providers" onclick="goView('providers');return false;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      <a href="#" id="nav-providers" role="tab" aria-current="false" onclick="goView('providers');return false;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
         Providers</a>
     </nav>
     <div class="spacer"></div>
     <div class="onair" id="onair"><span class="dot"></span><span id="onairText">IDLE</span></div>
+    <button class="help-btn" onclick="openKeys()" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
     <div class="avatar-me">DV</div>
   </div>
 
@@ -1856,10 +2035,14 @@ input.txt::placeholder { color: var(--faint); }
       <div class="spacer"></div>
       <button class="sch-errbadge" id="schErrBadge" style="display:none" onclick="schShowError()"></button>
       <div class="sch-live" id="schLive"></div>
+      <button class="sch-pause" id="schPauseBtn" onclick="schTogglePause()" aria-pressed="false" title="Pause live animation">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+        <span>Pause</span>
+      </button>
       <div class="sch-zoom">
-        <button class="sch-zbtn" onclick="schZoom(-1)" title="Zoom out">−</button>
+        <button class="sch-zbtn" onclick="schZoom(-1)" title="Zoom out" aria-label="Zoom out">−</button>
         <button class="sch-zbtn" onclick="schZoomReset()" title="Fit">Fit</button>
-        <button class="sch-zbtn" onclick="schZoom(1)" title="Zoom in">+</button>
+        <button class="sch-zbtn" onclick="schZoom(1)" title="Zoom in" aria-label="Zoom in">+</button>
       </div>
     </div>
     <div class="sch-canvas" id="schCanvas">
@@ -1889,7 +2072,27 @@ input.txt::placeholder { color: var(--faint); }
 <div class="ctx-menu" id="ctxMenu"></div>
 
 <!-- toasts -->
-<div class="toasts" id="toasts"></div>
+<div class="toasts" id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<!-- keyboard shortcuts cheat-sheet -->
+<div class="overlay" id="keysOverlay">
+  <div class="modal keys-modal" role="dialog" aria-label="Keyboard shortcuts">
+    <div class="modal-head"><div class="ic" style="background:var(--run-dim);color:var(--run)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/></svg></div><h3>Keyboard shortcuts</h3></div>
+    <div class="modal-body" style="padding-left:20px">
+      <div class="keys-grid">
+        <div class="krow"><span class="kk">/</span><span>Focus search</span></div>
+        <div class="krow"><span class="kk">↑</span> <span class="kk">↓</span><span>Move through job list</span></div>
+        <div class="krow"><span class="kk">Enter</span><span>Expand / collapse job</span></div>
+        <div class="krow"><span class="kk">Space</span><span>Select / deselect job</span></div>
+        <div class="krow"><span class="kk">E</span><span>Open focused job in Editor</span></div>
+        <div class="krow"><span class="kk">R</span><span>Run batch</span></div>
+        <div class="krow"><span class="kk">Esc</span><span>Close menu / dialog / clear selection</span></div>
+        <div class="krow"><span class="kk">?</span><span>Toggle this help</span></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeKeys()">Close</button></div>
+  </div>
+</div>
 
 <!-- confirm modal -->
 <div class="overlay" id="overlay">
@@ -2639,11 +2842,11 @@ function renderJob(j){
           <span>Library</span>
         </button>
       </div>` : ''}
-      <button class="job-menu-btn" onclick="openCtx('${j.id}',event)" title="Actions">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+      <button class="job-menu-btn" onclick="openCtx('${j.id}',event)" title="Actions" aria-label="Actions for ${j.id}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
       </button>
-      <button class="job-expand-btn" title="Details">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      <button class="job-expand-btn" title="Details" aria-label="Toggle details for ${j.id}" aria-expanded="${j.expanded?'true':'false'}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
       </button>
     </div>
     ${j.expanded?renderDetail(j):''}
@@ -3069,7 +3272,20 @@ function libSetChannel(v){ libState.channel=v; renderLibrary(); }
 /* ============================================================
    SCHEMA — read-only workflow canvas, animates with the live job
    ============================================================ */
-const schState = { zoom:1, panX:0, panY:0, built:false, errorFocusId:null };
+const schState = { zoom:1, panX:0, panY:0, built:false, errorFocusId:null, paused:false };
+function schTogglePause(){
+  schState.paused=!schState.paused;
+  const btn=document.getElementById('schPauseBtn');
+  btn.classList.toggle('on', schState.paused);
+  btn.setAttribute('aria-pressed', schState.paused?'true':'false');
+  btn.querySelector('span').textContent = schState.paused?'Resume':'Pause';
+  btn.querySelector('svg').innerHTML = schState.paused
+    ? '<polygon points="6 3 20 12 6 21 6 3"/>'                                   // play icon
+    : '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'; // pause icon
+  btn.title = schState.paused?'Resume live animation':'Pause live animation';
+  if(!schState.paused) renderSchema();   // catch up to current state on resume
+  toast('info', schState.paused?'Schema paused — live updates frozen':'Schema resumed');
+}
 const SCH_NODE_W=150, SCH_NODE_H=48;
 
 // The job the schema visualizes: a user-pinned failed job wins, else the running
@@ -3755,7 +3971,9 @@ function updateSelBar(){
 function removeSelected(){
   const sel=JOBS.filter(j=>j.checked);
   confirmModal('danger','Remove selected jobs?', `This removes ${sel.length} job${sel.length>1?'s':''} from the batch. Running jobs will be cancelled first.`, ()=>{
-    JOBS = JOBS.filter(j=>!j.checked); render(); toast('ok',`${sel.length} job(s) removed`);
+    const snapshot=JOBS.slice();
+    JOBS = JOBS.filter(j=>!j.checked); render();
+    toast('ok',`${sel.length} job(s) removed`, { label:'Undo', onUndo:()=>{ JOBS=snapshot; render(); toast('info',`Restored ${sel.length} job(s)`); } });
   });
 }
 function duplicateSelected(){
@@ -3892,7 +4110,7 @@ function tickJob(j){
 let lightPending=false;
 function renderLight(){
   if(lightPending) return; lightPending=true;
-  requestAnimationFrame(()=>{ lightPending=false; render(); if(currentView==='schema') renderSchema(); });
+  requestAnimationFrame(()=>{ lightPending=false; render(); if(currentView==='schema' && !schState.paused) renderSchema(); });
 }
 
 function runBatch(){
@@ -3935,8 +4153,11 @@ function retryJob(id){
   render(); toast('info',`${j.id} re-queued`); pumpQueue();
 }
 function removeJob(id){
-  const j=JOBS.find(x=>x.id===id); if(!j) return;
-  const go=()=>{ clearInterval(timers[id]); JOBS=JOBS.filter(x=>x.id!==id); render(); toast('ok',`${id} removed`); };
+  const idx=JOBS.findIndex(x=>x.id===id); if(idx<0) return; const j=JOBS[idx];
+  const go=()=>{
+    clearInterval(timers[id]); const removed=JOBS[idx]; JOBS.splice(idx,1); render();
+    toast('ok',`${id} removed`, { label:'Undo', onUndo:()=>{ JOBS.splice(Math.min(idx,JOBS.length),0,removed); render(); toast('info',`${id} restored`); } });
+  };
   if(['running','preparing'].includes(j.status)){
     confirmModal('danger','Remove a running job?', `${id} is currently running. Removing it cancels production and discards progress.`, go);
   } else go();
@@ -3977,9 +4198,11 @@ function cancelAll(){
   });
 }
 function clearCompleted(){
+  const snapshot=JOBS.slice();
   const done=JOBS.filter(j=>j.status==='completed');
   if(!done.length){ toast('warn','No completed jobs to clear'); return; }
-  JOBS=JOBS.filter(j=>j.status!=='completed'); render(); toast('ok',`Cleared ${done.length} completed`);
+  JOBS=JOBS.filter(j=>j.status!=='completed'); render();
+  toast('ok',`Cleared ${done.length} completed`, { label:'Undo', onUndo:()=>{ JOBS=snapshot; render(); toast('info',`Restored ${done.length} job(s)`); } });
 }
 function retryFailed(){
   const failed=JOBS.filter(j=>j.status==='failed');
@@ -4009,12 +4232,19 @@ function attachDrag(){
 /* ============================================================
    TOAST + MODAL
    ============================================================ */
-function toast(type,msg){
+// toast(type, msg) — or toast(type, msg, { label, onUndo }) for an undoable action
+function toast(type,msg,undo){
   const wrap=document.getElementById('toasts');
   const el=document.createElement('div'); el.className='toast '+type;
-  el.innerHTML=`<span class="dot"></span><span>${msg}</span>`;
+  const dur = undo ? 5200 : 2600;   // give undo more time
+  el.innerHTML=`<span class="dot"></span><span class="tmsg">${msg}</span>`;
+  if(undo && typeof undo.onUndo==='function'){
+    const btn=document.createElement('button'); btn.className='toast-undo'; btn.textContent=undo.label||'Undo';
+    btn.onclick=()=>{ undo.onUndo(); el.classList.add('out'); setTimeout(()=>el.remove(),200); };
+    el.appendChild(btn);
+  }
   wrap.appendChild(el);
-  setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>el.remove(),240); }, 2600);
+  setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>el.remove(),240); }, dur);
 }
 let modalCb=null;
 function confirmModal(kind,title,body,cb){
@@ -4037,10 +4267,53 @@ document.addEventListener('click', e=>{
 });
 document.getElementById('overlay').addEventListener('click',e=>{ if(e.target.id==='overlay') closeModal(); });
 document.getElementById('exportOverlay').addEventListener('click',e=>{ if(e.target.id==='exportOverlay') closeExportModal(); });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape'){
-  if(document.getElementById('view-editor').classList.contains('open')){ closeVideoEditor(); return; }
-  closeModal(); closeExportModal(); closeCtx(); clearSelection();
-}});
+document.getElementById('keysOverlay').addEventListener('click',e=>{ if(e.target.id==='keysOverlay') closeKeys(); });
+
+/* ---------- Keyboard shortcuts + job-list navigation ---------- */
+function openKeys(){ document.getElementById('keysOverlay').classList.add('open'); }
+function closeKeys(){ document.getElementById('keysOverlay').classList.remove('open'); }
+function keysOpen(){ return document.getElementById('keysOverlay').classList.contains('open'); }
+let kbFocusId=null;   // job id highlighted by keyboard
+function kbRows(){ return [...document.querySelectorAll('#joblist .job')]; }
+function kbFocusRow(id){
+  kbFocusId=id;
+  document.querySelectorAll('.job.kb-focus').forEach(el=>el.classList.remove('kb-focus'));
+  const el=document.querySelector(`#joblist .job[data-id="${id}"]`);
+  if(el){ el.classList.add('kb-focus'); el.scrollIntoView({block:'nearest'}); }
+}
+function kbMove(dir){
+  const rows=kbRows(); if(!rows.length) return;
+  let i=rows.findIndex(r=>r.dataset.id===kbFocusId);
+  i = i<0 ? (dir>0?0:rows.length-1) : Math.max(0,Math.min(rows.length-1,i+dir));
+  kbFocusRow(rows[i].dataset.id);
+}
+document.addEventListener('keydown', e=>{
+  // Escape closes overlays/menus (works even from inputs)
+  if(e.key==='Escape'){
+    if(document.getElementById('view-editor').classList.contains('open')){ closeVideoEditor(); return; }
+    if(keysOpen()){ closeKeys(); return; }
+    closeMobileNav(); closeModal(); closeExportModal(); closeCtx(); clearSelection();
+    return;
+  }
+  // don't hijack typing in fields
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName||'')) || e.target.isContentEditable;
+  if(typing) return;
+  // '?' toggles the cheat sheet from anywhere
+  if(e.key==='?'){ e.preventDefault(); keysOpen()?closeKeys():openKeys(); return; }
+  // '/' focuses the active view's search box
+  if(e.key==='/'){ const box=document.querySelector('#view-batch:not([style*="none"]) #searchInput, #view-library:not([style*="none"]) #libSearch');
+    const si=document.getElementById(currentView==='library'?'libSearch':'searchInput');
+    if(si){ e.preventDefault(); si.focus(); si.select(); } return; }
+  // the rest only apply on the Production (batch) view
+  if(currentView!=='batch') return;
+  const j = kbFocusId ? JOBS.find(x=>x.id===kbFocusId) : null;
+  if(e.key==='ArrowDown'){ e.preventDefault(); kbMove(1); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); kbMove(-1); }
+  else if(e.key==='Enter'){ if(j){ e.preventDefault(); toggleExpand(j.id); kbFocusRow(j.id); } }
+  else if(e.key===' '){ if(j){ e.preventDefault(); toggleCheck(j.id,{stopPropagation(){}}); kbFocusRow(j.id); } }
+  else if(e.key==='e'||e.key==='E'){ if(j&&j.status==='completed'){ e.preventDefault(); showInEditor(j.id); } }
+  else if(e.key==='r'||e.key==='R'){ e.preventDefault(); runBatch(); }
+});
 
 /* ============================================================
    S1 · SCRIPT STUDIO
@@ -4057,18 +4330,29 @@ function goView(v){
   document.getElementById('view-channels').style.display  = v==='channels' ? 'grid' : 'none';
   document.getElementById('view-providers').style.display = v==='providers' ? 'grid' : 'none';
   document.getElementById('view-schema').style.display    = v==='schema' ? 'flex' : 'none';
-  document.getElementById('nav-batch').classList.toggle('active', v==='batch');
-  document.getElementById('nav-s1').classList.toggle('active', v==='s1');
-  document.getElementById('nav-library').classList.toggle('active', v==='library');
-  document.getElementById('nav-channels').classList.toggle('active', v==='channels');
-  document.getElementById('nav-providers').classList.toggle('active', v==='providers');
-  document.getElementById('nav-schema').classList.toggle('active', v==='schema');
+  const navMap={ batch:'nav-batch', s1:'nav-s1', library:'nav-library', channels:'nav-channels', providers:'nav-providers', schema:'nav-schema' };
+  Object.entries(navMap).forEach(([view,id])=>{ const el=document.getElementById(id);
+    const on=view===v; el.classList.toggle('active', on); el.setAttribute('aria-current', on?'page':'false'); });
+  closeMobileNav();  // collapse the mobile menu after choosing a section
   if(v==='s1'){ if(!s1State.selectedId && S1_LIBRARY.length) s1State.selectedId=S1_LIBRARY[0].id; renderS1(); }
   if(v==='library'){ renderLibrary(); }
   if(v==='channels'){ if(!chState.selectedId) chState.selectedId=Object.keys(CHANNELS)[0]; renderChannels(); }
   if(v==='providers'){ if(!pvState.selectedId) pvState.selectedId=Object.keys(PROVIDERS)[0]; renderProviders(); }
   if(v==='schema'){ buildSchema(); renderSchema(); }
 }
+
+/* welcome screen */
+function dismissWelcome(){
+  const w=document.getElementById('welcome'); if(!w) return;
+  w.classList.add('dismissing');
+  setTimeout(()=>{ document.body.classList.add('welcomed'); }, 480);
+}
+
+/* mobile nav dropdown */
+function toggleMobileNav(){ const n=document.getElementById('topnav'), t=document.getElementById('navToggle');
+  const open=n.classList.toggle('open'); t.setAttribute('aria-expanded', open?'true':'false'); }
+function closeMobileNav(){ const n=document.getElementById('topnav'), t=document.getElementById('navToggle');
+  if(n) n.classList.remove('open'); if(t) t.setAttribute('aria-expanded','false'); }
 
 function ttsTagHtml(tts){
   if(tts==='ready')      return `<span class="tts-tag tts-ready">TTS Ready</span>`;
@@ -5142,6 +5426,11 @@ JOBS.filter(j=>j.status==='running').forEach(j=>tickJob(j));
 
 // arm the continuous queue drain (batch starts live; fills any free slot)
 pumpQueue();
+
+// skip the welcome screen when deep-linking a view (?view=…) or explicitly (?skipwelcome)
+(function(){ const p=new URLSearchParams(location.search);
+  if(p.get('view')||p.get('editor')||p.get('export')||p.get('expand')||p.has('skipwelcome')){ document.body.classList.add('welcomed'); }
+})();
 
 // dev/demo helper: ?expand=failed|reuse|first pre-opens a job's detail for screenshots
 (function(){
