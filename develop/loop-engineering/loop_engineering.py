@@ -411,11 +411,38 @@ def ensure_agents_available(args) -> None:
 # Validation (never trust the agent)
 # ---------------------------------------------------------------------------
 
-def validate(log_file: Path) -> tuple[bool, str]:
+def tree_fingerprint() -> str:
+    """Identity of the working tree: HEAD plus the exact dirty state.
+
+    If this is unchanged since the last green board, the board cannot have
+    changed either — nothing was edited, so re-running the suites is pure cost.
+    """
+    head = run_capture(["git", "rev-parse", "HEAD"], cwd=ROOT).strip()
+    dirty = run_capture(["git", "status", "--porcelain"], cwd=ROOT)
+    import hashlib
+    return head + ":" + hashlib.sha256(dirty.encode("utf-8", "replace")).hexdigest()[:16]
+
+
+_LAST_GREEN_FINGERPRINT = ""
+
+
+def validate(log_file: Path, *, allow_cache: bool = True) -> tuple[bool, str]:
+    """Run the board. Cheapest check first so a red fails fast.
+
+    Order is deliberate: the production build takes ~2s and vitest ~5s, while
+    pytest takes ~200s. Running pytest first meant a broken frontend cost three
+    and a half minutes before reporting a two-second failure.
+    """
+    global _LAST_GREEN_FINGERPRINT
+    fingerprint = tree_fingerprint()
+    if allow_cache and fingerprint and fingerprint == _LAST_GREEN_FINGERPRINT:
+        say("validate: skipped — nothing changed since the last green board", icon="✓")
+        return True, "all green (cached)"
+
     checks = [
-        ("pytest", [str(PYTHON), "-m", "pytest", "tests/", "-q", "--tb=short"], ROOT),
-        ("vitest", "npm run test", ROOT / "frontend"),
         ("build", "npm run build", ROOT / "frontend"),
+        ("vitest", "npm run test", ROOT / "frontend"),
+        ("pytest", [str(PYTHON), "-m", "pytest", "tests/", "-q", "--tb=short"], ROOT),
     ]
     for name, cmd, cwd in checks:
         started = time.monotonic()
@@ -433,6 +460,7 @@ def validate(log_file: Path) -> tuple[bool, str]:
             say(f"validate: {name} is RED after {elapsed(started)}", icon="✗")
             return False, f"{name} FAILED:\n{tail}"
         say(f"validate: {name} green in {elapsed(started)}", icon="✓")
+    _LAST_GREEN_FINGERPRINT = fingerprint
     return True, "all green"
 
 
@@ -481,12 +509,32 @@ def execute_prompt(step: Step) -> str:
     )
 
 
-def fix_prompt(step: Step, failure: str) -> str:
+def failure_signature(detail: str) -> str:
+    """A stable identity for a board failure, ignoring timings and paths.
+
+    Used to notice that a fix attempt changed code but not the outcome — the
+    fixer committing something and the board failing identically means it is
+    going in circles, and each further attempt costs a full agent invocation.
+    """
+    text = re.sub(r"\d+", "#", detail or "")
+    text = re.sub(r"[A-Za-z]:\\[^\s]+|/[^\s]+/", "<path>", text)
+    return " ".join(text.split())[:400]
+
+
+def fix_prompt(step: Step, failure: str, *, attempt: int = 1, repeated: bool = False) -> str:
+    escalation = ""
+    if repeated:
+        escalation = (
+            " IMPORTANT: your previous fix committed changes but the board failed in "
+            "exactly the same way. Do not retry the same approach — diagnose why the "
+            "last change did not affect this failure before editing anything else."
+        )
     return (
-        f"The build/test board is RED after work on step {step.id} ({step.title}). "
+        f"The build/test board is RED after work on step {step.id} ({step.title}) "
+        f"(fix attempt {attempt}). "
         f"Diagnose and fix the failures below, re-run the suites until green, "
         f"then commit the fix with subject 'fix: step {step.id} validation'. "
-        f"Do not start new features.\n\n{VERIFY}\n\nFailure output:\n{failure}"
+        f"Do not start new features.{escalation}\n\n{VERIFY}\n\nFailure output:\n{failure}"
     )
 
 
@@ -569,7 +617,23 @@ def run_step(step: Step, state: dict, args, *, review: bool = True, push: bool =
                        fallback=args.coding_fallback, fallback_state=args.fallback_state)
     say(f"builder agent finished in {elapsed(stage)}")
     if not agent_run_ok(result, state, step.id, "builder agent"):
-        return False
+        # An agent that finishes its work and then hangs is killed by the
+        # timeout and reported as a failure, throwing away completed work. This
+        # happened once and cost a full hour: the tree was dirty and the board
+        # was green, and the step had to be recovered by hand. Before halting,
+        # check whether the work is actually there and passing.
+        if result.blocker == "agent timed out" and working_tree_dirty():
+            say("agent timed out with uncommitted work — checking whether it "
+                "finished before it hung", icon="!")
+            ok, _ = validate(log_file)
+            if ok:
+                say("board is green — salvaging the work instead of halting", icon="✓")
+                commit_all(f"feat(workflow): step {step.id} - {step.title} (loop auto-commit)")
+                record(state, step.id, "salvaged", "timed out after completing; board green")
+            else:
+                return False
+        else:
+            return False
     if working_tree_dirty():
         say("builder left uncommitted changes — committing them on its behalf")
         commit_all(f"feat(workflow): step {step.id} - {step.title} (loop auto-commit)")
@@ -617,15 +681,23 @@ def run_step(step: Step, state: dict, args, *, review: bool = True, push: bool =
         say(f"stage 3/4 REVIEW — {args.reviewer} audits commits {baseline}..{head_commit()} "
             f"for real bugs and fixes what it finds", icon="▶")
         stage = time.monotonic()
-        result = run_logged(agent_cmd(args.reviewer, review_prompt(step, baseline, head_commit())), log_file)
+        post_build_commit = head_commit()
+        result = run_logged(agent_cmd(args.reviewer, review_prompt(step, baseline, post_build_commit)), log_file)
         say(f"reviewer finished in {elapsed(stage)}")
         if not agent_run_ok(result, state, step.id, "reviewer agent"):
             return False
-        if working_tree_dirty():
+        review_changed = working_tree_dirty()
+        if review_changed:
             say("reviewer left uncommitted fixes — committing them")
             commit_all(f"fix(review): step {step.id} (loop auto-commit)")
-        say("re-validating after review (a reviewer can break the board too)")
-        ok, detail = validate(log_file)
+        if not review_changed and head_commit() == post_build_commit:
+            # The reviewer touched nothing, so the board it would be re-checking
+            # is the identical board that was green a moment ago.
+            say("reviewer made no changes — board is unchanged, skipping re-validation", icon="✓")
+            ok, detail = True, "all green (unchanged)"
+        else:
+            say("re-validating after review (a reviewer can break the board too)")
+            ok, detail = validate(log_file)
         if not ok:
             say("reviewer broke the board — one repair pass", icon="✗")
             record(state, step.id, "review_red", detail)
@@ -776,9 +848,9 @@ def main() -> None:
                     help="agent used to implement steps (default: claude)")
     ap.add_argument("--fixer", choices=AGENT_CHOICES, default="claude",
                     help="agent used to diagnose and repair failures (default: claude)")
-    ap.add_argument("--coding-fallback", choices=[*AGENT_CHOICES, "none"], default="agy",
+    ap.add_argument("--coding-fallback", choices=[*AGENT_CHOICES, "none"], default="codex",
                     help="retry builder/fixer work with this agent when the selected agent "
-                         "hits a credit or usage limit (default: agy)")
+                         "hits a credit or usage limit (default: codex)")
     ap.add_argument("--reviewer", choices=[*AGENT_CHOICES, "none"], default="codex",
                     help="agent used for adversarial review (default: codex)")
     ap.add_argument("--max-fix-attempts", type=int, default=3)

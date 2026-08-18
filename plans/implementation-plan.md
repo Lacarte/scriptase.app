@@ -282,6 +282,26 @@ extension and n8n providers. Keys stay masked and are never returned by any resp
 
 **Done when:** each provider kind simulates a round-trip without touching a real endpoint, and a redaction test proves no response carries a credential.
 
+### 5.3 Restrict the catalogue to the prototype's provider set
+
+The prototype ships exactly one provider per capability: **Inworld** for voice (API key),
+**Grok** for video and **Gemini** for image (both browser-extension transports), **n8n** for
+Scene Director, and the **deterministic** scorer for virality. Everything else the port
+carried over — Kokoro, both WaveSpeed image providers, Kie for video, and the random-template
+script provider — is removed from the user-facing catalogue so a Channel cannot be configured
+against a provider the product does not support.
+
+Removal means unregistering from the domain catalogue, not deleting the platform's test
+fixtures: the `scaffold_check` packages exist to prove the scaffolder and the
+no-node-edit extensibility gate still work, and the contract-test fixtures under
+`tests/fixture_providers/` must keep loading. Migrate any Channel or settings document
+pointing at a retired provider onto its capability's remaining one, in the same step.
+
+Note the consequence, which is deliberate: **Kokoro was the only credential-free path**, so
+after this step narration requires a working Inworld key and there is no offline TTS.
+
+**Done when:** the catalogue exposes exactly the five prototype providers, a Channel referencing a retired provider migrates without manual editing, and the provider extensibility and scaffolder tests stay green.
+
 ---
 
 ## Step count and sequencing
@@ -293,9 +313,9 @@ extension and n8n providers. Keys stay masked and are never returned by any resp
 | 2 — Channel as format | 2.1–2.4 (4) | Each ships its own `type_version` migration. 2.1 gates 3.2. |
 | 3 — Script studio | 3.1–3.4 (4) | 3.1 before the rest; needs 2.1 and 2.3. |
 | 4 — Batch orchestrator | 4.1–4.5 (5) | 4.2 and 4.3 are engine changes. 4.3 needs 3.1. |
-| 5 — Library and Providers | 5.1–5.2 (2) | 5.1 reuses 4.4's calendar. |
+| 5 — Library and Providers | 5.1–5.3 (3) | 5.1 reuses 4.4's calendar. 5.3 retires non-prototype providers. |
 
-**23 steps across 6 phases.**
+**24 steps across 6 phases.**
 
 Critical path: **0.1 → 1.1 → 1.2 → 1.3 → 1.4 → 1.5**, then
 **2.1 → 2.3 → 3.1 → 3.2 → 3.3 → 4.1 → 4.2 → 4.3**. Phase 5 is independent of that chain
