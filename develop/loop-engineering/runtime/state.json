@@ -117,6 +117,24 @@
       "step": "1.5",
       "event": "done",
       "detail": "9b3c07a"
+    },
+    {
+      "ts": "2026-08-18T03:45:03",
+      "step": "phase-1",
+      "event": "done",
+      "detail": "ce70d29"
+    },
+    {
+      "ts": "2026-08-18T03:45:05",
+      "step": "phase-2",
+      "event": "start",
+      "detail": "ce70d29"
+    },
+    {
+      "ts": "2026-08-18T03:45:05",
+      "step": "2.1",
+      "event": "start",
+      "detail": ""
     }
   ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
