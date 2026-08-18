@@ -13,6 +13,8 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
+  deleteJob,
+  duplicateJob,
   getExecution,
   getJob,
   getJobCost,
@@ -22,6 +24,8 @@ import {
   listWorkflows,
   pauseJob,
   resumeJob,
+  retryFailedJobs,
+  retryJob,
   runWorkflow,
   testJobNode,
 } from './api.js'
@@ -71,6 +75,7 @@ const selectedExecutionId = ref('')
 const selectedStageKey = ref(null)
 const showJobCreate = ref(false)
 const activeJobId = ref('')
+const activeJob = ref(null)
 const activeJobSourceMode = ref(null)
 const activeJobExecutionMode = ref(null)
 /** Job cost report (step 9.3) — generations + cost by stage / instance. */
@@ -87,6 +92,8 @@ const jobs = ref([])
 const jobsLoading = ref(false)
 const jobsError = ref('')
 const jobSearch = ref('')
+const jobActionRunning = ref('')
+const jobActionError = ref('')
 
 /** Free-text stage filter — the input `/` focuses (step 0.3). */
 const stageFilter = ref('')
@@ -129,6 +136,42 @@ async function refreshJobs() {
     jobsError.value = err?.message || String(err)
   } finally {
     jobsLoading.value = false
+  }
+}
+
+async function runJobAction(action, job) {
+  if (!job?.id || jobActionRunning.value) return
+  jobActionRunning.value = `${action}:${job.id}`
+  jobActionError.value = ''
+  try {
+    if (action === 'retry') await retryJob(job.id)
+    else if (action === 'duplicate') await duplicateJob(job.id)
+    else if (action === 'remove') {
+      await deleteJob(job.id)
+      if (activeJobId.value === job.id) {
+        activeJob.value = null
+        await router.replace({ name: 'production', query: {} })
+      }
+    }
+    await refreshJobs()
+  } catch (err) {
+    jobActionError.value = err?.message || String(err)
+  } finally {
+    jobActionRunning.value = ''
+  }
+}
+
+async function retryAllFailed() {
+  if (jobActionRunning.value) return
+  jobActionRunning.value = 'retry-failed'
+  jobActionError.value = ''
+  try {
+    await retryFailedJobs()
+    await refreshJobs()
+  } catch (err) {
+    jobActionError.value = err?.message || String(err)
+  } finally {
+    jobActionRunning.value = ''
   }
 }
 
@@ -244,6 +287,7 @@ async function toggleJobPause() {
 async function bindJobFromRoute(jobId) {
   if (!jobId) {
     activeJobId.value = ''
+    activeJob.value = null
     activeJobSourceMode.value = null
     activeJobExecutionMode.value = null
     jobCost.value = null
@@ -252,6 +296,7 @@ async function bindJobFromRoute(jobId) {
   try {
     const data = await getJob(jobId)
     const job = data.job || data
+    activeJob.value = job
     activeJobId.value = job.id || jobId
     activeJobSourceMode.value = job.source?.mode || null
     activeJobExecutionMode.value = job.execution_mode || null
@@ -294,6 +339,7 @@ async function bindFromRoute() {
     return
   }
   activeJobId.value = ''
+  activeJob.value = null
   activeJobSourceMode.value = null
   activeJobExecutionMode.value = null
 
@@ -331,6 +377,7 @@ function closeJobCreate() {
 async function onJobStarted({ job, executionId: exId }) {
   showJobCreate.value = false
   activeJobId.value = job?.id || ''
+  activeJob.value = job || null
   activeJobSourceMode.value = job?.source?.mode || null
   activeJobExecutionMode.value = job?.execution_mode || null
   const query = {}
@@ -390,6 +437,7 @@ const costInstanceRows = computed(() => {
 
 function onJobCreated({ job }) {
   activeJobId.value = job?.id || ''
+  activeJob.value = job || null
   activeJobSourceMode.value = job?.source?.mode || null
   activeJobExecutionMode.value = job?.execution_mode || null
   void refreshJobs()
@@ -768,7 +816,15 @@ onMounted(async () => {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input v-model="jobSearch" type="search" placeholder="Search jobs by name…" />
         </label>
+        <button
+          v-if="jobs.some(job => job.status === 'failed')"
+          type="button"
+          class="ghost retry-failed"
+          :disabled="Boolean(jobActionRunning)"
+          @click="retryAllFailed"
+        >Retry Failed</button>
       </header>
+      <p v-if="jobActionError" class="error" role="alert">{{ jobActionError }}</p>
       <p v-if="jobsLoading && !jobs.length" class="muted">Loading jobs…</p>
       <p v-else-if="jobsError" class="error" role="alert">{{ jobsError }}</p>
       <ArchiveCalendar
@@ -781,22 +837,33 @@ onMounted(async () => {
         noun="job"
       >
         <template #item="{ item, archived }">
-          <button
-            type="button"
+          <article
             class="job-row"
-            :class="{ selected: item.id === activeJobId }"
-            @click="openJob(item)"
+            :class="{ selected: item.id === activeJobId, failed: item.status === 'failed' }"
           >
-            <span class="job-row-main">
-              <strong>{{ item.name }}</strong>
-              <span>{{ item.channel_name || item.channel_id }} · {{ item.id }}</span>
+            <button type="button" class="job-row-open" @click="openJob(item)">
+              <span class="job-row-main">
+                <strong>{{ item.name }}</strong>
+                <span>
+                  {{ item.channel_name || item.channel_id }} · {{ item.id }}
+                  <b v-if="item.advisories?.some(a => a.code === 'LANGUAGE_MISMATCH')" class="language-badge">
+                    {{ item.advisories.find(a => a.code === 'LANGUAGE_MISMATCH').script_language }} ⚠
+                  </b>
+                </span>
+                <span v-if="item.failure" class="failed-stage">Failed · {{ item.failure.stage_label }}</span>
+              </span>
+              <span class="job-row-meta">
+                <span class="job-status" :data-status="item.status">{{ statusLabel(item.status) }}</span>
+                <time v-if="jobDate(item)">{{ jobDate(item) }}</time>
+                <span v-if="archived" class="archived-label">Archived</span>
+              </span>
+            </button>
+            <span class="job-row-actions">
+              <button v-if="item.status === 'failed'" type="button" class="primary" :disabled="Boolean(jobActionRunning)" @click="runJobAction('retry', item)">Retry</button>
+              <button type="button" class="ghost" :disabled="Boolean(jobActionRunning)" @click="runJobAction('duplicate', item)">Duplicate</button>
+              <button type="button" class="danger" :disabled="Boolean(jobActionRunning)" @click="runJobAction('remove', item)">Remove</button>
             </span>
-            <span class="job-row-meta">
-              <span class="job-status" :data-status="item.status">{{ statusLabel(item.status) }}</span>
-              <time v-if="jobDate(item)">{{ jobDate(item) }}</time>
-              <span v-if="archived" class="archived-label">Archived</span>
-            </span>
-          </button>
+          </article>
         </template>
         <template #empty>
           <p class="muted job-empty">No jobs match “{{ jobSearch }}”.</p>
@@ -854,6 +921,16 @@ onMounted(async () => {
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <p v-if="pauseActionError" class="error" role="alert">{{ pauseActionError }}</p>
     <p v-if="streamError && !error" class="stream-warn" role="status">{{ streamError }}</p>
+
+    <aside
+      v-if="activeJob?.advisories?.some(a => a.code === 'LANGUAGE_MISMATCH')"
+      class="language-banner"
+      role="status"
+    >
+      <strong>Language mismatch — advisory only.</strong>
+      {{ activeJob.advisories.find(a => a.code === 'LANGUAGE_MISMATCH').message }}
+      Production can still run; narration remains authoritative.
+    </aside>
 
     <!-- Step 9.3: Job cost accounting (generations + cost by stage / instance) -->
     <section
@@ -945,6 +1022,13 @@ onMounted(async () => {
     </section>
 
     <p v-if="loading" class="muted">Loading stages…</p>
+
+    <aside v-if="activeJob?.failure" class="failure-banner" role="alert">
+      <strong>{{ activeJob.failure.stage_label }} failed</strong>
+      <span>{{ activeJob.failure.message }}</span>
+      <code>{{ activeJob.failure.code }} · {{ activeJob.failure.node_id }}</code>
+      <button type="button" class="primary" :disabled="Boolean(jobActionRunning)" @click="runJobAction('retry', activeJob)">Retry failed scope</button>
+    </aside>
 
     <div v-else-if="hasStages" class="stage-layout">
       <div class="stage-column">
@@ -1080,9 +1164,13 @@ onMounted(async () => {
 .job-search { width: min(280px, 100%); display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--bg-2); color: var(--muted); }
 .job-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
 .job-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: 12px var(--body); }
-.job-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--bg-2); color: var(--text); text-align: left; cursor: pointer; }
+.job-row { position: relative; width: 100%; display: flex; align-items: center; gap: 12px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--bg-2); color: var(--text); text-align: left; }
+.job-row.failed::before { content: ''; align-self: stretch; width: 4px; flex: none; background: var(--fail); }
 .job-row:hover { border-color: var(--line-2); background: var(--panel-2); }
 .job-row.selected { border-color: var(--accent-line-2); box-shadow: 0 0 0 1px var(--accent-line); }
+.job-row-open { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 8px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.job-row-actions { display: flex; gap: 6px; padding-right: 10px; }
+.job-row-actions button { padding: 5px 8px; font-size: 10px; }
 .job-row-main, .job-row-meta { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .job-row-main { flex-direction: column; align-items: flex-start; gap: 3px; }
 .job-row-main strong { max-width: 52ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1092,12 +1180,22 @@ onMounted(async () => {
 .job-status[data-status="completed"], .job-status[data-status="succeeded"] { background: var(--ok-dim); color: var(--ok); }
 .job-status[data-status="failed"] { background: var(--fail-dim); color: var(--fail); }
 .job-status[data-status="running"], .job-status[data-status="paused"] { background: var(--accent-dim); color: var(--accent); }
+.failed-stage { color: var(--fail) !important; font-weight: 600 !important; }
+.language-badge { margin-left: 5px; padding: 1px 5px; border-radius: 4px; background: var(--warn-dim); color: var(--warn); text-transform: uppercase; }
+.language-banner, .failure-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 0 0 16px; padding: 12px 14px; border-radius: var(--r-s); }
+.language-banner { border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); background: var(--warn-dim); color: var(--text); }
+.language-banner strong { color: var(--warn); }
+.failure-banner { border: 1px solid color-mix(in srgb, var(--fail) 35%, transparent); background: var(--fail-dim); color: var(--text); }
+.failure-banner strong, .failure-banner code { color: var(--fail); }
+.failure-banner span { flex: 1 1 360px; }
+.failure-banner code { font: 10px var(--mono); }
 .job-empty { margin: 4px 0; text-align: center; }
 
 @media (max-width: 720px) {
-  .job-index-head, .job-row { align-items: stretch; flex-direction: column; }
+  .job-index-head, .job-row, .job-row-open { align-items: stretch; flex-direction: column; }
   .job-search { width: auto; }
   .job-row-meta { justify-content: space-between; }
+  .job-row-actions { padding: 0 10px 10px; }
 }
 
 h1 {

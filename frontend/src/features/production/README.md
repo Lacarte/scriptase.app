@@ -39,6 +39,13 @@ wired to the 4.1 InputPicker. When a Job is bound, the panel posts to
 `/api/jobs/<id>/test-node` so status, current stage, and the artifact set stay
 unchanged. Sample-fed results keep the `from_sample_data` marker.
 
+Step 4.5 keeps failures Job-scoped. The failed row gets a red rail, failed
+stage, safe error banner, and Retry / Duplicate / Remove actions. Retry creates
+a structured issue and invokes the Repair Router for the responsible node;
+Retry Failed does the same independently for every failed Job. A queued Job
+also shows a non-blocking advisory when its explicit or confidently detected
+script language differs from the frozen Channel language.
+
 Step 13.3: the panel is shared, not owned. The Workflow canvas mounts the same
 component from its node context menu ("Test node…"), replacing three run items
 that fired blind. Passing a `providerDomain` turns the read-only provider line

@@ -14,6 +14,9 @@ Job creation (Step 0 / step 2.5)
 * ``GET    /api/jobs/<job_id>/cost`` — cost accounting report (9.3)
 * ``GET    /api/jobs/<job_id>/repair-history`` — full repair sequence (8.4)
 * ``POST   /api/jobs/<job_id>/start`` — run through the ported engine
+* ``POST   /api/jobs/<job_id>/retry`` — targeted Repair Router recovery
+* ``POST   /api/jobs/retry-failed`` — independently retry all failures
+* ``POST   /api/jobs/<job_id>/duplicate`` — fresh queued copy of immutable inputs
 * ``POST   /api/jobs/<job_id>/test-node`` — isolated Test Node run; never advances Job (4.2)
 * ``POST   /api/jobs/<job_id>/approve`` — durable checkpoint approve + resume (2.6)
 * ``POST   /api/jobs/<job_id>/reject`` — durable checkpoint reject (2.6)
@@ -31,6 +34,7 @@ payloads never include secrets or absolute filesystem paths.
 from __future__ import annotations
 
 import json
+import threading
 
 from flask import Blueprint, jsonify, request
 
@@ -70,6 +74,11 @@ from scriptase.jobs.store import (
     list_jobs,
 )
 from scriptase.jobs.snapshot import assert_snapshot_has_no_credentials
+from scriptase.jobs.failure_handling import (
+    duplicate_job,
+    enrich_job_payload,
+    retry_failed_job,
+)
 
 # Draft bodies are workflow-sized; match the workflow document limit.
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -152,7 +161,7 @@ def _job_public(document) -> dict:
     """Serialize a Job for the API. Snapshot is already secret-free; re-check."""
     payload = document.to_document()
     assert_snapshot_has_no_credentials(payload.get("channel_snapshot") or {})
-    return payload
+    return enrich_job_payload(document, payload)
 
 
 def _queue_view(execution_id: str | None) -> dict:
@@ -264,7 +273,7 @@ def jobs_list():
 
     items = list_jobs(channel_id=channel_id, status=status, limit=limit)
     return jsonify({
-        "jobs": [job_summary(item) for item in items],
+        "jobs": [enrich_job_payload(item, job_summary(item)) for item in items],
         "total": len(items),
     })
 
@@ -448,6 +457,90 @@ def jobs_start(job_id: str):
         "status": document.status,
         **_queue_view(document.execution_id),
     })
+
+
+@jobs_bp.route("/api/jobs/<job_id>/retry", methods=["POST"])
+def jobs_retry(job_id: str):
+    """Repair the failed node scope through the Phase 8 Repair Router."""
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    body, error = _json_body(allow_empty=True)
+    if error:
+        return error
+    wait = bool(body.get("wait", False)) if body else False
+    try:
+        timeout = float(body.get("timeout", 600.0)) if body else 600.0
+    except (TypeError, ValueError):
+        return _error("BAD_REQUEST", "timeout must be a number", 400)
+    if timeout <= 0 or timeout > 3600:
+        return _error("BAD_REQUEST", "timeout must be between 0 and 3600 seconds", 400)
+    try:
+        document = get_job(job_id)
+        if document.status != "failed":
+            return _error("JOB_NOT_FAILED", "Only a failed Job can be retried", 409)
+        if wait:
+            outcome = retry_failed_job(job_id, timeout=timeout)
+            return jsonify({
+                "job": _job_public(outcome["job"]),
+                "repair": {
+                    "issue_id": outcome["issue_id"],
+                    "stop_reason": outcome["stop_reason"],
+                    "cycles": outcome["cycles"],
+                },
+            })
+        threading.Thread(
+            target=retry_failed_job,
+            kwargs={"job_id": job_id, "timeout": timeout},
+            name=f"job-retry-{job_id}",
+            daemon=True,
+        ).start()
+    except (JobNotFound, JobTerminal, JobValidationError, ValueError) as exc:
+        return _store_error(exc)
+    response = jsonify({"job": _job_public(document), "retrying": True})
+    response.status_code = 202
+    return response
+
+
+@jobs_bp.route("/api/jobs/retry-failed", methods=["POST"])
+def jobs_retry_failed():
+    """Retry every currently failed Job independently; one error cannot stop peers."""
+    body, error = _json_body(allow_empty=True)
+    if error:
+        return error
+    wait = bool(body.get("wait", False)) if body else False
+    failed = list_jobs(status="failed", limit=500)
+    results = []
+    for document in failed:
+        if wait:
+            try:
+                outcome = retry_failed_job(document.id)
+                results.append({"job_id": document.id, "accepted": True, "stop_reason": outcome["stop_reason"]})
+            except Exception:
+                results.append({"job_id": document.id, "accepted": False})
+        else:
+            threading.Thread(
+                target=retry_failed_job,
+                kwargs={"job_id": document.id},
+                name=f"job-retry-{document.id}",
+                daemon=True,
+            ).start()
+            results.append({"job_id": document.id, "accepted": True})
+    response = jsonify({"jobs": results, "total": len(results)})
+    response.status_code = 200 if wait else 202
+    return response
+
+
+@jobs_bp.route("/api/jobs/<job_id>/duplicate", methods=["POST"])
+def jobs_duplicate(job_id: str):
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        return _error("BAD_REQUEST", "job_id must match job_[A-Z0-9]{6}", 400)
+    try:
+        copy = duplicate_job(get_job(job_id))
+    except (JobNotFound, JobValidationError, ValueError) as exc:
+        return _store_error(exc)
+    response = jsonify({"job": _job_public(copy), "duplicated_from": job_id})
+    response.status_code = 201
+    return response
 
 
 @jobs_bp.route("/api/jobs/<job_id>/test-node", methods=["POST"])

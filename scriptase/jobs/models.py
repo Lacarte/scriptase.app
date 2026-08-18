@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 JOB_ID_RE = re.compile(r"^job_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py).
-JOB_SCHEMA_VERSION = 4
+JOB_SCHEMA_VERSION = 5
 
 # Step 4.2 adds an operator-controlled pause distinct from approval checkpoints.
 JobStatus = Literal[
@@ -111,6 +111,9 @@ class JobSource(BaseModel):
     # is regenerated before the queue reaches the Job.
     narration_artifact_id: str | None = None
     narration_duration_s: float | None = Field(default=None, ge=0)
+    # Optional BCP-47-ish content language. When omitted, the advisory layer
+    # performs a conservative text detection and stays silent if uncertain.
+    language: str | None = None
     references: list[str] = Field(default_factory=list)
     # Null means inherited from the Channel. These fields become the Script
     # model's overrides in phase 3 without changing the resolution contract.
@@ -142,6 +145,17 @@ class JobSource(BaseModel):
         if not re.fullmatch(r"scr_[A-Z0-9]{6}", text):
             raise ValueError("script_id must match scr_[A-Z0-9]{6}")
         return text
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def _language(cls, value: Any) -> str | None:
+        text = _optional_str(value)
+        if text is None:
+            return None
+        normalized = text.replace("_", "-").lower()
+        if not re.fullmatch(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})*", normalized):
+            raise ValueError("language must be a BCP-47 language tag")
+        return normalized
 
     @field_validator("narration_artifact_id", mode="before")
     @classmethod

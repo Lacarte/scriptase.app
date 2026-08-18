@@ -72,6 +72,18 @@ def _add_frozen_narration_reference(data: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+@_register(5)
+def _add_source_language(data: dict[str, Any]) -> dict[str, Any]:
+    """Add optional content-language metadata used by pre-run advisories."""
+    migrated = deepcopy(data)
+    source = migrated.get("source")
+    if not isinstance(source, dict):
+        source = {}
+        migrated["source"] = source
+    source.setdefault("language", None)
+    return migrated
+
+
 def apply_migrations(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     """Upgrade ``data`` to ``SCHEMA_VERSION``.
 

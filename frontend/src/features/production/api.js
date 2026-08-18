@@ -149,6 +149,24 @@ export function resumeJob(jobId, opts = {}) {
   })
 }
 
+/** Repair one failed Job through the backend Repair Router. */
+export function retryJob(jobId, opts = {}) {
+  return apiPost(`/jobs/${encodeURIComponent(jobId)}/retry`, {
+    wait: Boolean(opts.wait),
+    timeout: opts.timeout,
+  })
+}
+
+/** Repair all failed Jobs independently. */
+export function retryFailedJobs(opts = {}) {
+  return apiPost('/jobs/retry-failed', { wait: Boolean(opts.wait) })
+}
+
+/** Create a fresh queued Job with the same immutable inputs. */
+export function duplicateJob(jobId) {
+  return apiPost(`/jobs/${encodeURIComponent(jobId)}/duplicate`, {})
+}
+
 /**
  * Test a node in isolation without advancing the Job (step 4.2).
  *

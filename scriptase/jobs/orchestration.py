@@ -689,11 +689,23 @@ def sync_job_from_execution(
     except Exception:
         budget_spent = None
 
+    current_stage = job.current_stage
+    if job_status == "failed":
+        try:
+            from scriptase.jobs.failure_handling import execution_failure
+
+            failure = execution_failure(execution)
+            if failure:
+                current_stage = failure.get("stage") or current_stage
+        except Exception:
+            pass
+
     updates: dict[str, Any] = {
         "status": job_status,
         "execution_id": execution.get("execution_id") or execution_id,
         "started_at": started_at,
         "status_reason": status_reason,
+        "current_stage": current_stage,
         "allow_terminal": job.status in TERMINAL_STATUSES,
     }
     if budget_spent is not None:

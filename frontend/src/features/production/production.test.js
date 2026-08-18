@@ -84,6 +84,9 @@ vi.mock('./api.js', () => ({
   startJob: vi.fn(),
   pauseJob: vi.fn(),
   resumeJob: vi.fn(),
+  retryJob: vi.fn(),
+  retryFailedJobs: vi.fn(),
+  duplicateJob: vi.fn(),
   testJobNode: vi.fn(),
   getNodeTypes: vi.fn(),
   deleteJob: vi.fn(),
@@ -1382,6 +1385,39 @@ describe('ProductionPage', () => {
     expect(wrapper.findAll('.job-row')).toHaveLength(1)
     expect(wrapper.find('.job-row').text()).toContain('Hidden History')
     expect(wrapper.text()).toContain('Found in archive · 1')
+  })
+
+  it('shows failed scope and advisory controls on the Job row', async () => {
+    const failed = {
+      id: 'job_FAIL01', name: 'Spanish take', channel_id: 'ch_A', channel_name: 'English Channel',
+      status: 'failed', created_at: new Date().toISOString(),
+      failure: { stage: 'videos', stage_label: 'Videos', code: 'ANIMATOR_FAILED', message: 'Video failed.', node_id: 'n_video' },
+      advisories: [{ code: 'LANGUAGE_MISMATCH', script_language: 'es', channel_language: 'en', blocking: false }],
+    }
+    api.listJobs.mockResolvedValue({ jobs: [failed], total: 1 })
+    api.retryJob.mockResolvedValue({ retrying: true, job: failed })
+    api.duplicateJob.mockResolvedValue({ job: { ...failed, id: 'job_COPY01', status: 'queued' } })
+    api.deleteJob.mockResolvedValue({ deleted: true })
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/production', name: 'production', component: ProductionPage },
+        { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
+      ],
+    })
+    await router.push('/production')
+    await router.isReady()
+    const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.find('.job-row').classes()).toContain('failed')
+    expect(wrapper.find('.failed-stage').text()).toBe('Failed · Videos')
+    expect(wrapper.find('.language-badge').text()).toContain('es')
+    expect(wrapper.find('.job-status').text()).toBe('Failed')
+
+    await wrapper.findAll('.job-row-actions button').find(button => button.text() === 'Retry').trigger('click')
+    await flushPromises()
+    expect(api.retryJob).toHaveBeenCalledWith('job_FAIL01')
   })
 
   it('binds an execution from the query string and shows live status', async () => {

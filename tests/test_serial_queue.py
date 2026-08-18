@@ -232,3 +232,31 @@ def test_raising_the_ceiling_restores_concurrency(tmp_path):
     _drain(manager, execution_ids)
     for execution_id in execution_ids:
         assert load_queue_record(execution_id, root=manager.queue_root)["status"] == "done"
+
+
+def test_a_failed_run_releases_its_slot_and_the_queue_keeps_draining(tmp_path):
+    """Step 4.5: one Job failure is never a batch-level stop condition."""
+    calls = 0
+
+    def resolver(_node):
+        def execute(_inputs, _config, _context):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise RuntimeError("expected first-run failure")
+            return {"control": {"ok": True}}
+        return execute
+
+    manager = ExecutionManager(
+        output_dir=str(tmp_path), executor_resolver=resolver, max_global_workers=1
+    )
+    execution_ids = [
+        manager.start(
+            _workflow(), run_mode="full", target_node_ids=[], project_id=f"pm_FLR{i:03d}"
+        )[0]
+        for i in range(2)
+    ]
+    _drain(manager, execution_ids)
+
+    assert load_queue_record(execution_ids[0], root=manager.queue_root)["status"] == "failed"
+    assert load_queue_record(execution_ids[1], root=manager.queue_root)["status"] == "done"
