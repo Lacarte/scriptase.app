@@ -97,6 +97,74 @@ describe('ChannelsPage', () => {
       params: { id: 'ch_NEWNEW' },
     })
   })
+
+  /**
+   * Step 0.3 — delete offers Undo instead of a confirm dialog. The row leaves
+   * the list at once and the DELETE is deferred, so Undo is exact rather than
+   * a best-effort restore.
+   */
+  describe('delete', () => {
+    async function mountList() {
+      const router = makeRouter([
+        { path: '/', name: 'channels', component: ChannelsPage },
+        { path: '/channels/:id', name: 'channel-edit', component: { template: '<div />' } },
+      ])
+      router.push('/')
+      await router.isReady()
+      const wrapper = mount(ChannelsPage, { global: { plugins: [router] } })
+      await flushPromises()
+      return wrapper
+    }
+
+    it('never asks for confirmation and hides the row immediately', async () => {
+      vi.useFakeTimers()
+      const confirmSpy = vi.spyOn(window, 'confirm')
+      const wrapper = await mountList()
+
+      await wrapper.get('button.danger').trigger('click')
+
+      expect(confirmSpy).not.toHaveBeenCalled()
+      expect(wrapper.text()).not.toContain('Cinematic Stoicism')
+      expect(wrapper.text()).toContain('Custom Brand')
+      // Nothing has reached the backend while the window is open.
+      expect(api.deleteChannel).not.toHaveBeenCalled()
+
+      confirmSpy.mockRestore()
+      vi.useRealTimers()
+      wrapper.unmount()
+    })
+
+    it('commits the delete once the five-second window closes', async () => {
+      vi.useFakeTimers()
+      api.deleteChannel.mockResolvedValue({})
+      const wrapper = await mountList()
+
+      await wrapper.get('button.danger').trigger('click')
+      vi.advanceTimersByTime(5000)
+      await flushPromises()
+
+      expect(api.deleteChannel).toHaveBeenCalledWith('ch_AAAAAA', 1)
+
+      vi.useRealTimers()
+      wrapper.unmount()
+    })
+
+    it('puts the row back when the deferred delete fails', async () => {
+      vi.useFakeTimers()
+      api.deleteChannel.mockRejectedValue(new Error('409 stale version'))
+      const wrapper = await mountList()
+
+      await wrapper.get('button.danger').trigger('click')
+      vi.advanceTimersByTime(5000)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Cinematic Stoicism')
+      expect(wrapper.text()).toContain('409 stale version')
+
+      vi.useRealTimers()
+      wrapper.unmount()
+    })
+  })
 })
 
 describe('ChannelEditor', () => {

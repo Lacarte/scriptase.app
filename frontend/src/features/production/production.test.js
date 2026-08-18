@@ -50,6 +50,10 @@ import {
   validateJobSource,
   SOURCE_MODE_CATALOG,
 } from './sourceModes.js'
+import {
+  dispatchShortcut,
+  resetShortcuts,
+} from '@/shared/composables/useShortcuts.js'
 import { useProductionStages } from './composables/useProductionStages.js'
 import ProductionPage from './ProductionPage.vue'
 import StepDetailPanel from './components/StepDetailPanel.vue'
@@ -1571,3 +1575,180 @@ function mountHarness() {
 
 // workflowApi imported for the dual-view parity surface; keep the module edge.
 void workflowApi
+
+/**
+ * Step 0.3 — keyboard control of the step list.
+ *
+ * The arrow keys move a cursor that is deliberately separate from selection:
+ * moving through the list is not choosing from it. Enter opens the focused
+ * step, Space toggles it, R runs it, E opens the Timeline Editor.
+ */
+describe('ProductionPage keyboard control (step 0.3)', () => {
+  async function mountPage() {
+    resetShortcuts()
+    vi.clearAllMocks()
+    FakeEventSource.reset()
+    api.listWorkflows.mockResolvedValue({ workflows: [], total: 0 })
+    api.listExecutions.mockResolvedValue({ executions: [], total: 0 })
+    api.getNodeTypes.mockResolvedValue({ node_types: {} })
+    api.getWorkflowStages.mockResolvedValue({ projection: projection() })
+    api.getWorkflow.mockResolvedValue({
+      workflow: {
+        workflow_id: 'wf_ABCDEF',
+        nodes: [
+          { id: 'n_script', type: 'script.input' },
+          { id: 'n_tts', type: 'tts.generate' },
+          { id: 'n_assemble', type: 'assemble.project' },
+        ],
+      },
+    })
+    api.runWorkflow.mockResolvedValue({ execution_id: 'ex_KB01', status: 'queued' })
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/production', name: 'production', component: ProductionPage },
+        { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
+      ],
+    })
+    await router.push({ name: 'production', query: { workflow_id: 'wf_ABCDEF' } })
+    await router.isReady()
+
+    const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
+    await flushPromises()
+    return wrapper
+  }
+
+  function key(k) {
+    dispatchShortcut({
+      key: k,
+      target: document.body,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+      defaultPrevented: false,
+      preventDefault() {},
+    })
+  }
+
+  function rows(wrapper) {
+    return wrapper.findAll('.stage-row')
+  }
+
+  it('exposes the step list as a listbox with a roving tabindex', async () => {
+    const wrapper = await mountPage()
+
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(true)
+    const options = rows(wrapper)
+    expect(options.length).toBeGreaterThan(1)
+    expect(options[0].attributes('role')).toBe('option')
+    // Before the cursor has moved, only the first row is in the tab order.
+    expect(options.map((r) => r.attributes('tabindex'))).toEqual(
+      options.map((_, i) => (i === 0 ? '0' : '-1')),
+    )
+
+    wrapper.unmount()
+    resetShortcuts()
+  })
+
+  it('moves the cursor with the arrow keys without selecting anything', async () => {
+    const wrapper = await mountPage()
+
+    key('ArrowDown')
+    await nextTick()
+    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
+    expect(rows(wrapper).some((r) => r.classes().includes('selected'))).toBe(false)
+
+    key('ArrowDown')
+    await nextTick()
+    expect(rows(wrapper)[1].classes()).toContain('kb-focus')
+
+    key('ArrowUp')
+    await nextTick()
+    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
+
+    // The cursor stops at the ends rather than wrapping past them.
+    key('ArrowUp')
+    await nextTick()
+    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
+
+    wrapper.unmount()
+    resetShortcuts()
+  })
+
+  it('opens the focused step on Enter and toggles it on Space', async () => {
+    const wrapper = await mountPage()
+
+    key('ArrowDown')
+    key('Enter')
+    await nextTick()
+    expect(rows(wrapper)[0].attributes('aria-selected')).toBe('true')
+
+    key(' ')
+    await nextTick()
+    expect(rows(wrapper)[0].attributes('aria-selected')).toBe('false')
+
+    key(' ')
+    await nextTick()
+    expect(rows(wrapper)[0].attributes('aria-selected')).toBe('true')
+
+    // Escape clears the selection without moving the cursor.
+    key('Escape')
+    await nextTick()
+    expect(rows(wrapper)[0].attributes('aria-selected')).toBe('false')
+    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
+
+    wrapper.unmount()
+    resetShortcuts()
+  })
+
+  it('runs the focused step on R through the run mode the panel would use', async () => {
+    const wrapper = await mountPage()
+
+    key('ArrowDown')
+    await nextTick()
+    key('r')
+    await flushPromises()
+
+    expect(api.runWorkflow).toHaveBeenCalledTimes(1)
+    const body = api.runWorkflow.mock.calls[0][0]
+    expect(body.run_mode).toBe(ACTION_RUN_MODES.run)
+    expect(body.target_node_ids).toEqual(['n_script'])
+
+    wrapper.unmount()
+    resetShortcuts()
+  })
+
+  it('opens the Timeline Editor on E instead of navigating away from the run', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
+    const wrapper = await mountPage()
+
+    key('e')
+    await flushPromises()
+
+    expect(open.mock.calls[0][0]).toContain('/editor')
+
+    open.mockRestore()
+    wrapper.unmount()
+    resetShortcuts()
+  })
+
+  it('navigates whatever is left after the search field filters the list', async () => {
+    const wrapper = await mountPage()
+
+    const filter = wrapper.find('[data-shortcut-search]')
+    expect(filter.attributes('aria-label')).toBe('Filter production steps')
+
+    await filter.setValue('voice')
+    expect(rows(wrapper)).toHaveLength(1)
+
+    key('ArrowDown')
+    await nextTick()
+    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
+    expect(rows(wrapper)[0].text()).toContain('Voice')
+
+    wrapper.unmount()
+    resetShortcuts()
+  })
+})

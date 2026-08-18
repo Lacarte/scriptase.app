@@ -9,7 +9,7 @@
  * Step detail actions (step 2.4) map onto existing engine run modes only.
  * Job creation and Script stage modes (step 2.5) are Step 0 on this page.
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
@@ -28,6 +28,7 @@ import { useProductionStages } from './composables/useProductionStages.js'
 import { ACTION_LABELS } from './stageActions.js'
 import { sourceModeLabel, sourceModeRequiresProvider } from './sourceModes.js'
 import { statusLabel } from './stageStatus.js'
+import { onShortcut } from '@/shared/composables/useShortcuts.js'
 import { openAppWindow } from '@/shared/utils/openWindow.js'
 
 const route = useRoute()
@@ -77,8 +78,28 @@ const nodeTypes = ref({})
 /** Last Test Node result shown in the detail panel. */
 const testResult = ref(null)
 
+/** Free-text stage filter — the input `/` focuses (step 0.3). */
+const stageFilter = ref('')
+/** Row under the keyboard cursor. Distinct from selection: moving is not choosing. */
+const focusedStageKey = ref(null)
+const stageListEl = ref(null)
+
 const selectedStage = computed(() =>
   stages.value.find((s) => s.key === selectedStageKey.value) || null,
+)
+
+const visibleStages = computed(() => {
+  const q = stageFilter.value.trim().toLowerCase()
+  if (!q) return stages.value
+  return stages.value.filter((stage) =>
+    `${stage.label || ''} ${stage.key || ''} ${stage.status || ''}`
+      .toLowerCase()
+      .includes(q),
+  )
+})
+
+const focusedStage = computed(() =>
+  visibleStages.value.find((s) => s.key === focusedStageKey.value) || null,
 )
 
 /**
@@ -332,7 +353,95 @@ function onExecutionChange() {
 
 function selectStage(stage) {
   selectedStageKey.value = stage?.key ?? null
+  focusedStageKey.value = stage?.key ?? null
 }
+
+/* ------------------------------------------------------------------
+   Keyboard control of the step list (step 0.3).
+
+   Roving tabindex: exactly one row is in the tab order, and the arrow
+   keys move which one. `focused` is where the cursor is; `selected` is
+   what the detail panel shows — Enter and Space are what turn one into
+   the other.
+   ------------------------------------------------------------------ */
+
+/**
+ * Exactly one row is reachable by Tab. Before the cursor has moved that is the
+ * first row, so Tab always lands somewhere useful.
+ */
+function stageTabIndex(stage, index) {
+  if (focusedStageKey.value == null) return index === 0 ? 0 : -1
+  return focusedStageKey.value === stage.key ? 0 : -1
+}
+
+function focusStageAt(index) {
+  const list = visibleStages.value
+  if (!list.length) return
+  const clamped = Math.max(0, Math.min(list.length - 1, index))
+  focusedStageKey.value = list[clamped].key
+  void nextTick(() => {
+    const row = stageListEl.value?.children?.[clamped]
+    if (row && typeof row.focus === 'function') row.focus()
+  })
+}
+
+function moveStageFocus(delta) {
+  const list = visibleStages.value
+  if (!list.length) return
+  const current = list.findIndex((s) => s.key === focusedStageKey.value)
+  if (current < 0) {
+    focusStageAt(delta > 0 ? 0 : list.length - 1)
+    return
+  }
+  focusStageAt(current + delta)
+}
+
+/** Space toggles: pressing it on the open row closes the detail panel. */
+function toggleStageSelection(stage) {
+  selectedStageKey.value = selectedStageKey.value === stage.key ? null : stage.key
+  focusedStageKey.value = stage.key
+}
+
+/** R on the focused step: the same `run` action the detail panel offers. */
+async function runFocusedStage() {
+  const stage = focusedStage.value || selectedStage.value
+  if (!stage || actionRunning.value) return
+  selectStage(stage)
+  await onStageRun({ action: 'run', body: null })
+}
+
+onShortcut((event) => {
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    // With nothing to move through, the arrows stay the page's scroll keys.
+    if (!visibleStages.value.length) return false
+    moveStageFocus(event.key === 'ArrowDown' ? 1 : -1)
+    return true
+  }
+  if (event.key === 'Escape') {
+    if (!selectedStageKey.value) return false
+    selectedStageKey.value = null
+    return true
+  }
+  if (event.key === 'e' || event.key === 'E') {
+    openTimelineEditor()
+    return true
+  }
+  if (event.key === 'r' || event.key === 'R') {
+    void runFocusedStage()
+    return true
+  }
+  const stage = focusedStage.value
+  if (!stage) return false
+  if (event.key === 'Enter') {
+    selectStage(stage)
+    return true
+  }
+  if (event.key === ' ') {
+    toggleStageSelection(stage)
+    return true
+  }
+  return false
+})
 
 /**
  * Editor and Exports open beside Production, never over it (step 14.4). A Job
@@ -714,46 +823,78 @@ onMounted(async () => {
     <p v-if="loading" class="muted">Loading stages…</p>
 
     <div v-else-if="hasStages" class="stage-layout">
-      <ol class="stage-list" aria-label="Production stages">
-        <li
-          v-for="stage in stages"
-          :key="stage.key"
-          class="stage-row"
-          :class="[
-            `status-${stage.status || 'idle'}`,
-            { selected: selectedStageKey === stage.key },
-          ]"
-          @click="selectStage(stage)"
-        >
-          <span class="ordinal">{{ stageOrdinal(stage) }}</span>
-          <div class="stage-body">
-            <strong class="stage-label">{{ stage.label }}</strong>
-            <span class="stage-sub">
-              <span v-if="stage.provider_capable" class="provider-meta">
-                {{ stage.active_provider_instance_id || 'Provider-capable' }}
-              </span>
-              <span v-else class="provider-meta muted-meta">Local</span>
-              <span
-                v-if="(stage.node_ids || []).length"
-                class="node-count"
-                :title="(stage.node_ids || []).join(', ')"
-              >
-                {{ stage.node_ids.length }} node{{ stage.node_ids.length === 1 ? '' : 's' }}
-              </span>
-              <span
-                v-if="(stage.issues || []).length"
-                class="issue-count"
-                :title="(stage.issues || []).join(', ')"
-              >
-                {{ stage.issues.length }} issue{{ stage.issues.length === 1 ? '' : 's' }}
-              </span>
-            </span>
-          </div>
-          <span class="status-badge" :data-status="stage.status || 'idle'">
-            {{ statusLabel(stage.status) }}
+      <div class="stage-column">
+        <div class="stage-filter">
+          <input
+            v-model="stageFilter"
+            type="search"
+            class="stage-filter-input"
+            placeholder="Filter steps…"
+            aria-label="Filter production steps"
+            data-shortcut-search
+          />
+          <span class="stage-filter-count">
+            {{ visibleStages.length }} / {{ stages.length }}
           </span>
-        </li>
-      </ol>
+        </div>
+
+        <ol
+          ref="stageListEl"
+          class="stage-list"
+          role="listbox"
+          aria-label="Production stages"
+        >
+          <li
+            v-for="(stage, index) in visibleStages"
+            :key="stage.key"
+            class="stage-row"
+            role="option"
+            :tabindex="stageTabIndex(stage, index)"
+            :aria-selected="String(selectedStageKey === stage.key)"
+            :data-stage-key="stage.key"
+            :class="[
+              `status-${stage.status || 'idle'}`,
+              {
+                selected: selectedStageKey === stage.key,
+                'kb-focus': focusedStageKey === stage.key,
+              },
+            ]"
+            @click="selectStage(stage)"
+            @focus="focusedStageKey = stage.key"
+          >
+            <span class="ordinal">{{ stageOrdinal(stage) }}</span>
+            <div class="stage-body">
+              <strong class="stage-label">{{ stage.label }}</strong>
+              <span class="stage-sub">
+                <span v-if="stage.provider_capable" class="provider-meta">
+                  {{ stage.active_provider_instance_id || 'Provider-capable' }}
+                </span>
+                <span v-else class="provider-meta muted-meta">Local</span>
+                <span
+                  v-if="(stage.node_ids || []).length"
+                  class="node-count"
+                  :title="(stage.node_ids || []).join(', ')"
+                >
+                  {{ stage.node_ids.length }} node{{ stage.node_ids.length === 1 ? '' : 's' }}
+                </span>
+                <span
+                  v-if="(stage.issues || []).length"
+                  class="issue-count"
+                  :title="(stage.issues || []).join(', ')"
+                >
+                  {{ stage.issues.length }} issue{{ stage.issues.length === 1 ? '' : 's' }}
+                </span>
+              </span>
+            </div>
+            <span class="status-badge" :data-status="stage.status || 'idle'">
+              {{ statusLabel(stage.status) }}
+            </span>
+          </li>
+          <li v-if="!visibleStages.length" class="stage-empty muted">
+            No step matches “{{ stageFilter }}”.
+          </li>
+        </ol>
+      </div>
 
       <StepDetailPanel
         :stage="selectedStage"
@@ -1017,10 +1158,67 @@ button:disabled {
   align-items: start;
 }
 
-@media (max-width: 800px) {
+@media (max-width: 820px) {
   .stage-layout {
     grid-template-columns: 1fr;
   }
+
+  .page-header {
+    flex-direction: column;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+}
+
+.stage-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stage-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stage-filter-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 12.5px;
+  padding: 7px 10px;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+.stage-filter-input::placeholder {
+  color: var(--faint);
+}
+
+.stage-filter-input:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.stage-filter-count {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.stage-empty {
+  padding: 20px 4px;
+  font-size: 12.5px;
 }
 
 .stage-list {
@@ -1063,6 +1261,15 @@ button:disabled {
 .stage-row:hover {
   border-color: var(--line-2);
   box-shadow: var(--hairline-top), 0 8px 24px -12px rgba(0, 0, 0, 0.65);
+}
+
+/* The keyboard cursor. Deliberately a ring rather than a fill, so it can sit
+   on a row that is not selected without claiming to be. */
+.stage-row.kb-focus,
+.stage-row:focus-visible {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: var(--hairline-top), 0 0 0 2px var(--accent);
 }
 
 /* Selected is the only other place the accent appears. */
@@ -1363,5 +1570,8 @@ button:disabled {
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--text);
+  /* Instance ids have no spaces; without this they push the table wider than
+     a 375px viewport and take a horizontal scrollbar with them. */
+  overflow-wrap: anywhere;
 }
 </style>

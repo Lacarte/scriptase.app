@@ -114,11 +114,19 @@ function clearAll() {
           class="search-input"
           type="text"
           placeholder="Search projects, styles, prompts..."
+          aria-label="Search exports"
+          data-shortcut-search
           @focus="searchFocused = true"
           @blur="onSearchBlur"
         />
-        <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <button
+          v-if="searchQuery"
+          type="button"
+          class="search-clear"
+          aria-label="Clear search"
+          @click="searchQuery = ''"
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
 
         <!-- Suggestions dropdown -->

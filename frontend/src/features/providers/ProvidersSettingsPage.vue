@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { apiErrorText } from '@/shared/api/errors.js'
+import { useUndoableAction } from '@/shared/composables/useUndoableAction.js'
 import ProviderConfigurator from './components/ProviderConfigurator.vue'
 import ProviderSettingsForm from './components/ProviderSettingsForm.vue'
 import ProviderSettingsModal from './components/ProviderSettingsModal.vue'
@@ -9,19 +10,28 @@ import { useProviderCatalogStore } from './stores/providerCatalog.js'
 defineOptions({ name: 'ProvidersSettingsPage' })
 
 const catalog = useProviderCatalogStore()
+const undoable = useUndoableAction()
 const creatingFor = ref('')
 const busyKey = ref('')
 const error = ref('')
 const modal = reactive({ open: false, domain: '', instanceId: '' })
 const drafts = reactive({})
 const editing = reactive({})
+/**
+ * Instance ids hidden by an open Undo window (step 0.3). Deleting an instance
+ * orphans every node that names it, so it gets a five-second grace rather than
+ * a dialog nobody reads.
+ */
+const pendingDelete = ref([])
 
 const domains = computed(() =>
   catalog.domainIds.map((id) => ({
     id,
     label: catalog.domainLabel(id),
     providers: catalog.providersFor(id),
-    instances: catalog.instancesFor(id),
+    instances: catalog
+      .instancesFor(id)
+      .filter((instance) => !pendingDelete.value.includes(instance.instance_id)),
   })),
 )
 
@@ -77,17 +87,23 @@ async function saveRename(domain, instance) {
   }
 }
 
-async function removeInstance(domain, instance) {
-  if (!window.confirm(`Delete “${instance.label}”? Nodes that reference it will need another provider.`)) return
-  busyKey.value = `delete:${domain}:${instance.instance_id}`
+function removeInstance(domain, instance) {
   error.value = ''
-  try {
-    await catalog.deleteInstance(domain, instance.instance_id)
-  } catch (err) {
-    error.value = apiErrorText(err, 'Could not delete provider instance')
-  } finally {
-    busyKey.value = ''
+  pendingDelete.value = [...pendingDelete.value, instance.instance_id]
+  const restore = () => {
+    pendingDelete.value = pendingDelete.value.filter((id) => id !== instance.instance_id)
   }
+  undoable.run({
+    message: `Deleted “${instance.label}” — nodes that reference it will need another provider`,
+    async commit() {
+      await catalog.deleteInstance(domain, instance.instance_id)
+      restore()
+    },
+    undo: restore,
+    onError(err) {
+      error.value = apiErrorText(err, 'Could not delete provider instance')
+    },
+  })
 }
 
 onMounted(() => catalog.loadCatalog())
@@ -506,6 +522,14 @@ button:disabled {
 
   .row-actions {
     width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /* Three buttons plus a heading will not share a 375px line (step 0.3). */
+  .page-header,
+  .domain-heading {
+    flex-wrap: wrap;
+    gap: 12px;
   }
 
   .create-row label,

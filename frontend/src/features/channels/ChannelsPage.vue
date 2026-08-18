@@ -2,11 +2,19 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { useUndoableAction } from '@/shared/composables/useUndoableAction.js'
+
 import { createChannel, deleteChannel, listChannels, seedChannels } from './api.js'
 
 const router = useRouter()
+const undoable = useUndoableAction()
 
 const channels = ref([])
+/**
+ * Ids hidden by an open Undo window (step 0.3). The row leaves the list at
+ * once, but nothing has reached the backend until the window closes.
+ */
+const pendingDelete = ref([])
 const starterMappings = ref({})
 const seedInfo = ref(null)
 const loading = ref(true)
@@ -16,10 +24,14 @@ const busy = ref(false)
 
 const starterIds = computed(() => new Set(Object.values(starterMappings.value || {})))
 
+const visible = computed(() =>
+  channels.value.filter((ch) => !pendingDelete.value.includes(ch.id)),
+)
+
 const filtered = computed(() => {
   const q = filter.value.trim().toLowerCase()
-  if (!q) return channels.value
-  return channels.value.filter((ch) => {
+  if (!q) return visible.value
+  return visible.value.filter((ch) => {
     const hay = `${ch.name} ${ch.niche || ''} ${ch.style || ''} ${ch.id}`.toLowerCase()
     return hay.includes(q)
   })
@@ -66,18 +78,26 @@ async function onSeed() {
   }
 }
 
-async function onDelete(ch) {
-  if (!window.confirm(`Delete channel “${ch.name}”?`)) return
-  busy.value = true
+function onDelete(ch) {
   error.value = ''
-  try {
-    await deleteChannel(ch.id, ch.version)
-    await refresh()
-  } catch (err) {
-    error.value = err.message || String(err)
-  } finally {
-    busy.value = false
+  pendingDelete.value = [...pendingDelete.value, ch.id]
+  const restore = () => {
+    pendingDelete.value = pendingDelete.value.filter((id) => id !== ch.id)
   }
+  undoable.run({
+    message: `Deleted channel “${ch.name}”`,
+    async commit() {
+      await deleteChannel(ch.id, ch.version)
+      // Refresh first: dropping the pending id before the list reloads would
+      // flash the deleted row back for a frame.
+      await refresh()
+      restore()
+    },
+    undo: restore,
+    onError(err) {
+      error.value = err?.message || String(err)
+    },
+  })
 }
 
 function open(ch) {
@@ -120,6 +140,8 @@ onMounted(refresh)
         type="search"
         placeholder="Filter by name, niche, style…"
         class="search"
+        aria-label="Filter channels"
+        data-shortcut-search
       />
       <span class="count">{{ filtered.length }} / {{ channels.length }}</span>
     </div>
@@ -134,7 +156,10 @@ onMounted(refresh)
         class="channel-card"
         @click="open(ch)"
       >
-        <div class="card-main">
+        <!-- The whole card is clickable for a mouse, but the accessible name
+             and the keyboard path belong to one real control (step 0.3). Its
+             click bubbles to the row, so Enter and Space need no handler. -->
+        <button type="button" class="card-main">
           <strong>{{ ch.name }}</strong>
           <span class="meta">
             <code>{{ ch.id }}</code>
@@ -142,10 +167,16 @@ onMounted(refresh)
             <span v-if="ch.niche">· {{ ch.niche }}</span>
             <span v-if="ch.style">· {{ ch.style }}</span>
           </span>
-        </div>
+        </button>
         <div class="card-side" @click.stop>
           <span class="version">v{{ ch.version }}</span>
-          <button type="button" class="danger ghost" :disabled="busy" @click="onDelete(ch)">
+          <button
+            type="button"
+            class="danger ghost"
+            :disabled="busy"
+            :aria-label="`Delete channel ${ch.name}`"
+            @click="onDelete(ch)"
+          >
             Delete
           </button>
         </div>
@@ -357,11 +388,31 @@ button.danger:hover:not(:disabled) {
   background: var(--panel-grad2);
 }
 
+/* A real button for semantics, with none of the chrome of one: the card it
+   sits in is the surface, so it must stay invisible until focused. */
 .card-main {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
   min-width: 0;
+  flex: 1 1 auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.card-main:hover:not(:disabled) {
+  background: none;
+  border: none;
+  transform: none;
+  box-shadow: none;
 }
 
 .card-main strong {
@@ -449,5 +500,27 @@ button.danger:hover:not(:disabled) {
   padding: 24px;
   text-align: center;
   font-size: 12.5px;
+}
+
+/* Step 0.3 — the header's two nowrap buttons and the channel card's action
+   column both need their own line once the viewport is phone-width. */
+@media (max-width: 820px) {
+  .page-header {
+    flex-direction: column;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .channel-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .card-side {
+    justify-content: space-between;
+  }
 }
 </style>

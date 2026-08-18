@@ -708,7 +708,21 @@ const extendedStats = computed(() => {
 /* ---- Grid ---- */
 .export-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* minmax(0, …) rather than minmax(280px, …): below 280px the fixed track
+     would be wider than the viewport and take a scrollbar with it. */
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 14px;
+}
+
+/* Step 0.3 — the title and its two actions need their own lines on a phone. */
+@media (max-width: 820px) {
+  .page-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+  }
 }
 </style>

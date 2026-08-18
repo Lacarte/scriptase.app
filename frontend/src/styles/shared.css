@@ -21,10 +21,41 @@
   outline: none;
 }
 
+/* An outline already follows the element's own border-radius, so this rule
+   must not set one: doing so squares off every pill and card it lands on. */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: var(--r-s);
+}
+
+/* Rows and cards style their own focus as an inset ring because an outline
+   would be clipped by their `overflow: hidden`. They opt out here. */
+[role='option']:focus-visible,
+[role='tab']:focus-visible {
+  outline-offset: -1px;
+}
+
+/* ================================================================
+   Layout floor — nothing may force a horizontal scrollbar (step 0.3)
+   ================================================================ */
+img,
+svg,
+video,
+canvas,
+table {
+  max-width: 100%;
+}
+
+/* Ids, paths and hashes have no spaces to break at, and a 375px viewport has
+   no room to spare for them. */
+code,
+kbd {
+  overflow-wrap: anywhere;
+}
+
+pre {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /* ================================================================
@@ -613,6 +644,23 @@
    Reduced motion — kill every looping animation, keep the state
    ================================================================ */
 @media (prefers-reduced-motion: reduce) {
+  /* Blanket rule (step 0.3). Enumerating animations meant every new pulse,
+     flow or spinner had to remember to opt in, and they did not. Durations
+     collapse rather than going to `none` so that animation-end handlers and
+     `TransitionGroup` leave hooks still fire and nothing is left mounted. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Looping status pulses carry no information the colour does not, so they
+     stop outright rather than flashing once. */
   .badge .bd,
   .progress .fill {
     animation: none !important;

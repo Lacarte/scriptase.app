@@ -7,9 +7,18 @@ let nextId = 0
 export function useToast() {
   const activity = useActivityFeed()
 
-  function show(message, type = 'info', duration = 3000) {
+  /**
+   * @param {string} message
+   * @param {string} [type]
+   * @param {number} [duration]  0 keeps the toast until it is dismissed
+   * @param {{ label: string, onAction: () => void }} [action]
+   *   An inline button — how a destructive action offers Undo instead of
+   *   stopping the user with a confirm dialog (step 0.3).
+   * @returns {number} toast id
+   */
+  function show(message, type = 'info', duration = 3000, action = null) {
     const id = nextId++
-    toasts.value.push({ id, message, type })
+    toasts.value.push({ id, message, type, action })
     activity.push(message, type)
     if (duration > 0) {
       setTimeout(() => dismiss(id), duration)

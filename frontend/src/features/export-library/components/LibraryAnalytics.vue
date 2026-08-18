@@ -367,7 +367,7 @@ const recentExports = computed(() => props.items.slice(0, 20))
               <div v-if="promptProject.style_prompt" class="a-prompt-block a-prompt-block--style">
                 <div class="a-prompt-block-head">
                   <span class="a-prompt-block-label">Style Prompt (Template)</span>
-                  <button class="a-copy-btn" @click="copyText(promptProject.style_prompt)" title="Copy">
+                  <button type="button" class="a-copy-btn" aria-label="Copy style prompt" title="Copy" @click="copyText(promptProject.style_prompt)">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                   </button>
                 </div>
@@ -386,7 +386,7 @@ const recentExports = computed(() => props.items.slice(0, 20))
               <div v-if="scene.script" class="a-prompt-block">
                 <div class="a-prompt-block-head">
                   <span class="a-prompt-block-label">Script</span>
-                  <button class="a-copy-btn" @click="copyText(scene.script)" title="Copy">
+                  <button type="button" class="a-copy-btn" :aria-label="`Copy scene ${scene.index} script`" title="Copy" @click="copyText(scene.script)">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                   </button>
                 </div>
@@ -397,7 +397,7 @@ const recentExports = computed(() => props.items.slice(0, 20))
               <div v-if="scene.image_prompt" class="a-prompt-block a-prompt-block--image">
                 <div class="a-prompt-block-head">
                   <span class="a-prompt-block-label">Image Prompt</span>
-                  <button class="a-copy-btn" @click="copyText(scene.image_prompt)" title="Copy">
+                  <button type="button" class="a-copy-btn" :aria-label="`Copy scene ${scene.index} image prompt`" title="Copy" @click="copyText(scene.image_prompt)">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                   </button>
                 </div>
@@ -408,7 +408,7 @@ const recentExports = computed(() => props.items.slice(0, 20))
               <div v-if="scene.storyboard_prompt" class="a-prompt-block a-prompt-block--storyboard">
                 <div class="a-prompt-block-head">
                   <span class="a-prompt-block-label">Storyboard Prompt</span>
-                  <button class="a-copy-btn" @click="copyText(scene.storyboard_prompt)" title="Copy">
+                  <button type="button" class="a-copy-btn" :aria-label="`Copy scene ${scene.index} storyboard prompt`" title="Copy" @click="copyText(scene.storyboard_prompt)">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                   </button>
                 </div>
