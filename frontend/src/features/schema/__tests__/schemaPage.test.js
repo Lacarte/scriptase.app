@@ -426,18 +426,20 @@ describe('the running job on the graph (step 1.3)', () => {
   it('flows the edges arriving at whatever is running', async () => {
     const { wrapper } = await mountLivePage()
     const edges = wrapper.findAll('.sch-edge')
-    expect(edges[0].classes()).toContain('flowing')
-    expect(edges[1].classes()).not.toContain('flowing')
+    expect(edges[0].classes()).toContain('e-active')
+    expect(edges[1].classes()).not.toContain('e-active')
   })
 
   it('shows job, stage and percent on the pill', async () => {
     const { wrapper } = await mountLivePage('/schema?job=job_AAA111')
-    const pill = wrapper.find('.sch-live-pill')
+    const pill = wrapper.find('.sch-live')
     expect(pill.exists()).toBe(true)
     expect(pill.text()).toContain('Job job_AAA111')
     // Stage named by the projection, and the percent of the graph settled.
     expect(pill.text()).toContain('Voice')
     expect(pill.text()).toContain('33%')
+    // A live run is the prototype's `on` tone.
+    expect(pill.classes()).toContain('on')
   })
 
   it('animates as the run advances', async () => {
@@ -450,7 +452,7 @@ describe('the running job on the graph (step 1.3)', () => {
     })
     await flushPromises()
     expect(wrapper.findAll('.sch-node')[1].attributes('data-visual')).toBe('done')
-    expect(wrapper.find('.sch-live-pill').text()).toContain('67%')
+    expect(wrapper.find('.sch-live').text()).toContain('67%')
   })
 
   it('opens the inspector on a card and keeps it in sync', async () => {
@@ -472,7 +474,7 @@ describe('the running job on the graph (step 1.3)', () => {
     window.dispatchEvent(new MouseEvent('mouseup'))
     await flushPromises()
 
-    const panel = wrapper.find('.sch-inspector')
+    const panel = wrapper.find('.sch-inspect.show')
     expect(panel.exists()).toBe(true)
     expect(panel.text()).toContain('Narrate')
     expect(panel.text()).toContain('Running')
@@ -488,15 +490,15 @@ describe('the running job on the graph (step 1.3)', () => {
       error: { code: 'PROVIDER_FAILED', message: 'upstream refused' },
     })
     await flushPromises()
-    expect(wrapper.find('.sch-inspector').text()).toContain('PROVIDER_FAILED')
-    expect(wrapper.find('.sch-inspector').text()).toContain('upstream refused')
+    expect(wrapper.find('.sch-inspect.show').text()).toContain('PROVIDER_FAILED')
+    expect(wrapper.find('.sch-inspect.show').text()).toContain('upstream refused')
     expect(wrapper.find('.si-sec.err').element.children[1].className).toBe('si-err-msg')
     expect(wrapper.find('.si-sec.err').element.children[2].className).toBe('si-err-code')
   })
 
   it('freezes the view without touching the job', async () => {
     const { wrapper } = await mountLivePage()
-    await wrapper.find('.sch-zbtn.freeze').trigger('click')
+    await wrapper.find('.sch-pause').trigger('click')
     await flushPromises()
 
     const source = FakeEventSource.latest()
@@ -508,20 +510,24 @@ describe('the running job on the graph (step 1.3)', () => {
     // ...and the run was never asked to stop: the stream is still open, and
     // the badge counts what is waiting behind the freeze.
     expect(source.close).not.toHaveBeenCalled()
-    expect(wrapper.find('.sch-zbtn.freeze').text()).toContain('Frozen · 1')
+    expect(wrapper.find('.sch-pause').text()).toContain('Frozen · 1')
     expect(wrapper.text()).toContain('the job is still running')
 
-    await wrapper.find('.sch-zbtn.freeze').trigger('click')
+    await wrapper.find('.sch-pause').trigger('click')
     await flushPromises()
     expect(wrapper.findAll('.sch-node')[1].attributes('data-visual')).toBe('done')
   })
 
   it('paints nothing live until a run is bound', async () => {
     const { wrapper } = await mountPage()
-    expect(wrapper.find('.sch-live-pill').exists()).toBe(false)
-    expect(wrapper.find('.sch-zbtn.freeze').exists()).toBe(false)
+    // The pill is always there; with nothing bound it says so and stays grey.
+    expect(wrapper.find('.sch-live').text()).toContain('Idle · no active job')
+    expect(wrapper.find('.sch-live').classes()).toEqual(['sch-live'])
+    expect(wrapper.find('.sch-pause').exists()).toBe(false)
     for (const card of wrapper.findAll('.sch-node')) {
       expect(card.attributes('data-visual')).toBe('pending')
+      // Nothing watched is `s-idle`, not "this run has not got here yet".
+      expect(card.classes()).toContain('s-idle')
     }
   })
 })
@@ -662,10 +668,12 @@ describe('Schema node actions and failure navigation (step 1.4)', () => {
 
     const failedCard = wrapper.find('[data-node-id="n_speak"]')
     expect(failedCard.classes()).toContain('flash')
+    // The card's own tooltip, shown because this is the card that failed.
+    expect(failedCard.find('.sch-node-err').classes()).toContain('show')
     expect(failedCard.text()).toContain('VOICE_TIMEOUT')
-    expect(wrapper.find('.sch-error-panel').text()).toContain('Provider timed out')
-    expect(wrapper.find('.sch-error-panel').text()).toContain('job_BAD001')
-    expect(wrapper.find('.sch-inspector').text()).toContain('VOICE_TIMEOUT')
+    expect(wrapper.find('.sch-err.show').text()).toContain('Provider timed out')
+    expect(wrapper.find('.sch-err.show').text()).toContain('job_BAD001')
+    expect(wrapper.find('.sch-inspect.show').text()).toContain('VOICE_TIMEOUT')
   })
 
   it('retries only the selected failed node through the engine', async () => {

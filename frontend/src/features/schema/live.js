@@ -48,6 +48,54 @@ export function visualForStatus(status) {
 }
 
 /**
+ * The visual, spelled the way the prototype's stylesheet spells it (step 6.6).
+ *
+ * Two differences, both deliberate. `skipped` is the engine's word and `s-skip`
+ * is the prototype's class, so this map translates rather than renaming the
+ * engine's vocabulary to suit a stylesheet. And `blocked` has no prototype
+ * counterpart at all — the prototype has no approval gate — so it keeps its own
+ * token instead of being flattened onto a state that means something else.
+ */
+const STATE_CLASS = Object.freeze({
+  idle: 's-idle',
+  pending: 's-pending',
+  active: 's-active',
+  done: 's-done',
+  failed: 's-failed',
+  skipped: 's-skip',
+  blocked: 's-blocked',
+})
+
+/**
+ * `s-*` for one card.
+ *
+ * `bound` separates the prototype's two quiet states, which the engine does not
+ * distinguish because it has no reason to: `s-idle` is "no run is being
+ * watched", `s-pending` is "this run has not reached here yet". Same status,
+ * two different things to say.
+ */
+export function stateClass(visual, bound = true) {
+  const key = visual === 'pending' && !bound ? 'idle' : visual
+  return STATE_CLASS[key] || STATE_CLASS.pending
+}
+
+/**
+ * What the corner pill on a card reads (step 6.6).
+ *
+ * The percent is the run's, for the same reason the topbar's is: the engine
+ * records per-node status, not per-node progress. The other three states are
+ * the prototype's glyphs, and every other state reads empty — the pill is
+ * `display: none` until it has something to say.
+ */
+export function stateBadge(visual, percent = null) {
+  if (visual === 'active') return Number.isFinite(percent) ? `${percent}%` : ''
+  if (visual === 'done') return '✓'
+  if (visual === 'failed') return '✕'
+  if (visual === 'skipped') return 'skip'
+  return ''
+}
+
+/**
  * node_id → what the card should look like right now.
  *
  * Keyed off the graph rather than the record map so a node the run has not
@@ -73,23 +121,6 @@ export function buildNodeStates(nodes, records = {}) {
     }
   }
   return states
-}
-
-/**
- * The one line a failed card shows on hover (step 1.4).
- *
- * Structured only: the code and the engine's message, never assembled prose.
- *
- * @param {{error?: {code?: string, message?: string}}} state  a buildNodeStates entry
- * @returns {string}
- */
-export function failureTooltip(state) {
-  const error = state?.error
-  if (!error) return ''
-  const code = error.code || ''
-  const message = error.message || ''
-  if (code && message) return `${code} — ${message}`
-  return code || message || ''
 }
 
 /**
@@ -125,30 +156,36 @@ export function nodeFailures(nodes, records = {}) {
   return failures
 }
 
-/** Node ids the engine is working on right now. */
-export function activeNodeIds(nodeStates) {
-  return new Set(
-    Object.entries(nodeStates || {})
-      .filter(([, state]) => state?.visual === 'active')
-      .map(([id]) => id),
-  )
-}
-
 /**
- * Edges *into* an active node — the work flowing towards what is running now.
+ * edge id → `e-*`, by the prototype's rule (step 6.6).
  *
- * Deliberately not edges out of it: nothing has left that node yet.
+ * An edge is coloured by what happened at *both* ends, which is what makes a
+ * running graph readable at a glance:
  *
- * @returns {Set<string>} edge ids
+ *   - `e-done`   work has crossed it — the source finished and the target has
+ *                started or finished too
+ *   - `e-active` work is crossing it right now: the source finished and the
+ *                target is running. This is the only edge that animates, and
+ *                it is deliberately narrower than "any edge into an active
+ *                node" — an edge whose source has not produced anything yet is
+ *                carrying nothing, so animating it would be a lie
+ *   - `e-fail`   either end failed, so nothing more will cross it
+ *
+ * @returns {Record<string, string>} edge id → class string, `''` when plain
  */
-export function flowingEdgeIds(edges, nodeStates) {
-  const active = activeNodeIds(nodeStates)
-  const flowing = new Set()
-  if (!active.size) return flowing
+export function edgeStateClasses(edges, nodeStates) {
+  const classes = {}
   for (const edge of edges || []) {
-    if (edge?.id && active.has(edge.target)) flowing.add(edge.id)
+    if (!edge?.id) continue
+    const from = nodeStates?.[edge.source]?.visual
+    const to = nodeStates?.[edge.target]?.visual
+    const names = []
+    if (from === 'done' && (to === 'active' || to === 'done')) names.push('e-done')
+    if (from === 'done' && to === 'active') names.push('e-active')
+    if (from === 'failed' || to === 'failed') names.push('e-fail')
+    classes[edge.id] = names.join(' ')
   }
-  return flowing
+  return classes
 }
 
 /**
@@ -239,6 +276,42 @@ export function inspectorModel(node, record) {
     /** True before the run has produced anything for this node at all. */
     empty: !record,
   }
+}
+
+/**
+ * A redacted summary, split into the three tokens the prototype colours
+ * (step 6.6): `k` keys, `s` strings, `n` numbers, literals and punctuation.
+ *
+ * The prototype colours its JSON by assigning a rewritten string to
+ * `innerHTML`. Tokens are returned as data here and rendered as elements by
+ * the caller, because a summary is engine output and engine output must never
+ * reach `v-html` — the same rule step 6.5 applied to the simulate console.
+ *
+ * @returns {Array<{text: string, cls: string}>}
+ */
+export function jsonTokens(value) {
+  let text
+  try {
+    text = JSON.stringify(value, null, 2)
+  } catch {
+    text = String(value)
+  }
+  if (typeof text !== 'string') return []
+
+  const tokens = []
+  // One pass over strings, numbers and literals. A string followed by a colon
+  // is a key; every other string is a value.
+  const pattern = /"(?:[^"\\]|\\.)*"(\s*:)?|\b-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\b(?:true|false|null)\b/g
+  let last = 0
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    if (match.index > last) tokens.push({ text: text.slice(last, match.index), cls: '' })
+    const raw = match[0]
+    if (raw.startsWith('"')) tokens.push({ text: raw, cls: match[1] ? 'k' : 's' })
+    else tokens.push({ text: raw, cls: 'n' })
+    last = match.index + raw.length
+  }
+  if (last < text.length) tokens.push({ text: text.slice(last), cls: '' })
+  return tokens
 }
 
 /** Compact one-line duration for the panel. */

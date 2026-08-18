@@ -44,18 +44,27 @@ projections, no polling loop, and no second copy of the status ladder:
 `live.js` decides how a status *looks*, while the vocabulary itself stays in
 `features/production/stageStatus.js`.
 
-| Look | Engine status |
-|---|---|
-| dim | `idle`, `stale` |
-| glow + percent | `running`, `queued`, `waiting` |
-| green | `succeeded` |
-| red | `failed`, `invalid` |
-| dashed, struck through | `skipped`, `cancelled` |
-| scheduled tint | `awaiting_approval` |
+| Class | Look | Engine status |
+|---|---|---|
+| `s-idle` | dim | — (no run is being watched) |
+| `s-pending` | dimmer | `idle`, `stale` |
+| `s-active` | glow + percent | `running`, `queued`, `waiting` |
+| `s-done` | green | `succeeded` |
+| `s-failed` | red | `failed`, `invalid` |
+| `s-skip` | dashed, struck through | `skipped`, `cancelled` |
+| `s-blocked` | scheduled tint | `awaiting_approval` |
 
-Edges *into* an active node flow; edges out of it do not, because nothing has
-left it yet. A status this frontend has never heard of draws dim rather than
+`s-skip` is the prototype's spelling of the engine's `skipped`; `stateClass`
+translates rather than renaming the engine's vocabulary to suit a stylesheet.
+`s-blocked` has no prototype counterpart — the prototype has no approval gate —
+so it keeps its own token instead of being flattened onto a state that means
+something else. A status this frontend has never heard of draws dim rather than
 vanishing, the same way an unknown node type still renders.
+
+Edges are coloured by **both** ends: `e-done` once work has crossed, `e-active`
+while it is crossing, `e-fail` if either end failed. Only `e-active` animates,
+and it is narrower than "any edge into an active node" — an edge whose source
+has produced nothing yet is carrying nothing, so animating it would be a lie.
 
 **On percent.** The engine records per-node status, not per-node progress, so
 there is no honest number for "how far through is this one node". The live
@@ -91,6 +100,42 @@ centres and flashes the card. Failed cards carry an inline code/message tooltip,
 the detail panel names node, stage, Job, reason and code, and the topbar counts
 failed Jobs across the batch. Clicking that badge binds the first failure's
 execution and locates its failed node in one action.
+
+## Prototype fidelity (step 6.6)
+
+The `sch-*` family is ported: `sch-topbar` with its `sch-live` pill and
+`sch-pause`, the `sch-canvas` / `sch-world` / `sch-edges` / `sch-nodes` stack,
+cards by `role-*` with the `s-*` treatments and their `sch-state` corner pill,
+`sch-tags`, the `sch-node-err` tooltip, the `sch-legend`, the `sch-err` panel
+and the `sch-inspect` shell with its `si-*` set.
+
+Two things the prototype does are done differently here, both for the same
+reason — it hardcodes one graph and this page draws whatever the backend
+returns:
+
+- **Role** is derived, not authored. A node the projection claims is
+  `role-stage`; one it does not is `role-flow`; one whose registry definition
+  declares a `conditional` output is `role-branch`. A list of branching type
+  names here would be exactly the hardcoded node knowledge this feature bans.
+- **The narration tags** read the resolved `narration_processing` the engine
+  stamped on the snapshot, so the trim glyph and the speed chip say what the
+  run will actually do rather than what a fixture said.
+
+And three parts of the family are excluded rather than faked:
+
+- **`sch-live.paused`** is the prototype's *job* pause. Nothing on this page can
+  pause a job, so the tone is used for `awaiting_approval` — waiting rather than
+  working — which is the only thing the app has that means it.
+- **The prototype's per-node `accent`, `icon`, `x`/`y` and `sub`** are its own
+  fixture. Colour comes from the registry's category, the glyph from its `icon`,
+  the position from the workflow document, the subtitle from the projection.
+- **`si-sec pre` colouring** is applied from tokens rendered as elements, never
+  by assigning to `innerHTML` the way the prototype does. A summary is engine
+  output, and engine output must not reach `v-html`.
+
+The topbar also carries three controls the prototype has no need for, because it
+draws one fixed graph: the workflow picker, the run picker and the `sch-meta`
+counts. They reuse the shared vocabulary rather than inventing one.
 
 ## What is cosmetic and what is fixed
 

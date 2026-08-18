@@ -30,7 +30,6 @@ import { useSchemaLive } from './composables/useSchemaLive.js'
 import {
   buildNodeStates,
   currentStageLabel,
-  flowingEdgeIds,
   inspectorModel,
   nodeFailures,
   runProgress,
@@ -99,7 +98,6 @@ const failedJobs = ref([])
 
 /** Every card's look, derived from the run — never authored here. */
 const nodeStates = computed(() => buildNodeStates(nodes.value, liveRecords.value))
-const flowingEdges = computed(() => flowingEdgeIds(edges.value, nodeStates.value))
 const progress = computed(() => runProgress(nodes.value, nodeStates.value))
 
 const bound = computed(() => Boolean(liveExecutionId.value))
@@ -117,16 +115,38 @@ const stageNow = computed(() => {
   return stage?.label || key
 })
 
+/**
+ * The prototype's four pill tones, named from the engine's status rather than
+ * from a second ladder. `paused` is the prototype's word for "waiting, not
+ * working", which is what an approval gate is.
+ */
+const PILL_TONE = Object.freeze({
+  running: 'on',
+  queued: 'on',
+  waiting: 'on',
+  succeeded: 'done',
+  failed: 'fail',
+  invalid: 'fail',
+  awaiting_approval: 'paused',
+  cancelled: 'paused',
+})
+
+/**
+ * What the topbar pill says. `name` is the thing being watched and goes in the
+ * prototype's `<b>`; the rest is where the run has got to.
+ */
 const pill = computed(() => {
-  if (!bound.value) return null
+  if (!bound.value) {
+    return { name: '', text: 'Idle · no active job', tone: '' }
+  }
   const bits = []
-  bits.push(liveJobId.value ? `Job ${liveJobId.value}` : `Run ${liveExecutionId.value}`)
   if (stageNow.value) bits.push(stageNow.value)
   bits.push(`${progress.value.percent}%`)
+  if (!liveRunning.value) bits.push(statusLabel(liveStatus.value))
   return {
+    name: liveJobId.value ? `Job ${liveJobId.value}` : `Run ${liveExecutionId.value}`,
     text: bits.join(' · '),
-    live: liveRunning.value,
-    status: statusLabel(liveStatus.value),
+    tone: PILL_TONE[String(liveStatus.value || '')] || '',
   }
 })
 
@@ -447,7 +467,7 @@ watch(
 </script>
 
 <template>
-  <section class="schema-page">
+  <section class="schema-page schema-view">
     <header class="sch-topbar">
       <div class="sch-title">
         <h1>Workflow Schema</h1>
@@ -465,14 +485,16 @@ watch(
         :aria-label="`Locate first of ${errorCount} failed jobs`"
         @click="onErrorBadge"
       >
-        <span aria-hidden="true">!</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+        </svg>
         {{ errorCount }} error{{ errorCount === 1 ? '' : 's' }}
       </button>
 
-      <p v-if="pill" class="sch-live-pill" :class="{ running: pill.live }" role="status">
-        <span v-if="pill.live" class="dot" aria-hidden="true" />
+      <p class="sch-live" :class="pill.tone" role="status">
+        <span class="dot" aria-hidden="true" />
+        <b v-if="pill.name">{{ pill.name }}</b>
         {{ pill.text }}
-        <span v-if="!pill.live" class="pill-status">· {{ pill.status }}</span>
       </p>
 
       <label v-if="workflows.length" class="sch-pick">
@@ -498,13 +520,16 @@ watch(
 
       <button
         v-if="bound"
-        class="sch-zbtn freeze"
+        class="sch-pause"
         type="button"
         :class="{ on: frozen }"
         :aria-pressed="String(frozen)"
         title="Hold this view still. The job keeps running."
         @click="onToggleFreeze"
       >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" />
+        </svg>
         {{ frozen ? `Frozen · ${behind}` : 'Freeze view' }}
       </button>
 
@@ -537,9 +562,9 @@ watch(
         :nodes="nodes"
         :edges="edges"
         :node-states="nodeStates"
-        :flowing-edges="flowingEdges"
         :selected-id="selectedNodeId"
         :percent="bound ? progress.percent : null"
+        :bound="bound"
         @realign="onRealign"
         @select="onSelectNode"
       />
@@ -558,23 +583,44 @@ watch(
         @test-run="onTestRun"
       />
 
-      <aside v-if="currentFailure" class="sch-error-panel" aria-label="Workflow error">
-        <header>
-          <span class="se-icon" aria-hidden="true">!</span>
-          <strong>Workflow error</strong>
-          <span>{{ currentFailure.name }}</span>
-        </header>
-        <dl>
-          <div><dt>Node</dt><dd>{{ currentFailure.name }}</dd></div>
-          <div><dt>Stage</dt><dd>{{ currentFailure.stageLabel || 'â€”' }}</dd></div>
-          <div><dt>Job</dt><dd class="mono">{{ liveJobId || 'Unbound run' }}</dd></div>
-        </dl>
-        <p>{{ currentFailure.message || 'The node failed.' }}</p>
-        <code>{{ currentFailure.code || 'ERROR' }}</code>
-        <footer>
-          <button type="button" @click="locateNode(currentFailure.nodeId)">Locate node</button>
-          <button class="primary" type="button" @click="onRetryNode(currentFailure.nodeId)">Retry</button>
-        </footer>
+      <aside class="sch-err" :class="{ show: Boolean(currentFailure) }" aria-label="Workflow error">
+        <template v-if="currentFailure">
+          <div class="se-head">
+            <span class="se-ic" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+              </svg>
+            </span>
+            <div class="se-t">
+              Workflow error
+              <span class="se-node">{{ currentFailure.name }}</span>
+            </div>
+          </div>
+          <div class="se-body">
+            <div class="se-row"><span class="k">Node</span><span class="v">{{ currentFailure.name }}</span></div>
+            <div class="se-row"><span class="k">Stage</span><span class="v">{{ currentFailure.stageLabel || '—' }}</span></div>
+            <div class="se-row">
+              <span class="k">Job</span>
+              <span class="v mono">{{ liveJobId || 'Unbound run' }}</span>
+            </div>
+            <p class="se-why">{{ currentFailure.message || 'The node failed.' }}</p>
+            <p v-if="currentFailure.code" class="se-code">{{ currentFailure.code }}</p>
+          </div>
+          <div class="se-foot">
+            <button class="btn xs" type="button" @click="locateNode(currentFailure.nodeId)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+              </svg>
+              Locate node
+            </button>
+            <button class="btn xs primary" type="button" @click="onRetryNode(currentFailure.nodeId)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M21 12a9 9 0 1 1-2.6-6.4" /><path d="M21 3v6h-6" />
+              </svg>
+              Retry
+            </button>
+          </div>
+        </template>
       </aside>
     </div>
     <div v-else class="sch-empty">
@@ -588,9 +634,11 @@ watch(
 </template>
 
 <style scoped>
-.schema-page {
+.schema-page,
+.schema-view {
   display: flex;
   flex-direction: column;
+  grid-template-columns: 1fr;
   min-height: 0;
   height: 100%;
   overflow: hidden;
@@ -612,13 +660,13 @@ watch(
   font-family: var(--display);
   font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.3px;
   color: var(--text);
 }
 
 .sch-sub {
   margin: 2px 0 0;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -638,7 +686,7 @@ watch(
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  border: 1px solid var(--fail-line);
+  border: 1px solid rgba(240, 97, 109, 0.4);
   border-radius: 20px;
   background: var(--fail-dim);
   color: var(--fail);
@@ -650,7 +698,11 @@ watch(
 }
 
 .sch-errbadge:hover {
-  filter: brightness(1.15);
+  background: rgba(240, 97, 109, 0.22);
+}
+
+.sch-errbadge svg {
+  color: var(--fail);
 }
 
 .sch-pick select {
@@ -671,7 +723,7 @@ watch(
 }
 
 .sch-zbtn {
-  width: 34px;
+  width: 30px;
   height: 30px;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -688,65 +740,115 @@ watch(
   color: var(--text);
 }
 
-.sch-zbtn.freeze {
-  width: auto;
-  padding: 0 11px;
+/* The prototype's `sch-pause` freezes the canvas animation and says so in its
+   own tooltip; here it freezes the whole view. Neither pauses a job — that is
+   the Production row's control, and this page has no endpoint for it. */
+.sch-pause {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--text-2);
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.sch-pause:hover {
+  background: var(--panel-2);
+  color: var(--text);
 }
 
 /* Held still is a state worth seeing from across the room — someone who
    forgot they froze the view would otherwise read a stalled job. */
-.sch-zbtn.freeze.on {
-  color: var(--warn-text);
+.sch-pause.on {
+  color: var(--warn);
+  border-color: rgba(224, 164, 74, 0.4);
   background: var(--warn-dim);
-  border-color: var(--warn-line);
 }
+
+.sch-pause.on svg { color: var(--warn); }
 
 /* The run, named: job, stage, percent. */
-.sch-live-pill {
+.sch-live {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   margin: 0;
-  padding: 5px 12px;
+  padding: 5px 12px 5px 10px;
   border: 1px solid var(--line);
   border-radius: 20px;
-  background: var(--bg-2);
+  background: var(--panel);
+  color: var(--muted);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.3px;
   white-space: nowrap;
-  color: var(--text-2);
 }
 
-.sch-live-pill.running {
-  color: var(--run);
-  background: var(--run-dim);
-  border-color: var(--run-line);
-}
-
-.sch-live-pill .dot {
-  width: 6px;
-  height: 6px;
+.sch-live .dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: currentColor;
-  animation: sch-pulse 1.6s ease-in-out infinite;
+  background: var(--faint);
 }
 
-.sch-live-pill .pill-status {
-  color: var(--faint);
+.sch-live b {
+  color: var(--text-2);
+  font-weight: 600;
 }
 
-@keyframes sch-pulse {
+.sch-live.on {
+  color: var(--run);
+  border-color: rgba(88, 166, 255, 0.4);
+  background: var(--run-dim);
+}
+
+.sch-live.on .dot {
+  background: var(--run);
+  animation: schlivepulse 1.6s infinite;
+}
+
+.sch-live.on b { color: var(--run); }
+
+.sch-live.done {
+  color: var(--ok);
+  border-color: rgba(63, 182, 139, 0.4);
+  background: var(--ok-dim);
+}
+
+.sch-live.done .dot { background: var(--ok); }
+
+.sch-live.fail {
+  color: var(--fail);
+  border-color: rgba(240, 97, 109, 0.4);
+  background: var(--fail-dim);
+}
+
+.sch-live.fail .dot { background: var(--fail); }
+
+.sch-live.paused {
+  color: var(--sched);
+  border-color: rgba(185, 139, 255, 0.4);
+  background: var(--sched-dim);
+}
+
+.sch-live.paused .dot { background: var(--sched); }
+.sch-live.paused b { color: var(--sched); }
+
+@keyframes schlivepulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sch-live-pill .dot {
-    animation: none;
-  }
+  .sch-live.on .dot { animation: none; }
 }
 
 /* The canvas and the panel that opens over it. */
@@ -757,96 +859,140 @@ watch(
   min-height: 0;
 }
 
-.sch-error-panel {
+/* Bottom-right of the canvas: which node failed, and why. Mounted and hidden
+   like the prototype, so opening it is a class change. */
+.sch-err {
+  display: none;
   position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 7;
-  width: 330px;
-  max-width: calc(100% - 24px);
-  padding: 13px 14px;
-  border: 1px solid var(--fail-line);
+  right: 16px;
+  bottom: 14px;
+  z-index: 8;
+  width: 320px;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  border: 1px solid rgba(240, 97, 109, 0.45);
   border-radius: var(--r);
-  background: color-mix(in srgb, var(--fail-dim) 72%, var(--bg-2));
-  box-shadow: var(--hairline-top), var(--shadow);
-  color: var(--text-2);
+  background: rgba(10, 13, 18, 0.94);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 18px 44px -14px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(240, 97, 109, 0.1);
+  animation: schpop 0.18s ease;
 }
 
-.sch-inspector + .sch-error-panel {
-  right: 344px;
+.sch-err.show { display: block; }
+
+@keyframes schpop {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
 }
 
-.sch-error-panel header {
+/* The inspector owns the right edge when it is open. */
+.sch-inspect.show ~ .sch-err {
+  right: 348px;
+}
+
+.se-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(240, 97, 109, 0.2);
+  background: var(--fail-dim);
 }
 
-.sch-error-panel header strong,
-.sch-error-panel .se-icon,
-.sch-error-panel code {
+.se-ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(240, 97, 109, 0.2);
+  color: var(--fail);
+}
+
+.se-t {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
   color: var(--fail-text);
 }
 
-.sch-error-panel header span:last-child {
-  color: var(--muted);
+.se-t .se-node {
+  display: block;
+  margin-top: 1px;
+  color: var(--fail);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
 }
 
-.sch-error-panel dl {
-  margin: 11px 0;
+.se-body {
+  padding: 12px 14px;
 }
 
-.sch-error-panel dl div {
+.se-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  margin-top: 5px;
+  padding: 4px 0;
+  font-size: 12px;
 }
 
-.sch-error-panel dt {
-  width: 44px;
+.se-row .k {
   flex: none;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
 }
 
-.sch-error-panel dd,
-.sch-error-panel p {
-  margin: 0;
-  font-size: 11.5px;
+.se-row .v {
+  min-width: 0;
+  color: var(--text);
+  font-weight: 500;
+  text-align: right;
   overflow-wrap: anywhere;
 }
 
-.sch-error-panel code {
-  display: block;
-  margin-top: 8px;
+.se-row .v.mono {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.se-why {
+  margin: 9px 0 0;
+  color: var(--fail-text);
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.se-code {
+  margin: 9px 0 0;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: rgba(240, 97, 109, 0.08);
+  color: var(--fail);
   font-family: var(--mono);
   font-size: 10.5px;
+  word-break: break-word;
 }
 
-.sch-error-panel footer {
+.se-foot {
   display: flex;
   gap: 8px;
-  margin-top: 12px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-2);
 }
 
-.sch-error-panel footer button {
-  min-height: 30px;
-  padding: 0 11px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--panel-grad);
-  color: var(--text-2);
-  font: 600 11.5px var(--body);
-  cursor: pointer;
-}
+.se-foot .btn { flex: 1; }
 
-.sch-error-panel footer button.primary {
-  border-color: transparent;
-  background: var(--accent-grad);
-  color: #fff;
+@media (prefers-reduced-motion: reduce) {
+  .sch-err { animation: none; }
 }
 
 .sch-banner {
@@ -885,13 +1031,13 @@ watch(
     width: 100%;
   }
 
-  .sch-live-pill {
+  .sch-live {
     order: 2;
   }
 
-  .sch-inspector + .sch-error-panel {
-    right: 12px;
-    bottom: calc(55% + 22px);
+  .sch-inspect.show ~ .sch-err {
+    right: 16px;
+    bottom: calc(55% + 24px);
   }
 }
 </style>

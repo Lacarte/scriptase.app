@@ -91,6 +91,22 @@ export function providerDomainOf(definition) {
   return ''
 }
 
+/**
+ * True when the registry says this node routes control down one of several
+ * paths (step 6.6).
+ *
+ * The prototype dashes such cards as `role-branch`. The signal is the
+ * registry's own `conditional` output flag, so a branching node type added
+ * tomorrow gets the treatment without this file learning its name — a list of
+ * branching types here would be exactly the hardcoded node knowledge this
+ * feature forbids.
+ *
+ * @param {object} definition  one entry of the registry's `node_types`
+ */
+export function branchesControl(definition) {
+  return (definition?.outputs || []).some((output) => output?.conditional === true)
+}
+
 /** Resolved by backend orchestration and carried on the execution snapshot. */
 export function narrationProcessingFor(workflow, node, providerDomain) {
   if (providerDomain !== 'tts') return null
@@ -143,8 +159,10 @@ export function buildSchemaGraph({ workflow, registry, projection } = {}) {
       // Production stage this node reports into.
       stageKey: stage ? stage.key : null,
       stageLabel: stage ? stage.label : null,
-      // A node the projection never claims is graph infrastructure, not a step.
-      role: stage ? 'stage' : 'flow',
+      // A node the projection never claims is graph infrastructure, not a
+      // step. A node that routes control is a branch whichever of the two it
+      // is, because that is what its card has to say.
+      role: branchesControl(definition) ? 'branch' : (stage ? 'stage' : 'flow'),
       subtitle: stage ? stage.label : (categories[category]?.label || 'Infrastructure'),
       icon: definition.icon || '',
       accent: categories[category]?.color || FALLBACK_ACCENT,

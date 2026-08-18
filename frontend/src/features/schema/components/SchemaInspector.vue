@@ -13,13 +13,16 @@
  * Nothing here can leak a credential: the execution record carries provider
  * **instance references**, and input/output are the engine's redacted
  * summaries, not raw payloads.
+ *
+ * Step 6.6 ports the prototype's `sch-inspect` shell and the `si-*` set it
+ * contains, including the syntax colouring on the summary panes.
  */
 import { computed } from 'vue'
 
 import NodeIcon from '@/shared/components/NodeIcon.vue'
 import { statusLabel } from '@/features/production/stageStatus.js'
 import TestNodePanel from '@/features/production/components/TestNodePanel.vue'
-import { formatDuration } from '../live.js'
+import { formatDuration, jsonTokens, stateClass } from '../live.js'
 
 const props = defineProps({
   /** inspectorModel(node, record) from ../live.js, or null when nothing is open. */
@@ -36,16 +39,6 @@ defineEmits(['close', 'locate', 'retry', 'open-test', 'close-test', 'test-run'])
 
 const durationLabel = computed(() => formatDuration(props.model?.durationMs))
 
-/** Summaries are already compact and redacted; this only makes them readable. */
-function pretty(value) {
-  if (value == null) return ''
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
-}
-
 function isEmpty(value) {
   if (value == null) return true
   if (Array.isArray(value)) return value.length === 0
@@ -55,131 +48,157 @@ function isEmpty(value) {
 </script>
 
 <template>
-  <aside v-if="model" class="sch-inspector" aria-label="Node inspector">
-    <header class="si-head" :style="{ '--ac': model.accent }">
-      <span class="si-ic">
-        <NodeIcon :icon="model.icon" />
-      </span>
-      <div class="si-t">
-        <strong class="nm">{{ model.name }}</strong>
-        <span class="sb">{{ model.type }}</span>
-      </div>
-      <span class="si-badge" :class="`s-${model.visual}`">{{ statusLabel(model.status) }}</span>
-      <button class="si-x" type="button" aria-label="Close inspector" @click="$emit('close')">
-        ×
-      </button>
-    </header>
-
-    <div class="si-body">
-      <dl class="si-meta">
-        <div class="si-row">
-          <dt class="k">Stage</dt>
-          <dd class="v">{{ model.stageLabel || model.subtitle }}</dd>
+  <aside class="sch-inspect" :class="{ show: Boolean(model) }" aria-label="Node inspector">
+    <template v-if="model">
+      <header class="si-head" :style="{ '--ac': model.accent }">
+        <span class="si-ic">
+          <NodeIcon :icon="model.icon" />
+        </span>
+        <div class="si-t">
+          <strong class="nm">{{ model.name }}</strong>
+          <span class="sb">{{ model.type }}</span>
         </div>
-        <div class="si-row">
-          <dt class="k">Provider</dt>
-          <dd class="v">
-            <template v-if="model.provider">
-              <span class="mono">{{ model.provider.instanceId }}</span>
-              <span v-if="model.provider.reason" class="si-note">
-                · {{ model.provider.reason }}
+        <span class="si-badge" :class="stateClass(model.visual, bound)">
+          {{ statusLabel(model.status) }}
+        </span>
+        <button class="si-x" type="button" aria-label="Close inspector" @click="$emit('close')">
+          ×
+        </button>
+      </header>
+
+      <div class="si-body">
+        <dl class="si-meta">
+          <div class="si-row">
+            <dt class="k">Stage</dt>
+            <dd class="v">{{ model.stageLabel || model.subtitle }}</dd>
+          </div>
+          <div class="si-row">
+            <dt class="k">Provider</dt>
+            <dd class="v">
+              <template v-if="model.provider">
+                <span class="v mono">{{ model.provider.instanceId }}</span>
+                <span v-if="model.provider.reason" class="si-note">
+                  · {{ model.provider.reason }}
+                </span>
+              </template>
+              <!-- Not "none": a local service has no provider instance to resolve,
+                   and a node that has not run yet has not resolved one yet. -->
+              <span v-else class="si-note">Not resolved for this run</span>
+            </dd>
+          </div>
+          <div v-if="durationLabel || model.attempts" class="si-row">
+            <dt class="k">Run</dt>
+            <dd class="v">
+              <span v-if="durationLabel">{{ durationLabel }}</span>
+              <span v-if="model.attempts" class="si-note">
+                · attempt {{ model.attempts }}
               </span>
-            </template>
-            <!-- Not "none": a local service has no provider instance to resolve,
-                 and a node that has not run yet has not resolved one yet. -->
-            <span v-else class="si-note">Not resolved for this run</span>
-          </dd>
-        </div>
-        <div v-if="durationLabel || model.attempts" class="si-row">
-          <dt class="k">Run</dt>
-          <dd class="v">
-            <span v-if="durationLabel">{{ durationLabel }}</span>
-            <span v-if="model.attempts" class="si-note">
-              · attempt {{ model.attempts }}
-            </span>
-            <span v-if="model.fromSampleData" class="si-note">· sample data</span>
-          </dd>
-        </div>
-      </dl>
+              <span v-if="model.fromSampleData" class="si-note">· sample data</span>
+            </dd>
+          </div>
+        </dl>
 
-      <div class="si-actions" role="group" aria-label="Node actions">
-        <button class="si-action primary" type="button" @click="$emit('open-test')">Test</button>
-        <button class="si-action" type="button" @click="$emit('locate')">Locate node</button>
-        <button
-          v-if="model.visual === 'failed'"
-          class="si-action"
-          type="button"
-          @click="$emit('retry')"
-        >Retry</button>
+        <div class="si-actions" role="group" aria-label="Node actions">
+          <button class="si-action primary" type="button" @click="$emit('open-test')">Test</button>
+          <button class="si-action" type="button" @click="$emit('locate')">Locate node</button>
+          <button
+            v-if="model.visual === 'failed'"
+            class="si-action"
+            type="button"
+            @click="$emit('retry')"
+          >Retry</button>
+        </div>
+
+        <TestNodePanel
+          v-if="testOpen"
+          :title="model.name"
+          :node-id="model.id"
+          :node-type="model.type"
+          :ports="model.inputs"
+          :current-job-id="jobId"
+          :provider-domain="model.providerDomain"
+          :provider-label="model.provider?.instanceId || ''"
+          :running="testRunning"
+          :last-result="testResult"
+          @run="$emit('test-run', $event)"
+          @close="$emit('close-test')"
+        />
+
+        <p v-if="!bound" class="si-none">
+          No run bound. Choose a run above to see what this node did.
+        </p>
+        <p v-else-if="model.empty" class="si-none">
+          This run has not reached this node yet.
+        </p>
+
+        <section v-if="model.error" class="si-sec err" aria-label="Node error">
+          <h3 class="si-h">Error</h3>
+          <p class="si-err-msg">{{ model.error.message || '' }}</p>
+          <p class="si-err-code">{{ model.error.code || 'ERROR' }}</p>
+        </section>
+
+        <!-- Tokens are rendered as elements, never as markup: a summary is
+             engine output, and engine output must not reach v-html. -->
+        <section v-if="!isEmpty(model.input)" class="si-sec" aria-label="Node input">
+          <h3 class="si-h in"><span class="arrow">▼</span> Input</h3>
+          <pre><span
+            v-for="(token, i) in jsonTokens(model.input)"
+            :key="i"
+            :class="token.cls"
+          >{{ token.text }}</span></pre>
+        </section>
+
+        <section v-if="!isEmpty(model.output)" class="si-sec" aria-label="Node output">
+          <h3 class="si-h out" :class="{ ok: model.visual === 'done' }">
+            <span class="arrow">▲</span> Output
+          </h3>
+          <pre><span
+            v-for="(token, i) in jsonTokens(model.output)"
+            :key="i"
+            :class="token.cls"
+          >{{ token.text }}</span></pre>
+        </section>
+
+        <section v-if="model.artifacts.length" class="si-sec" aria-label="Node artifacts">
+          <h3 class="si-h">Artifacts</h3>
+          <ul class="si-refs">
+            <li v-for="ref in model.artifacts" :key="ref" class="mono">{{ ref }}</li>
+          </ul>
+        </section>
       </div>
-
-      <TestNodePanel
-        v-if="testOpen"
-        :title="model.name"
-        :node-id="model.id"
-        :node-type="model.type"
-        :ports="model.inputs"
-        :current-job-id="jobId"
-        :provider-domain="model.providerDomain"
-        :provider-label="model.provider?.instanceId || ''"
-        :running="testRunning"
-        :last-result="testResult"
-        @run="$emit('test-run', $event)"
-        @close="$emit('close-test')"
-      />
-
-      <p v-if="!bound" class="si-none">
-        No run bound. Choose a run above to see what this node did.
-      </p>
-      <p v-else-if="model.empty" class="si-none">
-        This run has not reached this node yet.
-      </p>
-
-      <section v-if="model.error" class="si-sec err" aria-label="Node error">
-        <h3 class="si-h">Error</h3>
-        <p class="si-err-msg">{{ model.error.message || '' }}</p>
-        <p class="si-err-code">{{ model.error.code || 'ERROR' }}</p>
-      </section>
-
-      <section v-if="!isEmpty(model.input)" class="si-sec" aria-label="Node input">
-        <h3 class="si-h in"><span class="arrow">▼</span> Input</h3>
-        <pre>{{ pretty(model.input) }}</pre>
-      </section>
-
-      <section v-if="!isEmpty(model.output)" class="si-sec" aria-label="Node output">
-        <h3 class="si-h out"><span class="arrow">▲</span> Output</h3>
-        <pre>{{ pretty(model.output) }}</pre>
-      </section>
-
-      <section v-if="model.artifacts.length" class="si-sec" aria-label="Node artifacts">
-        <h3 class="si-h">Artifacts</h3>
-        <ul class="si-refs">
-          <li v-for="ref in model.artifacts" :key="ref" class="mono">{{ ref }}</li>
-        </ul>
-      </section>
-    </div>
+    </template>
   </aside>
 </template>
 
 <style scoped>
 /* The panel's placement on the canvas belongs to the Schema view (`sch-*`);
-   everything inside it is the prototype's shared status-indicator set. */
-.sch-inspector {
+   everything inside it is the prototype's `si-*` set. It stays mounted and
+   hidden, exactly as the prototype does, so that opening a card is a class
+   change rather than a re-layout. */
+.sch-inspect {
+  display: none;
   position: absolute;
-  top: 12px;
-  right: 12px;
-  bottom: 12px;
-  z-index: 8;
-  display: flex;
+  top: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 9;
   flex-direction: column;
   width: 320px;
-  max-width: calc(100% - 24px);
+  max-width: calc(100% - 28px);
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--r);
-  background: rgba(10, 13, 18, 0.94);
+  background: rgba(10, 13, 18, 0.95);
   backdrop-filter: blur(8px);
-  box-shadow: var(--hairline-top), 0 18px 44px -18px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 18px 44px -14px rgba(0, 0, 0, 0.85);
+  animation: pop 0.16s ease;
+}
+
+.sch-inspect.show { display: flex; }
+
+@keyframes pop {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ---- Head: the node's own accent tints its icon plate ---- */
@@ -261,12 +280,10 @@ function isEmpty(value) {
 
 /* The three "nothing to see yet" states repeat the base rather than inherit
    it, because they are the ones the class list actually produces most often
-   and reading them here is what makes the set legible. `s-skipped` is the
-   engine's spelling of the prototype's `s-skip`; both resolve. */
+   and reading them here is what makes the set legible. */
 .si-badge.s-pending,
 .si-badge.s-idle,
-.si-badge.s-skip,
-.si-badge.s-skipped {
+.si-badge.s-skip {
   color: var(--muted);
   background: var(--bg);
   box-shadow: inset 0 0 0 1px var(--line);
@@ -331,6 +348,11 @@ function isEmpty(value) {
   overflow-wrap: anywhere;
 }
 
+.si-row .v.mono {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
 .si-note {
   color: var(--faint);
   font-weight: 400;
@@ -373,6 +395,9 @@ function isEmpty(value) {
 .si-h.in .arrow { color: var(--sched); }
 .si-h.out .arrow { color: var(--ok); }
 
+/* The node produced this and finished. */
+.si-h.ok { color: var(--ok); }
+
 .si-sec.err .si-h {
   color: var(--fail);
   background: var(--fail-dim);
@@ -391,6 +416,10 @@ function isEmpty(value) {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.si-sec pre .k { color: var(--sched); }
+.si-sec pre .s { color: var(--ok); }
+.si-sec pre .n { color: var(--warn); }
 
 .si-none {
   margin: 0;
@@ -466,10 +495,14 @@ function isEmpty(value) {
   color: #fff;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .sch-inspect { animation: none; }
+}
+
 @media (max-width: 820px) {
-  .sch-inspector {
+  .sch-inspect {
     top: auto;
-    left: 12px;
+    left: 14px;
     width: auto;
     max-height: 55%;
   }

@@ -18,10 +18,13 @@ import { mount } from '@vue/test-utils'
 import {
   buildNodeStates,
   currentStageLabel,
-  flowingEdgeIds,
+  edgeStateClasses,
   formatDuration,
   inspectorModel,
+  jsonTokens,
   runProgress,
+  stateBadge,
+  stateClass,
   visualForStatus,
 } from '../live.js'
 import { useSchemaLive } from '../composables/useSchemaLive.js'
@@ -131,20 +134,66 @@ describe('live model (step 1.3)', () => {
     expect(states.n_ghost).toBeUndefined()
   })
 
-  it('flows the edges into an active node and no others', () => {
+  it('animates only the edge work is crossing right now (step 6.6)', () => {
     const states = buildNodeStates(NODES, {
       n_one: { status: 'succeeded' },
       n_two: { status: 'running' },
     })
-    const flowing = flowingEdgeIds(EDGES, states)
-    expect(flowing.has('e1')).toBe(true)
+    const classes = edgeStateClasses(EDGES, states)
+    // Source finished, target is running: work is on this edge.
+    expect(classes.e1).toBe('e-done e-active')
     // Out of the active node: nothing has left it yet.
-    expect(flowing.has('e2')).toBe(false)
+    expect(classes.e2).toBe('')
   })
 
-  it('flows nothing when nothing is running', () => {
+  it('animates nothing when nothing is running', () => {
     const states = buildNodeStates(NODES, { n_one: { status: 'succeeded' } })
-    expect(flowingEdgeIds(EDGES, states).size).toBe(0)
+    expect(Object.values(edgeStateClasses(EDGES, states))).toEqual(['', ''])
+  })
+
+  it('paints an edge red from either end (step 6.6)', () => {
+    const states = buildNodeStates(NODES, { n_two: { status: 'failed' } })
+    const classes = edgeStateClasses(EDGES, states)
+    expect(classes.e1).toBe('e-fail')
+    expect(classes.e2).toBe('e-fail')
+  })
+
+  it('spells a state the way the prototype spells it (step 6.6)', () => {
+    expect(stateClass('active')).toBe('s-active')
+    expect(stateClass('done')).toBe('s-done')
+    expect(stateClass('failed')).toBe('s-failed')
+    // The engine says `skipped`; the prototype's class is `s-skip`.
+    expect(stateClass('skipped')).toBe('s-skip')
+    // Same status, two different things to say: nothing watched vs not reached.
+    expect(stateClass('pending', false)).toBe('s-idle')
+    expect(stateClass('pending', true)).toBe('s-pending')
+    // No prototype counterpart, so it keeps its own token.
+    expect(stateClass('blocked')).toBe('s-blocked')
+  })
+
+  it('reads the corner pill from the state, and the run for the percent', () => {
+    expect(stateBadge('active', 67)).toBe('67%')
+    expect(stateBadge('active', null)).toBe('')
+    expect(stateBadge('done')).toBe('✓')
+    expect(stateBadge('failed')).toBe('✕')
+    expect(stateBadge('skipped')).toBe('skip')
+    // Every other state has nothing to say, and the pill is hidden until it has.
+    expect(stateBadge('pending', 40)).toBe('')
+  })
+
+  it('tokenises a summary for colouring without ever building markup', () => {
+    const tokens = jsonTokens({ voice: 'ash', takes: 3, trimmed: true })
+    const find = (text) => tokens.find((token) => token.text === text)
+    expect(find('"voice":').cls).toBe('k')
+    expect(find('"ash"').cls).toBe('s')
+    expect(find('3').cls).toBe('n')
+    expect(find('true').cls).toBe('n')
+    // Reassembling the tokens must reproduce the summary exactly.
+    expect(tokens.map((token) => token.text).join('')).toBe(
+      JSON.stringify({ voice: 'ash', takes: 3, trimmed: true }, null, 2),
+    )
+    // A `<` in engine output stays text, because it is rendered as text.
+    expect(jsonTokens({ note: '<img onerror=x>' }).some((t) => t.text.includes('<img'))).toBe(true)
   })
 
   it('reports the run percent from settled nodes', () => {

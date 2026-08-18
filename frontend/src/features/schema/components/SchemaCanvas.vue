@@ -11,29 +11,33 @@
  * scroll to pan, Ctrl/pinch-wheel to zoom anchored on the cursor, drag a card
  * to reposition it, right-click to realign.
  *
- * Step 1.3: `nodeStates` and `flowingEdges` are how a running Job reaches the
- * picture. Both are derived from execution records upstream — this component
- * decides how a state *looks*, never what it is.
+ * Step 1.3: `nodeStates` is how a running Job reaches the picture. It is
+ * derived from execution records upstream — this component decides how a state
+ * *looks*, never what it is.
+ *
+ * Step 6.6 ports the prototype's `sch-*` family: cards by role, the five `s-*`
+ * status treatments with their corner pill, the `e-*` edge states, and the
+ * animation on the one edge that is actually carrying work.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import NodeIcon from '@/shared/components/NodeIcon.vue'
-import { NODE_H, NODE_W, edgePath, worldSize, zoomAt } from '../graph.js'
-import { failureTooltip } from '../live.js'
+import { edgePath, worldSize, zoomAt } from '../graph.js'
+import { edgeStateClasses, stateBadge, stateClass } from '../live.js'
 import { useSchemaCanvas } from '../composables/useSchemaCanvas.js'
 import SchemaContextMenu from './SchemaContextMenu.vue'
 
 const props = defineProps({
   nodes: { type: Array, default: () => [] },
   edges: { type: Array, default: () => [] },
-  /** node_id → {status, visual} for the bound run (see ../live.js). */
+  /** node_id → {status, visual, error} for the bound run (see ../live.js). */
   nodeStates: { type: Object, default: () => ({}) },
-  /** Ids of the edges carrying work into an active node — those flow. */
-  flowingEdges: { type: Object, default: () => new Set() },
   /** Card the inspector is open on. */
   selectedId: { type: String, default: '' },
   /** The run's live percent, shown on whatever is active. */
   percent: { type: Number, default: null },
+  /** False when no run is being watched — that is `s-idle`, not `s-pending`. */
+  bound: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['realign', 'select'])
@@ -63,20 +67,25 @@ const worldStyle = computed(() => ({
   transform: `translate(${view.value.panX}px, ${view.value.panY}px) scale(${view.value.zoom})`,
 }))
 
+const edgeClasses = computed(() => edgeStateClasses(props.edges, props.nodeStates))
+
 const edgeGeometry = computed(() => props.edges.map((edge) => ({
   id: edge.id,
   edgeType: edge.edgeType,
-  flowing: props.flowingEdges?.has?.(edge.id) || false,
+  state: edgeClasses.value[edge.id] || '',
   d: edgePath(positions.value[edge.source], positions.value[edge.target]),
 })))
 
+/**
+ * Position and category accent only. The card's box is the prototype's
+ * `.sch-node` rule, which `NODE_W`/`NODE_H` mirror for the edge geometry —
+ * setting it here as well would be a second copy free to drift from it.
+ */
 function nodeStyle(node) {
   const point = positions.value[node.id] || { x: 0, y: 0 }
   return {
     left: `${point.x}px`,
     top: `${point.y}px`,
-    width: `${NODE_W}px`,
-    minHeight: `${NODE_H}px`,
     '--ac': node.accent,
   }
 }
@@ -87,13 +96,26 @@ function nodeVisual(node) {
 }
 
 /**
- * The live percent belongs to the run, not to the card — the engine records
- * per-node status, not per-node progress. An active card shows it because an
- * active card is what the run is currently doing.
+ * The corner pill: the run's percent while active, then the prototype's glyph
+ * for whatever the node settled as. Empty for every other state, and the pill
+ * is `display: none` until it is not.
  */
-function nodePercent(node) {
-  if (!Number.isFinite(props.percent)) return null
-  return nodeVisual(node) === 'active' ? `${props.percent}%` : null
+function nodeBadge(node) {
+  return stateBadge(nodeVisual(node), props.percent)
+}
+
+/** The narration settings the TTS card shows at a glance, as two tags. */
+function narration(node) {
+  const settings = node.narrationProcessing
+  if (!settings) return null
+  return {
+    trim: settings.removeSilence === true,
+    // 1× is the absence of a setting, and the prototype chips nothing for it.
+    speed: Number(settings.speed) === 1 ? '' : `${Number(settings.speed).toLocaleString('en-US', {
+      maximumFractionDigits: 2,
+    })}×`,
+    inherited: Boolean(settings.inherited),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -323,7 +345,7 @@ defineExpose({
           v-for="edge in edgeGeometry"
           :key="edge.id"
           class="sch-edge"
-          :class="{ 'e-control': edge.edgeType === 'control', flowing: edge.flowing }"
+          :class="[edge.state, { 'e-control': edge.edgeType === 'control' }]"
           :data-edge-id="edge.id"
           :d="edge.d"
         />
@@ -336,11 +358,11 @@ defineExpose({
           class="sch-node"
           :class="[
             `role-${node.role}`,
-            `vis-${nodeVisual(node)}`,
+            stateClass(nodeVisual(node), bound),
             {
               dragging: draggingId === node.id,
               disabled: node.disabled,
-              selected: selectedId === node.id,
+              picked: selectedId === node.id,
               flash: flashId === node.id,
             },
           ]"
@@ -361,30 +383,61 @@ defineExpose({
             <span class="nm">{{ node.name }}</span>
             <span class="sb">{{ node.subtitle }}</span>
           </span>
-          <span
-            v-if="node.narrationBadge"
-            class="sch-tag"
-            :title="`Active narration processing${node.narrationProcessing?.inherited ? ' · inherited' : ''}`"
-          >{{ node.narrationBadge }}</span>
-          <span v-if="nodePercent(node)" class="sch-pct">{{ nodePercent(node) }}</span>
-          <span
-            v-if="failureTooltip(nodeStates?.[node.id])"
-            class="sch-node-error"
-            role="tooltip"
-          >
-            <strong>{{ nodeStates[node.id].error?.code || 'ERROR' }}</strong>
-            {{ nodeStates[node.id].error?.message || '' }}
-          </span>
+
           <span class="sch-io in" aria-hidden="true" />
           <span class="sch-io out" aria-hidden="true" />
+
+          <span class="sch-state" :class="stateClass(nodeVisual(node), bound)">
+            {{ nodeBadge(node) }}
+          </span>
+
+          <span v-if="narration(node)" class="sch-tags">
+            <span
+              v-if="narration(node).trim"
+              class="sch-tag"
+              :title="`Silence removed${narration(node).inherited ? ' · inherited' : ''}`"
+            >
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+                <path d="M4 12h6l3-7 3 14 2-7h2" />
+              </svg>
+            </span>
+            <span
+              v-if="narration(node).speed"
+              class="sch-tag chip"
+              :title="`Narration speed${narration(node).inherited ? ' · inherited' : ''}`"
+            >{{ narration(node).speed }}</span>
+          </span>
+
+          <!-- The prototype tooltips only the card that failed, and says the
+               engine's code and message — never assembled prose. -->
+          <span
+            class="sch-node-err"
+            :class="{ show: nodeVisual(node) === 'failed' }"
+            role="tooltip"
+          >
+            <template v-if="nodeVisual(node) === 'failed'">
+              <span class="ne-h">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+                </svg>
+                Error · {{ node.name }}
+              </span>
+              <span class="ne-msg">{{ nodeStates[node.id]?.error?.message || 'The node failed.' }}</span>
+              <span v-if="nodeStates[node.id]?.error?.code" class="ne-code">
+                {{ nodeStates[node.id].error.code }}
+              </span>
+            </template>
+          </span>
         </div>
       </div>
     </div>
 
     <div class="sch-legend">
-      <span class="sl"><span class="sd d-stage" /> Stage</span>
-      <span class="sl"><span class="sd d-flow" /> Infrastructure</span>
-      <span class="sl">{{ nodes.length }} nodes · {{ edges.length }} edges</span>
+      <span class="sl"><span class="sd d-pending" /> Pending</span>
+      <span class="sl"><span class="sd d-active" /> Active</span>
+      <span class="sl"><span class="sd d-done" /> Done</span>
+      <span class="sl"><span class="sd d-failed" /> Failed</span>
+      <span class="sl"><span class="sd d-skip" /> Skipped</span>
     </div>
 
     <SchemaContextMenu
@@ -437,21 +490,32 @@ defineExpose({
   transition: stroke 0.3s;
 }
 
+/* Control-only wiring, which carries no payload. App-only: the prototype's
+   one graph has no control edges to distinguish. */
 .sch-edge.e-control {
   stroke-dasharray: 3 4;
 }
 
-/* Work arriving at whatever is running now. The dash flows towards the
-   active card, which is the direction the data is going. */
-.sch-edge.flowing {
-  stroke: var(--run);
-  stroke-width: 2;
-  stroke-dasharray: 6 6;
-  animation: sch-flow 0.9s linear infinite;
+/* Work has crossed this edge. */
+.sch-edge.e-done {
+  stroke: rgba(63, 182, 139, 0.55);
 }
 
-@keyframes sch-flow {
-  to { stroke-dashoffset: -12; }
+/* Work is crossing it right now. The dash flows towards the active card,
+   which is the direction the data is going. */
+.sch-edge.e-active {
+  stroke: var(--run);
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+  animation: schflow 0.6s linear infinite;
+}
+
+.sch-edge.e-fail {
+  stroke: rgba(240, 97, 109, 0.5);
+}
+
+@keyframes schflow {
+  to { stroke-dashoffset: -20; }
 }
 
 .sch-nodes {
@@ -463,6 +527,8 @@ defineExpose({
 .sch-node {
   position: absolute;
   box-sizing: border-box;
+  width: 150px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -485,115 +551,6 @@ defineExpose({
   box-shadow: 0 0 0 2px var(--accent), 0 4px 14px -8px rgba(0, 0, 0, 0.6);
 }
 
-/* ---- The running Job, reflected (step 1.3) ---------------------------- */
-
-/* Not reached yet. Dim rather than hidden — the shape of what is coming is
-   part of what makes a running graph readable. */
-.sch-node.vis-pending {
-  opacity: 0.5;
-}
-
-.sch-node.vis-active {
-  border-color: var(--run-line);
-  box-shadow: 0 0 0 1px var(--run-line), 0 0 22px -4px var(--run);
-  animation: sch-glow 1.6s ease-in-out infinite;
-}
-
-.sch-node.vis-done {
-  border-color: var(--ok-line);
-}
-
-.sch-node.vis-failed {
-  z-index: 4;
-  border-color: var(--fail-line);
-  box-shadow: 0 0 0 1px var(--fail-line), 0 0 18px -6px var(--fail);
-}
-
-.sch-node.flash {
-  animation: sch-flash 1.2s ease;
-}
-
-.sch-node-error {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 12px;
-  z-index: 12;
-  width: 220px;
-  padding: 8px 10px;
-  border: 1px solid var(--fail-line);
-  border-radius: var(--r-s);
-  background: color-mix(in srgb, var(--fail-dim) 88%, var(--bg-2));
-  box-shadow: var(--shadow-sm);
-  color: var(--text-2);
-  font-family: var(--body);
-  font-size: 10.5px;
-  line-height: 1.4;
-  pointer-events: none;
-}
-
-.sch-node-error strong {
-  display: block;
-  margin-bottom: 3px;
-  color: var(--fail-text);
-  font-family: var(--mono);
-  font-size: 9.5px;
-}
-
-/* Waiting on a person, not on a worker. */
-.sch-node.vis-blocked {
-  border-color: var(--sched-line);
-}
-
-/* Deliberately not run. Struck through says "this did not happen" in a way
-   that dimming alone does not. */
-.sch-node.vis-skipped {
-  border-style: dashed;
-  border-color: var(--line);
-  opacity: 0.55;
-}
-
-.sch-node.vis-skipped .nm {
-  text-decoration: line-through;
-  color: var(--muted);
-}
-
-@keyframes sch-glow {
-  0%, 100% { box-shadow: 0 0 0 1px var(--run-line), 0 0 22px -4px var(--run); }
-  50% { box-shadow: 0 0 0 1px var(--run-line), 0 0 10px -6px var(--run); }
-}
-
-@keyframes sch-flash {
-  0%, 100% { box-shadow: 0 0 0 1px var(--fail-line); }
-  30% { box-shadow: 0 0 0 3px var(--fail), 0 0 30px 2px var(--fail); }
-}
-
-/* The card the inspector is open on. */
-.sch-node.selected {
-  border-color: var(--accent-line-2);
-  box-shadow: 0 0 0 2px var(--accent), 0 8px 22px -10px rgba(0, 0, 0, 0.7);
-}
-
-.sch-pct {
-  flex: none;
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--run);
-}
-
-.sch-tag {
-  flex: none;
-  padding: 3px 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--bg-2);
-  color: var(--text-2);
-  font-family: var(--mono);
-  font-size: 8.5px;
-  white-space: nowrap;
-}
-
 .sch-node.dragging {
   z-index: 30;
   cursor: grabbing;
@@ -601,18 +558,247 @@ defineExpose({
   transition: none;
 }
 
-/* Infrastructure — trigger, project setup, workflow output. Real graph
-   members that the Production spine deliberately does not name as a step. */
-.sch-node.role-flow {
+/* ---- Role ------------------------------------------------------------- */
+
+/* Routes control down one of several paths, so its outline is provisional. */
+.sch-node.role-branch {
   border-style: dashed;
 }
 
+/* Infrastructure — trigger, project setup, workflow output. Real graph
+   members that the Production spine deliberately does not name as a step;
+   the round icon plate is what says so. */
 .sch-node.role-flow .sch-ic {
   border-radius: 50%;
 }
 
 .sch-node.disabled {
   opacity: 0.5;
+}
+
+/* ---- The running Job, reflected (steps 1.3, 6.6) ---------------------- */
+
+/* Not reached yet. Dim rather than hidden — the shape of what is coming is
+   part of what makes a running graph readable. `s-idle` is the quieter of
+   the two: nothing is being watched at all. */
+.sch-node.s-pending { opacity: 0.5; }
+.sch-node.s-idle { opacity: 0.85; }
+
+.sch-node.s-done {
+  border-color: rgba(63, 182, 139, 0.45);
+}
+
+.sch-node.s-done .sch-io.in,
+.sch-node.s-done .sch-io.out {
+  background: var(--ok);
+}
+
+.sch-node.s-active {
+  border-color: var(--run);
+  box-shadow: 0 0 0 1px var(--run), 0 0 22px -4px rgba(88, 166, 255, 0.6);
+  transform: translateY(-1px);
+  animation: schpulse 1.8s infinite;
+}
+
+.sch-node.s-active .sch-ic {
+  background: var(--run-dim);
+  color: var(--run);
+  box-shadow: inset 0 0 0 1px var(--run);
+}
+
+@keyframes schpulse {
+  0%, 100% { box-shadow: 0 0 0 1px var(--run), 0 0 22px -6px rgba(88, 166, 255, 0.5); }
+  50% { box-shadow: 0 0 0 1px var(--run), 0 0 28px -2px rgba(88, 166, 255, 0.85); }
+}
+
+.sch-node.s-failed {
+  z-index: 4;
+  border-color: var(--fail);
+  box-shadow: 0 0 0 1px var(--fail), 0 0 20px -6px rgba(240, 97, 109, 0.6);
+}
+
+.sch-node.s-failed .sch-ic {
+  background: var(--fail-dim);
+  color: var(--fail);
+  box-shadow: inset 0 0 0 1px var(--fail);
+}
+
+/* Deliberately not run. Struck through says "this did not happen" in a way
+   that dimming alone does not. */
+.sch-node.s-skip {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.sch-node.s-skip .sch-nt .nm {
+  text-decoration: line-through;
+}
+
+/* App-only: waiting on a person, not on a worker. The prototype has no
+   approval gate, so there is no rule of its to port. */
+.sch-node.s-blocked {
+  border-color: var(--sched-line);
+}
+
+.sch-node.flash {
+  animation: schflash 1.2s ease;
+}
+
+@keyframes schflash {
+  0%, 100% { box-shadow: 0 0 0 1px var(--fail); }
+  30% { box-shadow: 0 0 0 3px var(--fail), 0 0 30px 2px rgba(240, 97, 109, 0.7); }
+}
+
+/* The card the inspector is open on. */
+.sch-node.picked {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 22px -8px rgba(106, 140, 255, 0.6);
+}
+
+/* ---- Corner status pill ------------------------------------------------ */
+
+.sch-state {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--bg);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.sch-state.s-active,
+.sch-state.s-done,
+.sch-state.s-failed,
+.sch-state.s-skip {
+  display: inline-flex;
+}
+
+.sch-state.s-done {
+  background: var(--ok-dim);
+  color: var(--ok);
+  box-shadow: 0 0 0 2px var(--bg), inset 0 0 0 1px rgba(63, 182, 139, 0.4);
+}
+
+.sch-state.s-active {
+  background: var(--run-dim);
+  color: var(--run);
+  box-shadow: 0 0 0 2px var(--bg), inset 0 0 0 1px rgba(88, 166, 255, 0.5);
+}
+
+.sch-state.s-failed {
+  background: var(--fail-dim);
+  color: var(--fail);
+  box-shadow: 0 0 0 2px var(--bg), inset 0 0 0 1px rgba(240, 97, 109, 0.5);
+}
+
+.sch-state.s-skip {
+  background: var(--bg-2);
+  color: var(--muted);
+  box-shadow: 0 0 0 2px var(--bg), inset 0 0 0 1px var(--line);
+  font-size: 8px;
+}
+
+/* ---- Per-node parameter tags (narration processing) -------------------- */
+
+.sch-tags {
+  position: absolute;
+  bottom: -9px;
+  left: 10px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+}
+
+.sch-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--panel-2);
+  box-shadow: 0 0 0 2px var(--bg), inset 0 0 0 1px rgba(106, 140, 255, 0.4);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.sch-tag svg { display: block; }
+
+.sch-tag.chip {
+  color: var(--warn);
+  box-shadow: 0 0 0 2px var(--bg), inset 0 0 0 1px rgba(240, 173, 75, 0.45);
+}
+
+/* ---- Inline error tooltip on the failing card -------------------------- */
+
+.sch-node-err {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  z-index: 20;
+  width: 210px;
+  padding: 9px 11px;
+  border: 1px solid rgba(240, 97, 109, 0.45);
+  border-radius: 8px;
+  background: #0a0e13;
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.8);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.sch-node-err.show { display: block; }
+
+.sch-node-err::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  border: 6px solid transparent;
+  border-bottom-color: rgba(240, 97, 109, 0.45);
+  transform: translateX(-50%);
+}
+
+.sch-node-err .ne-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: var(--fail);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.sch-node-err .ne-msg {
+  display: block;
+  color: var(--fail-text);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.sch-node-err .ne-code {
+  display: block;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(240, 97, 109, 0.25);
+  color: var(--fail);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  word-break: break-word;
 }
 
 .sch-ic {
@@ -703,15 +889,19 @@ defineExpose({
   border-radius: 50%;
 }
 
-.sch-legend .d-stage { background: var(--accent); }
-.sch-legend .d-flow { background: var(--faint); }
+.sch-legend .d-pending { background: var(--faint); }
+.sch-legend .d-active { background: var(--run); }
+.sch-legend .d-done { background: var(--ok); }
+.sch-legend .d-failed { background: var(--fail); }
+.sch-legend .d-skip { background: var(--muted); }
 
 /* Step 0.3: nothing loops for someone who asked for no motion. The state is
    still legible — colour, border and the struck-through name carry it — so
    only the animation goes, never the information. */
 @media (prefers-reduced-motion: reduce) {
-  .sch-edge.flowing,
-  .sch-node.vis-active {
+  .sch-edge.e-active,
+  .sch-node.s-active,
+  .sch-node.flash {
     animation: none;
   }
 }
