@@ -58,6 +58,12 @@
      and friends rather than by shipping a second set of components. */
   --line-2:       #343d4e;              /* the hover border, everywhere */
   --run-line:     rgba(88,166,255,.35);
+  /* Running is the one status that throws light, and the prototype gives it
+     three shapes: the halo pulsing behind an active stage node, the wash
+     inside a running row, and the cast off that row's status spine. */
+  --run-ring:     rgba(88,166,255,.14);
+  --run-glow:     rgba(88,166,255,.5);
+  --run-cast:     0 0 12px rgba(88,166,255,.7);
   --ok-line:      rgba(53,192,138,.32);
   --fail-line:    rgba(255,95,110,.32);
   --fail-line-2:  rgba(255,95,110,.55);

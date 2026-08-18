@@ -66,6 +66,34 @@ The default full-video spine is Script → Voice → Timing → Segments → Sce
 Images → Videos → Review → Composer → Export. Side branches (captions, music)
 collapse into Composer — adding a parallel caption branch must not add a step.
 
+## The Job row (step 6.2)
+
+The row is the prototype's `.job`: id, channel, title, compact stage line,
+status badge, elapsed, and — on completed rows — the two quick destinations.
+Expanding it reveals `.job-detail`: the `.stagerail`, the failure banner, the
+three-cell detail grid and the timestamps with Retry / Duplicate / Remove.
+
+**Expanding a row is binding that Job.** The rail is the same backend
+projection the step list below draws, over the same SSE stream, which is why
+only one row is open at a time — a second open row would need a second
+projection and a second stream, and the rail would stop being the projection.
+
+Two consequences worth keeping:
+
+- A percentage appears only where the projection supplies one. A running Job
+  with no projection to hand gets `.progress.indet`, never a guessed number.
+- `.skip-tip` carries a stage's issues or the failure code. It is not rendered
+  when there is nothing to say; a tooltip reading "Skipped" repeats what the
+  dimmed node already said.
+
+Four of the prototype's row affordances are features this app does not have and
+are deliberately unstyled rather than faked: `.job-check` / `.sel-checked`
+(batch selection), `.drag-handle` (queue reordering), `.job-menu-btn` (a context
+menu) and `.joblist` (its fixed-height scroller — `ArchiveCalendar` owns the
+list container here). The `.st-preparing`, `.st-stopping`, `.st-stopped` and
+`.st-draft` spines are absent for the same reason: `JobStatus` has no such
+members. The channel avatar arrives with the `ch-*` family in step 6.4.
+
 ## Layout
 
 ```

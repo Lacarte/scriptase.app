@@ -1379,10 +1379,12 @@ describe('ProductionPage', () => {
     const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.findAll('.job-row')).toHaveLength(1)
+    expect(wrapper.findAll('.job')).toHaveLength(1)
     expect(wrapper.find('.calendar-cell').exists()).toBe(true)
     const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
-    const libraryButton = wrapper.findAll('.job-row-actions button').find(button => button.text() === 'Library')
+    // Completed rows carry the two "open beside Production" destinations
+    // inline; everything else lives in the expanded detail.
+    const libraryButton = wrapper.findAll('.job-quick button').find(button => button.text() === 'Library')
     await libraryButton.trigger('click')
     expect(open).toHaveBeenCalledWith(
       '/library?project=job_NEW001',
@@ -1390,8 +1392,8 @@ describe('ProductionPage', () => {
       expect.stringContaining('popup=yes'),
     )
     await wrapper.find('.job-search input').setValue('Hidden History')
-    expect(wrapper.findAll('.job-row')).toHaveLength(1)
-    expect(wrapper.find('.job-row').text()).toContain('Hidden History')
+    expect(wrapper.findAll('.job')).toHaveLength(1)
+    expect(wrapper.find('.job').text()).toContain('Hidden History')
     expect(wrapper.text()).toContain('Found in archive · 1')
   })
 
@@ -1403,6 +1405,7 @@ describe('ProductionPage', () => {
       advisories: [{ code: 'LANGUAGE_MISMATCH', script_language: 'es', channel_language: 'en', blocking: false }],
     }
     api.listJobs.mockResolvedValue({ jobs: [failed], total: 1 })
+    api.getJob.mockResolvedValue({ job: failed })
     api.retryJob.mockResolvedValue({ retrying: true, job: failed })
     api.duplicateJob.mockResolvedValue({ job: { ...failed, id: 'job_COPY01', status: 'queued' } })
     api.deleteJob.mockResolvedValue({ deleted: true })
@@ -1418,14 +1421,56 @@ describe('ProductionPage', () => {
     const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.find('.job-row').classes()).toContain('failed')
+    expect(wrapper.find('.job').classes()).toContain('st-failed')
     expect(wrapper.find('.failed-stage').text()).toBe('Failed · Videos')
     expect(wrapper.find('.language-badge').text()).toContain('es')
     expect(wrapper.find('.job-status').text()).toBe('Failed')
 
-    await wrapper.findAll('.job-row-actions button').find(button => button.text() === 'Retry').trigger('click')
+    // Expanding a row binds the Job: the detail's rail draws that Job's
+    // backend projection, and the repair actions sit under it.
+    await wrapper.find('.job-expand-btn').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.job-detail').exists()).toBe(true)
+    expect(wrapper.find('.err-banner').text()).toContain('ANIMATOR_FAILED')
+
+    await wrapper.findAll('.job-actions button').find(button => button.text() === 'Retry').trigger('click')
     await flushPromises()
     expect(api.retryJob).toHaveBeenCalledWith('job_FAIL01')
+  })
+
+  it('draws the expanded row rail from the backend stage projection', async () => {
+    const job = {
+      id: 'job_RAIL01', name: 'Rail take', channel_id: 'ch_A', status: 'running',
+      workflow_id: 'wf_ABCDEF', current_stage: 'voice',
+      created_at: new Date().toISOString(), started_at: new Date().toISOString(),
+    }
+    api.listJobs.mockResolvedValue({ jobs: [job], total: 1 })
+    api.getJob.mockResolvedValue({ job })
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/production', name: 'production', component: ProductionPage },
+        { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
+      ],
+    })
+    await router.push('/production')
+    await router.isReady()
+    const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.find('.stagerail').exists()).toBe(false)
+    await wrapper.find('.job-expand-btn').trigger('click')
+    await flushPromises()
+
+    // Exactly the stages GET /api/workflows/<id>/stages projected — the rail
+    // never carries a stage the backend did not send.
+    expect(api.getWorkflowStages).toHaveBeenCalledWith('wf_ABCDEF')
+    const rail = wrapper.findAll('.stagerail .srstage')
+    const projected = projection().stages
+    expect(rail).toHaveLength(projected.length)
+    expect(rail.map((node) => node.find('.nm').text())).toEqual(
+      projected.map((stage) => stage.label),
+    )
   })
 
   it('binds an execution from the query string and shows live status', async () => {

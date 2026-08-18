@@ -546,6 +546,18 @@ pre {
 .progress .fill.fail { background: var(--fail); }
 .progress .fill.warn { background: var(--warn); }
 
+/* Work is happening but no share of it is known. A sweeping bar says exactly
+   that; a bar parked at an invented percentage says something false. */
+.progress.indet .fill {
+  width: 32% !important;
+  animation: progress-indet 1.3s infinite ease-in-out;
+}
+
+@keyframes progress-indet {
+  0% { left: -32%; }
+  100% { left: 100%; }
+}
+
 /* ================================================================
    Counters — a row of numbers divided by hairlines, not a row of cards.
    The density is the point: five counters read as one instrument.

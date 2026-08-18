@@ -9,7 +9,7 @@
  * Step detail actions (step 2.4) map onto existing engine run modes only.
  * Job creation and Script stage modes (step 2.5) are Step 0 on this page.
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
@@ -33,7 +33,11 @@ import JobCreatePanel from './components/JobCreatePanel.vue'
 import StepDetailPanel from './components/StepDetailPanel.vue'
 import { useProductionStages } from './composables/useProductionStages.js'
 import { ACTION_LABELS } from './stageActions.js'
-import { sourceModeLabel, sourceModeRequiresProvider } from './sourceModes.js'
+import {
+  EXECUTION_MODE_CATALOG,
+  sourceModeLabel,
+  sourceModeRequiresProvider,
+} from './sourceModes.js'
 import { statusLabel } from './stageStatus.js'
 import { onShortcut } from '@/shared/composables/useShortcuts.js'
 import { openAppWindow } from '@/shared/utils/openWindow.js'
@@ -186,6 +190,189 @@ function jobDate(job) {
   return Number.isFinite(date.getTime())
     ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date)
     : ''
+}
+
+/* ------------------------------------------------------------------
+   The job row (§3.1, prototype `.job`).
+
+   Expanding a row *is* binding that Job: the detail's stage rail draws
+   the same backend projection the step list below draws, over the same
+   SSE stream. That is why only one row is open at a time — a second
+   open row would need a second projection and a second stream, and the
+   rail would stop being the projection.
+   ------------------------------------------------------------------ */
+
+function jobExpanded(job) {
+  return Boolean(job?.id) && job.id === activeJobId.value
+}
+
+function toggleJobExpand(job) {
+  if (jobExpanded(job)) {
+    const query = { ...route.query }
+    delete query.job_id
+    delete query.jobId
+    router.replace({ name: 'production', query })
+    return
+  }
+  openJob(job)
+}
+
+/** Full payload for the open row; the list carries summaries only. */
+function jobDetail(job) {
+  return jobExpanded(job) && activeJob.value?.id === job.id ? activeJob.value : job
+}
+
+function executionModeLabel(mode) {
+  const text = String(mode || '').trim()
+  if (!text) return ''
+  return EXECUTION_MODE_CATALOG.find((entry) => entry.mode === text)?.label || text
+}
+
+/**
+ * A stage key read back for display. The keys are the backend's; only the
+ * capitalisation is ours, so this invents no stage the projection did not send.
+ */
+function humanizeStageKey(key) {
+  const text = String(key || '').trim()
+  if (!text) return ''
+  return text.replace(/[_-]+/g, ' ').replace(/^./, (c) => c.toUpperCase())
+}
+
+/** Prefer the projection's own label for the open Job; fall back to the key. */
+function stageKeyLabel(job, key) {
+  if (!key) return ''
+  if (jobExpanded(job)) {
+    const match = stages.value.find((stage) => stage.key === key)
+    if (match?.label) return match.label
+  }
+  return humanizeStageKey(key)
+}
+
+const STAGE_DONE_STATUSES = new Set(['succeeded', 'skipped'])
+
+/** Completed share of the open Job's projected stages. Null when unknown. */
+const activeStageProgress = computed(() => {
+  const list = stages.value
+  if (!list.length) return null
+  const done = list.filter((stage) => STAGE_DONE_STATUSES.has(String(stage.status || ''))).length
+  return Math.round((done / list.length) * 100)
+})
+
+/**
+ * The row's compact stage line. A percentage is shown only where the
+ * projection supplies one — a running Job with no projection to hand gets the
+ * indeterminate bar rather than an invented number.
+ */
+function jobStageLine(job) {
+  const status = String(job?.status || '')
+  const pct = jobExpanded(job) ? activeStageProgress.value : null
+  const stage = stageKeyLabel(job, job?.current_stage)
+  if (status === 'completed') return { name: 'Complete', pct: 100, fill: 100 }
+  if (status === 'failed') {
+    const label = job?.failure?.stage_label || stage
+    return { name: label ? `Failed · ${label}` : 'Failed', pct, fill: pct ?? 0 }
+  }
+  if (status === 'cancelled') return { name: 'Cancelled', pct: null, fill: 0 }
+  if (status === 'queued') return { name: 'Waiting for a slot', pct: null, fill: 0 }
+  if (status === 'paused') {
+    return { name: stage ? `Paused · ${stage}` : 'Paused', pct, fill: pct ?? 0 }
+  }
+  if (status === 'awaiting_approval') {
+    return { name: stage ? `Awaiting approval · ${stage}` : 'Awaiting approval', pct, fill: pct ?? 0 }
+  }
+  return {
+    name: stage || 'Running',
+    pct,
+    fill: pct ?? 0,
+    indeterminate: pct == null,
+  }
+}
+
+/** Stage status → the prototype's rail vocabulary. */
+function railState(stage) {
+  const status = String(stage?.status || 'idle')
+  if (status === 'failed') return 'failed'
+  if (status === 'succeeded') return 'done'
+  if (status === 'skipped') return 'skipped'
+  // The rail has no separate "held" state; a stage waiting on a person is
+  // still the stage the Job is on, so it reads as active.
+  if (['running', 'paused', 'awaiting_approval'].includes(status)) return 'active'
+  return 'pending'
+}
+
+function railGlyph(stage) {
+  const state = railState(stage)
+  if (state === 'done') return '✓'
+  if (state === 'failed') return '✕'
+  return stageOrdinal(stage)
+}
+
+/** Only shown where there is something to say — never a bare "Skipped". */
+function railTip(job, stage) {
+  const issues = Array.isArray(stage?.issues) ? stage.issues : []
+  if (issues.length) return issues.join(' · ')
+  const failure = jobDetail(job)?.failure
+  if (railState(stage) === 'failed' && failure?.code) return failure.code
+  return ''
+}
+
+/** Live clock, running only while a Job is. */
+const nowMs = ref(Date.now())
+let elapsedTimer = null
+
+watch(
+  () => jobs.value.some((job) => job.status === 'running'),
+  (live) => {
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer)
+      elapsedTimer = null
+    }
+    if (!live) return
+    elapsedTimer = setInterval(() => {
+      nowMs.value = Date.now()
+    }, 1000)
+  },
+)
+
+onUnmounted(() => {
+  if (elapsedTimer) clearInterval(elapsedTimer)
+})
+
+function msOf(value) {
+  if (!value) return null
+  const ms = new Date(value).getTime()
+  return Number.isFinite(ms) ? ms : null
+}
+
+function jobElapsed(job) {
+  const started = msOf(job?.started_at)
+  if (started == null) return '—'
+  const ended = msOf(job?.completed_at) ?? (job?.status === 'running' ? nowMs.value : null)
+  if (ended == null || ended < started) return '—'
+  const total = Math.floor((ended - started) / 1000)
+  const seconds = String(total % 60).padStart(2, '0')
+  const minutes = Math.floor(total / 60)
+  if (minutes < 60) return `${minutes}:${seconds}`
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}:${seconds}`
+}
+
+function jobTimestamp(value) {
+  const ms = msOf(value)
+  if (ms == null) return '—'
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(ms))
+}
+
+function languageAdvisory(job) {
+  return (job?.advisories || []).find((advisory) => advisory.code === 'LANGUAGE_MISMATCH') || null
+}
+
+function openJobInEditor(job) {
+  openAppWindow('editor', { query: { project: job?.project_id || job?.id || '' } })
 }
 
 /**
@@ -842,32 +1029,154 @@ onMounted(async () => {
       >
         <template #item="{ item, archived }">
           <article
-            class="job-row"
-            :class="{ selected: item.id === activeJobId, failed: item.status === 'failed' }"
+            class="job"
+            :class="[`st-${item.status}`, { expanded: jobExpanded(item) }]"
           >
-            <button type="button" class="job-row-open" @click="openJob(item)">
-              <span class="job-row-main">
-                <strong>{{ item.name }}</strong>
-                <span>
-                  {{ item.channel_name || item.channel_id }} · {{ item.id }}
-                  <b v-if="item.advisories?.some(a => a.code === 'LANGUAGE_MISMATCH')" class="language-badge">
-                    {{ item.advisories.find(a => a.code === 'LANGUAGE_MISMATCH').script_language }} ⚠
-                  </b>
+            <!-- Clicking anywhere on the row toggles it, but the chevron is
+                 the control. A role="button" here would nest the quick
+                 actions inside an interactive element. -->
+            <div class="job-main" @click="toggleJobExpand(item)">
+              <div class="job-id mono">{{ item.id }}</div>
+              <div class="job-ch">
+                <div class="nm">{{ item.channel_name || item.channel_id }}</div>
+                <div class="src">{{ sourceModeLabel(item.source_mode) }}</div>
+              </div>
+              <div class="job-title">
+                <div class="t">
+                  {{ item.name }}
+                  <span v-if="languageAdvisory(item)" class="language-badge" title="Script language differs from the Channel">
+                    {{ languageAdvisory(item).script_language }} ⚠
+                  </span>
+                </div>
+                <div class="sub">
+                  <span>{{ executionModeLabel(item.execution_mode) }}</span>
+                  <span v-if="item.failure" class="failed-stage">Failed · {{ item.failure.stage_label }}</span>
+                  <span v-else-if="archived" class="archived-label">Archived</span>
+                  <time v-else-if="jobDate(item)">{{ jobDate(item) }}</time>
+                </div>
+              </div>
+              <div class="job-stage">
+                <div class="cur">
+                  <span class="nm">{{ jobStageLine(item).name }}</span>
+                  <span v-if="jobStageLine(item).pct != null" class="pct">{{ jobStageLine(item).pct }}%</span>
+                </div>
+                <div class="progress" :class="{ indet: jobStageLine(item).indeterminate }">
+                  <div class="fill" :style="{ width: `${jobStageLine(item).fill}%` }" />
+                </div>
+              </div>
+              <div class="job-status">
+                <span class="badge" :class="`b-${item.status}`" :data-status="item.status">
+                  <span class="bd" />{{ statusLabel(item.status) }}
                 </span>
-                <span v-if="item.failure" class="failed-stage">Failed · {{ item.failure.stage_label }}</span>
-              </span>
-              <span class="job-row-meta">
-                <span class="job-status" :data-status="item.status">{{ statusLabel(item.status) }}</span>
-                <time v-if="jobDate(item)">{{ jobDate(item) }}</time>
-                <span v-if="archived" class="archived-label">Archived</span>
-              </span>
-            </button>
-            <span class="job-row-actions">
-              <button v-if="['completed', 'succeeded'].includes(item.status)" type="button" class="ghost" @click="openJobInLibrary(item)">Library</button>
-              <button v-if="item.status === 'failed'" type="button" class="primary" :disabled="Boolean(jobActionRunning)" @click="runJobAction('retry', item)">Retry</button>
-              <button type="button" class="ghost" :disabled="Boolean(jobActionRunning)" @click="runJobAction('duplicate', item)">Duplicate</button>
-              <button type="button" class="danger" :disabled="Boolean(jobActionRunning)" @click="runJobAction('remove', item)">Remove</button>
-            </span>
+              </div>
+              <div class="job-elapsed mono">{{ jobElapsed(item) }}</div>
+              <div v-if="['completed', 'succeeded'].includes(item.status)" class="job-quick">
+                <button type="button" class="quick-btn" @click.stop="openJobInEditor(item)">
+                  <span>Editor</span>
+                </button>
+                <button type="button" class="quick-btn" @click.stop="openJobInLibrary(item)">
+                  <span>Library</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                class="job-expand-btn"
+                :aria-label="`Toggle details for ${item.id}`"
+                :aria-expanded="String(jobExpanded(item))"
+                @click.stop="toggleJobExpand(item)"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+
+            <div v-if="jobExpanded(item)" class="job-detail">
+              <div class="rail-wrap">
+                <div class="rl-lbl">
+                  Production pipeline
+                  <span class="rl-hint">· projected from the workflow graph</span>
+                </div>
+                <p v-if="loading" class="muted rail-note">Loading stages…</p>
+                <p v-else-if="!stages.length" class="muted rail-note">
+                  No stages projected for this Job yet.
+                </p>
+                <div v-else class="stagerail">
+                  <div
+                    v-for="stage in stages"
+                    :key="stage.key"
+                    class="srstage"
+                    :class="railState(stage)"
+                  >
+                    <div class="connector" />
+                    <div v-if="railTip(item, stage)" class="skip-tip">{{ railTip(item, stage) }}</div>
+                    <div class="node">{{ railGlyph(stage) }}</div>
+                    <div class="nm">{{ stage.label }}</div>
+                    <!-- A stage that fans out over several nodes says so; one
+                         that does not would only be saying "1". -->
+                    <div
+                      v-if="(stage.node_ids || []).length > 1"
+                      class="sub"
+                      :title="`${stage.node_ids.length} nodes`"
+                    >×{{ stage.node_ids.length }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="jobDetail(item).failure" class="err-banner">
+                <span class="ic" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                </span>
+                <div class="msg">
+                  {{ jobDetail(item).failure.message }}
+                  <div class="code">
+                    {{ jobDetail(item).failure.code }} · {{ jobDetail(item).failure.node_id }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="detail-grid">
+                <div class="detail-cell">
+                  <h4>Source</h4>
+                  <div class="dkv"><span class="k">Mode</span><span class="v">{{ sourceModeLabel(jobDetail(item).source?.mode || item.source_mode) }}</span></div>
+                  <div class="dkv"><span class="k">Channel</span><span class="v">{{ item.channel_name || item.channel_id }}</span></div>
+                  <div v-if="jobDetail(item).source?.script_id" class="dkv">
+                    <span class="k">Script</span><span class="v mono">{{ jobDetail(item).source.script_id }}</span>
+                  </div>
+                  <div class="dkv"><span class="k">Workflow</span><span class="v mono">{{ item.workflow_id || '—' }}</span></div>
+                </div>
+                <div class="detail-cell">
+                  <h4>Narration</h4>
+                  <div class="dkv">
+                    <span class="k">Status</span>
+                    <span class="v">
+                      <span v-if="jobDetail(item).source?.narration_artifact_id" class="mini-tag mini-ok">Ready</span>
+                      <span v-else class="mini-tag mini-wait">Pending</span>
+                    </span>
+                  </div>
+                  <div class="dkv"><span class="k">Duration</span><span class="v mono">{{ jobDetail(item).source?.narration_duration_s ? `${jobDetail(item).source.narration_duration_s}s` : '—' }}</span></div>
+                  <div class="dkv"><span class="k">Language</span><span class="v mono">{{ jobDetail(item).source?.language || '—' }}</span></div>
+                </div>
+                <div class="detail-cell">
+                  <h4>Production</h4>
+                  <div class="dkv"><span class="k">Current stage</span><span class="v">{{ stageKeyLabel(item, item.current_stage) || '—' }}</span></div>
+                  <div class="dkv"><span class="k">Progress</span><span class="v mono">{{ activeStageProgress == null ? '—' : `${activeStageProgress}%` }}</span></div>
+                  <div class="dkv"><span class="k">Execution</span><span class="v">{{ executionModeLabel(item.execution_mode) || '—' }}</span></div>
+                  <div class="dkv"><span class="k">Generations</span><span class="v mono">{{ item.budget_spent?.generations ?? 0 }}</span></div>
+                </div>
+              </div>
+
+              <div class="detail-foot">
+                <div class="ts"><span class="k">Created</span><span class="v">{{ jobTimestamp(item.created_at) }}</span></div>
+                <div class="ts"><span class="k">Started</span><span class="v">{{ jobTimestamp(item.started_at) }}</span></div>
+                <div class="ts"><span class="k">Completed</span><span class="v">{{ jobTimestamp(item.completed_at) }}</span></div>
+                <div class="ts"><span class="k">Elapsed</span><span class="v">{{ jobElapsed(item) }}</span></div>
+                <div class="spacer" />
+                <div class="job-actions">
+                  <button v-if="item.status === 'failed'" type="button" class="btn xs primary" :disabled="Boolean(jobActionRunning)" @click.stop="runJobAction('retry', item)">Retry</button>
+                  <button type="button" class="btn xs" :disabled="Boolean(jobActionRunning)" @click.stop="runJobAction('duplicate', item)">Duplicate</button>
+                  <button type="button" class="btn xs danger" :disabled="Boolean(jobActionRunning)" @click.stop="runJobAction('remove', item)">Remove</button>
+                </div>
+              </div>
+            </div>
           </article>
         </template>
         <template #empty>
@@ -1028,14 +1337,11 @@ onMounted(async () => {
 
     <p v-if="loading" class="muted">Loading stages…</p>
 
-    <aside v-if="activeJob?.failure" class="failure-banner" role="alert">
-      <strong>{{ activeJob.failure.stage_label }} failed</strong>
-      <span>{{ activeJob.failure.message }}</span>
-      <code>{{ activeJob.failure.code }} · {{ activeJob.failure.node_id }}</code>
-      <button type="button" class="primary" :disabled="Boolean(jobActionRunning)" @click="runJobAction('retry', activeJob)">Retry failed scope</button>
-    </aside>
+    <!-- A failure is presented on its own Job row now: the `.err-banner` in
+         the expanded detail, beside the rail stage that failed and the Retry
+         that repairs it. Restating it here separated the two. -->
 
-    <div v-else-if="hasStages" class="stage-layout">
+    <div v-if="hasStages" class="stage-layout">
       <div class="stage-column">
         <div class="stage-filter">
           <input
@@ -1169,38 +1475,281 @@ onMounted(async () => {
 .job-search { width: min(280px, 100%); display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--bg-2); color: var(--muted); }
 .job-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
 .job-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: 12px var(--body); }
-.job-row { position: relative; width: 100%; display: flex; align-items: center; gap: 12px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--bg-2); color: var(--text); text-align: left; }
-.job-row.failed::before { content: ''; align-self: stretch; width: 4px; flex: none; background: var(--fail); }
-.job-row:hover { border-color: var(--line-2); background: var(--panel-2); }
-.job-row.selected { border-color: var(--accent-line-2); box-shadow: 0 0 0 1px var(--accent-line); }
-.job-row-open { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 8px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
-.job-row-actions { display: flex; gap: 6px; padding-right: 10px; }
-.job-row-actions button { padding: 5px 8px; font-size: 10px; }
-.job-row-main, .job-row-meta { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.job-row-main { flex-direction: column; align-items: flex-start; gap: 3px; }
-.job-row-main strong { max-width: 52ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.job-row-main span, .job-row-meta time, .archived-label { color: var(--muted); font: 10px var(--mono); }
-.job-row-meta { flex: none; }
-.job-status { padding: 3px 7px; border-radius: 999px; background: var(--raise); color: var(--muted); font: 600 9px var(--mono); text-transform: uppercase; letter-spacing: .4px; }
-.job-status[data-status="completed"], .job-status[data-status="succeeded"] { background: var(--ok-dim); color: var(--ok); }
-.job-status[data-status="failed"] { background: var(--fail-dim); color: var(--fail); }
-.job-status[data-status="running"], .job-status[data-status="paused"] { background: var(--accent-dim); color: var(--accent); }
-.failed-stage { color: var(--fail) !important; font-weight: 600 !important; }
-.language-badge { margin-left: 5px; padding: 1px 5px; border-radius: 4px; background: var(--warn-dim); color: var(--warn); text-transform: uppercase; }
-.language-banner, .failure-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 0 0 16px; padding: 12px 14px; border-radius: var(--r-s); }
-.language-banner { border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); background: var(--warn-dim); color: var(--text); }
+/* ================================================================
+   The job row (prototype `.job` / `.srstage`, step 6.2).
+
+   Ported in tokens rather than the prototype's inline literals, so the
+   row follows whichever accent is in scope — the same rule the shared
+   primitives follow.
+
+   Four of the prototype's row affordances are features this app does
+   not have, and are left out rather than styled into dead markup:
+   `.job-check` and `.sel-checked` (batch selection), `.drag-handle`
+   with `.dragging` / `.drag-over` (queue reordering), `.job-menu-btn`
+   (a context menu) and `.joblist` (its fixed-height scroller — the
+   list container here is ArchiveCalendar's). The `.st-preparing`,
+   `.st-stopping`, `.st-stopped` and `.st-draft` spines are likewise
+   absent: JobStatus has no such members.
+   ================================================================ */
+.job {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel-grad);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, .3);
+  color: var(--text);
+  transition: border-color .18s, box-shadow .18s, transform .18s var(--ease-spring);
+}
+
+/* The status spine: three pixels of colour on the left edge, lit only when
+   the status is worth looking at. */
+.job::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--faint);
+  opacity: 0;
+  transition: opacity .18s;
+}
+
+.job:hover { border-color: var(--line-2); box-shadow: var(--hairline-top), 0 8px 24px -12px rgba(0, 0, 0, .65); }
+
+/* The open row wears the accent, because opening it is what bound the Job.
+   It sits above the status rules deliberately: a running row that is also
+   open keeps its run glow and takes only the accent border. */
+.job.expanded { border-color: var(--accent-line-2); box-shadow: var(--hairline-top), inset 0 0 0 1px var(--accent-line); }
+
+.job.st-running { box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, .3), inset 3px 0 12px -6px var(--run-glow); }
+.job.st-running::before { background: var(--run); opacity: 1; box-shadow: var(--run-cast); }
+.job.st-completed::before { background: var(--ok); opacity: .7; }
+.job.st-failed::before { background: var(--fail); opacity: 1; }
+.job.st-paused::before, .job.st-awaiting_approval::before { background: var(--sched); opacity: .8; }
+.job.st-queued::before { background: var(--queue); opacity: .35; }
+.job.st-cancelled::before { background: var(--faint); opacity: .5; }
+
+.job-main {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 14px 12px 15px;
+  cursor: pointer;
+}
+
+.job-id { flex: none; width: 92px; font-family: var(--mono); font-size: 11px; letter-spacing: .2px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.job-ch { flex: none; width: 150px; min-width: 0; }
+.job-ch .nm { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job-ch .src { margin-top: 1px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.job-title { flex: 1; min-width: 0; }
+.job-title .t { font-size: 13.5px; font-weight: 500; letter-spacing: -.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job-title .sub { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 11px; color: var(--muted); }
+
+/* The compact stage indicator: what it is on, and how far in. */
+.job-stage { flex: none; width: 168px; }
+.job-stage .cur { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; font-family: var(--mono); font-size: 11px; }
+.job-stage .cur .nm { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job-stage .cur .pct { flex: none; font-weight: 600; color: var(--run); }
+.job.st-completed .job-stage .cur .pct { color: var(--ok); }
+.job.st-failed .job-stage .cur .pct { color: var(--fail); }
+.job.st-completed .progress .fill { background: var(--ok); }
+.job.st-failed .progress .fill { background: var(--fail); }
+.job.st-paused .progress .fill, .job.st-awaiting_approval .progress .fill { background: var(--sched); }
+
+.job-status { flex: none; width: 108px; display: flex; justify-content: flex-end; }
+
+.job-elapsed { flex: none; width: 66px; text-align: right; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* Inline quick actions on completed rows — the two destinations that open
+   beside Production rather than over it. */
+.job-quick { flex: none; display: flex; align-items: center; gap: 5px; }
+
+.quick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text-2);
+  font-family: var(--body);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .13s, background .13s, color .13s;
+}
+
+.quick-btn:hover { border-color: var(--accent-line-2); background: var(--accent-dim); color: var(--text); }
+
+.job-expand-btn {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: transform .14s, color .14s;
+}
+
+.job-expand-btn:hover { color: var(--text); }
+.job.expanded .job-expand-btn { transform: rotate(180deg); color: var(--text-2); }
+
+/* ---------- Expanded detail ---------- */
+.job-detail { border-top: 1px solid var(--line-soft); background: var(--bg-2); animation: job-detail-pop .18s ease; }
+
+@keyframes job-detail-pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The stage rail — the signature element. Every node here is one stage of
+   the backend projection; nothing in this block invents a stage. */
+.rail-wrap { padding: 16px 18px 6px; }
+.rail-wrap .rl-lbl { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-family: var(--mono); font-size: 10px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); }
+.rail-wrap .rl-hint { color: var(--faint); }
+.rail-note { margin: 0 0 12px; font-size: 12px; }
+
+.stagerail { display: flex; align-items: flex-start; gap: 0; overflow-x: auto; padding-bottom: 6px; }
+
+.srstage { position: relative; flex: 1 1 0; min-width: 62px; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+
+.srstage .node {
+  position: relative;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 13px;
+  transition: background .3s, box-shadow .3s, color .3s;
+}
+
+.srstage .connector { position: absolute; z-index: 1; top: 15px; left: 50%; width: 100%; height: 2px; background: var(--line); }
+.srstage:last-child .connector { display: none; }
+.srstage .nm { font-family: var(--mono); font-size: 9.5px; letter-spacing: .2px; text-align: center; color: var(--muted); }
+.srstage .sub { font-family: var(--mono); font-size: 8.5px; color: var(--faint); }
+
+.srstage.done .node { background: var(--ok-dim); box-shadow: inset 0 0 0 1px var(--ok-line); color: var(--ok); }
+.srstage.done .connector { background: linear-gradient(90deg, var(--ok), var(--line)); }
+.srstage.active .node { background: var(--run-dim); box-shadow: inset 0 0 0 1.5px var(--run), 0 0 0 4px var(--run-ring); color: var(--run); animation: nodepulse 1.8s infinite; }
+.srstage.active .nm { color: var(--run); }
+.srstage.failed .node { background: var(--fail-dim); box-shadow: inset 0 0 0 1.5px var(--fail); color: var(--fail); }
+.srstage.failed .nm { color: var(--fail); }
+.srstage.skipped .node { background: var(--bg); border: 1px dashed var(--line); box-shadow: none; color: var(--faint); opacity: .5; }
+.srstage.skipped .nm { color: var(--faint); opacity: .7; text-decoration: line-through; }
+.srstage.pending .node { opacity: .55; }
+
+@keyframes nodepulse {
+  0%, 100% { box-shadow: inset 0 0 0 1.5px var(--run), 0 0 0 4px var(--run-ring); }
+  50% { box-shadow: inset 0 0 0 1.5px var(--run), 0 0 0 7px transparent; }
+}
+
+/* Why a node is dimmed or red, on hover — never a bare restatement of the
+   state the colour already carries. */
+.skip-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: 150px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  color: var(--text-2);
+  font-family: var(--body);
+  font-size: 11px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .14s;
+}
+
+.srstage.skipped:hover .skip-tip, .srstage.failed:hover .skip-tip { opacity: 1; }
+.skip-tip::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--line); }
+
+/* Detail grid — three cells divided by hairlines, not three cards. */
+.detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 10px; background: var(--line-soft); border-top: 1px solid var(--line-soft); }
+.detail-cell { padding: 14px 18px; background: var(--bg-2); }
+.detail-cell h4 { display: flex; align-items: center; gap: 7px; margin-bottom: 11px; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); }
+
+.dkv { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 12.5px; }
+.dkv .k { color: var(--muted); }
+.dkv .v { max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-weight: 500; color: var(--text); }
+.dkv .v.mono { font-family: var(--mono); font-size: 11.5px; }
+
+.mini-tag { font-family: var(--mono); font-size: 9.5px; letter-spacing: .3px; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; }
+.mini-ok { color: var(--ok); background: var(--ok-dim); }
+.mini-skip { color: var(--muted); background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
+.mini-run { color: var(--run); background: var(--run-dim); }
+.mini-wait { color: var(--faint); background: var(--bg); }
+
+.detail-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; padding: 12px 18px; border-top: 1px solid var(--line-soft); background: var(--bg-2); }
+.ts { display: flex; flex-direction: column; gap: 1px; }
+.ts .k { font-family: var(--mono); font-size: 9px; letter-spacing: .6px; text-transform: uppercase; color: var(--faint); }
+.ts .v { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
+.detail-foot .spacer { flex: 1; }
+.job-actions { display: flex; align-items: center; gap: 7px; }
+
+/* The failure, beside the rail node that carries it. */
+.err-banner { display: flex; align-items: flex-start; gap: 10px; margin: 0 18px 14px; padding: 11px 13px; border: 1px solid var(--fail-line); border-radius: var(--r-s); background: var(--fail-dim); }
+.err-banner .ic { flex: none; margin-top: 1px; color: var(--fail); }
+.err-banner .msg { font-size: 12.5px; color: var(--fail-text); }
+.err-banner .msg .code { margin-top: 3px; font-family: var(--mono); font-size: 10.5px; color: var(--fail); }
+
+.failed-stage { color: var(--fail); font-weight: 600; }
+.archived-label, .job-title .sub time { font-family: var(--mono); font-size: 10px; }
+.language-badge { margin-left: 5px; padding: 1px 6px; border-radius: 5px; background: var(--warn-dim); box-shadow: inset 0 0 0 1px var(--warn-line); color: var(--warn); font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; white-space: nowrap; }
+.language-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--warn-line); border-radius: var(--r-s); background: var(--warn-dim); color: var(--text); }
 .language-banner strong { color: var(--warn); }
-.failure-banner { border: 1px solid color-mix(in srgb, var(--fail) 35%, transparent); background: var(--fail-dim); color: var(--text); }
-.failure-banner strong, .failure-banner code { color: var(--fail); }
-.failure-banner span { flex: 1 1 360px; }
-.failure-banner code { font: 10px var(--mono); }
 .job-empty { margin: 4px 0; text-align: center; }
 
+/* The row reflows rather than truncating: title first, then the stage bar
+   and the actions on their own lines. */
+@media (max-width: 1180px) {
+  .job-stage { width: 130px; }
+  .job-ch { width: 120px; }
+  .detail-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 980px) {
+  .job-ch { display: none; }
+  .job-elapsed { display: none; }
+}
+
+@media (max-width: 820px) {
+  .job-main { flex-wrap: wrap; row-gap: 8px; padding: 12px; }
+  .job-id { order: 0; width: auto; }
+  .job-title { order: 1; flex: 1 1 60%; min-width: 140px; }
+  .job-status { order: 2; width: auto; margin-left: auto; }
+  .job-elapsed { order: 2; width: auto; display: block; }
+  .job-expand-btn { order: 2; }
+  .job-stage { order: 3; flex: 1 1 100%; width: auto; }
+  .job-quick { order: 3; flex: 1 1 100%; }
+  .job-quick .quick-btn { flex: 1; justify-content: center; }
+}
+
 @media (max-width: 720px) {
-  .job-index-head, .job-row, .job-row-open { align-items: stretch; flex-direction: column; }
+  .job-index-head { align-items: stretch; flex-direction: column; }
   .job-search { width: auto; }
-  .job-row-meta { justify-content: space-between; }
-  .job-row-actions { padding: 0 10px 10px; }
 }
 
 h1 {
