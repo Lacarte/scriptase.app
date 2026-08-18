@@ -8,36 +8,16 @@
  */
 import { createRouter, createWebHistory } from 'vue-router'
 
+import HomePage from './features/home/HomePage.vue'
 import ChannelsPage from './features/channels/ChannelsPage.vue'
 import ChannelEditor from './features/channels/ChannelEditor.vue'
 import ProductionPage from './features/production/ProductionPage.vue'
 import ProvidersSettingsPage from './features/providers/ProvidersSettingsPage.vue'
 import ScriptPage from './features/script/ScriptPage.vue'
 import SchemaPage from './features/schema/SchemaPage.vue'
-import { APP_NAME } from './shared/constants.js'
-
-const Home = {
-  template: `
-    <section style="max-width:720px;margin:0 auto;padding:2rem 1.25rem;font-family:var(--body);color:var(--text)">
-      <h1 class="page-title" style="font-size:28px">{{ name }}</h1>
-      <p class="page-subtitle" style="font-size:13.5px">
-        Channel-aware, provider-driven, local-first AI video production.
-        Production and Schema are projections of one node-based execution.
-      </p>
-      <p style="margin-top:1.5rem;display:flex;gap:.6rem;flex-wrap:wrap">
-        <router-link class="btn primary" to="/production">Open Production →</router-link>
-        <router-link class="btn" to="/script">Open Script →</router-link>
-        <router-link class="btn" to="/channels">Open Channels →</router-link>
-      </p>
-    </section>
-  `,
-  setup() {
-    return { name: APP_NAME }
-  },
-}
 
 export const routes = [
-  { path: '/', name: 'home', component: Home },
+  { path: '/', name: 'home', component: HomePage },
 
   // ---- The six destinations -------------------------------------------
   {
