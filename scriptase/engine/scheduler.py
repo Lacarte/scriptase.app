@@ -584,6 +584,10 @@ class WorkflowScheduler:
         # smallest responsible scope.
         force_node_ids: list[str] | None = None,
         input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
+        # Nodes whose outputs are supplied by the orchestration layer. They
+        # are persisted as skipped while their outputs still activate normal
+        # downstream edges (e.g. Studio narration reuse).
+        preseeded_outputs: Mapping[str, Mapping[str, Any]] | None = None,
         source_artifact_ids: Mapping[str, list[str]] | None = None,
         # Step 4.2: nodes whose inputs came from sample bindings (not graph stubs).
         sample_fed_node_ids: list[str] | None = None,
@@ -602,6 +606,10 @@ class WorkflowScheduler:
             raise ValueError("max_workers must be a positive integer")
         self.input_overrides = {
             str(node_id): dict(ports) for node_id, ports in (input_overrides or {}).items()
+        }
+        self.preseeded_outputs = {
+            str(node_id): deepcopy(dict(outputs))
+            for node_id, outputs in (preseeded_outputs or {}).items()
         }
         self.source_artifact_ids = {
             str(node_id): list(dict.fromkeys(ids))
@@ -698,6 +706,31 @@ class WorkflowScheduler:
         errors: dict[str, dict[str, Any]] = {}
         completed: set[str] = set()
         remaining = {node_id: len(graph.incoming[node_id]) for node_id in graph.nodes}
+        preseeded_node_ids: list[str] = []
+
+        # Orchestration-provided outputs behave like completed dependencies,
+        # but remain visibly skipped in the execution record and projections.
+        if self.resume_state is None:
+            for node_id in order:
+                if node_id not in self.preseeded_outputs or node_id not in graph.nodes:
+                    continue
+                payload = deepcopy(self.preseeded_outputs[node_id])
+                node_outputs[node_id] = payload
+                node_output_fingerprints[node_id] = output_fingerprint(payload, {})
+                statuses[node_id] = "skipped"
+                completed.add(node_id)
+                record = deepcopy(self.record.nodes[node_id])
+                record.status = "skipped"
+                record.duration_ms = 0
+                record.outputs_summary = self.redactor(_summarize(payload))
+                record.artifact_refs = self.redactor(_artifact_refs(payload))
+                record.logs.append(self.redactor(ExecutionLog(
+                    ts=now_iso(), level="info", message="Node status changed to skipped"
+                ).__dict__))
+                self.record.nodes[node_id] = record
+                preseeded_node_ids.append(node_id)
+                for target in graph.dependents[node_id]:
+                    remaining[target] -= 1
 
         # Resume from a durable approval pause: restore completed work, then
         # continue only the unfinished subgraph (step 2.6).
@@ -724,6 +757,16 @@ class WorkflowScheduler:
             self.record.approval = None
         self._persist()
         self._emit({"type": "execution_status", "node_id": None, "status": "running"})
+        for node_id in preseeded_node_ids:
+            self._emit({
+                "type": "node_status",
+                "execution_id": self.execution_id,
+                "node_id": node_id,
+                "status": "skipped",
+                "attempt": 0,
+                "duration_ms": 0,
+                "from_sample_data": False,
+            })
 
         stopped = False
         cancelled = False
@@ -1580,7 +1623,10 @@ class WorkflowScheduler:
         source = edge["source_node"]
         if edge["source_port"] == "error":
             return statuses.get(source) == "failed" and "error" in outputs.get(source, {})
-        return statuses.get(source) == "succeeded" and edge["source_port"] in outputs.get(source, {})
+        return (
+            statuses.get(source) in {"succeeded", "skipped"}
+            and edge["source_port"] in outputs.get(source, {})
+        )
 
     @staticmethod
     def _configuration(node: Mapping[str, Any]) -> dict[str, Any]:

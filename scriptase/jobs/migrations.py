@@ -59,6 +59,19 @@ def _add_studio_script_reference(data: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+@_register(4)
+def _add_frozen_narration_reference(data: dict[str, Any]) -> dict[str, Any]:
+    """Add the optional Studio narration snapshot used by step 4.3."""
+    migrated = deepcopy(data)
+    source = migrated.get("source")
+    if not isinstance(source, dict):
+        source = {}
+        migrated["source"] = source
+    source.setdefault("narration_artifact_id", None)
+    source.setdefault("narration_duration_s", None)
+    return migrated
+
+
 def apply_migrations(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     """Upgrade ``data`` to ``SCHEMA_VERSION``.
 

@@ -211,6 +211,15 @@ def create_job(draft: dict[str, Any]) -> Job:
         source["pasted_script"] = studio_script.body
         source.setdefault("remove_silence", studio_script.narration.remove_silence)
         source.setdefault("speed", studio_script.narration.speed)
+        if studio_script.narration.state == "ready":
+            source.setdefault(
+                "narration_artifact_id",
+                studio_script.narration.audio_artifact_id,
+            )
+            source.setdefault(
+                "narration_duration_s",
+                studio_script.narration.duration_s,
+            )
         prepared_draft["source"] = source
 
     parsed = _validate_draft(prepared_draft)
@@ -336,6 +345,16 @@ def create_script_batch(
                 "references": [],
                 "remove_silence": script.narration.remove_silence,
                 "speed": script.narration.speed,
+                "narration_artifact_id": (
+                    script.narration.audio_artifact_id
+                    if script.narration.state == "ready"
+                    else None
+                ),
+                "narration_duration_s": (
+                    script.narration.duration_s
+                    if script.narration.state == "ready"
+                    else None
+                ),
             },
         }
         if workflow_id:

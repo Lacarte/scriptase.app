@@ -41,7 +41,10 @@ from scriptase.jobs.orchestration import (
     start_job,
     sync_job_from_execution,
 )
+from scriptase.jobs.stage_projection import project_stages
 from scriptase.jobs.store import create_job, default_draft, get_job
+from scriptase.scripts import store as script_store
+from scriptase.scripts.store import create_script, update_script
 
 
 # ---------------------------------------------------------------------------
@@ -573,6 +576,100 @@ class JobRunParityTests(JobOrchestrationTestBase):
         self.assertEqual(finished.status, "failed")
         record = manager.active.get(finished.execution_id).scheduler.record.to_dict()
         self.assertEqual(finished.status, derive_job_status(record["status"]))
+
+    def test_studio_narration_skips_script_and_tts_but_feeds_downstream(self):
+        old_scripts = script_store._scripts_dir
+        old_script_trash = script_store._trash_dir
+        script_store._scripts_dir = os.path.join(self.temp.name, "scripts")
+        script_store._trash_dir = os.path.join(self.temp.name, "trash", "scripts")
+        os.makedirs(script_store._scripts_dir, exist_ok=True)
+        try:
+            studio = create_script({
+                "title": "Ready take",
+                "body": "A finished Studio narration reused by production.",
+                "channel_id": self.channel.id,
+                "origin": "manual",
+                "narration": {},
+            })
+            narration_ref = _write_blob(
+                self.output_dir,
+                f"tts/{studio.id}/narration_v1.wav",
+                b"STUDIO-NARRATION-BYTES",
+            )
+            narration = artifact_store.register_artifact(
+                job_id=studio.id,
+                kind="audio",
+                path=narration_ref,
+            )
+            studio = update_script(
+                studio.id,
+                {
+                    "title": studio.title,
+                    "body": studio.body,
+                    "channel_id": studio.channel_id,
+                    "origin": studio.origin,
+                    "narration": {
+                        "state": "ready",
+                        "voice": "af_heart",
+                        "duration_s": 2.5,
+                        "audio_artifact_id": narration.id,
+                    },
+                },
+                expected_version=studio.version,
+            )
+            job = create_job(self._job_draft(source={"script_id": studio.id}))
+            self.assertEqual(job.source.narration_artifact_id, narration.id)
+
+            invoked: list[str] = []
+            base_resolver = _deterministic_resolver(self.output_dir)
+
+            def recording_resolver(node):
+                execute = base_resolver(node)
+
+                def recorded(inputs, config, context):
+                    invoked.append(node["type"])
+                    return execute(inputs, config, context)
+
+                return recorded
+
+            manager = ExecutionManager(
+                output_dir=self.output_dir,
+                executor_resolver=recording_resolver,
+            )
+            finished = start_job(
+                job.id,
+                manager=manager,
+                project_id="pm_REUSE1",
+                force=True,
+                wait=True,
+                timeout=15.0,
+                workflow=self.workflow,
+                repair=False,
+            )
+            self.assertEqual(finished.status, "completed")
+            self.assertNotIn("script.input", invoked)
+            self.assertNotIn("tts.generate", invoked)
+            self.assertIn("timing.align", invoked)
+            self.assertIn(narration.id, finished.artifacts)
+
+            record = manager.active.get(finished.execution_id).scheduler.record.to_dict()
+            script_node = next(
+                node["id"] for node in record["workflow_snapshot"]["nodes"]
+                if node["type"] == "script.input"
+            )
+            tts_node = next(
+                node["id"] for node in record["workflow_snapshot"]["nodes"]
+                if node["type"] == "tts.generate"
+            )
+            self.assertEqual(record["nodes"][script_node]["status"], "skipped")
+            self.assertEqual(record["nodes"][tts_node]["status"], "skipped")
+            stages = project_stages(record["workflow_snapshot"], execution=record)["stages"]
+            by_key = {stage["key"]: stage for stage in stages}
+            self.assertEqual(by_key["script"]["status"], "skipped")
+            self.assertEqual(by_key["voice"]["status"], "skipped")
+        finally:
+            script_store._scripts_dir = old_scripts
+            script_store._trash_dir = old_script_trash
 
     def test_start_job_requires_workflow(self):
         # Channel with no default workflow → Job has no workflow_id.

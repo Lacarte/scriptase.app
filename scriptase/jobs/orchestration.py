@@ -22,7 +22,7 @@ import threading
 from copy import deepcopy
 from typing import Any, Mapping
 
-from scriptase.artifacts.store import register_artifact
+from scriptase.artifacts.store import get_artifact, register_artifact, verify_integrity
 from scriptase.engine.execution import ExecutionManager, ExecutionRequestError, execution_manager
 from scriptase.engine.persistence import load_execution, load_workflow
 from scriptase.engine.registry import get_node_type
@@ -246,6 +246,73 @@ def prepare_workflow_for_job(
     document = apply_execution_policy_to_workflow(document, job)
 
     return document
+
+
+def _studio_narration_outputs(
+    job: Job,
+    workflow: Mapping[str, Any],
+) -> tuple[dict[str, dict[str, Any]], str | None]:
+    """Build skipped Script/TTS outputs from the Job's frozen Studio take."""
+    artifact_id = job.source.narration_artifact_id
+    if not job.source.script_id or not artifact_id:
+        return {}, None
+    try:
+        artifact = get_artifact(artifact_id)
+        integrity = verify_integrity(artifact)
+    except Exception as exc:
+        raise JobOrchestrationError(
+            "JOB_NARRATION_UNAVAILABLE",
+            "The Studio narration saved with this Job is unavailable",
+            details={"artifact_id": artifact_id},
+        ) from exc
+    if (
+        artifact.kind != "audio"
+        or artifact.job_id != job.source.script_id
+        or not integrity.get("ok")
+    ):
+        raise JobOrchestrationError(
+            "JOB_NARRATION_UNAVAILABLE",
+            "The Studio narration saved with this Job is invalid",
+            details={"artifact_id": artifact_id},
+        )
+
+    path = artifact.path.replace("\\", "/")
+    filename = os.path.basename(path)
+    folder = os.path.basename(os.path.dirname(path)) or job.source.script_id
+    duration = job.source.narration_duration_s
+    script_output = {
+        "control": {"ok": True},
+        "script": script_text_from_source(job.source.model_dump(mode="json")),
+    }
+    audio_body = {
+        "project_id": job.id,
+        "filename": filename,
+        "folder": folder,
+        "duration_seconds": duration,
+        "wav_path": path,
+        "artifact_refs": [path],
+        "artifact_ids": [artifact.id],
+    }
+    metadata_body = {
+        **audio_body,
+        "voice": "",
+    }
+
+    seeded: dict[str, dict[str, Any]] = {}
+    for node in workflow.get("nodes") or []:
+        if not isinstance(node, Mapping):
+            continue
+        node_id = str(node.get("id") or "")
+        node_type = str(node.get("type") or "")
+        if node_type == _SCRIPT_INPUT_TYPE:
+            seeded[node_id] = deepcopy(script_output)
+        elif node_type == _TTS_NODE_TYPE:
+            seeded[node_id] = {
+                "control": {"ok": True},
+                "audio": deepcopy(audio_body),
+                "metadata": deepcopy(metadata_body),
+            }
+    return seeded, artifact.id
 
 
 def _story_seed_from_source(
@@ -493,6 +560,7 @@ def start_job(
 
     source_workflow = workflow if workflow is not None else load_job_workflow(job)
     prepared = prepare_workflow_for_job(job, source_workflow)
+    preseeded_outputs, narration_artifact_id = _studio_narration_outputs(job, prepared)
 
     # Pre-flight budget (step 3.5): refuse before any provider is called.
     try:
@@ -519,10 +587,16 @@ def start_job(
             force=force,
             source=source,
             input_overrides=input_overrides,
+            preseeded_outputs=preseeded_outputs or None,
             current_job_id=job.id,
         )
     except ExecutionRequestError as exc:
         raise JobOrchestrationError(exc.code, str(exc), details=exc.details) from exc
+
+    if narration_artifact_id:
+        # Preserve the shared Script-owned identity on the Job and prevent the
+        # artifact harvester from registering a duplicate Job-owned copy.
+        job = add_artifact_ids(job.id, [narration_artifact_id])
 
     started_at = now_iso()
     job = update_job(

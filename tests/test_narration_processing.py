@@ -15,7 +15,7 @@ from scriptase.channels.models import CHANNEL_SCHEMA_VERSION
 from scriptase.engine.adapters.common import AdapterContext
 from scriptase.engine.adapters.tts import generate as generate_tts
 from scriptase.engine.templates import narration_only_template
-from scriptase.jobs.models import Job
+from scriptase.jobs.models import JOB_SCHEMA_VERSION, Job
 from scriptase.jobs.migrations import apply_migrations as apply_job_migrations
 from scriptase.jobs.orchestration import prepare_workflow_for_job
 from scriptase.modules.tts.audio import remove_long_silence
@@ -51,10 +51,12 @@ class NarrationResolutionTests(unittest.TestCase):
             "source": {"mode": "paste", "pasted_script": "Narration"},
         })
         self.assertTrue(changed)
-        self.assertEqual(migrated["schema_version"], 3)
+        self.assertEqual(migrated["schema_version"], JOB_SCHEMA_VERSION)
         self.assertIsNone(migrated["source"]["remove_silence"])
         self.assertIsNone(migrated["source"]["speed"])
         self.assertIsNone(migrated["source"]["script_id"])
+        self.assertIsNone(migrated["source"]["narration_artifact_id"])
+        self.assertIsNone(migrated["source"]["narration_duration_s"])
 
     def test_job_snapshot_stamps_active_tts_parameters(self):
         job = Job(

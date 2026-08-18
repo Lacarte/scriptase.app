@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 JOB_ID_RE = re.compile(r"^job_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py).
-JOB_SCHEMA_VERSION = 3
+JOB_SCHEMA_VERSION = 4
 
 # Step 4.2 adds an operator-controlled pause distinct from approval checkpoints.
 JobStatus = Literal[
@@ -106,6 +106,11 @@ class JobSource(BaseModel):
     # mutate an already-queued run.  The id remains available for provenance
     # and for narration reuse in step 4.3.
     script_id: str | None = None
+    # Frozen Studio narration reference.  Jobs created while the selected
+    # script has ready narration reuse this exact artifact even if the script
+    # is regenerated before the queue reaches the Job.
+    narration_artifact_id: str | None = None
+    narration_duration_s: float | None = Field(default=None, ge=0)
     references: list[str] = Field(default_factory=list)
     # Null means inherited from the Channel. These fields become the Script
     # model's overrides in phase 3 without changing the resolution contract.
@@ -136,6 +141,16 @@ class JobSource(BaseModel):
         # Avoid importing Script Studio models into the core Job contract.
         if not re.fullmatch(r"scr_[A-Z0-9]{6}", text):
             raise ValueError("script_id must match scr_[A-Z0-9]{6}")
+        return text
+
+    @field_validator("narration_artifact_id", mode="before")
+    @classmethod
+    def _narration_artifact_id(cls, value: Any) -> str | None:
+        text = _optional_str(value)
+        if text is None:
+            return None
+        if not re.fullmatch(r"art_[A-Z0-9]{6}", text):
+            raise ValueError("narration_artifact_id must match art_[A-Z0-9]{6}")
         return text
 
     @field_validator("references", mode="before")

@@ -281,6 +281,7 @@ class ExecutionManager:
         force_node_ids: list[str] | None = None,
         source: str = "manual",
         input_overrides: Mapping[str, Mapping[str, Any]] | None = None,
+        preseeded_outputs: Mapping[str, Mapping[str, Any]] | None = None,
         input_bindings: Mapping[str, Mapping[str, Any]] | None = None,
         source_artifact_ids: Mapping[str, list[str]] | None = None,
         current_job_id: str | None = None,
@@ -412,6 +413,7 @@ class ExecutionManager:
                 node_id for node_id in (force_node_ids or []) if node_id in scope
             ],
             input_overrides=overrides,
+            preseeded_outputs=preseeded_outputs,
             source_artifact_ids=recorded_sources,
             sample_fed_node_ids=sample_fed_nodes,
             checkpoint_after_node_ids=checkpoint_after_node_ids,
