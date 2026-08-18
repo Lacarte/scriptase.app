@@ -19,6 +19,7 @@ as nodes and edges. Neither invents structure.
 | `GET /api/workflow/executions/<id>/stages` | the same stage labels, for a run |
 | `GET /api/workflow/executions/<id>/events` | what is happening right now (SSE) |
 | `GET /api/jobs/<id>` | which run the Job is on, and which stage it is in |
+| `GET /api/jobs?status=failed` | failed Jobs counted by the topbar badge |
 
 An install with nothing saved falls back to the built-in templates and projects
 the body through `POST /api/workflow/stages` — the same projector, not a second
@@ -32,8 +33,9 @@ execution never had, and hide ones it did.
 **No node list, edge list or stage catalog is authored in this feature.** A
 registry key this code has never seen renders anyway, and
 `__tests__/schemaPage.test.js` fails the build if a type key or stage key
-appears in any source file here. The same file reads `api.js` and fails if a
-call appears that could start, stop or approve a run.
+appears in any source file here. The same file reads `api.js` and permits only
+the projector plus step 1.4's explicit Test and Retry writes; Schema cannot
+stop, approve, reject, edit, or save a run.
 
 ## The running job (step 1.3)
 
@@ -74,6 +76,22 @@ the run actually got to rather than where it was.
 Pausing production is the Production row's job, and this feature has no
 endpoint that could do it even by mistake.
 
+## Node actions and failures (step 1.4)
+
+The inspector reuses Production's `TestNodePanel`, including registry-defined
+input bindings and the provider catalog. With a bound Job, Test posts to
+`POST /api/jobs/<id>/test-node`; the resulting execution is exploratory and
+does not change the Job's status, stage, artifacts, or production execution.
+The selected `provider_instance_id` is one-shot and is never saved on the node.
+Without a Job, Test starts the same isolated engine run against the workflow
+snapshot on screen.
+
+Retry targets the selected failed node through `run_mode=retry_failed`. Locate
+centres and flashes the card. Failed cards carry an inline code/message tooltip,
+the detail panel names node, stage, Job, reason and code, and the topbar counts
+failed Jobs across the batch. Clicking that badge binds the first failure's
+execution and locates its failed node in one action.
+
 ## What is cosmetic and what is fixed
 
 `useSchemaCanvas` owns positions and the camera. Dragging a card, auto-aligning,
@@ -88,7 +106,7 @@ realign menu.
 ## Layout
 
 ```
-api.js                      the reads, and nothing that changes a run
+api.js                      projection reads plus isolated Test and Retry
 graph.js                    pure model + canvas geometry (no Vue)
 live.js                     pure run model: looks, percent, inspector (no Vue)
 composables/
@@ -98,13 +116,10 @@ composables/
 components/
   SchemaCanvas.vue          pan, zoom, drag, edges, cards, live states
   SchemaContextMenu.vue     realign menu
-  SchemaInspector.vue       one card's status, provider, input, output, error
-SchemaPage.vue              topbar, pickers, live pill, freeze, banners
+  SchemaInspector.vue       inspection plus shared Test and node actions
+SchemaPage.vue              topbar, live binding, actions, failure navigation
 ```
 
 ## Still to land
 
-- **1.4** node actions in the inspector, including Test with a one-shot
-  provider-instance override, and the failure surfaces: inline tooltip, Locate
-  node, Retry, and a topbar badge counting errors across jobs.
 - **1.5** retires the editable canvas, once 1.4 has rescued per-node testing.

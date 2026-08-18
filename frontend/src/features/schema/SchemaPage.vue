@@ -7,7 +7,7 @@
  * workflow document says which nodes exist and how they wire, the stage
  * projection says which Production stage each one reports to, and the
  * execution stream says what is happening right now. Nothing on this page
- * runs, edits or saves anything, and no node or edge list is authored here:
+ * edits or saves the graph, and no node or edge list is authored here:
  * change the backend's answer and the picture changes with it.
  *
  * **Freeze view holds this picture still and nothing else.** It closes no
@@ -15,9 +15,10 @@
  * the badge counts how far behind the view has fallen. Pausing production is
  * the Production row's job, and this page has no endpoint that could do it.
  *
- * Node actions — Test with a provider override, Locate, Retry — arrive in 1.4.
+ * Step 1.4 adds Test with a provider override, Locate, and Retry around the
+ * projection. Test is an exploratory execution and never advances the Job.
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useToast } from '@/shared/composables/useToast.js'
@@ -31,8 +32,15 @@ import {
   currentStageLabel,
   flowingEdgeIds,
   inspectorModel,
+  nodeFailures,
   runProgress,
 } from './live.js'
+import {
+  getExecution,
+  listFailedJobs,
+  runWorkflow,
+  testJobNode,
+} from './api.js'
 
 defineOptions({ name: 'SchemaPage' })
 
@@ -44,6 +52,7 @@ const {
   workflows,
   runs,
   selectedWorkflowId,
+  workflowDocument,
   templateId,
   projection,
   loading,
@@ -79,6 +88,10 @@ const {
 
 const canvasRef = ref(null)
 const selectedNodeId = ref('')
+const testOpen = ref(false)
+const testRunning = ref(false)
+const testResult = ref(null)
+const failedJobs = ref([])
 
 // ---------------------------------------------------------------------------
 // The running Job, reflected
@@ -126,8 +139,144 @@ const inspector = computed(() => inspectorModel(
   liveRecords.value[selectedNodeId.value] || null,
 ))
 
+const failures = computed(() => nodeFailures(nodes.value, liveRecords.value))
+const currentFailure = computed(() => failures.value[0] || null)
+const errorCount = computed(() => {
+  const ids = new Set(failedJobs.value.map((job) => job?.id).filter(Boolean))
+  // The stream can paint a failure a fraction before the Job listing persists
+  // it. Count the bound Job immediately without double-counting it later.
+  if (currentFailure.value && liveJobId.value) ids.add(liveJobId.value)
+  return ids.size
+})
+
 function onSelectNode(nodeId) {
+  if (nodeId !== selectedNodeId.value) {
+    testOpen.value = false
+    testResult.value = null
+  }
   selectedNodeId.value = nodeId || ''
+}
+
+function locateNode(nodeId) {
+  if (!nodeId) return
+  selectedNodeId.value = nodeId
+  canvasRef.value?.locateNode(nodeId)
+}
+
+function resultForNode(execution, nodeId, fallback = {}) {
+  const record = execution?.nodes?.[nodeId] || {}
+  return {
+    status: record.status || execution?.status || fallback.status || 'queued',
+    from_sample_data: Boolean(record.from_sample_data),
+    outputs_summary: record.outputs_summary || {},
+    error: record.error || null,
+    execution_id: execution?.execution_id || fallback.execution_id || '',
+    provider_instance_id: record.cost?.provider_instance_id
+      || fallback.provider_instance_id
+      || '',
+    selection_reason: record.cost?.selection_reason || '',
+  }
+}
+
+/** Run Test beside the Job, never through the Job's production execution. */
+async function onTestRun(payload) {
+  const nodeId = payload?.nodeId
+  if (!nodeId) return
+  testRunning.value = true
+  testResult.value = null
+  try {
+    let data
+    if (liveJobId.value) {
+      data = await testJobNode(liveJobId.value, {
+        target_node_ids: [nodeId],
+        input_bindings: payload.inputBindings || undefined,
+        provider_instance_id: payload.providerInstanceId || undefined,
+        force: false,
+        wait: true,
+        timeout: 120,
+      })
+    } else {
+      if (!workflowDocument.value) throw new Error('No workflow is open for this test')
+      data = await runWorkflow({
+        workflow: workflowDocument.value,
+        run_mode: payload.runMode || 'node_isolated',
+        target_node_ids: [nodeId],
+        input_bindings: payload.inputBindings || undefined,
+        provider_instance_id: payload.providerInstanceId || undefined,
+        force: false,
+      })
+    }
+
+    let execution = data?.execution || null
+    if (!execution && data?.execution_id) {
+      const read = await getExecution(data.execution_id).catch(() => null)
+      execution = read?.execution || read || null
+    }
+    testResult.value = resultForNode(execution, nodeId, data || {})
+    toast.success(
+      liveJobId.value
+        ? `Test finished. Job ${liveJobId.value} was not advanced.`
+        : 'Exploratory test started.',
+    )
+  } catch (err) {
+    testResult.value = {
+      status: 'failed',
+      error: { code: err?.code || 'TEST_FAILED', message: err?.message || 'Test failed' },
+      outputs_summary: {},
+    }
+    toast.error(err?.message || 'Node test failed')
+  } finally {
+    testRunning.value = false
+  }
+}
+
+async function onRetryNode(nodeId = selectedNodeId.value) {
+  if (!nodeId || !workflowDocument.value) return
+  try {
+    const data = await runWorkflow({
+      workflow: workflowDocument.value,
+      run_mode: 'retry_failed',
+      target_node_ids: [nodeId],
+      current_job_id: liveJobId.value || undefined,
+      force: false,
+    })
+    toast.success(`Retry started for ${nodeId}`)
+    if (data?.execution_id) {
+      await bindRun(data.execution_id)
+      await pushQuery({ run: data.execution_id, job: '' })
+    }
+  } catch (err) {
+    toast.error(err?.message || 'Retry could not start')
+  }
+}
+
+async function refreshFailedJobs() {
+  try {
+    const data = await listFailedJobs({ limit: 500 })
+    failedJobs.value = data?.jobs || []
+  } catch {
+    failedJobs.value = []
+  }
+}
+
+/** One click: open the first failed Job, select its failed node, and centre it. */
+async function onErrorBadge() {
+  if (currentFailure.value) {
+    locateNode(currentFailure.value.nodeId)
+    return
+  }
+  const failed = failedJobs.value[0]
+  if (!failed?.id) return
+  try {
+    await bindJob(failed.id)
+    await pushQuery({ job: failed.id, run: '' })
+    await nextTick()
+    const target = failures.value[0]
+    if (target) locateNode(target.nodeId)
+    else toast.warning(`Job ${failed.id} failed, but its execution has no failed node record.`)
+  } catch (err) {
+    toast.error(err?.message || 'Could not locate that failed Job')
+  }
 }
 
 function onToggleFreeze() {
@@ -271,7 +420,10 @@ async function openFromRoute() {
   await refreshRuns(selectedWorkflowId.value)
 }
 
-onMounted(openFromRoute)
+onMounted(() => {
+  void refreshFailedJobs()
+  void openFromRoute()
+})
 
 // Following the deep link keeps Schema addressable from Production and the
 // Library without this page owning a second navigation model.
@@ -300,11 +452,22 @@ watch(
       <div class="sch-title">
         <h1>Workflow Schema</h1>
         <p class="sch-sub">
-          Read-only projection of the node graph. Schema watches the engine; it never runs it.
+          Read-only graph. Test and Retry create separate engine executions; they never edit it.
         </p>
       </div>
 
       <div class="spacer" />
+
+      <button
+        v-if="errorCount"
+        class="sch-errbadge"
+        type="button"
+        :aria-label="`Locate first of ${errorCount} failed jobs`"
+        @click="onErrorBadge"
+      >
+        <span aria-hidden="true">!</span>
+        {{ errorCount }} error{{ errorCount === 1 ? '' : 's' }}
+      </button>
 
       <p v-if="pill" class="sch-live-pill" :class="{ running: pill.live }" role="status">
         <span v-if="pill.live" class="dot" aria-hidden="true" />
@@ -380,7 +543,39 @@ watch(
         @realign="onRealign"
         @select="onSelectNode"
       />
-      <SchemaInspector :model="inspector" :bound="bound" @close="onSelectNode('')" />
+      <SchemaInspector
+        :model="inspector"
+        :bound="bound"
+        :job-id="liveJobId"
+        :test-open="testOpen"
+        :test-running="testRunning"
+        :test-result="testResult"
+        @close="onSelectNode('')"
+        @locate="locateNode(selectedNodeId)"
+        @retry="onRetryNode(selectedNodeId)"
+        @open-test="testOpen = true"
+        @close-test="testOpen = false"
+        @test-run="onTestRun"
+      />
+
+      <aside v-if="currentFailure" class="sch-error-panel" aria-label="Workflow error">
+        <header>
+          <span class="se-icon" aria-hidden="true">!</span>
+          <strong>Workflow error</strong>
+          <span>{{ currentFailure.name }}</span>
+        </header>
+        <dl>
+          <div><dt>Node</dt><dd>{{ currentFailure.name }}</dd></div>
+          <div><dt>Stage</dt><dd>{{ currentFailure.stageLabel || 'â€”' }}</dd></div>
+          <div><dt>Job</dt><dd class="mono">{{ liveJobId || 'Unbound run' }}</dd></div>
+        </dl>
+        <p>{{ currentFailure.message || 'The node failed.' }}</p>
+        <code>{{ currentFailure.code || 'ERROR' }}</code>
+        <footer>
+          <button type="button" @click="locateNode(currentFailure.nodeId)">Locate node</button>
+          <button class="primary" type="button" @click="onRetryNode(currentFailure.nodeId)">Retry</button>
+        </footer>
+      </aside>
     </div>
     <div v-else class="sch-empty">
       <p v-if="loading">Loading the graph…</p>
@@ -436,6 +631,26 @@ watch(
   font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
+}
+
+.sch-errbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--fail-line);
+  border-radius: 20px;
+  background: var(--fail-dim);
+  color: var(--fail);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sch-errbadge:hover {
+  filter: brightness(1.15);
 }
 
 .sch-pick select {
@@ -542,6 +757,98 @@ watch(
   min-height: 0;
 }
 
+.sch-error-panel {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 7;
+  width: 330px;
+  max-width: calc(100% - 24px);
+  padding: 13px 14px;
+  border: 1px solid var(--fail-line);
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--fail-dim) 72%, var(--bg-2));
+  box-shadow: var(--hairline-top), var(--shadow);
+  color: var(--text-2);
+}
+
+.sch-inspector + .sch-error-panel {
+  right: 344px;
+}
+
+.sch-error-panel header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.sch-error-panel header strong,
+.sch-error-panel .se-icon,
+.sch-error-panel code {
+  color: var(--fail-text);
+}
+
+.sch-error-panel header span:last-child {
+  color: var(--muted);
+}
+
+.sch-error-panel dl {
+  margin: 11px 0;
+}
+
+.sch-error-panel dl div {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.sch-error-panel dt {
+  width: 44px;
+  flex: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+}
+
+.sch-error-panel dd,
+.sch-error-panel p {
+  margin: 0;
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.sch-error-panel code {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.sch-error-panel footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sch-error-panel footer button {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel-grad);
+  color: var(--text-2);
+  font: 600 11.5px var(--body);
+  cursor: pointer;
+}
+
+.sch-error-panel footer button.primary {
+  border-color: transparent;
+  background: var(--accent-grad);
+  color: #fff;
+}
+
 .sch-banner {
   flex: none;
   margin: 10px 22px 0;
@@ -580,6 +887,11 @@ watch(
 
   .sch-live-pill {
     order: 2;
+  }
+
+  .sch-inspector + .sch-error-panel {
+    right: 12px;
+    bottom: calc(55% + 22px);
   }
 }
 </style>

@@ -1,5 +1,5 @@
 /**
- * Schema view API client (steps 1.2, 1.3).
+ * Schema view API client (steps 1.2–1.4).
  *
  * Every read is a projection of backend truth: the node registry supplies what
  * a node *is*, the workflow document supplies which nodes exist and how they
@@ -7,12 +7,10 @@
  * belongs to. Step 1.3 adds the run reads — the Job, its execution record, and
  * the runs there are to choose between.
  *
- * **Every export here is a GET**, apart from the inline template projection,
- * which computes a projection and stores nothing. Schema watches a Job; it
- * cannot start, stop, approve or repair one. Freeze view issues no request at
- * all, because pausing production is the Production row's job.
- * `__tests__/schemaPage.test.js` asserts this export list, so a write cannot
- * be slipped in later without the guard failing.
+ * Step 1.4 deliberately adds exactly two execution writes: an isolated Test
+ * and Retry failed. Neither edits the graph, and Test uses the Job-scoped
+ * endpoint whose backend contract proves the bound Job is left unchanged.
+ * Freeze view still issues no request at all.
  */
 
 import { apiGet, apiPost } from '@/shared/api.js'
@@ -83,4 +81,22 @@ export function getExecutionStages(executionId) {
  */
 export function getJob(jobId) {
   return apiGet(`/jobs/${encodeURIComponent(jobId)}`)
+}
+
+/** Failed Jobs across the batch, used by the one-click topbar error badge. */
+export function listFailedJobs({ limit = 500 } = {}) {
+  return apiGet('/jobs', { status: 'failed', limit })
+}
+
+/**
+ * Isolated test against a Job snapshot. The exploratory execution id returned
+ * here is never written onto the Job by the backend.
+ */
+export function testJobNode(jobId, body) {
+  return apiPost(`/jobs/${encodeURIComponent(jobId)}/test-node`, body)
+}
+
+/** Test an unbound node, or retry a failed node, through the authoritative engine. */
+export function runWorkflow(body) {
+  return apiPost('/workflow/run', body)
 }

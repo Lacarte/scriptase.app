@@ -19,6 +19,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import NodeIcon from '@/shared/components/NodeIcon.vue'
 import { NODE_H, NODE_W, edgePath, worldSize, zoomAt } from '../graph.js'
+import { failureTooltip } from '../live.js'
 import { useSchemaCanvas } from '../composables/useSchemaCanvas.js'
 import SchemaContextMenu from './SchemaContextMenu.vue'
 
@@ -38,6 +39,8 @@ const props = defineProps({
 const emit = defineEmits(['realign', 'select'])
 
 const canvasEl = ref(null)
+const flashId = ref('')
+let flashTimer = 0
 
 function viewport() {
   const el = canvasEl.value
@@ -226,9 +229,20 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cancelOpeningFit()
+  if (flashTimer) clearTimeout(flashTimer)
   window.removeEventListener('mousemove', onWindowMove)
   window.removeEventListener('mouseup', onWindowUp)
 })
+
+/** Centre and briefly pulse a card, used by both Locate and the error badge. */
+function locateNode(nodeId) {
+  if (!positions.value[nodeId]) return
+  cancelOpeningFit()
+  canvas.centerNode(nodeId)
+  flashId.value = nodeId
+  if (flashTimer) clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => { flashId.value = '' }, 1200)
+}
 
 // ---------------------------------------------------------------------------
 // Realign menu
@@ -281,6 +295,7 @@ defineExpose({
   snapAll: canvas.snapAll,
   resetLayout: canvas.resetLayout,
   centerNode: canvas.centerNode,
+  locateNode,
   positions,
   view,
   onMenuSelect,
@@ -326,6 +341,7 @@ defineExpose({
               dragging: draggingId === node.id,
               disabled: node.disabled,
               selected: selectedId === node.id,
+              flash: flashId === node.id,
             },
           ]"
           role="option"
@@ -346,6 +362,14 @@ defineExpose({
             <span class="sb">{{ node.subtitle }}</span>
           </span>
           <span v-if="nodePercent(node)" class="sch-pct">{{ nodePercent(node) }}</span>
+          <span
+            v-if="failureTooltip(nodeStates?.[node.id])"
+            class="sch-node-error"
+            role="tooltip"
+          >
+            <strong>{{ nodeStates[node.id].error?.code || 'ERROR' }}</strong>
+            {{ nodeStates[node.id].error?.message || '' }}
+          </span>
           <span class="sch-io in" aria-hidden="true" />
           <span class="sch-io out" aria-hidden="true" />
         </div>
@@ -475,8 +499,39 @@ defineExpose({
 }
 
 .sch-node.vis-failed {
+  z-index: 4;
   border-color: var(--fail-line);
   box-shadow: 0 0 0 1px var(--fail-line), 0 0 18px -6px var(--fail);
+}
+
+.sch-node.flash {
+  animation: sch-flash 1.2s ease;
+}
+
+.sch-node-error {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 12px;
+  z-index: 12;
+  width: 220px;
+  padding: 8px 10px;
+  border: 1px solid var(--fail-line);
+  border-radius: var(--r-s);
+  background: color-mix(in srgb, var(--fail-dim) 88%, var(--bg-2));
+  box-shadow: var(--shadow-sm);
+  color: var(--text-2);
+  font-family: var(--body);
+  font-size: 10.5px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.sch-node-error strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--fail-text);
+  font-family: var(--mono);
+  font-size: 9.5px;
 }
 
 /* Waiting on a person, not on a worker. */
@@ -500,6 +555,11 @@ defineExpose({
 @keyframes sch-glow {
   0%, 100% { box-shadow: 0 0 0 1px var(--run-line), 0 0 22px -4px var(--run); }
   50% { box-shadow: 0 0 0 1px var(--run-line), 0 0 10px -6px var(--run); }
+}
+
+@keyframes sch-flash {
+  0%, 100% { box-shadow: 0 0 0 1px var(--fail-line); }
+  30% { box-shadow: 0 0 0 3px var(--fail), 0 0 30px 2px var(--fail); }
 }
 
 /* The card the inspector is open on. */

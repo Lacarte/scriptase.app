@@ -18,10 +18,12 @@ import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia, setActivePinia } from 'pinia'
 
 import SchemaPage from '../SchemaPage.vue'
 import SchemaCanvas from '../components/SchemaCanvas.vue'
 import SchemaContextMenu from '../components/SchemaContextMenu.vue'
+import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
 import * as api from '../api.js'
 
 vi.mock('../api.js', () => ({
@@ -35,6 +37,9 @@ vi.mock('../api.js', () => ({
   getExecution: vi.fn(),
   getExecutionStages: vi.fn(),
   getJob: vi.fn(),
+  listFailedJobs: vi.fn(),
+  testJobNode: vi.fn(),
+  runWorkflow: vi.fn(),
 }))
 
 const REGISTRY = {
@@ -136,9 +141,11 @@ function makeRouter() {
 
 async function mountPage(path = '/schema') {
   const router = makeRouter()
+  const pinia = createPinia()
+  setActivePinia(pinia)
   await router.push(path)
   await router.isReady()
-  const wrapper = mount(SchemaPage, { global: { plugins: [router] } })
+  const wrapper = mount(SchemaPage, { global: { plugins: [router, pinia] } })
   await flushPromises()
   return { wrapper, router }
 }
@@ -165,6 +172,9 @@ beforeEach(() => {
       status: 'running',
     },
   })
+  api.listFailedJobs.mockResolvedValue({ jobs: [] })
+  api.testJobNode.mockResolvedValue({ execution_id: 'ex_TEST01', status: 'queued' })
+  api.runWorkflow.mockResolvedValue({ execution_id: 'ex_RETRY1', status: 'queued' })
 })
 
 describe('Schema graph (step 1.2)', () => {
@@ -369,17 +379,18 @@ describe('Schema navigation and realign (step 1.2)', () => {
     expect(api.getWorkflowStages).toHaveBeenCalledTimes(1)
   })
 
-  it('reaches nothing that could change a run', () => {
+  it('exposes only the projector and explicit step 1.4 node actions as writes', () => {
     // Read the real client, not the mock: the mock is whatever this file says
     // it is, and the guarantee is about the shipped module. Schema watches the
     // engine, so every call it can make is a GET — apart from the projector,
     // which computes a projection for an unsaved template and stores nothing.
     const source = readSource('../api.js')
     const posts = [...source.matchAll(/apiPost\(\s*'([^']+)'/g)].map((m) => m[1])
-    expect(posts).toEqual(['/workflow/stages'])
+    expect(posts).toEqual(['/workflow/stages', '/workflow/run'])
+    expect(source).toContain('/test-node')
     expect(source).not.toMatch(/apiPut|apiDelete/)
     // The endpoints that would start, stop or approve a run.
-    for (const forbidden of ['/workflow/run', '/stop', '/approve', '/reject', '/test-node']) {
+    for (const forbidden of ['/stop', '/approve', '/reject']) {
       expect(source, `api.js reaches ${forbidden}`).not.toContain(forbidden)
     }
   })
@@ -510,6 +521,170 @@ describe('the running job on the graph (step 1.3)', () => {
     for (const card of wrapper.findAll('.sch-node')) {
       expect(card.attributes('data-visual')).toBe('pending')
     }
+  })
+})
+
+describe('Schema node actions and failure navigation (step 1.4)', () => {
+  function providerRegistry() {
+    return {
+      ...REGISTRY,
+      node_types: {
+        ...REGISTRY.node_types,
+        'demo.speak': {
+          ...REGISTRY.node_types['demo.speak'],
+          inputs: [{ id: 'text', type: 'text', required: true }],
+          config_schema: [
+            { name: 'provider_id', type: 'provider', provider_domain: 'voice' },
+          ],
+        },
+      },
+    }
+  }
+
+  function seedProviderCatalog() {
+    const catalog = useProviderCatalogStore()
+    catalog.catalogVersion = 1
+    catalog.domains = {
+      voice: {
+        label: 'Voice',
+        providers: [
+          { id: 'voice_type', label: 'Voice Type', availability: 'available', aliases: [] },
+        ],
+        instances: [
+          { instance_id: 'inst_main', provider_type: 'voice_type', label: 'Main', availability: 'available' },
+          { instance_id: 'inst_alt', provider_type: 'voice_type', label: 'Alternate', availability: 'available' },
+        ],
+        excluded: [],
+      },
+    }
+  }
+
+  async function clickNode(wrapper, index = 1) {
+    const card = wrapper.findAll('.sch-node')[index]
+    await card.trigger('mousedown', { button: 0, clientX: 50, clientY: 50 })
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await flushPromises()
+  }
+
+  it('tests from the inspector with input bindings and a one-shot provider override', async () => {
+    api.getNodeTypes.mockResolvedValue(providerRegistry())
+    api.getExecution.mockResolvedValue({
+      execution: execution({
+        nodes: {
+          n_start: { status: 'succeeded' },
+          n_speak: {
+            status: 'running',
+            cost: { provider_instance_id: 'inst_main', selection_reason: 'default' },
+          },
+        },
+      }),
+    })
+    api.testJobNode.mockResolvedValue({
+      execution_id: 'ex_TEST01',
+      status: 'succeeded',
+      provider_instance_id: 'inst_alt',
+      execution: {
+        execution_id: 'ex_TEST01',
+        status: 'succeeded',
+        nodes: {
+          n_speak: {
+            status: 'succeeded',
+            outputs_summary: { audio: 'test.wav' },
+            cost: { provider_instance_id: 'inst_alt', selection_reason: 'request' },
+          },
+        },
+      },
+    })
+
+    const { wrapper } = await mountPage('/schema?job=job_AAA111')
+    seedProviderCatalog()
+    await clickNode(wrapper)
+    await wrapper.findAll('.ins-action').find((button) => button.text() === 'Test').trigger('click')
+    await flushPromises()
+
+    const picker = wrapper.find('.tn-provider-select')
+    expect(picker.exists()).toBe(true)
+    await picker.setValue('inst_alt')
+    await wrapper.find('.tn-run').trigger('click')
+    await flushPromises()
+
+    expect(api.testJobNode).toHaveBeenCalledWith('job_AAA111', expect.objectContaining({
+      target_node_ids: ['n_speak'],
+      input_bindings: {
+        n_speak: { text: { source: 'sample', port_type: 'text' } },
+      },
+      provider_instance_id: 'inst_alt',
+      wait: true,
+    }))
+    expect(api.runWorkflow).not.toHaveBeenCalled()
+    expect(wrapper.find('.tn-result').text()).toContain('inst_alt')
+    expect(wrapper.find('.tn-result').text()).toContain('one-shot override')
+    expect(wrapper.find('.tn-hint').text()).toContain('will not advance')
+  })
+
+  it('counts failed Jobs and locates a failed node from the badge in one click', async () => {
+    api.listFailedJobs.mockResolvedValue({
+      jobs: [
+        { id: 'job_BAD001', status: 'failed', execution_id: 'ex_BAD001' },
+        { id: 'job_BAD002', status: 'failed', execution_id: 'ex_BAD002' },
+      ],
+    })
+    api.getJob.mockImplementation(async (id) => ({
+      job: {
+        id,
+        workflow_id: 'wf_AAA111',
+        execution_id: 'ex_BAD001',
+        current_stage: 'voice',
+        status: 'failed',
+      },
+    }))
+    api.getExecution.mockImplementation(async (id) => ({
+      execution: execution({
+        execution_id: id,
+        status: 'failed',
+        nodes: {
+          n_start: { status: 'succeeded' },
+          n_speak: {
+            status: 'failed',
+            error: { code: 'VOICE_TIMEOUT', message: 'Provider timed out' },
+          },
+        },
+      }),
+    }))
+
+    const { wrapper } = await mountPage()
+    const badge = wrapper.find('.sch-errbadge')
+    expect(badge.text()).toContain('2 errors')
+    await badge.trigger('click')
+    await flushPromises()
+
+    const failedCard = wrapper.find('[data-node-id="n_speak"]')
+    expect(failedCard.classes()).toContain('flash')
+    expect(failedCard.text()).toContain('VOICE_TIMEOUT')
+    expect(wrapper.find('.sch-error-panel').text()).toContain('Provider timed out')
+    expect(wrapper.find('.sch-error-panel').text()).toContain('job_BAD001')
+    expect(wrapper.find('.sch-inspector').text()).toContain('VOICE_TIMEOUT')
+  })
+
+  it('retries only the selected failed node through the engine', async () => {
+    api.getExecution.mockImplementation(async (id) => ({
+      execution: execution({
+        execution_id: id,
+        status: id === 'ex_RETRY1' ? 'queued' : 'failed',
+        nodes: id === 'ex_RETRY1'
+          ? { n_speak: { status: 'queued' } }
+          : { n_speak: { status: 'failed', error: { code: 'FAILED', message: 'No audio' } } },
+      }),
+    }))
+    const { wrapper } = await mountPage('/schema?run=ex_LIVE01')
+    await clickNode(wrapper)
+    await wrapper.findAll('.ins-action').find((button) => button.text() === 'Retry').trigger('click')
+    await flushPromises()
+
+    expect(api.runWorkflow).toHaveBeenCalledWith(expect.objectContaining({
+      run_mode: 'retry_failed',
+      target_node_ids: ['n_speak'],
+    }))
   })
 })
 

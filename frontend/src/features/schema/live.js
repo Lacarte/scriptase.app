@@ -62,10 +62,67 @@ export function buildNodeStates(nodes, records = {}) {
   const states = {}
   for (const node of nodes || []) {
     if (!node?.id) continue
-    const status = String(records?.[node.id]?.status || DEFAULT_STATUS)
-    states[node.id] = { status, visual: visualForStatus(status) }
+    const record = records?.[node.id]
+    const status = String(record?.status || DEFAULT_STATUS)
+    states[node.id] = {
+      status,
+      visual: visualForStatus(status),
+      // Carried so a red card can say *why* without the canvas reaching for
+      // the execution record itself (step 1.4).
+      error: record?.error || null,
+    }
   }
   return states
+}
+
+/**
+ * The one line a failed card shows on hover (step 1.4).
+ *
+ * Structured only: the code and the engine's message, never assembled prose.
+ *
+ * @param {{error?: {code?: string, message?: string}}} state  a buildNodeStates entry
+ * @returns {string}
+ */
+export function failureTooltip(state) {
+  const error = state?.error
+  if (!error) return ''
+  const code = error.code || ''
+  const message = error.message || ''
+  if (code && message) return `${code} — ${message}`
+  return code || message || ''
+}
+
+/**
+ * Every node this run failed on, in graph order (step 1.4).
+ *
+ * `visual` rather than a status list, so `invalid` — a node that cannot run as
+ * configured — is counted as the error it is, exactly as the card paints it.
+ *
+ * @param {object[]} nodes    buildSchemaGraph nodes
+ * @param {Record<string, object>} records  node execution records
+ * @returns {Array<{nodeId: string, name: string, type: string, stageKey: string,
+ *   stageLabel: string, status: string, code: string, message: string}>}
+ */
+export function nodeFailures(nodes, records = {}) {
+  const failures = []
+  for (const node of nodes || []) {
+    if (!node?.id) continue
+    const record = records?.[node.id]
+    if (!record || visualForStatus(record.status) !== 'failed') continue
+    failures.push({
+      nodeId: node.id,
+      name: node.name,
+      type: node.type,
+      stageKey: node.stageKey || '',
+      // A node no stage claims is infrastructure; its category is the honest
+      // answer to "where did this happen", and inventing a stage would be a lie.
+      stageLabel: node.stageLabel || node.subtitle || '',
+      status: String(record.status),
+      code: record.error?.code || '',
+      message: record.error?.message || '',
+    })
+  }
+  return failures
 }
 
 /** Node ids the engine is working on right now. */
@@ -159,6 +216,10 @@ export function inspectorModel(node, record) {
     subtitle: node.subtitle,
     icon: node.icon,
     accent: node.accent,
+    // What the node actions need (step 1.4), carried from the registry through
+    // the graph model rather than looked up again here.
+    inputs: Array.isArray(node.inputs) ? node.inputs : [],
+    providerDomain: node.providerDomain || '',
     status,
     visual: visualForStatus(status),
     attempts: Number.isFinite(record?.attempts) ? record.attempts : null,

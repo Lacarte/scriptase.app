@@ -71,6 +71,27 @@ function finite(value, fallback = 0) {
 }
 
 /**
+ * The provider domain a node picks an instance from, or `''` for a node that
+ * runs locally (step 1.4).
+ *
+ * Read off the registry's own provider field, which the engine generates from
+ * a domain id alone. A stage-key → domain table here would be a second catalog
+ * to keep in step with the engine's, and would have to name stages this
+ * feature is forbidden to know.
+ *
+ * @param {object} definition  one entry of the registry's `node_types`
+ * @returns {string}
+ */
+export function providerDomainOf(definition) {
+  for (const field of definition?.config_schema || []) {
+    if (field?.type === 'provider' && typeof field.provider_domain === 'string') {
+      return field.provider_domain
+    }
+  }
+  return ''
+}
+
+/**
  * Reshape backend truth into what the canvas draws.
  *
  * @param {object}   source
@@ -104,6 +125,11 @@ export function buildSchemaGraph({ workflow, registry, projection } = {}) {
       icon: definition.icon || '',
       accent: categories[category]?.color || FALLBACK_ACCENT,
       category,
+      // What Test needs to ask for this node (step 1.4): the ports it takes
+      // input on, and the domain a one-shot provider override would come from.
+      // Both are the registry's answer, carried rather than restated.
+      inputs: Array.isArray(definition.inputs) ? definition.inputs : [],
+      providerDomain: providerDomainOf(definition),
       disabled: Boolean(node.disabled),
       x: finite(node.position?.x),
       y: finite(node.position?.y),

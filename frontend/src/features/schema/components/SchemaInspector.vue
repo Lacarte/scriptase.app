@@ -7,8 +7,8 @@
  * if it failed. Everything is read from the execution record, so the panel
  * stays in sync as stages advance without watching anything of its own.
  *
- * Read-only in this step. Node **actions** — Test with a one-shot provider
- * override, Locate node, Retry — arrive in step 1.4.
+ * Step 1.4 adds Test with a one-shot provider override, Locate node, and Retry.
+ * Those actions are emitted to the page; inspection itself remains derived.
  *
  * Nothing here can leak a credential: the execution record carries provider
  * **instance references**, and input/output are the engine's redacted
@@ -18,6 +18,7 @@ import { computed } from 'vue'
 
 import NodeIcon from '@/shared/components/NodeIcon.vue'
 import { statusLabel } from '@/features/production/stageStatus.js'
+import TestNodePanel from '@/features/production/components/TestNodePanel.vue'
 import { formatDuration } from '../live.js'
 
 const props = defineProps({
@@ -25,9 +26,13 @@ const props = defineProps({
   model: { type: Object, default: null },
   /** True when no run is bound — the panel says so rather than showing zeroes. */
   bound: { type: Boolean, default: false },
+  jobId: { type: String, default: '' },
+  testOpen: { type: Boolean, default: false },
+  testRunning: { type: Boolean, default: false },
+  testResult: { type: Object, default: null },
 })
 
-defineEmits(['close'])
+defineEmits(['close', 'locate', 'retry', 'open-test', 'close-test', 'test-run'])
 
 const durationLabel = computed(() => formatDuration(props.model?.durationMs))
 
@@ -100,6 +105,32 @@ function isEmpty(value) {
         </dd>
       </div>
     </dl>
+
+    <div class="ins-actions" role="group" aria-label="Node actions">
+      <button class="ins-action primary" type="button" @click="$emit('open-test')">Test</button>
+      <button class="ins-action" type="button" @click="$emit('locate')">Locate node</button>
+      <button
+        v-if="model.visual === 'failed'"
+        class="ins-action"
+        type="button"
+        @click="$emit('retry')"
+      >Retry</button>
+    </div>
+
+    <TestNodePanel
+      v-if="testOpen"
+      :title="model.name"
+      :node-id="model.id"
+      :node-type="model.type"
+      :ports="model.inputs"
+      :current-job-id="jobId"
+      :provider-domain="model.providerDomain"
+      :provider-label="model.provider?.instanceId || ''"
+      :running="testRunning"
+      :last-result="testResult"
+      @run="$emit('test-run', $event)"
+      @close="$emit('close-test')"
+    />
 
     <p v-if="!bound" class="ins-empty">
       No run bound. Choose a run above to see what this node did.
@@ -305,6 +336,39 @@ function isEmpty(value) {
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--muted);
+}
+
+.ins-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.ins-action {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel-grad);
+  color: var(--text-2);
+  font-family: var(--body);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ins-action:hover {
+  color: var(--text);
+  border-color: var(--line-2);
+}
+
+.ins-action.primary {
+  border-color: transparent;
+  background: var(--accent-grad);
+  color: #fff;
 }
 
 .ins-block {
