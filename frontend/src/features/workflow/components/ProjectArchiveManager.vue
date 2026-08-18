@@ -130,10 +130,20 @@ onMounted(loadProjects)
 </template>
 
 <style scoped>
-.archive-backdrop { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; background: rgba(2,7,13,.72); }
-.archive-dialog { width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow: auto; border: 1px solid var(--border); border-radius: 13px; padding: 18px; color: var(--text); background: var(--bg-darkest); box-shadow: 0 24px 70px rgba(0,0,0,.55); }
-header, footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; } h2, h3 { margin: 0; } h2 { font-size: 17px; } h3 { font-size: 13px; }
-p { margin: 5px 0 12px; color: var(--text-muted); font-size: 11px; line-height: 1.5; }.error { color: #fb7185; }.empty { margin-block: 10px; }.archive-section { margin-top: 16px; padding: 14px; border: 1px solid var(--border); border-radius: 9px; background: rgba(12,22,34,.55); }
-label { display: grid; gap: 5px; color: var(--text-secondary); font-size: 11px; } select, button { border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px; color: var(--text-secondary); background: rgba(20,34,51,.78); } button { cursor: pointer; } button:disabled { opacity: .45; cursor: default; }.primary { margin-top: 11px; color: white; border-color: #0f766e; background: #0f766e; }.close { border: 0; padding: 2px 7px; font-size: 22px; background: transparent; }.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }.file-input { display: none; } footer { justify-content: flex-end; margin-top: 16px; }
+.archive-backdrop { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; background: rgba(0,0,0,.62); }
+.archive-dialog { width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow: auto; padding: 18px; border: 1px solid var(--line); border-radius: var(--r-l); color: var(--text); background: var(--panel-grad); box-shadow: var(--shadow); }
+header, footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; } h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; letter-spacing: -.4px; } h2 { font-size: 17px; } h3 { font-size: 13.5px; }
+p { margin: 5px 0 12px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }.error { color: var(--fail); }.empty { margin-block: 10px; }
+.archive-section { margin-top: 16px; padding: 14px; border: 1px solid var(--line-soft); border-radius: var(--r-s); background: var(--bg-2); box-shadow: var(--hairline-top); }
+label { display: grid; gap: 7px; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+/* The label wraps its own control, so the eyebrow casing stops here. */
+select { border: 1px solid var(--line); border-radius: var(--r-s); padding: 9px 11px; color: var(--text); background: var(--panel); font-family: var(--body); font-size: 13px; text-transform: none; letter-spacing: .1px; cursor: pointer; }
+select:focus { outline: none; border-color: var(--accent-line-2); box-shadow: 0 0 0 3px var(--accent-ring); }
+button { border: 1px solid var(--line); border-radius: var(--r-s); padding: 9px 14px; color: var(--text); background: var(--panel-grad); font-family: var(--body); font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: var(--hairline-top), 0 1px 2px rgba(0,0,0,.28); transition: background .16s, border-color .16s, filter .16s, transform .12s var(--ease-spring); }
+button:hover:not(:disabled) { border-color: var(--line-2); background: var(--panel-grad2); transform: translateY(-1px); } button:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.primary { margin-top: 11px; border-color: transparent; color: var(--text); background: var(--accent-grad); font-weight: 600; box-shadow: inset 0 1px 0 rgba(255,255,255,.28), var(--accent-cast); }
+.primary:hover:not(:disabled) { border-color: transparent; background: var(--accent-grad); filter: brightness(1.07) saturate(1.05); box-shadow: inset 0 1px 0 rgba(255,255,255,.28), var(--accent-cast-lg); }
+.close { border: 0; padding: 2px 7px; color: var(--muted); font-size: 22px; background: transparent; box-shadow: none; }.close:hover:not(:disabled) { color: var(--text); background: var(--panel); transform: none; }
+.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }.file-input { display: none; } footer { justify-content: flex-end; margin-top: 16px; }
 @media (max-width: 560px) { .mode-grid { grid-template-columns: 1fr; } }
 </style>

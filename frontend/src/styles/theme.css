@@ -51,6 +51,27 @@
   --sched-dim: rgba(189,147,255,.15);
   --accent-dim: rgba(106,140,255,.15);
 
+  /* Derived companions to the ramp. The prototype repeats these rgba()
+     literals inline on every badge, banner and focus ring; naming them is
+     what lets the shared primitives stay colour-free — and therefore lets
+     .editor-page re-tint the whole vocabulary teal by overriding --accent
+     and friends rather than by shipping a second set of components. */
+  --line-2:       #343d4e;              /* the hover border, everywhere */
+  --run-line:     rgba(88,166,255,.35);
+  --ok-line:      rgba(53,192,138,.32);
+  --fail-line:    rgba(255,95,110,.32);
+  --fail-line-2:  rgba(255,95,110,.55);
+  --warn-line:    rgba(240,173,75,.32);
+  --sched-line:   rgba(189,147,255,.32);
+  --accent-line:   rgba(106,140,255,.35);
+  --accent-line-2: rgba(106,140,255,.55);
+  --accent-ring:   rgba(106,140,255,.12);
+  --accent-wash:   rgba(106,140,255,.08);
+  --accent-cast:    0 6px 20px -8px rgba(106,140,255,.85);
+  --accent-cast-lg: 0 10px 26px -8px rgba(106,140,255,.95);
+  --fail-text: #ffc4c9;
+  --warn-text: #f4dcae;
+
   /* Surface gradients — a faint top light on every raised panel */
   --panel-grad:  linear-gradient(180deg, rgba(255,255,255,.028), rgba(255,255,255,0) 42%), var(--panel);
   --panel-grad2: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--panel-2);
@@ -112,8 +133,26 @@
   --font-mono:    var(--mono);
 }
 
-/* ---- The timeline editor keeps the V2 teal palette ---- */
+/* ---- The timeline editor keeps the V2 teal palette ----
+   It mirrors the ported ScriptToScene editor and is deliberately excluded
+   from the restyle. This block is the editor's *own* palette, not an alias
+   layer: it is self-contained, so :root carries no V2 names at all.
+
+   Re-tinting the accent tokens is what keeps the Editor teal even where it
+   reaches for a shared primitive — those primitives are written in tokens
+   only, so they follow whichever accent is in scope. */
 .editor-page {
+  --accent:      #4ECDC4;
+  --accent-2:    #3BA89F;
+  --accent-grad: linear-gradient(135deg, #5EDFD6, #3BA89F);
+  --accent-dim:    rgba(78,205,196,.12);
+  --accent-line:   rgba(78,205,196,.35);
+  --accent-line-2: rgba(78,205,196,.55);
+  --accent-ring:   rgba(78,205,196,.12);
+  --accent-wash:   rgba(78,205,196,.08);
+  --accent-cast:    0 4px 16px -6px rgba(78,205,196,.7);
+  --accent-cast-lg: 0 8px 24px -6px rgba(78,205,196,.8);
+
   --bg-darkest:       #0a0e13;
   --bg-dark:          #0f1520;
   --bg-surface:       #161d2a;

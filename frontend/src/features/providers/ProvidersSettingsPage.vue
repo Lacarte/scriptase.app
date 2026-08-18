@@ -198,35 +198,321 @@ onMounted(() => catalog.loadCatalog())
 </template>
 
 <style scoped>
-.settings-page { max-width: 1040px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
-.page-header, .domain-heading, .instance-row, .create-row { display: flex; align-items: center; gap: 1rem; }
-.page-header, .domain-heading { justify-content: space-between; }
-.page-header h1 { margin: .15rem 0 .4rem; font: 700 2rem/1.1 var(--font-display, system-ui); }
-.page-header p, .domain-heading p { margin: 0; color: var(--text-secondary, #9ca3af); }
-.eyebrow { color: var(--accent, #4ecdc4) !important; font-size: .75rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
-.domain-list { display: grid; gap: 1rem; margin-top: 1.5rem; }
-.domain-card { padding: 1.25rem; background: var(--bg-surface, #181c22); border: 1px solid var(--border, #343a43); border-radius: 12px; }
-.domain-heading { padding-bottom: 1rem; }
-.domain-heading h2 { margin: 0 0 .2rem; font-size: 1.15rem; }
-.domain-heading p { font-size: .82rem; }
-.create-row { flex-wrap: wrap; padding: 1rem; margin-bottom: 1rem; border-radius: 8px; background: var(--bg-elevated, #222832); }
-.create-row label { display: grid; gap: .35rem; color: var(--text-secondary, #9ca3af); font-size: .75rem; }
-input, select { min-width: 180px; padding: .6rem .7rem; color: var(--text, #e5e7eb); background: var(--bg-dark, #11151a); border: 1px solid var(--border, #3f4650); border-radius: 6px; }
-.provider-configurator { padding: 1rem 0; border-top: 1px solid var(--border, #343a43); }
-.instance-list { border-top: 1px solid var(--border, #343a43); }
-.instance-row { min-height: 64px; border-bottom: 1px solid var(--border, #343a43); }
-.instance-row:last-child { border-bottom: 0; }
-.instance-identity { display: grid; gap: .2rem; flex: 1; min-width: 0; }
-.instance-identity span { color: var(--text-secondary, #9ca3af); font-size: .75rem; }
-.row-actions { display: flex; gap: .45rem; }
-.default-badge { padding: .2rem .5rem; border-radius: 999px; color: var(--accent, #4ecdc4); background: color-mix(in srgb, var(--accent, #4ecdc4) 12%, transparent); font-size: .7rem; }
-button { padding: .55rem .75rem; border-radius: 6px; cursor: pointer; }
-button:disabled { opacity: .5; cursor: not-allowed; }
-.primary { border: 0; color: #07100f; background: var(--accent, #4ecdc4); font-weight: 650; }
-.secondary { color: var(--text, #e5e7eb); background: var(--bg-elevated, #252b34); border: 1px solid var(--border, #3f4650); }
-.ghost { color: var(--text-secondary, #9ca3af); background: transparent; border: 1px solid transparent; }
-.danger { color: #f87171; background: transparent; border: 1px solid rgba(248, 113, 113, .35); }
-.page-error { padding: .75rem; color: #f87171; background: rgba(248, 113, 113, .08); border: 1px solid rgba(248, 113, 113, .25); border-radius: 8px; }
-.empty { color: var(--text-secondary, #9ca3af); }
-@media (max-width: 720px) { .instance-row { align-items: flex-start; flex-wrap: wrap; padding: .75rem 0; } .row-actions { width: 100%; } .create-row label, .create-row input, .create-row select { width: 100%; } }
+/**
+ * Providers — Settings surface.
+ *
+ * A stack of domain panels on the prototype's raised surface: `--panel-grad`
+ * over a 1px `--line` with the top hairline, so each card reads as lit from
+ * above. The duotone accent appears on exactly two things here — the primary
+ * action and the "Default" marker, which is the active selection. Everything
+ * else is ink and the status ramp.
+ */
+
+.settings-page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 20px 64px;
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.page-header,
+.domain-heading,
+.instance-row,
+.create-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.page-header,
+.domain-heading {
+  justify-content: space-between;
+}
+
+.page-header h1 {
+  margin: 4px 0 6px;
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+.page-header p,
+.domain-heading p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* Qualified so it beats `.page-header p` on its own, rather than with
+   `!important` — the eyebrow is the one accent-tinted label on the page. */
+.page-header .eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.domain-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+/* The raised panel. */
+.domain-card {
+  padding: 18px;
+  background: var(--panel-grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.domain-card:hover {
+  border-color: var(--line-2);
+}
+
+.domain-heading {
+  padding-bottom: 16px;
+}
+
+.domain-heading h2 {
+  margin: 0 0 3px;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.domain-heading p {
+  font-size: 12px;
+}
+
+/* The create form is a recessed well cut into the panel. */
+.create-row {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 14px;
+  margin-bottom: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+}
+
+.create-row label {
+  display: grid;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+input,
+select {
+  min-width: 180px;
+  padding: 9px 11px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  font-family: var(--body);
+  font-size: 13px;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+select {
+  cursor: pointer;
+}
+
+input::placeholder {
+  color: var(--faint);
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.provider-configurator {
+  padding: 16px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.instance-list {
+  border-top: 1px solid var(--line-soft);
+}
+
+.instance-row {
+  min-height: 60px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.instance-row:last-child {
+  border-bottom: 0;
+}
+
+.instance-identity {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.instance-identity strong {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: var(--text);
+}
+
+/* The provider type and instance id are an identity readout, not prose. */
+.instance-identity span {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.default-badge {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 20px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.row-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border-radius: var(--r-s);
+  font-family: var(--body);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, color 0.14s,
+    box-shadow 0.16s, filter 0.16s, transform 0.12s var(--ease-spring);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}
+
+.primary {
+  border: 1px solid transparent;
+  color: var(--text);
+  background: var(--accent-grad);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast);
+}
+
+.primary:hover:not(:disabled) {
+  filter: brightness(1.07) saturate(1.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast-lg);
+}
+
+.secondary {
+  color: var(--text);
+  background: var(--panel-grad);
+  border: 1px solid var(--line);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--panel-grad2);
+  border-color: var(--line-2);
+  transform: translateY(-1px);
+}
+
+.ghost {
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.danger {
+  color: var(--fail);
+  background: transparent;
+  border: 1px solid var(--fail-line);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--fail-dim);
+  border-color: var(--fail-line-2);
+}
+
+.page-error {
+  margin-top: 16px;
+  padding: 11px 13px;
+  border-radius: var(--r-s);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--fail-text);
+  background: var(--fail-dim);
+  border: 1px solid var(--fail-line);
+}
+
+.empty {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .instance-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 12px 0;
+  }
+
+  .row-actions {
+    width: 100%;
+  }
+
+  .create-row label,
+  .create-row input,
+  .create-row select {
+    width: 100%;
+    min-width: 0;
+  }
+}
 </style>

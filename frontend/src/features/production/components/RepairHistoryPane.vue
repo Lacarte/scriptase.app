@@ -239,38 +239,52 @@ watch(
 .repair-history {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 10px;
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text);
 }
 
 .repair-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .repair-head h4 {
   margin: 0;
-  font-size: 0.95rem;
+  font-family: var(--display);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text);
 }
 
+/* Micro-label eyebrow — the prototype's section header. */
 .issue-block h5,
 .superseded-block h5 {
-  margin: 0 0 0.35rem;
-  font-size: 0.72rem;
-  font-weight: 700;
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-muted, #6b7f93);
+  letter-spacing: 0.8px;
+  color: var(--muted);
 }
 
 .count-pill {
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  background: var(--bg-elevated, #222d3d);
-  border: 1px solid var(--border, #1e2a3a);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 20px;
+  color: var(--text-2);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .issue-list,
@@ -282,31 +296,35 @@ watch(
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 8px;
 }
 
 .routing-list {
-  gap: 0.2rem;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: var(--text-secondary, #8899aa);
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
 }
 
+/* Recessed well: read-only evidence, never a raised surface. */
 .issue-row,
 .repair-row {
-  border: 1px solid var(--border, #1e2a3a);
-  border-radius: 8px;
-  padding: 0.5rem 0.65rem;
-  background: var(--bg-dark, #0f1520);
+  padding: 10px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  box-shadow: var(--hairline-top);
 }
 
 .repair-row.this-stage {
-  border-color: rgba(78, 205, 196, 0.45);
+  border-color: var(--accent-line);
+  box-shadow: var(--hairline-top), inset 0 0 0 1px var(--accent-line);
 }
 
 .repair-row[data-result='failed'],
 .repair-row[data-result='escalated'] {
-  border-left: 3px solid var(--coral, #ff6b6b);
+  border-left: 3px solid var(--fail-line-2);
 }
 
 .issue-line,
@@ -314,90 +332,135 @@ watch(
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 7px;
+}
+
+.repair-line strong {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
 }
 
 .issue-id,
 .entry-id,
 .mono {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.78rem;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  color: var(--text-2);
 }
 
 .tag {
-  font-size: 0.68rem;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  background: var(--bg-elevated, #222d3d);
-  color: var(--text-secondary, #8899aa);
-  border: 1px solid var(--border, #1e2a3a);
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--queue);
+  border: 1px solid var(--line);
+  white-space: nowrap;
 }
 
 .open-tag {
-  color: var(--accent-active, #ff9f43);
-  border-color: rgba(255, 159, 67, 0.35);
+  color: var(--warn);
+  background: var(--warn-dim);
+  border-color: var(--warn-line);
 }
 
 .stage-tag {
-  color: var(--accent, #4ecdc4);
-  border-color: rgba(78, 205, 196, 0.35);
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: var(--accent-line);
+}
+
+.repair-row[data-result='failed'] .result-tag,
+.repair-row[data-result='escalated'] .result-tag {
+  color: var(--fail);
+  background: var(--fail-dim);
+  border-color: var(--fail-line);
+}
+
+.repair-row[data-result='succeeded'] .result-tag,
+.repair-row[data-result='repaired'] .result-tag {
+  color: var(--ok);
+  background: var(--ok-dim);
+  border-color: var(--ok-line);
 }
 
 .repair-meta {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.35rem 0.6rem;
-  margin: 0.45rem 0 0;
+  gap: 8px 12px;
+  margin: 10px 0 0;
 }
 
 .repair-meta dt {
   margin: 0;
-  font-size: 0.65rem;
+  font-family: var(--mono);
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted, #6b7f93);
+  letter-spacing: 0.8px;
+  color: var(--muted);
 }
 
 .repair-meta dd {
-  margin: 0.1rem 0 0;
-  font-size: 0.82rem;
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--text);
   word-break: break-word;
 }
 
 .reason,
 .artifact-line {
-  margin: 0.4rem 0 0;
-  line-height: 1.4;
+  margin: 8px 0 0;
+  line-height: 1.5;
+  color: var(--text-2);
   word-break: break-word;
 }
 
 .reason-label {
-  font-size: 0.65rem;
+  font-family: var(--mono);
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted, #6b7f93);
-  margin-right: 0.35rem;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin-right: 7px;
 }
 
 .superseded-list li {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 7px;
 }
 
 .muted {
-  color: var(--text-secondary, #8899aa);
+  color: var(--muted);
 }
 
 .small {
-  font-size: 0.8rem;
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 
 .error {
-  color: var(--coral, #ff6b6b);
+  color: var(--fail-text);
+  background: var(--fail-dim);
+  border: 1px solid var(--fail-line);
+  border-radius: var(--r-s);
+  padding: 9px 12px;
+  margin: 0;
 }
 
 @media (max-width: 640px) {

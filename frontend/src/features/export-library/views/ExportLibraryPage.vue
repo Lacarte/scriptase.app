@@ -356,28 +356,17 @@ const extendedStats = computed(() => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 32px 24px;
+  font-family: var(--body);
+  font-size: 13px;
 }
 
-/* ---- Header ---- */
+/* ---- Header ----
+   .page-title / .page-subtitle come from the shared primitives. */
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 20px;
-}
-
-.page-title {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  margin: 0;
-}
-
-.page-subtitle {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin: 4px 0 0;
 }
 
 .header-actions {
@@ -386,45 +375,33 @@ const extendedStats = computed(() => {
   gap: 8px;
 }
 
+/* The one primary action on the page — the only place the duotone lands. */
 .sync-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 15px;
-  font-size: 11px;
+  gap: 8px;
+  padding: 9px 14px;
+  font-family: var(--body);
+  font-size: 13px;
   font-weight: 600;
-  font-family: var(--font-mono);
-  border: 1px solid rgba(78, 205, 196, 0.3);
-  border-radius: 8px;
-  background: rgba(78, 205, 196, 0.06);
-  color: var(--accent);
+  border: 1px solid transparent;
+  border-radius: var(--r-s);
+  background: var(--accent-grad);
+  color: #fff;
   cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
-  overflow: hidden;
-}
-
-.sync-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(78, 205, 196, 0.12), transparent 60%);
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.sync-btn:hover:not(:disabled)::before {
-  opacity: 1;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast);
+  transition: filter 0.16s, box-shadow 0.16s, transform 0.12s var(--ease-spring);
 }
 
 .sync-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  box-shadow: 0 0 12px rgba(78, 205, 196, 0.12);
+  filter: brightness(1.07) saturate(1.05);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast-lg);
 }
 
 .sync-btn--active {
-  border-color: var(--accent);
-  background: rgba(78, 205, 196, 0.10);
+  filter: brightness(1.07) saturate(1.05);
 }
 
 .sync-btn-icon {
@@ -433,34 +410,42 @@ const extendedStats = computed(() => {
 }
 
 .sync-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: not-allowed;
+  filter: none;
+  transform: none;
 }
 
 .refresh-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  font-size: 11px;
-  font-weight: 600;
-  font-family: var(--font-mono);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-muted);
+  gap: 8px;
+  padding: 9px 14px;
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel-grad);
+  color: var(--text);
   cursor: pointer;
-  transition: all 0.15s;
+  white-space: nowrap;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: background 0.16s, border-color 0.16s, box-shadow 0.16s,
+    transform 0.12s var(--ease-spring);
 }
 
-.refresh-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+.refresh-btn:hover:not(:disabled) {
+  background: var(--panel-grad2);
+  border-color: var(--line-2);
+  transform: translateY(-1px);
+  box-shadow: var(--hairline-top), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
 }
 
 .refresh-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
 .spinning {
@@ -477,14 +462,17 @@ const extendedStats = computed(() => {
   align-items: center;
   gap: 20px;
   padding: 12px 18px;
-  background: var(--bg-surface);
-  border: 1px solid rgba(78, 205, 196, 0.2);
-  border-radius: 10px;
+  background: var(--panel-grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
   margin-bottom: 12px;
   position: relative;
   overflow: hidden;
 }
 
+/* An in-flight run is an active state, so it carries the duotone edge; a
+   finished one hands over to the status ramp. */
 .sync-panel::before {
   content: '';
   position: absolute;
@@ -492,12 +480,11 @@ const extendedStats = computed(() => {
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--accent);
-  border-radius: 3px 0 0 3px;
+  background: var(--accent-grad);
 }
 
 .sync-panel--done::before {
-  background: var(--accent-ready);
+  background: var(--ok);
 }
 
 /* Transition */
@@ -528,7 +515,7 @@ const extendedStats = computed(() => {
 .sync-panel-icon {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--r-s);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -536,13 +523,15 @@ const extendedStats = computed(() => {
 }
 
 .sync-panel-icon--active {
-  background: rgba(78, 205, 196, 0.1);
+  background: var(--accent-dim);
   color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
 }
 
 .sync-panel-icon--done {
-  background: rgba(38, 222, 129, 0.1);
-  color: var(--accent-ready);
+  background: var(--ok-dim);
+  color: var(--ok);
+  box-shadow: inset 0 0 0 1px var(--ok-line);
 }
 
 .sync-panel-status {
@@ -550,21 +539,21 @@ const extendedStats = computed(() => {
 }
 
 .sync-panel-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .sync-panel-file {
+  font-family: var(--mono);
   font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 220px;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 /* Center: progress */
@@ -574,16 +563,16 @@ const extendedStats = computed(() => {
 }
 
 .sync-panel-bar-track {
-  height: 3px;
-  background: var(--bg-darkest);
-  border-radius: 2px;
+  height: 4px;
+  background: var(--raise);
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .sync-panel-bar-fill {
   height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
+  background: var(--accent-grad);
+  border-radius: 3px;
   transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
@@ -595,13 +584,13 @@ const extendedStats = computed(() => {
   top: -1px;
   bottom: -1px;
   width: 20px;
-  background: linear-gradient(90deg, transparent, rgba(78, 205, 196, 0.4));
-  border-radius: 0 2px 2px 0;
+  background: linear-gradient(90deg, transparent, var(--accent-line-2));
+  border-radius: 0 3px 3px 0;
   animation: sync-bar-pulse 1.5s ease-in-out infinite;
 }
 
 .sync-panel-bar-fill--done {
-  background: var(--accent-ready);
+  background: var(--ok);
 }
 
 .sync-panel-bar-fill--done::after {
@@ -621,29 +610,27 @@ const extendedStats = computed(() => {
 }
 
 .sync-panel-counter {
+  font-family: var(--mono);
   font-size: 11px;
-  font-family: var(--font-mono);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--accent);
-  letter-spacing: -0.02em;
 }
 
 .sync-panel-counter-sep {
-  color: var(--text-muted);
-  opacity: 0.4;
+  color: var(--faint);
   margin: 0 1px;
 }
 
 .sync-panel-size {
+  font-family: var(--mono);
   font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 .sync-panel-summary {
+  font-family: var(--mono);
   font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--accent-ready);
+  color: var(--ok);
   font-weight: 500;
 }
 
@@ -651,11 +638,12 @@ const extendedStats = computed(() => {
 .stats-bar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 14px 18px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  gap: 20px;
+  padding: 16px 20px;
+  background: var(--panel-grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
   margin-bottom: 12px;
   overflow-x: auto;
   flex-wrap: wrap;
@@ -665,30 +653,33 @@ const extendedStats = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   min-width: 50px;
 }
 
 .stat-num {
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 700;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
   line-height: 1;
+  color: var(--text);
   white-space: nowrap;
 }
 
 .stat-lbl {
-  font-family: var(--font-mono);
-  font-size: 8px;
-  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 9.5px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.7px;
+  color: var(--muted);
+  margin-top: 3px;
 }
 
 .stat-divider {
   width: 1px;
-  height: 24px;
-  background: var(--border);
+  height: 28px;
+  background: var(--line);
   flex-shrink: 0;
 }
 
@@ -697,18 +688,21 @@ const extendedStats = computed(() => {
 /* ---- States ---- */
 .state-msg {
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-muted);
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--muted);
   padding: 48px 20px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--panel-grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .state-error {
-  color: var(--coral);
-  border-color: rgba(255, 107, 107, 0.3);
+  color: var(--fail-text);
+  background: var(--fail-dim);
+  border-color: var(--fail-line);
+  box-shadow: none;
 }
 
 /* ---- Grid ---- */

@@ -78,16 +78,20 @@ a {
   overflow: hidden;
 }
 
+/* The prototype's topbar: a lit bar over the ambient wash, with a hairline
+   of light along the top and a hard shadow beneath so it sits above the page. */
 .app-nav {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid var(--border, #2d2e30);
-  background: var(--bg-dark, #1a1a1c);
+  gap: 16px;
+  height: 56px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 55%), var(--bg-2);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5), 0 8px 24px -18px rgba(0, 0, 0, 0.9);
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 30;
   flex: 0 0 auto;
 }
 
@@ -96,40 +100,62 @@ a {
 }
 
 .brand {
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 15.5px;
+  letter-spacing: -0.4px;
   text-decoration: none;
-  color: var(--text, #e8eaed);
-  font-family: var(--font-display, system-ui, sans-serif);
+  /* The wordmark is the one place the duotone reads as identity. */
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 nav {
   display: flex;
-  gap: 1rem;
+  gap: 2px;
+  align-items: center;
 }
 
 nav a {
-  color: var(--text-secondary, #9aa0a6);
+  color: var(--text-2);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 11px;
+  border-radius: var(--r-s);
+  white-space: nowrap;
+  transition: background 0.18s var(--ease-spring), color 0.15s, box-shadow 0.18s;
 }
 
+nav a:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+
+/* Active is the second and last place the accent appears in the shell. */
 nav a.router-link-active {
-  color: var(--accent, #8ab4f8);
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(106, 140, 255, 0.12), rgba(106, 140, 255, 0.05));
+  box-shadow: inset 0 0 0 1px var(--accent-line), 0 4px 14px -8px rgba(106, 140, 255, 0.6);
 }
 
 /* Reads as "leaves this page" — it opens its own window, never navigates. */
 .window-link {
-  color: var(--text-dim, #6b7280);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
 }
 
 .window-link:hover {
-  color: var(--accent, #8ab4f8);
+  color: var(--accent);
+  background: transparent;
 }
 
 .app-main {
   flex: 1 1 auto;
-  min-height: calc(100vh - 52px);
+  min-height: calc(100vh - 56px);
 }
 
 .app-main--full {

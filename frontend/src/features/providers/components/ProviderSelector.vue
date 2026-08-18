@@ -196,8 +196,24 @@ watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })
 </template>
 
 <style scoped>
+/**
+ * The provider selector — a machined control group.
+ *
+ * Two states carry colour and nothing else does: the focused control takes the
+ * accent ring, and the gear takes the status ramp when the selection needs
+ * attention. Capability names are metadata (§20.4) and are deliberately styled
+ * as neutral "kind" tags, never as the accent.
+ *
+ * The health dot and the status line take their colour from an inline binding
+ * (`toneColor()` in ../availability.js), so the rules below own their geometry
+ * and rhythm only; retiring that palette into the status tokens is a change to
+ * that module, not to this stylesheet.
+ */
+
 .provider-selector {
   width: 100%;
+  font-family: var(--body);
+  font-size: 13px;
 }
 
 .selector-row {
@@ -214,11 +230,12 @@ watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })
 }
 
 .variant-inline .selector-label {
+  font-family: var(--mono);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: var(--text-muted, #9ca3af);
+  letter-spacing: 0.8px;
+  color: var(--muted);
   margin-bottom: 8px;
 }
 
@@ -227,7 +244,7 @@ watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })
 }
 
 .variant-inline .selector-select {
-  padding: 8px 30px 8px 12px;
+  padding: 8px 30px 8px 11px;
   font-size: 12px;
   min-width: 150px;
 }
@@ -242,30 +259,35 @@ watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })
 }
 
 .variant-inline .health-text {
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .selector-info {
   flex: 1;
+  min-width: 0;
 }
 
 .selector-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text, #e5e5e5);
   display: block;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: var(--text);
 }
 
 .selector-desc {
   font-size: 12px;
-  color: var(--text-secondary, #9ca3af);
+  line-height: 1.5;
+  color: var(--muted);
   margin: 4px 0 0;
 }
 
 .selector-error {
-  font-size: 12px;
-  color: #ef4444;
-  margin: 6px 0 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--fail);
+  margin: 8px 0 0;
 }
 
 .selector-controls {
@@ -275,23 +297,31 @@ watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })
 }
 
 .selector-select {
-  padding: 10px 32px 10px 12px;
-  border: 1px solid var(--border, #3f3f46);
-  border-radius: 6px;
-  background: var(--bg-surface, #1f1f23);
-  color: var(--text, #e5e5e5);
-  font-size: 14px;
+  min-width: 140px;
+  padding: 9px 32px 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237c8698' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
   background-repeat: no-repeat;
   background-position: right 10px center;
-  min-width: 140px;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+.selector-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .selector-select:focus {
   outline: none;
-  border-color: var(--accent, #4ECDC4);
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .gear-btn {
@@ -300,56 +330,79 @@ watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })
   justify-content: center;
   width: 36px;
   height: 36px;
-  border: 1px solid var(--border, #3f3f46);
-  border-radius: 6px;
-  background: var(--bg-surface, #1f1f23);
-  color: var(--text-secondary, #9ca3af);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel-grad);
+  color: var(--muted);
   cursor: pointer;
-  transition: all 0.15s;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: background 0.16s, border-color 0.16s, color 0.14s,
+    box-shadow 0.16s, transform 0.12s var(--ease-spring);
 }
 
 .gear-btn:hover:not(:disabled) {
-  background: var(--bg-surface-hover, #3a3a3f);
-  color: var(--text, #e5e5e5);
+  background: var(--panel-grad2);
+  border-color: var(--line-2);
+  color: var(--text);
+  transform: translateY(-1px);
 }
 
 .gear-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
-.gear-btn.has-warning {
-  border-color: var(--accent-warning, #f59e0b);
+/* "Needs attention" is a status, so it reads on the status ramp — the accent
+   is reserved for the primary action and the active selection. */
+.gear-btn.has-warning,
+.gear-btn.has-warning:hover:not(:disabled) {
+  border-color: var(--warn-line);
+  background: var(--warn-dim);
+  color: var(--warn);
 }
 
+/* The health control doubles as the connection-status badge. */
 .health-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border: 1px solid var(--border, #3f3f46);
-  border-radius: 6px;
-  background: var(--bg-surface, #1f1f23);
-  color: var(--text-secondary, #9ca3af);
-  font-size: 12px;
+  gap: 7px;
+  height: 36px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel-grad);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
   cursor: pointer;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: background 0.16s, border-color 0.16s, color 0.14s,
+    box-shadow 0.16s, transform 0.12s var(--ease-spring);
 }
 
 .health-btn:hover:not(:disabled) {
-  background: var(--bg-surface-hover, #3a3a3f);
-  color: var(--text, #e5e5e5);
+  background: var(--panel-grad2);
+  border-color: var(--line-2);
+  color: var(--text);
+  transform: translateY(-1px);
 }
 
 .health-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
 .health-dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  flex-shrink: 0;
+  flex: none;
+  background: var(--faint);
 }
 
 .health-text {
@@ -360,20 +413,28 @@ watch(() => props.domain, () => catalog.loadCatalog(), { immediate: true })
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 8px 0 0;
+  margin: 10px 0 0;
 }
 
-.badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--bg-elevated, #2a2a2f);
-  border: 1px solid var(--border, #3f3f46);
-  color: var(--text-secondary, #9ca3af);
+/* Capability is metadata. The global `.badge` is the base layer; this narrows
+   it to the prototype's neutral kind tag rather than replacing it. */
+.selector-capabilities .badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--text-2);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
 }
 
 .selector-status {
-  font-size: 12px;
-  margin: 6px 0 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  margin: 8px 0 0;
 }
 </style>

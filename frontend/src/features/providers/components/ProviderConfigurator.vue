@@ -76,3 +76,23 @@ function onSaved(payload) {
     </ProviderSettingsModal>
   </div>
 </template>
+
+<style scoped>
+/**
+ * The assembly owns no colour.
+ *
+ * `ProviderSelector` carries the whole visual treatment of the control group
+ * and `ProviderSettingsModal` teleports to <body>, so all this wrapper does is
+ * fill the row its host laid out for it and refuse to impose a minimum width
+ * on a flex or grid parent. Placement — the padding and the divider on the
+ * Settings page — belongs to the host, which is why nothing here sets either:
+ * the same component drops into a node editor rail unchanged.
+ */
+
+.provider-configurator {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  font-family: var(--body);
+}
+</style>

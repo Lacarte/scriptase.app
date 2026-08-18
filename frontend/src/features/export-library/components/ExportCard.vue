@@ -356,40 +356,45 @@ onMounted(() => {
 
 <style scoped>
 .export-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.25s, transform 0.2s;
-  outline: none;
   display: flex;
   flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  outline: none;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.14s, box-shadow 0.16s, transform 0.12s;
 }
 
 .export-card:hover {
-  border-color: var(--border-hover);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  transform: translateY(-1px);
+  border-color: var(--line-2);
+  transform: translateY(-2px);
+  box-shadow: var(--hairline-top), 0 12px 30px -14px rgba(0, 0, 0, 0.7);
 }
 
+/* Arriving from ?project= is an active state, so it gets the duotone ring. */
 .export-card.highlighted {
-  border-color: #4ECDC4;
-  box-shadow:
-    0 0 0 1px rgba(78, 205, 196, 0.85),
-    0 0 0 10px rgba(78, 205, 196, 0.10),
-    0 18px 40px rgba(78, 205, 196, 0.18);
-  animation: highlight-pulse 1.6s ease-in-out 3;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring), var(--accent-cast);
+  animation: highlight-pulse 1.6s var(--ease-spring) 3;
 }
 
 @keyframes highlight-pulse {
-  0%, 100% { transform: translateY(0); box-shadow: 0 0 0 1px rgba(78,205,196,0.85), 0 0 0 10px rgba(78,205,196,0.1), 0 18px 40px rgba(78,205,196,0.18); }
-  50% { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(78,205,196,1), 0 0 0 14px rgba(78,205,196,0.14), 0 22px 44px rgba(78,205,196,0.24); }
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 3px var(--accent-ring), var(--accent-cast);
+  }
+  50% {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 6px var(--accent-ring), var(--accent-cast-lg);
+  }
 }
 
 /* ---- Video ---- */
 .video-wrap {
   position: relative;
-  background: #000;
+  background: var(--bg);
   aspect-ratio: 9 / 16;
   max-height: 380px;
   overflow: hidden;
@@ -421,7 +426,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
+  color: var(--faint);
 }
 
 /* ---- Content ---- */
@@ -441,8 +446,10 @@ onMounted(() => {
 }
 
 .project-name {
+  font-family: var(--display);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.1px;
   color: var(--text);
   margin: 0;
   overflow: hidden;
@@ -451,40 +458,45 @@ onMounted(() => {
   min-width: 0;
 }
 
+/* Style is metadata, not status and not an action — the scheduled hue of the
+   ramp carries it without borrowing the accent. */
 .style-badge {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 9px;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 9.5px;
   font-weight: 600;
-  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
   padding: 2px 8px;
-  border-radius: 4px;
-  color: var(--badge-color);
-  background: color-mix(in srgb, var(--badge-color) 12%, transparent);
-  letter-spacing: 0.02em;
+  border-radius: 5px;
+  color: var(--sched);
+  background: var(--sched-dim);
+  box-shadow: inset 0 0 0 1px var(--sched-line);
 }
 
 .style-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--badge-color);
+  background: currentColor;
+  flex: none;
 }
 
 .filename {
-  font-family: var(--font-mono);
+  font-family: var(--mono);
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--muted);
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: 0.7;
 }
 
-/* ---- Metadata chips ---- */
+/* ---- Metadata chips ----
+   The base .chip is the shared primitive; only the variants live here, and
+   they read off the status ramp rather than a palette of their own. */
 .meta-row {
   display: flex;
   align-items: center;
@@ -493,28 +505,36 @@ onMounted(() => {
   margin: 2px 0 4px;
 }
 
-.chip {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: var(--bg-darkest);
-  color: var(--text-muted);
-  white-space: nowrap;
+.chip--teal {
+  color: var(--ok);
+  background: var(--ok-dim);
+  border-color: var(--ok-line);
 }
 
-.chip--teal { color: #4ECDC4; background: rgba(78, 205, 196, 0.1); }
-.chip--amber { color: #FFB347; background: rgba(255, 179, 71, 0.1); }
-.chip--purple { color: #A78BFA; background: rgba(167, 139, 250, 0.1); }
-.chip--purple-bold { color: #C084FC; background: rgba(192, 132, 252, 0.12); font-weight: 600; }
+.chip--amber {
+  color: var(--warn);
+  background: var(--warn-dim);
+  border-color: var(--warn-line);
+}
+
+.chip--purple,
+.chip--purple-bold {
+  color: var(--sched);
+  background: var(--sched-dim);
+  border-color: var(--sched-line);
+}
+
+.chip--purple-bold {
+  font-weight: 600;
+}
 
 /* ---- Actions ---- */
 .actions {
   display: flex;
   gap: 6px;
   margin-top: auto;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
 }
 
 .dl-btn {
@@ -522,94 +542,97 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 7px 8px;
-  font-size: 10px;
-  font-weight: 600;
-  font-family: var(--font-mono);
-  border: 1px solid var(--border);
+  gap: 6px;
+  padding: 7px 9px;
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
+  background: var(--panel-grad);
+  color: var(--text-2);
   cursor: pointer;
-  transition: all 0.15s;
+  white-space: nowrap;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: background 0.16s, border-color 0.16s, color 0.14s,
+    box-shadow 0.16s, transform 0.12s var(--ease-spring);
 }
 
 .dl-btn:hover {
-  border-color: var(--border-hover);
+  background: var(--panel-grad2);
+  border-color: var(--line-2);
   color: var(--text);
-  background: var(--bg-darkest);
+  transform: translateY(-1px);
 }
 
 .dl-btn--accent {
-  border-color: rgba(78, 205, 196, 0.3);
   color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
 }
 
 .dl-btn--accent:hover {
-  border-color: var(--accent);
-  background: rgba(78, 205, 196, 0.08);
   color: var(--accent);
+  border-color: var(--accent-line-2);
+  background: var(--accent-dim);
 }
 
 .dl-btn--danger {
   flex: 0.85;
-  color: #FF9A9A;
-  border-color: rgba(255, 107, 107, 0.35);
-  background: rgba(255, 107, 107, 0.05);
+  color: var(--fail);
+  border-color: var(--fail-line);
+  background: transparent;
+  box-shadow: none;
 }
 
 .dl-btn--danger:hover {
-  color: #FF6B6B;
-  border-color: rgba(255, 107, 107, 0.6);
-  background: rgba(255, 107, 107, 0.12);
+  color: var(--fail);
+  border-color: var(--fail-line-2);
+  background: var(--fail-dim);
 }
 
 /* ---- Timing chip & panel ---- */
 .chip--timing {
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #56CCF2;
-  background: rgba(86, 204, 242, 0.08);
-  border: 1px solid rgba(86, 204, 242, 0.15);
-  transition: all 0.15s;
+  color: var(--run);
+  background: var(--run-dim);
+  border-color: var(--run-line);
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
 }
+
 .chip--timing:hover {
-  background: rgba(86, 204, 242, 0.15);
-  border-color: rgba(86, 204, 242, 0.3);
+  color: var(--text);
+  border-color: var(--run-line);
 }
+
 .chip-chevron {
   transition: transform 0.2s;
   opacity: 0.6;
 }
+
 .chip-chevron.open {
   transform: rotate(180deg);
 }
 
 .chip--details {
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #c7d2fe;
-  background: rgba(199, 210, 254, 0.08);
-  border: 1px solid rgba(199, 210, 254, 0.16);
-  transition: all 0.15s;
+  color: var(--text-2);
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
 }
 
 .chip--details:hover {
-  background: rgba(199, 210, 254, 0.14);
-  border-color: rgba(199, 210, 254, 0.3);
+  color: var(--text);
+  border-color: var(--line-2);
 }
 
+/* A recessed well inside the card, matching the shared `.well`. */
 .details-panel,
 .timing-panel {
-  background: var(--bg-darkest);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  box-shadow: var(--hairline-top);
+  padding: 11px 13px;
   margin: 2px 0 4px;
 }
 
@@ -631,23 +654,24 @@ onMounted(() => {
 }
 
 .detail-label {
-  font-family: var(--font-mono);
-  font-size: 8px;
-  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.7px;
 }
 
 .detail-value {
   color: var(--text);
-  font-size: 11px;
-  line-height: 1.4;
+  font-family: var(--body);
+  font-size: 12px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
 .detail-value--mono {
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
 }
 
 .timing-steps {
@@ -669,59 +693,59 @@ onMounted(() => {
 }
 
 .timing-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.7px;
 }
 
 .timing-bar-track {
   height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  background: var(--raise);
   overflow: hidden;
 }
 
 .timing-bar-fill {
   height: 100%;
-  border-radius: 2px;
+  border-radius: 3px;
   min-width: 2px;
+  background: var(--run);
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .timing-value {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 700;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-2);
   text-align: right;
-  letter-spacing: -0.02em;
 }
 
 .timing-total {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
 }
 
 .timing-total span:first-child {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.7px;
 }
 
 .timing-total-value {
-  font-family: var(--font-mono);
+  font-family: var(--mono);
   font-size: 11px;
-  font-weight: 800;
-  color: #56CCF2;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--run);
 }
 
 /* Slide transition */
@@ -747,6 +771,12 @@ onMounted(() => {
 @media (max-width: 640px) {
   .details-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .export-card.highlighted {
+    animation: none;
   }
 }
 </style>

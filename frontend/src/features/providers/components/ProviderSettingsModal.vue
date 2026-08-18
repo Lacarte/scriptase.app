@@ -280,10 +280,30 @@ watch(
 </template>
 
 <style scoped>
+/**
+ * The provider settings dialog.
+ *
+ * A lifted panel over a blurred wash: `--panel-grad2` on `--line` at the large
+ * radius, with the layered ambient shadow plus a long cast so the dialog sits
+ * clearly above the page. The footer is a recessed shelf (`--bg-2` under a
+ * `--line-soft` hairline) that anchors the actions.
+ *
+ * The button rules are qualified with `.modal-footer` on purpose: this
+ * template uses `.btn .btn-secondary` / `.btn .btn-primary`, and the global
+ * `.btn` in styles/shared.css is the base layer. Qualifying puts these
+ * overrides above it regardless of stylesheet injection order.
+ *
+ * `.availability-pill`, `.test-result`'s border and `.status-dot` take their
+ * colour from an inline binding (`toneColor()` in ../availability.js); the
+ * rules here own their geometry and typography only.
+ */
+
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(4, 6, 9, 0.68);
+  -webkit-backdrop-filter: blur(4px) saturate(1.1);
+  backdrop-filter: blur(4px) saturate(1.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -291,80 +311,111 @@ watch(
 }
 
 .modal-content {
-  background: var(--bg-surface, #1f1f23);
-  border: 1px solid var(--border, #3f3f46);
-  border-radius: 12px;
   width: 90%;
   max-width: 520px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  background: var(--panel-grad2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  box-shadow: var(--shadow), 0 40px 80px -30px rgba(0, 0, 0, 0.85);
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border, #3f3f46);
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .header-main {
   display: flex;
   align-items: baseline;
   gap: 10px;
+  min-width: 0;
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 18px;
-  color: var(--text, #e5e5e5);
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--text);
 }
 
 .availability-pill {
-  font-size: 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: var(--text-secondary, #9ca3af);
-  cursor: pointer;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
   padding: 0;
+  border: none;
+  border-radius: var(--r-s);
+  background: none;
+  font-size: 22px;
   line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.14s, background 0.14s;
 }
 
 .close-btn:hover {
-  color: var(--text, #e5e5e5);
+  color: var(--text);
+  background: var(--panel-2);
 }
 
 .modal-body {
   padding: 20px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
 }
 
 .provider-description {
-  font-size: 13px;
-  color: var(--text-secondary, #9ca3af);
-  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  margin: 0 0 14px;
 }
 
 .capability-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
-.badge {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--bg-elevated, #2a2a2f);
-  border: 1px solid var(--border, #3f3f46);
-  color: var(--text-secondary, #9ca3af);
+/* Capability is metadata, so it is the neutral kind tag — never the accent.
+   The global `.badge` is the base layer; this narrows it. */
+.capability-badges .badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--text-2);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
 }
 
 .provider-links {
@@ -375,87 +426,120 @@ watch(
 }
 
 .provider-links a {
-  color: var(--accent, #4ECDC4);
+  color: var(--accent);
+  transition: color 0.14s;
+}
+
+.provider-links a:hover {
+  color: var(--accent-2);
+  text-decoration: underline;
 }
 
 .modal-footer {
   display: flex;
-  gap: 12px;
-  padding: 16px 20px;
-  border-top: 1px solid var(--border, #3f3f46);
+  gap: 8px;
   justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-2);
 }
 
 .loading-state {
   text-align: center;
   padding: 40px;
-  color: var(--text-secondary, #9ca3af);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.4px;
+  color: var(--muted);
 }
 
 .validation-banner {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 6px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: var(--r-s);
   margin-bottom: 16px;
-  font-size: 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
 }
 
 .validation-banner.error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: var(--fail-dim);
+  border-color: var(--fail-line);
+  color: var(--fail-text);
 }
 
+/* The probe readout. Its border colour arrives inline from the health tone. */
 .test-result {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 6px;
+  gap: 9px;
+  padding: 10px 13px;
+  border-radius: var(--r-s);
   margin-bottom: 16px;
-  font-size: 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  color: var(--text-2);
 }
 
 .status-dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
+  flex: none;
+  background: var(--faint);
 }
 
-.btn {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
+.modal-footer .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel-grad);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
-  border: none;
-  transition: opacity 0.15s;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: background 0.16s, border-color 0.16s, color 0.14s,
+    box-shadow 0.16s, filter 0.16s, transform 0.12s var(--ease-spring);
 }
 
-.btn:disabled {
-  opacity: 0.5;
+.modal-footer .btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
+  filter: none;
 }
 
-.btn-primary {
-  background: var(--accent, #4ECDC4);
-  color: white;
+.modal-footer .btn-secondary:hover:not(:disabled) {
+  background: var(--panel-grad2);
+  border-color: var(--line-2);
+  transform: translateY(-1px);
 }
 
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
+.modal-footer .btn-primary {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast);
 }
 
-.btn-secondary {
-  background: var(--bg-elevated, #2a2a2f);
-  color: var(--text, #e5e5e5);
-  border: 1px solid var(--border, #3f3f46);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--bg-surface-hover, #3a3a3f);
+.modal-footer .btn-primary:hover:not(:disabled) {
+  filter: brightness(1.07) saturate(1.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast-lg);
 }
 </style>

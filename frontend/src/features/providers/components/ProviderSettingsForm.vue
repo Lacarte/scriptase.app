@@ -299,104 +299,166 @@ const orphanIssues = computed(() => {
 </template>
 
 <style scoped>
+/**
+ * The one provider settings renderer — the prototype's `.pv-field` rhythm.
+ *
+ * Every label is the mono/uppercase eyebrow, every control is a panel-on-line
+ * box that takes the accent ring on focus, and a validation failure recolours
+ * the border on the status ramp. The accent appears on the focus ring, the
+ * slider thumb and the checked toggle only: the states the operator is acting
+ * on right now.
+ *
+ * A stored secret is rendered as a recessed well holding a *word*, never a
+ * value — the masking itself lives in the script (§22.6) and nothing here may
+ * change what that readout contains.
+ */
+
 .provider-settings-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text);
 }
 
 .form-empty {
-  font-size: 13px;
-  color: var(--text-secondary, #9ca3af);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
   margin: 0;
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.form-field.has-error .field-input {
-  border-color: var(--accent-error, #ef4444);
+  gap: 8px;
 }
 
 .field-label {
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
   font-weight: 500;
-  color: var(--text, #e5e5e5);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .required-badge {
-  color: var(--accent-error, #ef4444);
-  margin-left: 4px;
+  color: var(--fail);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .field-description {
   font-size: 12px;
-  color: var(--text-secondary, #9ca3af);
+  line-height: 1.5;
+  color: var(--muted);
   margin: 0;
 }
 
 .field-note {
-  font-size: 12px;
-  color: var(--text-secondary, #9ca3af);
-  margin: 2px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0;
 }
 
 .field-input {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border, #3f3f46);
-  border-radius: 6px;
-  background: var(--bg-surface, #1f1f23);
-  color: var(--text, #e5e5e5);
-  font-size: 14px;
-  transition: border-color 0.15s;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+.field-input::placeholder {
+  color: var(--faint);
 }
 
 .field-input:focus {
   outline: none;
-  border-color: var(--accent, #4ECDC4);
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* A blocking issue outranks focus, so the field keeps saying it is wrong
+   while it is being corrected. */
+.form-field.has-error .field-input {
+  border-color: var(--fail-line-2);
+}
+
+.form-field.has-error .field-input:focus {
+  box-shadow: 0 0 0 3px var(--fail-dim);
 }
 
 .field-textarea {
   resize: vertical;
-  font-family: inherit;
+  line-height: 1.55;
+  font-family: var(--body);
 }
 
 select.field-input {
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
   padding-right: 32px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237c8698' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
 }
 
 .secret-field {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
+/* A secret is entered as mono: it is a key, not prose. */
+.secret-field .field-input {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* Recessed well. It carries the word "Saved — hidden" and nothing else. */
 .secret-stored {
   flex: 1;
-  padding: 10px 12px;
-  border: 1px dashed var(--border, #3f3f46);
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--text-secondary, #9ca3af);
+  padding: 9px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--muted);
 }
 
 .link-btn {
+  flex: none;
   background: none;
   border: none;
-  color: var(--accent, #4ECDC4);
-  font-size: 13px;
-  cursor: pointer;
   padding: 0;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  cursor: pointer;
   white-space: nowrap;
+  transition: color 0.14s;
+}
+
+.link-btn:hover {
+  color: var(--accent-2);
 }
 
 .slider-field {
@@ -407,34 +469,47 @@ select.field-input {
 
 .slider-input {
   flex: 1;
-  height: 6px;
+  height: 4px;
   border-radius: 3px;
-  background: var(--border, #3f3f46);
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line);
   appearance: none;
   cursor: pointer;
 }
 
 .slider-input::-webkit-slider-thumb {
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: var(--accent, #4ECDC4);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring), var(--accent-cast);
+  cursor: pointer;
+}
+
+.slider-input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring), var(--accent-cast);
   cursor: pointer;
 }
 
 .slider-value {
-  min-width: 48px;
+  min-width: 44px;
   text-align: right;
-  font-size: 14px;
-  font-family: monospace;
-  color: var(--text, #e5e5e5);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
 }
 
 .toggle-field {
   position: relative;
   display: inline-block;
-  width: 48px;
+  flex: none;
+  width: 44px;
   height: 24px;
   cursor: pointer;
 }
@@ -448,9 +523,10 @@ select.field-input {
 .toggle-slider {
   position: absolute;
   inset: 0;
-  background: var(--border, #3f3f46);
   border-radius: 24px;
-  transition: background 0.2s;
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: background 0.2s, box-shadow 0.2s;
 }
 
 .toggle-slider::before {
@@ -460,37 +536,43 @@ select.field-input {
   height: 18px;
   left: 3px;
   bottom: 3px;
-  background: white;
   border-radius: 50%;
-  transition: transform 0.2s;
+  background: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  transition: transform 0.2s var(--ease-spring);
 }
 
 .toggle-input:checked + .toggle-slider {
-  background: var(--accent, #4ECDC4);
+  background: var(--accent-grad);
+  box-shadow: inset 0 0 0 1px var(--accent-line-2), var(--accent-cast);
 }
 
 .toggle-input:checked + .toggle-slider::before {
-  transform: translateX(24px);
+  transform: translateX(20px);
 }
 
 .field-issues {
-  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
 }
 
 .issue-message {
   font-size: 12px;
-  margin: 2px 0;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .issue-message.error {
-  color: var(--accent-error, #ef4444);
+  color: var(--fail);
 }
 
 .issue-message.warning {
-  color: var(--accent-warning, #f59e0b);
+  color: var(--warn);
 }
 
 .issue-message.info {
-  color: var(--text-secondary, #9ca3af);
+  color: var(--muted);
 }
 </style>

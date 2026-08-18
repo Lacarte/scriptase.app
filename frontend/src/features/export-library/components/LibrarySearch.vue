@@ -181,40 +181,50 @@ function clearAll() {
   flex-wrap: wrap;
 }
 
-/* Search input */
+/* Search input — the shared `.search-field` geometry, on the wrap the
+   template already provides. */
 .search-input-wrap {
   position: relative;
   display: flex;
   align-items: center;
+  gap: 8px;
   flex: 1;
   min-width: 200px;
-  background: var(--bg-darkest);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  padding: 7px 11px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.search-input-wrap.focused {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.1);
+
+.search-input-wrap.focused,
+.search-input-wrap:focus-within {
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
-.search-icon { color: var(--text-muted); flex-shrink: 0; }
+
+.search-icon { color: var(--muted); flex-shrink: 0; }
+
 .search-input {
   flex: 1;
-  background: none;
+  min-width: 0;
+  background: transparent;
   border: none;
   outline: none;
   color: var(--text);
-  font-size: 11px;
-  font-family: var(--font-mono);
-  padding: 7px 8px;
+  font-family: var(--body);
+  font-size: 13px;
+  padding: 0;
 }
-.search-input::placeholder { color: var(--text-muted); opacity: 0.6; }
+
+.search-input::placeholder { color: var(--faint); }
+
 .search-clear {
   display: flex; align-items: center; padding: 3px; background: none; border: none;
-  color: var(--text-muted); cursor: pointer; border-radius: 3px; transition: color 0.15s;
+  color: var(--muted); cursor: pointer; border-radius: 4px; transition: color 0.15s;
 }
-.search-clear:hover { color: var(--accent); }
+
+.search-clear:hover { color: var(--text); }
 
 /* Suggestions */
 .search-suggestions {
@@ -222,43 +232,48 @@ function clearAll() {
   top: 100%;
   left: 0;
   right: 0;
-  margin-top: 4px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  margin-top: 5px;
+  background: var(--panel-grad2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  box-shadow: var(--shadow);
   z-index: 50;
   overflow: hidden;
 }
+
 .search-sug-item {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 12px;
+  padding: 8px 12px;
   background: none;
   border: none;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line-soft);
   color: var(--text);
   cursor: pointer;
-  font-size: 11px;
+  font-family: var(--body);
+  font-size: 13px;
   transition: background 0.1s;
   text-align: left;
 }
+
 .search-sug-item:last-child { border-bottom: none; }
-.search-sug-item:hover { background: rgba(78,205,196,0.06); }
+.search-sug-item:hover { background: var(--panel-2); }
+
 .sug-type {
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 700;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 1px 5px;
-  border-radius: 3px;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 5px;
   flex-shrink: 0;
 }
-.sug-type--style { color: #A78BFA; background: rgba(167,139,250,0.1); }
-.sug-type--project { color: #4ECDC4; background: rgba(78,205,196,0.1); }
+
+.sug-type--style { color: var(--sched); background: var(--sched-dim); box-shadow: inset 0 0 0 1px var(--sched-line); }
+.sug-type--project { color: var(--run); background: var(--run-dim); box-shadow: inset 0 0 0 1px var(--run-line); }
 .sug-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .sug-fade-enter-active { animation: sug-in 0.12s ease-out; }
@@ -275,51 +290,65 @@ function clearAll() {
 }
 
 .f-select {
-  background: var(--bg-darkest);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 10px;
-  font-family: var(--font-mono);
+  background: var(--panel);
+  color: var(--text-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  padding: 7px 10px;
+  font-family: var(--body);
+  font-size: 12.5px;
   cursor: pointer;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, color 0.14s, background 0.14s;
 }
-.f-select:hover, .f-select:focus { border-color: var(--border-hover); }
-.f-select.active { border-color: rgba(78,205,196,0.4); color: var(--accent); }
+
+.f-select:hover { border-color: var(--line-2); }
+
+.f-select:focus {
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* A filter that is actually filtering is an active state. */
+.f-select.active {
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
 
 /* Meta row */
 .search-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 6px;
+  margin-top: 8px;
   min-height: 20px;
 }
+
 .search-meta-left { display: flex; gap: 6px; align-items: center; }
 
 .clear-all-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  font-size: 9px;
-  font-weight: 600;
-  font-family: var(--font-mono);
-  border: 1px solid rgba(255, 107, 107, 0.3);
-  border-radius: 4px;
+  gap: 6px;
+  padding: 4px 9px;
+  font-family: var(--body);
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid var(--fail-line);
+  border-radius: 6px;
   background: transparent;
-  color: #FF6B6B;
+  color: var(--fail);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.16s, border-color 0.16s, color 0.14s;
 }
-.clear-all-btn:hover { background: rgba(255, 107, 107, 0.08); border-color: #FF6B6B; }
+
+.clear-all-btn:hover { background: var(--fail-dim); border-color: var(--fail-line-2); }
 
 .search-count {
-  font-family: var(--font-mono);
+  font-family: var(--mono);
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 @media (max-width: 700px) {

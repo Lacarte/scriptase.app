@@ -245,70 +245,102 @@ async function onFileChosen(event) {
 .input-picker {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid var(--border, #2a3140);
-  border-radius: 8px;
-  background: var(--surface-2, #12161f);
+  gap: 7px;
+  padding: 10px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+  box-shadow: var(--hairline-top);
 }
 .picker-row {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
+  gap: 7px;
+  font-size: 13px;
 }
 .picker-label {
   font-weight: 600;
-  color: var(--text, #e8ecf4);
+  color: var(--text);
 }
 .picker-badge {
-  font-size: 0.7rem;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #f0b429;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  color: var(--warn);
+  background: var(--warn-dim);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
 }
 .picker-type {
   margin-left: auto;
-  font-size: 0.75rem;
-  color: var(--muted, #8b93a7);
-  font-family: ui-monospace, monospace;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
 }
 .picker-select,
 .picker-input,
 .picker-textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--border, #2a3140);
-  border-radius: 6px;
-  background: var(--surface, #0d1118);
-  color: var(--text, #e8ecf4);
-  font-size: 0.82rem;
-  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
+  padding: 9px 11px;
+}
+.picker-textarea {
+  line-height: 1.55;
+  resize: vertical;
+}
+.picker-select {
+  cursor: pointer;
+}
+.picker-select:focus,
+.picker-input:focus,
+.picker-textarea:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.picker-input::placeholder,
+.picker-textarea::placeholder {
+  color: var(--faint);
 }
 .picker-fields {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 6px;
 }
 .picker-file {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.82rem;
+  gap: 7px;
+  font-size: 13px;
   cursor: pointer;
-  color: var(--accent, #6ea8fe);
+  color: var(--accent);
 }
 .picker-file input {
   max-width: 100%;
 }
 .picker-hint {
   margin: 0;
-  font-size: 0.75rem;
-  color: var(--muted, #8b93a7);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.picker-hint code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
 }
 .picker-error {
   margin: 0;
-  font-size: 0.78rem;
-  color: #f87171;
+  font-size: 12.5px;
+  color: var(--fail);
 }
 </style>

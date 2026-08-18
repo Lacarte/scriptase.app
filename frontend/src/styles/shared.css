@@ -1,114 +1,620 @@
 /**
- * Shared component styles used across all Vue pages.
- * Eliminates duplication of .card, .page-title, .page-subtitle,
- * .section-label, .action-btn patterns from scoped styles.
+ * Scriptase — shared primitives.
+ *
+ * The prototype's component vocabulary, expressed *only* in the tokens from
+ * theme.css. Nothing here hardcodes a colour, which is what lets the Editor
+ * keep its teal identity: `.editor-page` re-tints --accent / --accent-2 /
+ * --accent-grad / --accent-dim, and every primitive below follows it.
+ *
+ * The signature of the system, applied consistently:
+ *   - a raised panel is `--panel-grad` + 1px `--line` + `--hairline-top`,
+ *     so the surface reads as lit from above;
+ *   - the duotone accent appears on primary and active states only;
+ *   - status uses the ramp (--run / --ok / --fail / --warn / --queue /
+ *     --sched) with its `-dim` partner as the wash and an inset hairline.
  */
 
-/* ---- Card ---- */
-.card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  margin-bottom: 16px;
-  transition: border-color 0.2s;
+/* ================================================================
+   Focus — one consistent ring, replacing the UA outline
+   ================================================================ */
+:focus {
+  outline: none;
 }
 
-/* ---- Page Header ---- */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-s);
+}
+
+/* ================================================================
+   Surfaces
+   ================================================================ */
+.card,
+.panel {
+  background: var(--panel-grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.card:hover,
+.panel:hover {
+  border-color: var(--line-2);
+}
+
+/* A recessed well: inputs, code blocks, read-only readouts. */
+.well {
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  box-shadow: var(--hairline-top);
+}
+
+/* ================================================================
+   Page headers and micro-labels
+   ================================================================ */
 .page-title {
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 700;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
   color: var(--text);
   margin: 0;
 }
 
 .page-subtitle {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 5px;
+  line-height: 1.5;
 }
 
-/* ---- Section Label ---- */
+/* The prototype's mono/uppercase eyebrow, used on every field and section. */
 .section-label {
   display: block;
+  font-family: var(--mono);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: var(--text-muted);
-  margin-bottom: 12px;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin-bottom: 11px;
 }
 
-/* ---- Action Button ---- */
-.action-btn {
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  font-family: 'JetBrains Mono', monospace;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
+.mono,
+.font-mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* ================================================================
+   Buttons
+   ================================================================ */
+.btn {
+  border: 1px solid var(--line);
+  background: var(--panel-grad);
+  color: var(--text);
+  border-radius: var(--r-s);
+  padding: 9px 14px;
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: background 0.16s, border-color 0.16s, color 0.14s,
+    box-shadow 0.16s, transform 0.12s var(--ease-spring);
 }
 
-.action-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+.btn:hover:not(:disabled) {
+  background: var(--panel-grad2);
+  border-color: var(--line-2);
+  transform: translateY(-1px);
+  box-shadow: var(--hairline-top), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
 }
 
-.action-btn:disabled {
-  opacity: 0.5;
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--hairline-top), inset 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
-.action-btn.accent {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* ---- Project Badge ---- */
-.project-badge,
-.module-project-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+/* The duotone appears here and on active states — nowhere else. */
+.btn.primary,
+.gen-btn {
+  background: var(--accent-grad);
+  border: 1px solid transparent;
+  color: #fff;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(78, 205, 196, 0.12);
-  color: var(--accent);
-  letter-spacing: 0.03em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast);
 }
 
-/* ---- Generate Button ---- */
+.btn.primary:hover:not(:disabled),
+.gen-btn:hover:not(:disabled) {
+  filter: brightness(1.07) saturate(1.05);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast-lg);
+}
+
+.btn.ghost {
+  background: transparent;
+  box-shadow: none;
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: var(--panel);
+  box-shadow: var(--hairline-top);
+}
+
+.btn.danger {
+  color: var(--fail);
+  border-color: var(--fail-line);
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: var(--fail-dim);
+  border-color: var(--fail-line-2);
+}
+
+.btn.warn {
+  color: var(--warn);
+  border-color: var(--warn-line);
+}
+
+.btn.warn:hover:not(:disabled) {
+  background: var(--warn-dim);
+  border-color: var(--warn-line);
+}
+
+.btn.block {
+  width: 100%;
+}
+
+.btn.sm {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.btn.xs {
+  padding: 4px 9px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+
 .gen-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 24px;
-  border-radius: 10px;
+  padding: 11px 22px;
+  border-radius: var(--r-s);
+  font-family: var(--body);
   font-size: 13px;
-  font-weight: 600;
-  color: white;
-  border: none;
   cursor: pointer;
-  background: linear-gradient(135deg, var(--accent), #3BA89F);
-  transition: opacity 0.2s, box-shadow 0.2s;
-}
-
-.gen-btn:hover:not(:disabled) {
-  opacity: 0.9;
-  box-shadow: 0 4px 20px rgba(78, 205, 196, 0.3);
+  transition: filter 0.16s, box-shadow 0.16s, transform 0.12s var(--ease-spring);
 }
 
 .gen-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* The compact mono action used inside panel headers. */
+.action-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.14s, color 0.14s, background 0.14s;
+}
+
+.action-btn:hover:not(:disabled) {
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.action-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* ---- Font Mono ---- */
-.font-mono {
-  font-family: 'JetBrains Mono', monospace;
+.action-btn.accent {
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+/* ================================================================
+   Status badges — the ramp, never the accent
+   ================================================================ */
+.badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: var(--queue);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.badge .bd {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.badge.b-running,
+.badge.b-preparing {
+  color: var(--run);
+  background: var(--run-dim);
+  box-shadow: inset 0 0 0 1px var(--run-line);
+}
+
+.badge.b-running .bd {
+  box-shadow: 0 0 6px var(--run);
+  animation: badge-blink 1.2s infinite;
+}
+
+.badge.b-preparing .bd {
+  animation: badge-blink 1.2s infinite;
+}
+
+.badge.b-succeeded,
+.badge.b-completed {
+  color: var(--ok);
+  background: var(--ok-dim);
+  box-shadow: inset 0 0 0 1px var(--ok-line);
+}
+
+.badge.b-failed {
+  color: var(--fail);
+  background: var(--fail-dim);
+  box-shadow: inset 0 0 0 1px var(--fail-line);
+}
+
+.badge.b-stopping,
+.badge.b-stopped,
+.badge.b-warning {
+  color: var(--warn);
+  background: var(--warn-dim);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+}
+
+.badge.b-stopping .bd {
+  animation: badge-blink 1.2s infinite;
+}
+
+.badge.b-paused,
+.badge.b-scheduled,
+.badge.b-awaiting {
+  color: var(--sched);
+  background: var(--sched-dim);
+  box-shadow: inset 0 0 0 1px var(--sched-line);
+}
+
+.badge.b-cancelled,
+.badge.b-queued {
+  color: var(--queue);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.badge.b-cancelled .bd {
+  background: var(--faint);
+}
+
+@keyframes badge-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ================================================================
+   Chips — inherited values, tags, counts
+   ================================================================ */
+.chip {
+  font-size: 11px;
+  color: var(--text-2);
+  border: 1px solid var(--line-soft);
+  background: var(--bg-2);
+  border-radius: 20px;
+  padding: 3px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.chip .k {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.chip.accent {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
+}
+
+/* The mono identity tag on a project / channel / instance reference. */
+.project-badge,
+.module-project-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+/* ================================================================
+   Fields and controls
+   ================================================================ */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field > label,
+.field > .lbl {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
+  padding: 9px 11px;
+}
+
+.textarea {
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.input.mono,
+.textarea.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237c8698' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--faint);
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* `.search-field`, not `.search`: several views already use `.search` on the
+   bare <input>, and a flex-container rule would land on the wrong element. */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  padding: 7px 11px;
+}
+
+.search-field:focus-within {
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
+}
+
+.search-field input::placeholder {
+  color: var(--faint);
+}
+
+/* ================================================================
+   Progress
+   ================================================================ */
+.progress {
+  height: 4px;
+  background: var(--raise);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress .fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  border-radius: 3px;
+  background: var(--run);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress .fill.ok { background: var(--ok); }
+.progress .fill.fail { background: var(--fail); }
+.progress .fill.warn { background: var(--warn); }
+
+/* ================================================================
+   Counters and empty states
+   ================================================================ */
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.stat .num {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.stat .lbl {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.stat.running .num { color: var(--run); }
+.stat.done .num { color: var(--ok); }
+.stat.failed .num { color: var(--fail); }
+.stat.queued .num { color: var(--text-2); }
+
+/* `.empty-state` is the prototype's hero placeholder. `.empty` is left alone
+   on purpose — half a dozen views already use it for a one-line note, and
+   the hero's padding would swamp them. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+  color: var(--muted);
+}
+
+.empty-state .ic {
+  width: 66px;
+  height: 66px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--faint);
+  margin-bottom: 20px;
+}
+
+.empty-state h3 {
+  font-size: 17px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  font-size: 13px;
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+/* ================================================================
+   Advisory banners — status wash + status hairline
+   ================================================================ */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: var(--r-s);
+  font-size: 12.5px;
+  line-height: 1.55;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
+
+.banner.error {
+  background: var(--fail-dim);
+  border-color: var(--fail-line);
+  color: var(--fail-text);
+}
+
+.banner.warn {
+  background: var(--warn-dim);
+  border-color: var(--warn-line);
+  color: var(--warn-text);
+}
+
+.banner.ok {
+  background: var(--ok-dim);
+  border-color: var(--ok-line);
+  color: var(--ok);
+}
+
+.banner.info {
+  background: var(--run-dim);
+  border-color: var(--run-line);
+  color: var(--run);
+}
+
+/* ================================================================
+   Reduced motion — kill every looping animation, keep the state
+   ================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .badge .bd,
+  .progress .fill {
+    animation: none !important;
+  }
 }

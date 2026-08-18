@@ -627,161 +627,306 @@ onMounted(load)
 </template>
 
 <style scoped>
+/* Channel editor — the prototype's `.ch-body` section stack. Each fieldset
+   is a raised, lit panel; every control is the recessed field primitive with
+   a mono/uppercase eyebrow; the accent duotone is reserved for the primary
+   action and the focus ring. */
+
 .editor {
   max-width: 880px;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 3rem;
-  font-family: "Segoe UI", system-ui, sans-serif;
-  color: #e8eaed;
+  padding: 24px 20px 48px;
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text);
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .back {
-  color: #8ab4f8;
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--muted);
   text-decoration: none;
-  font-size: 0.9rem;
+  transition: color 0.14s;
+}
+
+.back:hover {
+  color: var(--accent);
 }
 
 h1 {
-  margin: 0.25rem 0 0.2rem;
-  font-size: 1.5rem;
-  font-weight: 650;
+  margin: 6px 0 5px;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--text);
 }
 
 .meta-line {
   margin: 0;
-  color: #9aa0a6;
-  font-size: 0.85rem;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
+/* A recessed well for the identity readout. */
 .meta-line code {
-  font-family: ui-monospace, Consolas, monospace;
-  background: #2d2e30;
-  padding: 0.05rem 0.35rem;
-  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-2);
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  padding: 1px 6px;
+  border-radius: 5px;
 }
 
 .actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
   align-items: flex-start;
+  flex-shrink: 0;
 }
 
+/* The template carries bare .primary / .ghost / .danger rather than .btn,
+   so the shared button primitive is restated here on the element itself. */
 button {
-  border: 1px solid #3c4043;
-  background: #2d2e30;
-  color: #e8eaed;
-  border-radius: 8px;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.9rem;
+  border: 1px solid var(--line);
+  background: var(--panel-grad);
+  color: var(--text);
+  border-radius: var(--r-s);
+  padding: 9px 14px;
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: background 0.16s, border-color 0.16s, color 0.14s,
+    box-shadow 0.16s, transform 0.12s var(--ease-spring);
+}
+
+button:hover:not(:disabled) {
+  background: var(--panel-grad2);
+  border-color: var(--line-2);
+  transform: translateY(-1px);
+  box-shadow: var(--hairline-top), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--hairline-top), inset 0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
 button.primary {
-  background: #8ab4f8;
-  border-color: #8ab4f8;
-  color: #202124;
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: #fff;
   font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast);
+}
+
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.07) saturate(1.05);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast-lg);
 }
 
 button.ghost {
   background: transparent;
+  box-shadow: none;
 }
 
+button.ghost:hover:not(:disabled) {
+  background: var(--panel);
+  box-shadow: var(--hairline-top);
+}
+
+/* Ordered after .ghost so the danger wash wins on the `.danger.ghost` rows. */
 button.danger {
-  color: #f28b82;
+  color: var(--fail);
+  border-color: var(--fail-line);
 }
 
+button.danger:hover:not(:disabled) {
+  background: var(--fail-dim);
+  border-color: var(--fail-line-2);
+}
+
+/* A section is a raised panel lit from above. */
 fieldset {
-  border: 1px solid #2d2e30;
-  border-radius: 12px;
-  margin: 0 0 1rem;
-  padding: 1rem 1.1rem 1.15rem;
-  background: #1a1a1c;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  margin: 0 0 16px;
+  padding: 16px 18px 18px;
+  background: var(--panel-grad);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.18s;
+}
+
+fieldset:hover {
+  border-color: var(--line-2);
 }
 
 legend {
-  padding: 0 0.4rem;
+  padding: 0 6px;
+  font-family: var(--display);
+  font-size: 13px;
   font-weight: 600;
-  color: #fdd663;
-  font-size: 0.9rem;
+  letter-spacing: -0.2px;
+  color: var(--text);
 }
 
+/* The field eyebrow. The control is a sibling text node's peer inside the
+   same <label>, so `text-transform` and `letter-spacing` are reset on the
+   controls below — otherwise typed values would render uppercased. */
 label {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.85rem;
-  color: #bdc1c6;
-  margin-bottom: 0.65rem;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
 }
 
 label.check {
   flex-direction: row;
   align-items: center;
-  gap: 0.45rem;
+  gap: 9px;
+  font-family: var(--body);
+  font-size: 13px;
+  letter-spacing: 0.1px;
+  text-transform: none;
+  color: var(--text-2);
+}
+
+input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: none;
 }
 
 input[type="text"],
 input[type="number"],
 input[type="file"],
 select {
-  background: #0f0f10;
-  border: 1px solid #3c4043;
-  border-radius: 8px;
-  color: #e8eaed;
-  padding: 0.45rem 0.6rem;
-  font-size: 0.95rem;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
+  letter-spacing: 0.1px;
+  text-transform: none;
+  padding: 9px 11px;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+select {
+  cursor: pointer;
+}
+
+input::placeholder {
+  color: var(--faint);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="file"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+input[type="file"] {
+  padding: 7px 9px;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+input[type="file"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.35rem 0.85rem;
+  gap: 4px 14px;
 }
 
 .hint {
-  color: #9aa0a6;
-  font-size: 0.82rem;
-  margin: 0 0 0.75rem;
-  line-height: 1.4;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 14px;
+  line-height: 1.5;
 }
 
 .hint code {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 0.78rem;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--text-2);
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  padding: 1px 5px;
+  border-radius: 5px;
 }
 
 .logo-row {
   display: flex;
-  gap: 1rem;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
 .logo-preview {
   width: 120px;
   height: 120px;
-  border-radius: 10px;
-  border: 1px dashed #5f6368;
+  border-radius: var(--r);
+  border: 1px dashed var(--line);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #0f0f10;
-  color: #9aa0a6;
-  font-size: 0.8rem;
+  background: var(--bg-2);
+  box-shadow: var(--hairline-top);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
   flex-shrink: 0;
+  transition: border-color 0.14s, background 0.14s;
+}
+
+.logo-preview:hover {
+  border-color: var(--accent-line-2);
 }
 
 .logo-preview img {
@@ -798,54 +943,75 @@ select {
 .pattern-table {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
+  gap: 6px;
+  margin-bottom: 14px;
 }
 
 .pattern-head,
 .pattern-row {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
-  gap: 0.5rem;
+  gap: 8px;
   align-items: center;
 }
 
 .pattern-head {
-  font-size: 0.75rem;
-  color: #9aa0a6;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.8px;
 }
 
 .pattern-actions {
   display: flex;
-  gap: 0.2rem;
+  gap: 4px;
 }
 
 .pattern-actions button {
-  padding: 0.25rem 0.45rem;
+  padding: 0;
+  width: 30px;
+  height: 32px;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.pattern-actions button.ghost:not(.danger) {
+  color: var(--muted);
+}
+
+.pattern-actions button.ghost:not(.danger):hover:not(:disabled) {
+  color: var(--text);
 }
 
 .error {
-  color: #f28b82;
-  background: #3c1f1e;
-  border: 1px solid #5f3a38;
-  border-radius: 8px;
-  padding: 0.6rem 0.85rem;
+  background: var(--fail-dim);
+  border: 1px solid var(--fail-line);
+  border-radius: var(--r-s);
+  color: var(--fail-text);
+  padding: 11px 13px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-bottom: 12px;
 }
 
 .success {
-  color: #81c995;
-  background: #1e3a2a;
-  border: 1px solid #2d5a3d;
-  border-radius: 8px;
-  padding: 0.6rem 0.85rem;
+  background: var(--ok-dim);
+  border: 1px solid var(--ok-line);
+  border-radius: var(--r-s);
+  color: var(--ok);
+  padding: 11px 13px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-bottom: 12px;
 }
 
 .form-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.5rem;
+  margin-top: 8px;
 }
 
 @media (max-width: 640px) {

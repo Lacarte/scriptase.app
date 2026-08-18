@@ -32,23 +32,37 @@ const { toasts, dismiss } = useToast()
 }
 
 .toast {
-  padding: 10px 20px;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 15px;
+  border-radius: var(--r);
+  font-family: var(--body);
   font-size: 13px;
   font-weight: 500;
   color: var(--text);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
   cursor: pointer;
   max-width: 380px;
 }
 
-.toast.success { border-left: 3px solid var(--accent-success); }
-.toast.error   { border-left: 3px solid var(--accent-error); }
-.toast.warning { border-left: 3px solid var(--accent-warning); }
-.toast.info    { border-left: 3px solid var(--accent-info); }
+/* The status dot — the toast markup carries no element for it, so it is
+   drawn here rather than by changing a template the tests assert on. */
+.toast::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--queue);
+}
+
+.toast.success::before { background: var(--ok); }
+.toast.error::before   { background: var(--fail); }
+.toast.warning::before { background: var(--warn); }
+.toast.info::before    { background: var(--run); }
 
 .toast-enter-active,
 .toast-leave-active {

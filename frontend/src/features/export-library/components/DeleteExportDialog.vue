@@ -103,19 +103,19 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(7, 10, 18, 0.72);
-  backdrop-filter: blur(8px);
+  background: rgba(4, 6, 9, 0.68);
+  backdrop-filter: blur(4px) saturate(1.1);
 }
 
 .dialog {
   width: min(100%, 460px);
-  border-radius: 18px;
-  border: 1px solid rgba(255, 107, 107, 0.28);
-  background:
-    radial-gradient(circle at top right, rgba(255, 107, 107, 0.08), transparent 34%),
-    linear-gradient(180deg, rgba(20, 26, 40, 0.98), rgba(14, 18, 30, 0.98));
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  border-radius: var(--r-l);
+  border: 1px solid var(--line);
+  background: var(--panel-grad2);
+  box-shadow: var(--shadow), 0 40px 80px -30px rgba(0, 0, 0, 0.85);
   overflow: hidden;
+  font-family: var(--body);
+  font-size: 13px;
 }
 
 .dialog-header {
@@ -124,16 +124,17 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
   padding: 22px 22px 16px;
 }
 
+/* The consequence is destructive, so the icon block carries the fail wash. */
 .icon-wrap {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: var(--r);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ff7b7b;
-  background: rgba(255, 107, 107, 0.12);
-  border: 1px solid rgba(255, 107, 107, 0.24);
+  color: var(--fail);
+  background: var(--fail-dim);
+  box-shadow: inset 0 0 0 1px var(--fail-line);
   flex-shrink: 0;
 }
 
@@ -143,24 +144,27 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
 
 .dialog-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
   color: var(--text);
 }
 
 .dialog-desc {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: var(--muted);
 }
 
 .preview-card {
   margin: 0 22px;
   padding: 14px;
-  border-radius: 14px;
-  background: rgba(7, 11, 18, 0.55);
-  border: 1px solid var(--border);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--hairline-top);
 }
 
 .preview-row {
@@ -175,42 +179,42 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
 }
 
 .preview-label {
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.7px;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--muted);
   flex-shrink: 0;
+  padding-top: 2px;
 }
 
 .preview-value {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text);
   text-align: right;
   word-break: break-word;
 }
 
-.mono {
-  font-family: var(--font-mono);
-}
+/* `.mono` is the shared primitive — nothing to redeclare here. */
 
 .preview-files {
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--line-soft);
 }
 
 .preview-files-title {
   margin: 0 0 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
 }
 
 .file-row {
   display: flex;
   justify-content: space-between;
   gap: 14px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .file-row + .file-row {
@@ -218,11 +222,11 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
 }
 
 .file-label {
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 .file-value {
-  color: var(--text-secondary);
+  color: var(--text-2);
   text-align: right;
 }
 
@@ -230,43 +234,27 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 18px 22px 22px;
+  margin-top: 20px;
+  padding: 16px 22px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-2);
 }
 
+/* The base button is the shared `.btn`; only the width and the destructive
+   variant (which the markup spells `btn-danger`, not `.btn.danger`) differ. */
 .btn {
   min-width: 118px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-  font-family: var(--font-mono);
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  border-color: var(--border-hover);
-  background: rgba(255, 255, 255, 0.03);
 }
 
 .btn-danger {
-  border-color: rgba(255, 107, 107, 0.38);
-  color: #ffb0b0;
-  background: rgba(255, 107, 107, 0.08);
+  color: var(--fail);
+  border-color: var(--fail-line);
 }
 
 .btn-danger:hover:not(:disabled) {
-  border-color: rgba(255, 107, 107, 0.62);
-  color: #ff7b7b;
-  background: rgba(255, 107, 107, 0.14);
+  color: var(--fail);
+  border-color: var(--fail-line-2);
+  background: var(--fail-dim);
 }
 
 @media (max-width: 640px) {

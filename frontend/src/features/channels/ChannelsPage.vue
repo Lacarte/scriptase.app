@@ -156,105 +156,177 @@ onMounted(refresh)
 </template>
 
 <style scoped>
+/* Channels index — the prototype's channel rail rendered as a full-width
+   page. Every surface is a raised panel lit from above; the accent duotone
+   appears on the primary action and focus ring only, and every readout
+   (id, version, count) is mono. */
+
 .channels-page {
   max-width: 960px;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 3rem;
-  font-family: "Segoe UI", system-ui, sans-serif;
-  color: #e8eaed;
+  padding: 24px 20px 48px;
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text);
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 16px;
   align-items: flex-start;
-  margin-bottom: 1rem;
+  margin-bottom: 16px;
 }
 
 h1 {
-  margin: 0 0 0.35rem;
-  font-size: 1.6rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
+  margin: 0 0 5px;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--text);
 }
 
 .lede {
   margin: 0;
   max-width: 42rem;
-  color: #9aa0a6;
-  font-size: 0.95rem;
-  line-height: 1.45;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
   flex-shrink: 0;
 }
 
+/* The template carries bare .primary / .ghost / .danger rather than .btn,
+   so the shared button primitive is restated here on the element itself. */
 button {
-  border: 1px solid #3c4043;
-  background: #2d2e30;
-  color: #e8eaed;
-  border-radius: 8px;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.9rem;
+  border: 1px solid var(--line);
+  background: var(--panel-grad);
+  color: var(--text);
+  border-radius: var(--r-s);
+  padding: 9px 14px;
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
+  transition: background 0.16s, border-color 0.16s, color 0.14s,
+    box-shadow 0.16s, transform 0.12s var(--ease-spring);
+}
+
+button:hover:not(:disabled) {
+  background: var(--panel-grad2);
+  border-color: var(--line-2);
+  transform: translateY(-1px);
+  box-shadow: var(--hairline-top), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--hairline-top), inset 0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
 button.primary {
-  background: #8ab4f8;
-  border-color: #8ab4f8;
-  color: #202124;
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: #fff;
   font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast);
+}
+
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.07) saturate(1.05);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast-lg);
 }
 
 button.ghost {
   background: transparent;
+  box-shadow: none;
 }
 
+button.ghost:hover:not(:disabled) {
+  background: var(--panel);
+  box-shadow: var(--hairline-top);
+}
+
+/* Ordered after .ghost so the danger wash wins on the `.danger.ghost` row. */
 button.danger {
-  color: #f28b82;
-  border-color: #5f3a38;
+  color: var(--fail);
+  border-color: var(--fail-line);
 }
 
+button.danger:hover:not(:disabled) {
+  background: var(--fail-dim);
+  border-color: var(--fail-line-2);
+}
+
+/* The seed summary is informational, not accented — the `run` blue. */
 .seed-banner {
-  background: #1e3a5f;
-  border: 1px solid #3c5a80;
-  border-radius: 8px;
-  padding: 0.55rem 0.85rem;
-  font-size: 0.85rem;
-  margin-bottom: 1rem;
-  color: #c2d7f7;
+  background: var(--run-dim);
+  border: 1px solid var(--run-line);
+  border-radius: var(--r-s);
+  padding: 11px 13px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-bottom: 16px;
+  color: var(--run);
 }
 
 .toolbar {
   display: flex;
-  gap: 0.75rem;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 12px;
 }
 
+/* There is no global `.search` — `.search-field` is the container primitive,
+   and this is a bare <input>. Styled as a control, not a wrapper. */
 .search {
   flex: 1;
-  background: #1f1f1f;
-  border: 1px solid #3c4043;
-  border-radius: 8px;
-  color: #e8eaed;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.95rem;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
+  padding: 9px 11px;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+.search::placeholder {
+  color: var(--faint);
+}
+
+.search:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .count {
-  color: #9aa0a6;
-  font-size: 0.85rem;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  flex: none;
 }
 
 .channel-list {
@@ -263,93 +335,119 @@ button.danger {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 7px;
 }
 
 .channel-card {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 16px;
   align-items: center;
-  background: #1a1a1c;
-  border: 1px solid #2d2e30;
-  border-radius: 10px;
-  padding: 0.75rem 1rem;
+  background: var(--panel-grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
+  padding: 12px 16px;
   cursor: pointer;
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition: border-color 0.14s, background 0.14s, box-shadow 0.14s;
 }
 
 .channel-card:hover {
-  border-color: #5f6368;
-  background: #202124;
+  border-color: var(--line-2);
+  background: var(--panel-grad2);
 }
 
 .card-main {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 4px;
   min-width: 0;
 }
 
 .card-main strong {
-  font-size: 1rem;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: var(--text);
 }
 
 .meta {
-  color: #9aa0a6;
-  font-size: 0.82rem;
+  color: var(--muted);
+  font-size: 11.5px;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 6px;
   align-items: center;
 }
 
+/* A recessed well for the identity readout. */
 .meta code {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 0.78rem;
-  background: #2d2e30;
-  padding: 0.05rem 0.35rem;
-  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0;
+  color: var(--text-2);
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  padding: 1px 6px;
+  border-radius: 5px;
 }
 
+/* Shaped like the global `.badge` it collides with; a starter marker is
+   informational, so it takes the `sched` violet, never the accent. */
 .badge {
-  background: #3c4043;
-  color: #fdd663;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.1rem 0.4rem;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  color: var(--sched);
+  background: var(--sched-dim);
+  box-shadow: inset 0 0 0 1px var(--sched-line);
 }
 
 .card-side {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 10px;
   flex-shrink: 0;
 }
 
+.card-side button {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
 .version {
-  color: #9aa0a6;
-  font-size: 0.8rem;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
 
 .error {
-  color: #f28b82;
-  background: #3c1f1e;
-  border: 1px solid #5f3a38;
-  border-radius: 8px;
-  padding: 0.6rem 0.85rem;
+  background: var(--fail-dim);
+  border: 1px solid var(--fail-line);
+  border-radius: var(--r-s);
+  color: var(--fail-text);
+  padding: 11px 13px;
+  font-size: 12.5px;
+  line-height: 1.55;
 }
 
 .muted {
-  color: #9aa0a6;
+  color: var(--muted);
 }
 
 .empty {
-  padding: 1.5rem;
+  padding: 24px;
   text-align: center;
+  font-size: 12.5px;
 }
 </style>

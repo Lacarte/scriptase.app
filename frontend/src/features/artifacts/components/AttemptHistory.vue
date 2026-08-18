@@ -292,7 +292,7 @@ watch(
 .attempt-history {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 12px;
 }
 
 .hist-head,
@@ -300,22 +300,31 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .hist-head h3,
 .compare-head h4 {
   margin: 0;
-  font-size: 0.95rem;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--text);
 }
 
 .count-pill {
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  background: var(--bg-elevated, #1e2a3a);
-  border: 1px solid var(--border, #2a3a4e);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 20px;
+  color: var(--text-2);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .attempt-list {
@@ -324,14 +333,26 @@ watch(
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .attempt-row {
-  border: 1px solid var(--border, #1e2a3a);
-  border-radius: 8px;
-  padding: 0.55rem 0.7rem;
-  background: var(--bg-elevated, #121822);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  background: var(--panel-grad);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.attempt-row:hover {
+  border-color: var(--line-2);
+  background: var(--panel-grad2);
+}
+
+.attempt-row.active {
+  border-color: var(--accent-line-2);
+  background: var(--accent-wash);
 }
 
 .attempt-row.superseded {
@@ -341,126 +362,168 @@ watch(
 .attempt-meta {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 7px;
   flex-wrap: wrap;
-  margin-bottom: 0.4rem;
+  margin-bottom: 7px;
+}
+
+.attempt-meta strong {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .art-id {
-  font-size: 0.8rem;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
 }
 
 .tag {
-  font-size: 0.7rem;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  background: var(--bg-surface, #1a2230);
-  color: var(--text-muted, #8b9bb0);
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--bg-2);
+  color: var(--queue);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .active-tag {
-  color: var(--ok, #6dcea0);
-  border: 1px solid color-mix(in srgb, var(--ok, #6dcea0) 40%, transparent);
+  color: var(--ok);
+  background: var(--ok-dim);
+  box-shadow: inset 0 0 0 1px var(--ok-line);
 }
 
 .axes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.4rem 0.6rem;
+  gap: 7px 10px;
   margin: 0;
 }
 
 .axes dt {
   margin: 0;
-  font-size: 0.68rem;
+  font-family: var(--mono);
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted, #8b9bb0);
+  letter-spacing: 0.8px;
+  color: var(--muted);
 }
 
 .axes dd {
-  margin: 0.1rem 0 0;
-  font-size: 0.85rem;
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--text-2);
   word-break: break-word;
 }
 
 .axes .changed dd {
-  color: var(--warn, #e6b35a);
+  color: var(--warn);
   font-weight: 600;
 }
 
 .comparison {
-  border-top: 1px solid var(--border, #1e2a3a);
-  padding-top: 0.75rem;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
 }
 
 .selectors {
   display: flex;
-  gap: 0.6rem;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .selectors label {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  color: var(--text-muted, #8b9bb0);
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
 }
 
+/* The label wraps its control, so the eyebrow casing is reset here — an
+   uppercased option list would misreport the stored version. */
 .selectors select {
-  background: var(--bg-elevated, #121822);
-  color: var(--text, #e8edf3);
-  border: 1px solid var(--border, #2a3a4e);
-  border-radius: 6px;
-  padding: 0.2rem 0.4rem;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  padding: 6px 9px;
+  font-family: var(--body);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+}
+
+.selectors select:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .compare-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.65rem;
-  margin-top: 0.6rem;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .compare-card {
-  border: 1px solid var(--border, #1e2a3a);
-  border-radius: 8px;
-  padding: 0.6rem 0.7rem;
-  background: var(--bg-elevated, #121822);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 11px 12px;
+  background: var(--panel-grad);
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .compare-card h5 {
-  margin: 0 0 0.5rem;
-  font-size: 0.9rem;
+  margin: 0 0 9px;
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--text);
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 7px;
   align-items: baseline;
 }
 
 .compare-card h5 code {
-  font-size: 0.75rem;
+  font-family: var(--mono);
+  font-size: 11px;
   font-weight: 400;
-  color: var(--text-muted, #8b9bb0);
+  color: var(--muted);
 }
 
 .path {
-  margin: 0.5rem 0 0;
+  margin: 9px 0 0;
+}
+
+.path code {
+  font-family: var(--mono);
+  font-size: 11px;
 }
 
 .muted {
-  color: var(--text-muted, #8b9bb0);
+  color: var(--muted);
 }
 
 .small {
-  font-size: 0.8rem;
+  font-size: 12px;
 }
 
 .error {
-  color: var(--danger, #f07178);
+  color: var(--fail);
 }
 
 @media (max-width: 640px) {

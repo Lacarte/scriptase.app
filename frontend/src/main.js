@@ -14,16 +14,16 @@ import './styles/shared.css'
 
 const Home = {
   template: `
-    <section style="max-width:720px;margin:0 auto;padding:2rem 1.25rem;font-family:var(--font-body,system-ui),sans-serif;color:var(--text,#e8eaed)">
-      <h1 style="margin:0 0 .5rem;font-size:1.75rem;font-family:var(--font-display,system-ui)">{{ name }}</h1>
-      <p style="color:var(--text-secondary,#9aa0a6);line-height:1.5">
+    <section style="max-width:720px;margin:0 auto;padding:2rem 1.25rem;font-family:var(--body);color:var(--text)">
+      <h1 class="page-title" style="font-size:28px">{{ name }}</h1>
+      <p class="page-subtitle" style="font-size:13.5px">
         Channel-aware, provider-driven, local-first AI video production.
         Production and Workflow views share one node-based execution.
       </p>
-      <p style="margin-top:1.25rem;display:flex;gap:1.25rem;flex-wrap:wrap">
-        <router-link to="/production" style="color:var(--accent,#8ab4f8)">Open Production →</router-link>
-        <router-link to="/workflow" style="color:var(--accent,#8ab4f8)">Open Workflow →</router-link>
-        <router-link to="/channels" style="color:var(--accent,#8ab4f8)">Open Channels →</router-link>
+      <p style="margin-top:1.5rem;display:flex;gap:.6rem;flex-wrap:wrap">
+        <router-link class="btn primary" to="/production">Open Production →</router-link>
+        <router-link class="btn" to="/workflow">Open Workflow →</router-link>
+        <router-link class="btn" to="/channels">Open Channels →</router-link>
       </p>
     </section>
   `,
