@@ -39,14 +39,15 @@ from scriptase.jobs.stage_projection import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Step 9.2: labels match the prototype spine; keys are unchanged.
 DEFAULT_LABELS = [
-    "Script",
-    "Voice",
-    "Timing",
-    "Segments",
-    "Scenes",
-    "Images",
-    "Videos",
+    "S1 Script",
+    "TTS",
+    "Alignment",
+    "Segment",
+    "Scene Director",
+    "Storyboard",
+    "Animator",
     "Review",
     "Assembly",
     "Export",
@@ -123,16 +124,19 @@ def _add_extra_caption(workflow: dict) -> dict:
 
 
 class DefaultWorkflowProjectionTests(unittest.TestCase):
-    """Done when: default workflow → the ten Production stages."""
+    """Done when: default workflow → the nine Production stages (Review suppressed)."""
 
     def test_catalog_labels_match_contract(self):
         self.assertEqual(default_stage_labels(), DEFAULT_LABELS)
         self.assertEqual([s["label"] for s in STAGE_CATALOG], DEFAULT_LABELS)
 
     def test_full_video_projects_to_default_spine(self):
+        # Step 9.2: full_video_template has no review nodes, so Review is
+        # suppressed from the projection. Nine stages, not ten.
         projection = project_stages(full_video_template())
         labels = [s["label"] for s in projection["stages"]]
-        self.assertEqual(labels, DEFAULT_LABELS)
+        expected_labels = [l for l in DEFAULT_LABELS if l != "Review"]
+        self.assertEqual(labels, expected_labels)
 
         keys = [s["key"] for s in projection["stages"]]
         self.assertEqual(
@@ -145,7 +149,6 @@ class DefaultWorkflowProjectionTests(unittest.TestCase):
                 "scenes",
                 "images",
                 "videos",
-                "review",
                 "composer",
                 "export",
             ],
@@ -155,15 +158,13 @@ class DefaultWorkflowProjectionTests(unittest.TestCase):
         stages = project_stages(full_video_template())["stages"]
         self.assertEqual([s["ordinal"] for s in stages], list(range(len(stages))))
 
-    def test_review_is_present_even_without_review_nodes(self):
-        """Spine gap fill keeps Review between Videos and Composer (Phase 7)."""
+    def test_review_suppressed_when_no_review_nodes(self):
+        """Step 9.2: Review is suppressed when the graph has no review node."""
         assignment = assign_nodes_to_stages(full_video_template())
         self.assertEqual(assignment["review"], [])
         stages = project_stages(full_video_template())["stages"]
-        review = next(s for s in stages if s["key"] == "review")
-        self.assertEqual(review["node_ids"], [])
-        self.assertEqual(review["status"], "idle")
-        self.assertFalse(review["provider_capable"])
+        keys = [s["key"] for s in stages]
+        self.assertNotIn("review", keys)
 
     def test_primary_nodes_land_in_expected_stages(self):
         assignment = assign_nodes_to_stages(full_video_template())
@@ -241,8 +242,7 @@ class PartialWorkflowProjectionTests(unittest.TestCase):
     def test_narration_only_is_script_and_voice(self):
         projection = project_stages(narration_only_template())
         labels = [s["label"] for s in projection["stages"]]
-        self.assertEqual(labels, ["Script", "Voice"])
-        # No empty Review gap — the spine only spans occupied range.
+        self.assertEqual(labels, ["S1 Script", "TTS"])
         self.assertNotIn("Review", labels)
 
     def test_storyboard_only_stops_at_images(self):
@@ -250,7 +250,7 @@ class PartialWorkflowProjectionTests(unittest.TestCase):
         labels = [s["label"] for s in projection["stages"]]
         self.assertEqual(
             labels,
-            ["Script", "Voice", "Timing", "Segments", "Scenes", "Images"],
+            ["S1 Script", "TTS", "Alignment", "Segment", "Scene Director", "Storyboard"],
         )
 
     def test_empty_workflow_raises(self):
@@ -263,7 +263,7 @@ class PartialWorkflowProjectionTests(unittest.TestCase):
         projection = project_stages(full_video_template(), fill_spine_gaps=False)
         labels = [s["label"] for s in projection["stages"]]
         self.assertNotIn("Review", labels)
-        self.assertIn("Videos", labels)
+        self.assertIn("Animator", labels)
         self.assertIn("Assembly", labels)
 
 
@@ -352,11 +352,12 @@ class StatusDerivationTests(unittest.TestCase):
         stages = {s["key"]: s for s in project_stages(workflow, execution=execution)["stages"]}
         self.assertEqual(stages["composer"]["status"], "failed")
 
-    def test_empty_stage_is_idle(self):
+    def test_stage_without_execution_is_idle(self):
+        # Any projected stage reports idle / empty when there is no execution.
         stages = {s["key"]: s for s in project_stages(full_video_template())["stages"]}
-        self.assertEqual(stages["review"]["status"], "idle")
-        self.assertEqual(stages["review"]["artifacts"], [])
-        self.assertEqual(stages["review"]["issues"], [])
+        self.assertEqual(stages["export"]["status"], "idle")
+        self.assertEqual(stages["export"]["artifacts"], [])
+        self.assertEqual(stages["export"]["issues"], [])
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +394,9 @@ class StageProjectionApiTests(unittest.TestCase):
         projection = body["projection"]
         self.assertEqual(projection["workflow_id"], self.workflow["workflow_id"])
         labels = [s["label"] for s in projection["stages"]]
-        self.assertEqual(labels, DEFAULT_LABELS)
+        # Step 9.2: Review suppressed when no review nodes in graph.
+        expected = [l for l in DEFAULT_LABELS if l != "Review"]
+        self.assertEqual(labels, expected)
 
     def test_get_workflow_stages_summary(self):
         response = self.client.get(
@@ -401,7 +404,8 @@ class StageProjectionApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         projection = response.get_json()["projection"]
-        self.assertEqual(projection["stage_count"], 10)
+        # Step 9.2: nine stages, not ten — Review suppressed.
+        self.assertEqual(projection["stage_count"], 9)
         self.assertIn("node_count", projection["stages"][0])
         self.assertNotIn("node_ids", projection["stages"][0])
 
@@ -417,7 +421,8 @@ class StageProjectionApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200, response.get_json())
         labels = [s["label"] for s in response.get_json()["projection"]["stages"]]
-        self.assertEqual(labels, DEFAULT_LABELS)
+        expected = [l for l in DEFAULT_LABELS if l != "Review"]
+        self.assertEqual(labels, expected)
 
     def test_post_bare_workflow_body(self):
         response = self.client.post(
@@ -426,7 +431,7 @@ class StageProjectionApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         labels = [s["label"] for s in response.get_json()["projection"]["stages"]]
-        self.assertEqual(labels, ["Script", "Voice"])
+        self.assertEqual(labels, ["S1 Script", "TTS"])
 
     def test_post_empty_nodes_returns_stage_projection_invalid(self):
         response = self.client.post(

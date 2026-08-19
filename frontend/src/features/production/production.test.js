@@ -120,10 +120,11 @@ class FakeEventSource {
   }
 }
 
+// Step 9.2: labels match the prototype spine.
 const DEFAULT_STAGES = [
   {
     key: 'script',
-    label: 'Script',
+    label: 'S1 Script',
     ordinal: 0,
     node_ids: ['n_script'],
     status: 'idle',
@@ -134,7 +135,7 @@ const DEFAULT_STAGES = [
   },
   {
     key: 'voice',
-    label: 'Voice',
+    label: 'TTS',
     ordinal: 1,
     node_ids: ['n_tts'],
     status: 'idle',
@@ -208,8 +209,8 @@ describe('useProductionStages', () => {
     expect(api.getWorkflowStages).toHaveBeenCalledWith('wf_ABCDEF')
     const stages = stageList(host)
     expect(stages.map((s) => s.label)).toEqual([
-      'Script',
-      'Voice',
+      'S1 Script',
+      'TTS',
       'Assembly',
     ])
     // Labels came from the API payload, not a local constant.
@@ -472,7 +473,7 @@ describe('Production + Workflow share one execution', () => {
 describe('stageActions mapping (step 2.4)', () => {
   const voiceStage = {
     key: 'voice',
-    label: 'Voice',
+    label: 'TTS',
     node_ids: ['n_tts'],
     provider_capable: true,
     active_provider_instance_id: 'elevenlabs',
@@ -893,7 +894,7 @@ describe('StepDetailPanel', () => {
   it('hides Provider on Script stage for Paste mode even if graph is provider-capable', () => {
     const stage = {
       key: 'script',
-      label: 'Script',
+      label: 'S1 Script',
       status: 'idle',
       node_ids: ['n_story'],
       provider_capable: true,
@@ -918,7 +919,7 @@ describe('StepDetailPanel', () => {
   it('shows Provider on Script stage for Idea mode', () => {
     const stage = {
       key: 'script',
-      label: 'Script',
+      label: 'S1 Script',
       status: 'idle',
       node_ids: ['n_story'],
       provider_capable: true,
@@ -942,7 +943,7 @@ describe('StepDetailPanel', () => {
   it('emits a canvas-shaped run payload when Run is clicked', async () => {
     const stage = {
       key: 'voice',
-      label: 'Voice',
+      label: 'TTS',
       status: 'idle',
       node_ids: ['n_tts'],
       provider_capable: true,
@@ -975,7 +976,7 @@ describe('StepDetailPanel virality score (step 16.3)', () => {
   function scriptStage(score) {
     return {
       key: 'script',
-      label: 'Script',
+      label: 'S1 Script',
       status: 'succeeded',
       node_ids: ['n_script', 'n_analyze'],
       provider_capable: false,
@@ -1335,6 +1336,14 @@ describe('ProductionPage', () => {
   })
 
   it('renders projected stage labels from the API', async () => {
+    // Stage labels now live on the expanded job's rail, so we need a job.
+    const job = {
+      id: 'job_LABEL01', name: 'Label check', channel_id: 'ch_A', status: 'running',
+      workflow_id: 'wf_ABCDEF', current_stage: 'script',
+      created_at: new Date().toISOString(), started_at: new Date().toISOString(),
+    }
+    api.listJobs.mockResolvedValue({ jobs: [job], total: 1 })
+    api.getJob.mockResolvedValue({ job })
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -1342,7 +1351,7 @@ describe('ProductionPage', () => {
         { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
       ],
     })
-    await router.push({ name: 'production', query: { workflow_id: 'wf_ABCDEF' } })
+    await router.push({ name: 'production', query: { job_id: 'job_LABEL01' } })
     await router.isReady()
 
     const wrapper = mount(ProductionPage, {
@@ -1351,13 +1360,16 @@ describe('ProductionPage', () => {
     await flushPromises()
 
     expect(api.getWorkflowStages).toHaveBeenCalledWith('wf_ABCDEF')
-    const text = wrapper.text()
-    expect(text).toContain('Script')
-    expect(text).toContain('Voice')
-    expect(text).toContain('Assembly')
+    // The rail renders the projected labels inside the expanded job.
+    const rail = wrapper.find('.stagerail')
+    expect(rail.exists()).toBe(true)
+    const labels = rail.findAll('.srstage .nm').map((n) => n.text())
+    expect(labels).toContain('S1 Script')
+    expect(labels).toContain('TTS')
+    expect(labels).toContain('Assembly')
     // Provider capability is metadata, not a "-P" suffix on the name.
-    expect(text).not.toMatch(/Script\s*-P/)
-    expect(text).not.toMatch(/Voice-P/)
+    expect(labels.join(' ')).not.toMatch(/Script\s*-P/)
+    expect(labels.join(' ')).not.toMatch(/TTS-P/)
   })
 
   it('searches a collapsed 48-hour Job without opening its date', async () => {
@@ -1412,7 +1424,7 @@ describe('ProductionPage', () => {
     const failed = {
       id: 'job_FAIL01', name: 'Spanish take', channel_id: 'ch_A', channel_name: 'English Channel',
       status: 'failed', created_at: new Date().toISOString(),
-      failure: { stage: 'videos', stage_label: 'Videos', code: 'ANIMATOR_FAILED', message: 'Video failed.', node_id: 'n_video' },
+      failure: { stage: 'videos', stage_label: 'Animator', code: 'ANIMATOR_FAILED', message: 'Video failed.', node_id: 'n_video' },
       advisories: [{ code: 'LANGUAGE_MISMATCH', script_language: 'es', channel_language: 'en', blocking: false }],
     }
     api.listJobs.mockResolvedValue({ jobs: [failed], total: 1 })
@@ -1433,7 +1445,7 @@ describe('ProductionPage', () => {
     await flushPromises()
 
     expect(wrapper.find('.job').classes()).toContain('st-failed')
-    expect(wrapper.find('.failed-stage').text()).toBe('Failed · Videos')
+    expect(wrapper.find('.failed-stage').text()).toBe('Failed · Animator')
     expect(wrapper.find('.lang-badge').text()).toContain('es')
     expect(wrapper.find('.job-status').text()).toBe('Failed')
 
@@ -1444,7 +1456,7 @@ describe('ProductionPage', () => {
     expect(wrapper.find('.job-detail').exists()).toBe(true)
     expect(wrapper.find('.err-banner').text()).toContain('ANIMATOR_FAILED')
 
-    await wrapper.findAll('.job-actions button').find(button => button.text() === 'Retry').trigger('click')
+    await wrapper.findAll('.job-actions button').find(button => button.text() === 'Retry Job').trigger('click')
     await flushPromises()
     expect(api.retryJob).toHaveBeenCalledWith('job_FAIL01')
   })
@@ -1573,7 +1585,14 @@ describe('ProductionPage', () => {
     globalThis.EventSource = Original
   })
 
-  it('shows step detail actions when a stage is selected', async () => {
+  it('shows step detail actions when a rail stage is clicked (step 9.2)', async () => {
+    const job = {
+      id: 'job_SEL01', name: 'Select take', channel_id: 'ch_A', status: 'running',
+      workflow_id: 'wf_ABCDEF', current_stage: 'voice',
+      created_at: new Date().toISOString(), started_at: new Date().toISOString(),
+    }
+    api.listJobs.mockResolvedValue({ jobs: [job], total: 1 })
+    api.getJob.mockResolvedValue({ job })
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -1581,7 +1600,7 @@ describe('ProductionPage', () => {
         { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
       ],
     })
-    await router.push({ name: 'production', query: { workflow_id: 'wf_ABCDEF' } })
+    await router.push('/production')
     await router.isReady()
 
     const wrapper = mount(ProductionPage, {
@@ -1589,20 +1608,25 @@ describe('ProductionPage', () => {
     })
     await flushPromises()
 
-    // Click the Voice stage row.
-    const rows = wrapper.findAll('.stage-row')
-    const voiceRow = rows.find((r) => r.text().includes('Voice'))
-    expect(voiceRow).toBeTruthy()
-    await voiceRow.trigger('click')
+    // Expand the Job row, then click the TTS rail node.
+    await wrapper.find('.job-expand-btn').trigger('click')
+    await flushPromises()
+
+    const railNodes = wrapper.findAll('.stagerail .srstage')
+    const ttsNode = railNodes.find((n) => n.find('.nm').text() === 'TTS')
+    expect(ttsNode).toBeTruthy()
+    await ttsNode.trigger('click')
     await nextTick()
 
+    // Rail-actions bar and StepDetailPanel are visible.
+    expect(wrapper.find('.rail-actions').exists()).toBe(true)
     expect(wrapper.text()).toContain('Run From Here')
     expect(wrapper.text()).toContain('View Input')
     expect(wrapper.find('.action-run').exists()).toBe(true)
     expect(wrapper.find('.action-provider').exists()).toBe(true)
   })
 
-  it('surfaces the projection issue count on the stage row (step 11.4)', async () => {
+  it('surfaces issues in the rail tip and StepDetailPanel (step 11.4)', async () => {
     api.getWorkflowStages.mockResolvedValue({
       projection: {
         ...projection(),
@@ -1613,6 +1637,13 @@ describe('ProductionPage', () => {
         })),
       },
     })
+    const job = {
+      id: 'job_ISS01', name: 'Issue take', channel_id: 'ch_A', status: 'running',
+      workflow_id: 'wf_ABCDEF', current_stage: 'voice',
+      created_at: new Date().toISOString(), started_at: new Date().toISOString(),
+    }
+    api.listJobs.mockResolvedValue({ jobs: [job], total: 1 })
+    api.getJob.mockResolvedValue({ job })
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -1620,24 +1651,33 @@ describe('ProductionPage', () => {
         { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
       ],
     })
-    await router.push({ name: 'production', query: { workflow_id: 'wf_ABCDEF' } })
+    await router.push('/production')
     await router.isReady()
 
     const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
     await flushPromises()
 
-    const voiceRow = wrapper.findAll('.stage-row').find((r) => r.text().includes('Voice'))
-    expect(voiceRow.find('.issue-count').text()).toBe('1 issue')
+    await wrapper.find('.job-expand-btn').trigger('click')
+    await flushPromises()
 
-    await voiceRow.trigger('click')
+    // The TTS rail node's skip-tip carries the issue id.
+    const ttsNode = wrapper.findAll('.stagerail .srstage').find((n) => n.find('.nm').text() === 'TTS')
+    expect(ttsNode.find('.skip-tip').text()).toContain('iss_AAAAAA')
+
+    // Clicking opens StepDetailPanel which shows the issue.
+    await ttsNode.trigger('click')
     await nextTick()
     expect(wrapper.find('[data-testid="stage-issues"]').text()).toContain('iss_AAAAAA')
   })
 
   it('sends the Test Node provider choice as a one-shot override (step 13.3)', async () => {
-    api.getJob.mockResolvedValue({
-      job: { id: 'job_TEST01', workflow_id: 'wf_ABCDEF', source: { mode: 'paste' } },
-    })
+    const job = {
+      id: 'job_TEST01', name: 'Test take', channel_id: 'ch_A', status: 'running',
+      workflow_id: 'wf_ABCDEF', current_stage: 'voice',
+      created_at: new Date().toISOString(), started_at: new Date().toISOString(),
+    }
+    api.listJobs.mockResolvedValue({ jobs: [job], total: 1 })
+    api.getJob.mockResolvedValue({ job })
     api.getJobCost.mockResolvedValue({ cost: null })
     api.getNodeTypes.mockResolvedValue({
       node_types: {
@@ -1687,15 +1727,16 @@ describe('ProductionPage', () => {
     })
     await router.push({
       name: 'production',
-      query: { workflow_id: 'wf_ABCDEF', job_id: 'job_TEST01' },
+      query: { job_id: 'job_TEST01' },
     })
     await router.isReady()
 
     const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
     await flushPromises()
 
-    const voiceRow = wrapper.findAll('.stage-row').find((r) => r.text().includes('Voice'))
-    await voiceRow.trigger('click')
+    // The route's job_id auto-expands the job. Click the TTS rail node to open StepDetailPanel.
+    const ttsNode = wrapper.findAll('.stagerail .srstage').find((n) => n.find('.nm').text() === 'TTS')
+    await ttsNode.trigger('click')
     await nextTick()
     await wrapper.find('.action-test').trigger('click')
     await nextTick()
@@ -1816,13 +1857,13 @@ function mountHarness() {
 void workflowApi
 
 /**
- * Step 0.3 — keyboard control of the step list.
+ * Step 9.2 — keyboard shortcuts on the Production page.
  *
- * The arrow keys move a cursor that is deliberately separate from selection:
- * moving through the list is not choosing from it. Enter opens the focused
- * step, Space toggles it, R runs it, E opens the Timeline Editor.
+ * The stage-advanced listbox is gone (step 9.2). Stages live on the rail and
+ * are selected by click. R runs the selected stage, E opens the Timeline
+ * Editor, Escape deselects.
  */
-describe('ProductionPage keyboard control (step 0.3)', () => {
+describe('ProductionPage keyboard shortcuts (step 9.2)', () => {
   async function mountPage() {
     resetShortcuts()
     vi.clearAllMocks()
@@ -1841,7 +1882,13 @@ describe('ProductionPage keyboard control (step 0.3)', () => {
         ],
       },
     })
-    api.listJobs.mockResolvedValue({ jobs: [], total: 0 })
+    const job = {
+      id: 'job_KB01', name: 'KB take', channel_id: 'ch_A', status: 'running',
+      workflow_id: 'wf_ABCDEF', current_stage: 'voice',
+      created_at: new Date().toISOString(), started_at: new Date().toISOString(),
+    }
+    api.listJobs.mockResolvedValue({ jobs: [job], total: 1 })
+    api.getJob.mockResolvedValue({ job })
     api.getJobDefaults.mockResolvedValue({
       source_modes: SOURCE_MODE_CATALOG,
       execution_modes: [{ mode: 'manual', label: 'Manual', description: '' }],
@@ -1857,11 +1904,16 @@ describe('ProductionPage keyboard control (step 0.3)', () => {
         { path: '/workflow', name: 'workflow', component: { template: '<div />' } },
       ],
     })
-    await router.push({ name: 'production', query: { workflow_id: 'wf_ABCDEF' } })
+    await router.push('/production')
     await router.isReady()
 
     const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
     await flushPromises()
+
+    // Expand the job to show the rail.
+    await wrapper.find('.job-expand-btn').trigger('click')
+    await flushPromises()
+
     return wrapper
   }
 
@@ -1878,82 +1930,43 @@ describe('ProductionPage keyboard control (step 0.3)', () => {
     })
   }
 
-  function rows(wrapper) {
-    return wrapper.findAll('.stage-row')
-  }
-
-  it('exposes the step list as a listbox with a roving tabindex', async () => {
+  it('no hidden listbox remains in the DOM (step 9.2)', async () => {
     const wrapper = await mountPage()
 
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(true)
-    const options = rows(wrapper)
-    expect(options.length).toBeGreaterThan(1)
-    expect(options[0].attributes('role')).toBe('option')
-    // Before the cursor has moved, only the first row is in the tab order.
-    expect(options.map((r) => r.attributes('tabindex'))).toEqual(
-      options.map((_, i) => (i === 0 ? '0' : '-1')),
-    )
+    // The stage-advanced listbox is gone (other listboxes may exist in form controls).
+    expect(wrapper.find('.stage-advanced').exists()).toBe(false)
+    expect(wrapper.find('.stage-list[role="listbox"]').exists()).toBe(false)
+    expect(wrapper.findAll('.stage-row')).toHaveLength(0)
 
     wrapper.unmount()
     resetShortcuts()
   })
 
-  it('moves the cursor with the arrow keys without selecting anything', async () => {
+  it('Escape deselects the rail stage', async () => {
     const wrapper = await mountPage()
 
-    key('ArrowDown')
+    // Select a rail stage by click.
+    const ttsNode = wrapper.findAll('.stagerail .srstage').find((n) => n.find('.nm').text() === 'TTS')
+    await ttsNode.trigger('click')
     await nextTick()
-    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
-    expect(rows(wrapper).some((r) => r.classes().includes('selected'))).toBe(false)
+    expect(wrapper.find('.rail-actions').exists()).toBe(true)
 
-    key('ArrowDown')
-    await nextTick()
-    expect(rows(wrapper)[1].classes()).toContain('kb-focus')
-
-    key('ArrowUp')
-    await nextTick()
-    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
-
-    // The cursor stops at the ends rather than wrapping past them.
-    key('ArrowUp')
-    await nextTick()
-    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
-
-    wrapper.unmount()
-    resetShortcuts()
-  })
-
-  it('opens the focused step on Enter and toggles it on Space', async () => {
-    const wrapper = await mountPage()
-
-    key('ArrowDown')
-    key('Enter')
-    await nextTick()
-    expect(rows(wrapper)[0].attributes('aria-selected')).toBe('true')
-
-    key(' ')
-    await nextTick()
-    expect(rows(wrapper)[0].attributes('aria-selected')).toBe('false')
-
-    key(' ')
-    await nextTick()
-    expect(rows(wrapper)[0].attributes('aria-selected')).toBe('true')
-
-    // Escape clears the selection without moving the cursor.
     key('Escape')
     await nextTick()
-    expect(rows(wrapper)[0].attributes('aria-selected')).toBe('false')
-    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
+    expect(wrapper.find('.rail-actions').exists()).toBe(false)
 
     wrapper.unmount()
     resetShortcuts()
   })
 
-  it('runs the focused step on R through the run mode the panel would use', async () => {
+  it('R runs the selected rail stage', async () => {
     const wrapper = await mountPage()
 
-    key('ArrowDown')
+    // Select a rail stage by click.
+    const scriptNode = wrapper.findAll('.stagerail .srstage').find((n) => n.find('.nm').text() === 'S1 Script')
+    await scriptNode.trigger('click')
     await nextTick()
+
     key('r')
     await flushPromises()
 
@@ -1976,24 +1989,6 @@ describe('ProductionPage keyboard control (step 0.3)', () => {
     expect(open.mock.calls[0][0]).toContain('/editor')
 
     open.mockRestore()
-    wrapper.unmount()
-    resetShortcuts()
-  })
-
-  it('navigates whatever is left after the search field filters the list', async () => {
-    const wrapper = await mountPage()
-
-    const filter = wrapper.find('[data-shortcut-search]')
-    expect(filter.attributes('aria-label')).toBe('Filter production steps')
-
-    await filter.setValue('voice')
-    expect(rows(wrapper)).toHaveLength(1)
-
-    key('ArrowDown')
-    await nextTick()
-    expect(rows(wrapper)[0].classes()).toContain('kb-focus')
-    expect(rows(wrapper)[0].text()).toContain('Voice')
-
     wrapper.unmount()
     resetShortcuts()
   })

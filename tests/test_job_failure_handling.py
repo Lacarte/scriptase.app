@@ -63,7 +63,7 @@ def test_failure_envelope_names_stage_and_keeps_structured_error():
         "node_id": "n_video",
         "node_type": "animator.generate",
         "stage": "videos",
-        "stage_label": "Videos",
+        "stage_label": "Animator",
         "code": "ANIMATOR_FAILED",
         "message": "Video generation failed.",
         "recovery_suggestion": "Retry this scene.",

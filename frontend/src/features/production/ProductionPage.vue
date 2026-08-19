@@ -9,7 +9,7 @@
  * Step detail actions (step 2.4) map onto existing engine run modes only.
  * Job creation and Script stage modes (step 2.5) are Step 0 on this page.
  */
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
@@ -101,29 +101,14 @@ const statusFilter = ref(null)
 const selectedJobIds = ref(new Set())
 const undoable = useUndoableAction()
 
-/** Free-text stage filter — the input `/` focuses (step 0.3). */
-const stageFilter = ref('')
-/** Row under the keyboard cursor. Distinct from selection: moving is not choosing. */
-const focusedStageKey = ref(null)
-const stageListEl = ref(null)
+/** Step 9.2: stage-advanced listbox removed; filter and roving tabindex
+ *  replaced by clickable rail nodes. focusedStageKey is gone — the rail
+ *  selection *is* the focus for the R shortcut. */
 
 const selectedStage = computed(() =>
   stages.value.find((s) => s.key === selectedStageKey.value) || null,
 )
 
-const visibleStages = computed(() => {
-  const q = stageFilter.value.trim().toLowerCase()
-  if (!q) return stages.value
-  return stages.value.filter((stage) =>
-    `${stage.label || ''} ${stage.key || ''} ${stage.status || ''}`
-      .toLowerCase()
-      .includes(q),
-  )
-})
-
-const focusedStage = computed(() =>
-  visibleStages.value.find((s) => s.key === focusedStageKey.value) || null,
-)
 
 const RUNNING_STATUSES = new Set(['running', 'paused', 'awaiting_approval'])
 const COMPLETED_STATUSES = new Set(['completed', 'succeeded'])
@@ -787,70 +772,36 @@ function onExecutionChange() {
 
 function selectStage(stage) {
   selectedStageKey.value = stage?.key ?? null
-  focusedStageKey.value = stage?.key ?? null
+}
+
+/** Step 9.2: clicking a rail node opens the stage for Test / Retry / Run. */
+function selectRailStage(stage) {
+  if (!stage?.key) return
+  // Toggle: clicking the same node again closes the panel.
+  if (selectedStageKey.value === stage.key) {
+    selectedStageKey.value = null
+    return
+  }
+  selectStage(stage)
 }
 
 /* ------------------------------------------------------------------
-   Keyboard control of the step list (step 0.3).
+   Keyboard shortcuts (step 9.2).
 
-   Roving tabindex: exactly one row is in the tab order, and the arrow
-   keys move which one. `focused` is where the cursor is; `selected` is
-   what the detail panel shows — Enter and Space are what turn one into
-   the other.
+   The stage-advanced listbox is gone; stages live on the rail and are
+   selected by click. Arrow navigation belongs on Job rows (step 0.3),
+   not on stages. R runs the selected stage, E opens the editor,
+   Escape deselects.
    ------------------------------------------------------------------ */
 
-/**
- * Exactly one row is reachable by Tab. Before the cursor has moved that is the
- * first row, so Tab always lands somewhere useful.
- */
-function stageTabIndex(stage, index) {
-  if (focusedStageKey.value == null) return index === 0 ? 0 : -1
-  return focusedStageKey.value === stage.key ? 0 : -1
-}
-
-function focusStageAt(index) {
-  const list = visibleStages.value
-  if (!list.length) return
-  const clamped = Math.max(0, Math.min(list.length - 1, index))
-  focusedStageKey.value = list[clamped].key
-  void nextTick(() => {
-    const row = stageListEl.value?.children?.[clamped]
-    if (row && typeof row.focus === 'function') row.focus()
-  })
-}
-
-function moveStageFocus(delta) {
-  const list = visibleStages.value
-  if (!list.length) return
-  const current = list.findIndex((s) => s.key === focusedStageKey.value)
-  if (current < 0) {
-    focusStageAt(delta > 0 ? 0 : list.length - 1)
-    return
-  }
-  focusStageAt(current + delta)
-}
-
-/** Space toggles: pressing it on the open row closes the detail panel. */
-function toggleStageSelection(stage) {
-  selectedStageKey.value = selectedStageKey.value === stage.key ? null : stage.key
-  focusedStageKey.value = stage.key
-}
-
-/** R on the focused step: the same `run` action the detail panel offers. */
-async function runFocusedStage() {
-  const stage = focusedStage.value || selectedStage.value
+/** R on the selected rail stage: the same `run` action the detail panel offers. */
+async function runSelectedStage() {
+  const stage = selectedStage.value
   if (!stage || actionRunning.value) return
-  selectStage(stage)
   await onStageRun({ action: 'run', body: null })
 }
 
 onShortcut((event) => {
-  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-    // With nothing to move through, the arrows stay the page's scroll keys.
-    if (!visibleStages.value.length) return false
-    moveStageFocus(event.key === 'ArrowDown' ? 1 : -1)
-    return true
-  }
   if (event.key === 'Escape') {
     if (!selectedStageKey.value) return false
     selectedStageKey.value = null
@@ -861,17 +812,7 @@ onShortcut((event) => {
     return true
   }
   if (event.key === 'r' || event.key === 'R') {
-    void runFocusedStage()
-    return true
-  }
-  const stage = focusedStage.value
-  if (!stage) return false
-  if (event.key === 'Enter') {
-    selectStage(stage)
-    return true
-  }
-  if (event.key === ' ') {
-    toggleStageSelection(stage)
+    void runSelectedStage()
     return true
   }
   return false
@@ -1366,7 +1307,8 @@ onMounted(async () => {
                     v-for="stage in stages"
                     :key="stage.key"
                     class="srstage"
-                    :class="railState(stage)"
+                    :class="[railState(stage), { 'rail-selected': selectedStageKey === stage.key }]"
+                    @click.stop="selectRailStage(stage)"
                   >
                     <div class="connector" />
                     <div v-if="railTip(item, stage)" class="skip-tip">{{ railTip(item, stage) }}</div>
@@ -1382,6 +1324,59 @@ onMounted(async () => {
                   </div>
                 </div>
               </div>
+
+              <!-- Step 9.2: clicking a rail stage opens it. Test and Retry
+                   live here, not in a hidden listbox. -->
+              <div v-if="selectedStage" class="rail-actions">
+                <span class="rail-actions-label">{{ selectedStage.label }}</span>
+                <span class="rail-actions-status" :data-status="selectedStage.status || 'idle'">{{ statusLabel(selectedStage.status) }}</span>
+                <div class="spacer" />
+                <button
+                  v-if="railState(selectedStage) === 'failed'"
+                  type="button"
+                  class="btn xs primary"
+                  :disabled="Boolean(actionRunning) || Boolean(jobActionRunning)"
+                  @click.stop="onStageRun({ action: 'regenerate', body: null })"
+                >Retry</button>
+                <button
+                  type="button"
+                  class="btn xs"
+                  :disabled="Boolean(actionRunning) || !(selectedStage.node_ids || []).length"
+                  @click.stop="onStageRun({ action: 'test', body: null })"
+                >Test</button>
+                <button
+                  type="button"
+                  class="btn xs"
+                  :disabled="Boolean(actionRunning) || !(selectedStage.node_ids || []).length"
+                  @click.stop="onStageRun({ action: 'run', body: null })"
+                >Run</button>
+                <button
+                  type="button"
+                  class="btn xs ghost"
+                  @click.stop="selectedStageKey = null"
+                >Close</button>
+              </div>
+
+              <StepDetailPanel
+                v-if="selectedStage"
+                :stage="selectedStage"
+                :workflow-id="workflowId || selectedWorkflowId"
+                :workflow="workflowDocument"
+                :node-records="nodeRecords"
+                :execution-id="executionId || ''"
+                :execution-active="active"
+                :running="actionRunning"
+                :action-error="actionError"
+                :action-message="actionMessage"
+                :script-source-mode="activeJobSourceMode"
+                :script-provider-required="scriptProviderVisible"
+                :job-id="activeJobId"
+                :node-types="nodeTypes"
+                :test-result="testResult"
+                @run="onStageRun"
+                @inspect="onStageInspect"
+                @test-run="onTestRun"
+              />
 
               <div v-if="jobDetail(item).failure" class="err-banner">
                 <span class="ic" aria-hidden="true">
@@ -1433,7 +1428,9 @@ onMounted(async () => {
                 <div class="ts"><span class="k">Elapsed</span><span class="v">{{ jobElapsed(item) }}</span></div>
                 <div class="spacer" />
                 <div class="job-actions">
-                  <button v-if="item.status === 'failed'" type="button" class="btn xs primary" :disabled="Boolean(jobActionRunning)" @click.stop="runJobAction('retry', item)">Retry</button>
+                  <!-- Step 9.2: Retry moved to the rail node actions. Job-level
+                       retry (the whole job) stays on the footer. -->
+                  <button v-if="item.status === 'failed'" type="button" class="btn xs primary" :disabled="Boolean(jobActionRunning)" @click.stop="runJobAction('retry', item)">Retry Job</button>
                   <button type="button" class="btn xs" :disabled="Boolean(jobActionRunning)" @click.stop="runJobAction('duplicate', item)">Duplicate</button>
                   <button type="button" class="btn xs danger" :disabled="Boolean(jobActionRunning)" @click.stop="runJobAction('remove', item)">Remove</button>
                 </div>
@@ -1442,7 +1439,7 @@ onMounted(async () => {
           </article>
         </template>
         <template #empty>
-          <p class="muted job-empty">No jobs match “{{ jobSearch }}”.</p>
+          <p class="muted job-empty">No jobs match "{{ jobSearch }}".</p>
         </template>
       </ArchiveCalendar>
       </div>
@@ -1468,118 +1465,6 @@ onMounted(async () => {
     </aside>
 
     <p v-if="loading && hasStages" class="muted sheet-note">Loading stages…</p>
-
-    <!-- The prototype has no separate step list: stages live on the job rail,
-         and a stage is inspected by clicking its node there.
-
-         This projection is the app's own surface — a filterable listbox with a
-         roving tabindex, per-stage issue counts, and the StepDetailPanel that
-         drives test-node runs. It carried a `Step projection · N stages`
-         disclosure on the page, which is chrome the prototype was drawn
-         without, so the disclosure is gone.
-
-         `hidden` rather than deleted: the behaviour behind it is real and
-         covered (stage selection, issue display, keyboard navigation), and it
-         has no other entry point yet. Step 6.10 moves selection onto the rail
-         nodes, and this block goes with it. Until then it is out of the view
-         and out of the accessibility tree — the same posture it already had
-         behind a collapsed <details>, minus the line of text. -->
-    <div v-if="hasStages" class="stage-advanced sr-only" hidden>
-      <div class="stage-layout">
-      <div class="stage-column">
-        <div class="stage-filter">
-          <input
-            v-model="stageFilter"
-            type="search"
-            class="stage-filter-input"
-            placeholder="Filter steps…"
-            aria-label="Filter production steps"
-            data-shortcut-search
-          />
-          <span class="stage-filter-count">
-            {{ visibleStages.length }} / {{ stages.length }}
-          </span>
-        </div>
-
-        <ol
-          ref="stageListEl"
-          class="stage-list"
-          role="listbox"
-          aria-label="Production stages"
-        >
-          <li
-            v-for="(stage, index) in visibleStages"
-            :key="stage.key"
-            class="stage-row"
-            role="option"
-            :tabindex="stageTabIndex(stage, index)"
-            :aria-selected="String(selectedStageKey === stage.key)"
-            :data-stage-key="stage.key"
-            :class="[
-              `status-${stage.status || 'idle'}`,
-              {
-                selected: selectedStageKey === stage.key,
-                'kb-focus': focusedStageKey === stage.key,
-              },
-            ]"
-            @click="selectStage(stage)"
-            @focus="focusedStageKey = stage.key"
-          >
-            <span class="ordinal">{{ stageOrdinal(stage) }}</span>
-            <div class="stage-body">
-              <strong class="stage-label">{{ stage.label }}</strong>
-              <span class="stage-sub">
-                <span v-if="stage.provider_capable" class="provider-meta">
-                  {{ stage.active_provider_instance_id || 'Provider-capable' }}
-                </span>
-                <span v-else class="provider-meta muted-meta">Local</span>
-                <span
-                  v-if="(stage.node_ids || []).length"
-                  class="node-count"
-                  :title="(stage.node_ids || []).join(', ')"
-                >
-                  {{ stage.node_ids.length }} node{{ stage.node_ids.length === 1 ? '' : 's' }}
-                </span>
-                <span
-                  v-if="(stage.issues || []).length"
-                  class="issue-count"
-                  :title="(stage.issues || []).join(', ')"
-                >
-                  {{ stage.issues.length }} issue{{ stage.issues.length === 1 ? '' : 's' }}
-                </span>
-              </span>
-            </div>
-            <span class="status-badge" :data-status="stage.status || 'idle'">
-              {{ statusLabel(stage.status) }}
-            </span>
-          </li>
-          <li v-if="!visibleStages.length" class="stage-empty muted">
-            No step matches “{{ stageFilter }}”.
-          </li>
-        </ol>
-      </div>
-
-      <StepDetailPanel
-        :stage="selectedStage"
-        :workflow-id="workflowId || selectedWorkflowId"
-        :workflow="workflowDocument"
-        :node-records="nodeRecords"
-        :execution-id="executionId || ''"
-        :execution-active="active"
-        :running="actionRunning"
-        :action-error="actionError"
-        :action-message="actionMessage"
-        :script-source-mode="activeJobSourceMode"
-        :script-provider-required="scriptProviderVisible"
-        :job-id="activeJobId"
-        :node-types="nodeTypes"
-        :test-result="testResult"
-        @run="onStageRun"
-        @inspect="onStageInspect"
-        @test-run="onTestRun"
-      />
-      </div>
-    </div>
     </main>
   </section>
 </template>
@@ -2231,11 +2116,26 @@ button:disabled {
   transform: none;
 }
 
-.stage-advanced {
-  display: none !important;
+/* Step 9.2: rail node selection ring and actions bar. */
+.srstage { cursor: pointer; }
+.srstage.rail-selected .node {
+  box-shadow: inset 0 0 0 1.5px var(--accent-1), 0 0 0 3px var(--accent-ring, rgba(99,102,241,.25));
 }
+.srstage.rail-selected .nm { color: var(--accent-1); font-weight: 600; }
 
-.stage-layout,
+.rail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-2);
+  font-size: 12.5px;
+}
+.rail-actions-label { font-weight: 600; color: var(--text); }
+.rail-actions-status { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+.rail-actions .spacer { flex: 1; }
+
 .cost-panel,
 .lang-banner,
 .stage-empty-page {
@@ -2340,17 +2240,7 @@ button:disabled {
   color: var(--muted);
 }
 
-.stage-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-
 @media (max-width: 820px) {
-  .stage-layout {
-    grid-template-columns: 1fr;
-  }
 
   .page-header {
     flex-direction: column;
@@ -2361,257 +2251,8 @@ button:disabled {
   }
 }
 
-.stage-column {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-.stage-filter {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.stage-filter-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  color: var(--text);
-  font-family: var(--body);
-  font-size: 12.5px;
-  padding: 7px 10px;
-  transition: border-color 0.16s, box-shadow 0.16s;
-}
-
-.stage-filter-input::placeholder {
-  color: var(--faint);
-}
-
-.stage-filter-input:focus {
-  outline: none;
-  border-color: var(--accent-line-2);
-  box-shadow: 0 0 0 3px var(--accent-ring);
-}
-
-.stage-filter-count {
-  flex: none;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-
-.stage-empty {
-  padding: 20px 4px;
-  font-size: 12.5px;
-}
-
-.stage-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* Raised card — lit from above, with a status spine on the left edge. */
-.stage-row {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  background: var(--panel-grad);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
-  padding: 12px 14px 12px 15px;
-  cursor: pointer;
-  transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
-}
-
-.stage-row::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--faint);
-  opacity: 0;
-  transition: opacity 0.18s;
-}
-
-.stage-row:hover {
-  border-color: var(--line-2);
-  box-shadow: var(--hairline-top), 0 8px 24px -12px rgba(0, 0, 0, 0.65);
-}
-
-/* The keyboard cursor. Deliberately a ring rather than a fill, so it can sit
-   on a row that is not selected without claiming to be. */
-.stage-row.kb-focus,
-.stage-row:focus-visible {
-  outline: none;
-  border-color: var(--accent-line-2);
-  box-shadow: var(--hairline-top), 0 0 0 2px var(--accent);
-}
-
-/* Selected is the only other place the accent appears. */
-.stage-row.selected {
-  border-color: var(--accent-line-2);
-  background: var(--accent-wash);
-  box-shadow: var(--hairline-top), inset 0 0 0 1px var(--accent-line);
-}
-
-.stage-row.status-running::before {
-  background: var(--run);
-  opacity: 1;
-}
-
-.stage-row.status-succeeded::before {
-  background: var(--ok);
-  opacity: 1;
-}
-
-.stage-row.status-failed::before {
-  background: var(--fail);
-  opacity: 1;
-}
-
-.stage-row.status-invalid::before,
-.stage-row.status-stale::before {
-  background: var(--warn);
-  opacity: 1;
-}
-
-.stage-row.status-awaiting_approval::before {
-  background: var(--sched);
-  opacity: 1;
-}
-
-.ordinal {
-  flex: none;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--faint);
-  min-width: 22px;
-  text-align: right;
-}
-
-.stage-body {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.stage-label {
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.1px;
-  color: var(--text);
-}
-
-.stage-sub {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.provider-meta {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--text-2);
-}
-
-.muted-meta {
-  color: var(--faint);
-}
-
-.node-count {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--muted);
-}
-
-/* Step 11.4: open ReviewIssues attached to the stage by the projection. */
-.issue-count {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 20px;
-  color: var(--warn);
-  background: var(--warn-dim);
-  box-shadow: inset 0 0 0 1px var(--warn-line);
-}
-
-/* Status badge — the ramp, never the accent. */
-.status-badge {
-  flex-shrink: 0;
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  padding: 4px 10px;
-  border-radius: 20px;
-  white-space: nowrap;
-  color: var(--queue);
-  background: var(--bg-2);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-
-.status-badge[data-status='running'] {
-  color: var(--run);
-  background: var(--run-dim);
-  box-shadow: inset 0 0 0 1px var(--run-line);
-}
-
-.status-badge[data-status='succeeded'] {
-  color: var(--ok);
-  background: var(--ok-dim);
-  box-shadow: inset 0 0 0 1px var(--ok-line);
-}
-
-.status-badge[data-status='failed'] {
-  color: var(--fail);
-  background: var(--fail-dim);
-  box-shadow: inset 0 0 0 1px var(--fail-line);
-}
-
-.status-badge[data-status='invalid'],
-.status-badge[data-status='stale'] {
-  color: var(--warn);
-  background: var(--warn-dim);
-  box-shadow: inset 0 0 0 1px var(--warn-line);
-}
-
-.status-badge[data-status='awaiting_approval'] {
-  color: var(--sched);
-  background: var(--sched-dim);
-  box-shadow: inset 0 0 0 1px var(--sched-line);
-}
-
-.status-badge[data-status='cancelled'],
-.status-badge[data-status='skipped'] {
-  color: var(--faint);
-  background: var(--bg-2);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
+/* Step 9.2: stage-advanced listbox and its CSS removed. Stages live on
+   the rail; Test/Retry/Run are the rail-actions bar above. */
 
 .empty {
   padding: 32px 0;

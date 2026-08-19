@@ -124,6 +124,7 @@ const LEDGER = {
   'st-stopped': 'statusVocabulary',
   'st-stopping': 'statusVocabulary',
   scenetag: 'edCanvasChild',
+  'kb-focus': 'protoOnly',
 }
 
 // ---------------------------------------------------------------------------

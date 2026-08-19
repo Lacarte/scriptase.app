@@ -34,14 +34,15 @@ class StageProjectionError(RuntimeError):
 # ---------------------------------------------------------------------------
 
 # Ordered spine. Labels are the Production view names; keys are stable ids.
+# Step 9.2: labels match the prototype spine; keys are contract and unchanged.
 STAGE_CATALOG: tuple[dict[str, Any], ...] = (
-    {"key": "script", "label": "Script", "ordinal": 0},
-    {"key": "voice", "label": "Voice", "ordinal": 1},
-    {"key": "timing", "label": "Timing", "ordinal": 2},
-    {"key": "segments", "label": "Segments", "ordinal": 3},
-    {"key": "scenes", "label": "Scenes", "ordinal": 4},
-    {"key": "images", "label": "Images", "ordinal": 5},
-    {"key": "videos", "label": "Videos", "ordinal": 6},
+    {"key": "script", "label": "S1 Script", "ordinal": 0},
+    {"key": "voice", "label": "TTS", "ordinal": 1},
+    {"key": "timing", "label": "Alignment", "ordinal": 2},
+    {"key": "segments", "label": "Segment", "ordinal": 3},
+    {"key": "scenes", "label": "Scene Director", "ordinal": 4},
+    {"key": "images", "label": "Storyboard", "ordinal": 5},
+    {"key": "videos", "label": "Animator", "ordinal": 6},
     {"key": "review", "label": "Review", "ordinal": 7},
     {"key": "composer", "label": "Assembly", "ordinal": 8},
     {"key": "export", "label": "Export", "ordinal": 9},
@@ -459,6 +460,12 @@ def project_stages(
         emit_keys = [
             key for key in STAGE_KEYS
             if first <= STAGE_BY_KEY[key]["ordinal"] <= last
+            # Step 9.2: suppress Review for a job whose graph has no review
+            # node.  The prototype's rail has nine stages and no Review, but
+            # the domain is real and the correction loop depends on it — so
+            # this is a per-job projection decision, not an edit to
+            # STAGE_CATALOG.  Review appears only when occupied.
+            and (key != "review" or key in occupied)
         ]
     else:
         emit_keys = occupied
