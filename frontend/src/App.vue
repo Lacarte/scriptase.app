@@ -486,9 +486,21 @@ a {
   min-height: calc(100vh - 56px);
 }
 
+/* No `height: 100%` here, deliberately.
+
+   `.app-main` is a flex child of `.app-root--full`, which is itself exactly
+   the viewport and holds a 56px topbar as its first child. A percentage height
+   on a flex item resolves against the *container*, not the space left over, so
+   `height: 100%` claimed a full viewport beside the topbar and made the column
+   100vh + 56px inside a 100vh box. The overflow escaped the panes that were
+   supposed to scroll internally, and every Channels scroll moved the whole
+   frame instead of the rail or the detail.
+
+   `flex: 1 1 auto` from `.app-main` already grants the leftover space, which is
+   the correct height by construction. `min-height: 0` is what lets this shrink
+   below its content so the children can own the scrolling. */
 .app-main--full {
   min-height: 0;
-  height: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
