@@ -213,14 +213,17 @@ describe('shortcuts sheet', () => {
 })
 
 describe('first-run welcome', () => {
-  it('shows only on a bare visit to the root', () => {
+  it('shows on a bare visit to the root or the default landing', () => {
     expect(shouldShowWelcome({ path: '/', query: {} })).toBe(true)
+    // `/` redirects to `/production` (step 9.1), so both are "the root".
+    expect(shouldShowWelcome({ path: '/production', query: {} })).toBe(true)
   })
 
   it('is skipped by a deep link', () => {
-    expect(isDeepLink({ path: '/production', query: {} })).toBe(true)
+    expect(isDeepLink({ path: '/schema', query: {} })).toBe(true)
     expect(isDeepLink({ path: '/', query: { job_id: 'job_1' } })).toBe(true)
-    expect(shouldShowWelcome({ path: '/production', query: {} })).toBe(false)
+    expect(isDeepLink({ path: '/production', query: { job_id: 'j1' } })).toBe(true)
+    expect(shouldShowWelcome({ path: '/schema', query: {} })).toBe(false)
     expect(shouldShowWelcome({ path: '/', query: { create: '1' } })).toBe(false)
   })
 
@@ -255,7 +258,9 @@ describe('first-run welcome', () => {
   })
 
   it('does not mount in front of a deep link', async () => {
-    const router = routerWith('/production')
+    // `/production` without query is the default landing (step 9.1), so use
+    // a real deep link: a named destination that is not the landing page.
+    const router = routerWith('/schema')
     await router.isReady()
     const wrapper = mount(WelcomeOverlay, {
       global: { plugins: [router] },

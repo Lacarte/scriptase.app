@@ -27,8 +27,10 @@ export function markWelcomeSeen() {
 }
 
 /**
- * Anything but a bare visit to the root counts as a deep link: a named route,
- * or the root carrying query state (`?job_id=`, `?create=1`, …).
+ * Anything but a bare visit to the default landing counts as a deep link.
+ * `/` redirects to `/production` (step 9.1), so both are "the root" when
+ * they carry no query state. Any other path, or any query param on these
+ * two, is a deliberate destination the overlay should not obstruct.
  *
  * @param {{ path?: string, query?: object }} route
  * @returns {boolean}
@@ -36,7 +38,8 @@ export function markWelcomeSeen() {
 export function isDeepLink(route) {
   if (!route) return false
   const path = String(route.path || '/')
-  if (path !== '/') return true
+  const isLanding = path === '/' || path === '/production'
+  if (!isLanding) return true
   return Object.keys(route.query || {}).length > 0
 }
 

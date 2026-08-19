@@ -15,8 +15,8 @@ function goBack() { router.push('/production') }
         <polyline points="7 10 12 15 17 10" />
         <line x1="12" y1="15" x2="12" y2="3" />
       </svg>
-      <h2>No Assets Available</h2>
-      <p>Import a project from the Asset Manager to get started.</p>
+      <h2>No Project Loaded</h2>
+      <p>Open a completed job from Production or a video from the Library.</p>
       <button class="no-data-back-btn" @click="goBack">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <path d="M19 12H5" /><path d="M12 19l-7-7 7-7" />

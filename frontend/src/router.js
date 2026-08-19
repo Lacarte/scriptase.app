@@ -8,7 +8,6 @@
  */
 import { createRouter, createWebHistory } from 'vue-router'
 
-import HomePage from './features/home/HomePage.vue'
 import ChannelsPage from './features/channels/ChannelsPage.vue'
 import ChannelEditor from './features/channels/ChannelEditor.vue'
 import ProductionPage from './features/production/ProductionPage.vue'
@@ -17,7 +16,9 @@ import ScriptPage from './features/script/ScriptPage.vue'
 import SchemaPage from './features/schema/SchemaPage.vue'
 
 export const routes = [
-  { path: '/', name: 'home', component: HomePage },
+  // The prototype has no landing page — `/` goes straight to Production.
+  // Query state is forwarded so `?job_id=` deep links survive the redirect.
+  { path: '/', redirect: (to) => ({ name: 'production', query: to.query }) },
 
   // ---- The six destinations -------------------------------------------
   {
@@ -43,7 +44,7 @@ export const routes = [
     path: '/library',
     name: 'library',
     component: () => import('./features/export-library/views/ExportLibraryPage.vue'),
-    meta: { title: 'Library' },
+    meta: { title: 'Library', fullHeight: true },
   },
   // Both routes are the prototype's one `chview` screen — a rail beside a
   // detail pane that scrolls on its own, so the shell is bounded (step 6.4).
@@ -63,7 +64,7 @@ export const routes = [
     path: '/providers',
     name: 'providers',
     component: ProvidersSettingsPage,
-    meta: { title: 'Providers' },
+    meta: { title: 'Providers', fullHeight: true },
   },
 
   // ---- Reachable, but not destinations --------------------------------
