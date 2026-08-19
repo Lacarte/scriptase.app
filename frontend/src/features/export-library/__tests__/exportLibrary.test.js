@@ -416,7 +416,7 @@ describe('ExportLibraryPage', () => {
     const wrapper = await mountPage()
 
     expect(wrapper.findAllComponents(ExportCard)).toHaveLength(2)
-    expect(wrapper.find('.calendar-cell').exists()).toBe(true)
+    expect(wrapper.find('.cal-cell').exists()).toBe(true)
     const stats = wrapper.find('.lib-stats').text()
     expect(stats).toContain('3')
     expect(stats).toContain('Videos')
@@ -491,7 +491,7 @@ describe('ExportLibraryPage', () => {
       body: { video_relpath: 'pm_ONE/one.mp4' },
     })
     expect(wrapper.findAllComponents(ExportCard)).toHaveLength(1)
-    expect(wrapper.find('.calendar-cell').exists()).toBe(true)
+    expect(wrapper.find('.cal-cell').exists()).toBe(true)
     // The modal went with the row it was describing.
     expect(document.querySelector('.export-modal')).toBeNull()
   })

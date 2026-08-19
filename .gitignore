@@ -56,6 +56,11 @@ models/*
 !models/.gitkeep
 bin/*
 !bin/.gitkeep
+# Music and SFX beds are the same class of thing: large local media, imported
+# per machine. config.MUSIC_LIBRARY_DIR points the selector at
+# resources/sounds/music/<tone>/, so the tree must exist locally and must never
+# be committed.
+resources/sounds/
 
 # --- Loop engineering --------------------------------------------------------
 # Several thousand copied n8n build assets; never part of the repo.

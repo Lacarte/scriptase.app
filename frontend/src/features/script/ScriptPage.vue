@@ -1079,7 +1079,13 @@ onBeforeUnmount(() => {
 .rail-state { padding: 30px 16px; text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 
 /* ── Detail / editor ────────────────────────────────────────────────── */
-.s1-detail { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.s1-detail {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 .s1-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--muted); padding: 40px; }
 .s1-empty .ic {
   width: 60px; height: 60px; border-radius: 16px; display: grid; place-items: center;
@@ -1089,7 +1095,7 @@ onBeforeUnmount(() => {
 .s1-empty p { margin: 0; font-size: 13px; max-width: 300px; line-height: 1.6; }
 .s1-empty .btn { margin-top: 16px; }
 
-.s1-doc-head { padding: 22px 30px 18px; border-bottom: 1px solid var(--line-soft); }
+.s1-doc-head { flex: none; padding: 22px 30px 18px; border-bottom: 1px solid var(--line-soft); }
 .s1-doc-eyebrow { display: flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .5px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; }
 .s1-doc-eyebrow .ch-avatar { width: 18px; height: 18px; border-radius: 5px; font-size: 8px; }
 .s1-title-input {
@@ -1101,7 +1107,17 @@ onBeforeUnmount(() => {
 .s1-doc-sub .kv { display: flex; align-items: center; gap: 5px; }
 .s1-doc-sub .kv b { color: var(--text-2); font-weight: 500; }
 
-.s1-doc-body { flex: 1; padding: 22px 30px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 26px; align-items: start; }
+.s1-doc-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px 30px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 26px;
+  align-items: start;
+}
 /* The create flow has no narration column yet, so it runs one wide. */
 .s1-doc-body.single { grid-template-columns: minmax(0, 1fr); max-width: 860px; }
 .s1-script-col { min-width: 0; }
@@ -1230,7 +1246,16 @@ input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow:
    the Channel editor's narration rows, so step 6.4 made it cross-cutting. */
 
 /* ── Document footer ───────────────────────────────────────────────── */
-.s1-doc-foot { display: flex; align-items: center; gap: 10px; padding: 14px 30px; border-top: 1px solid var(--line-soft); background: var(--bg-2); }
+.s1-doc-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 30px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-2);
+  z-index: 4;
+}
 .s1-doc-foot .spacer { flex: 1; }
 .s1-dirty-note { display: none; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--warn); }
 .s1-dirty-note.show { display: flex; }
@@ -1247,9 +1272,8 @@ input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow:
 /* The prototype hides the rail below 820px because its library lives in a
    modal there. This app has no such modal, so the rail stacks instead. */
 @media (max-width: 820px) {
-  .s1view { display: block; overflow-y: auto; }
+  .s1view { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
   .s1-rail { border-right: 0; border-bottom: 1px solid var(--line); }
-  .s1-detail { overflow: visible; }
   .s1-list-wrap { max-height: 260px; }
   .create-modes { grid-template-columns: 1fr; }
   .s1-doc-head, .s1-doc-body, .s1-doc-foot { padding-left: 16px; padding-right: 16px; }

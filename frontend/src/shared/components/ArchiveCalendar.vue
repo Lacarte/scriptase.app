@@ -152,36 +152,36 @@ defineExpose({ revealItem })
       <template v-else>
         <section class="archive-strip" aria-label="Archive calendar">
           <header class="archive-strip-head">
-            <div class="archive-title">
+            <div class="ash-title">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
               </svg>
-              Archive · {{ archivedItems.length }} {{ plural(archivedItems.length) }}
+              Archive · {{ archivedItems.length }} finished {{ plural(archivedItems.length) }}
             </div>
-            <p>Older than {{ archiveAfterHours }}h — pick a date to reveal its {{ plural(2) }}. Still searchable by name.</p>
+            <p class="ash-hint">Older than {{ archiveAfterHours }}h — pick a date to reveal its {{ plural(2) }}. Still searchable by name.</p>
           </header>
-          <div class="calendar-cells">
+          <div class="cal-cells">
             <button
               v-for="group in archiveDates"
               :key="group.key"
               type="button"
-              class="calendar-cell"
+              class="cal-cell"
               :class="{ open: openDates.has(group.key) }"
               :aria-expanded="String(openDates.has(group.key))"
               :aria-label="`${fullDate(group.milliseconds)} · ${group.items.length} ${plural(group.items.length)}`"
               @click="toggleDate(group.key)"
             >
-              <span class="calendar-weekday">{{ dayLabel(group.milliseconds) }}</span>
-              <span class="calendar-day">{{ new Date(group.milliseconds).getDate() }}</span>
-              <span class="calendar-month">{{ monthLabel(group.milliseconds) }}</span>
-              <span class="calendar-count">{{ group.items.length }}</span>
+              <span class="cal-wd">{{ dayLabel(group.milliseconds) }}</span>
+              <span class="cal-day">{{ new Date(group.milliseconds).getDate() }}</span>
+              <span class="cal-mo">{{ monthLabel(group.milliseconds) }}</span>
+              <span class="cal-count">{{ group.items.length }}</span>
             </button>
           </div>
         </section>
 
         <section v-for="group in shownArchiveDates" :key="group.key" class="archive-day">
           <header class="archive-day-head">
-            <span class="calendar-dot" />
+            <span class="cal-dot" />
             {{ fullDate(group.milliseconds) }} · {{ group.items.length }}
             <span class="head-line" />
             <button type="button" @click="closeDate(group.key)">Hide</button>
@@ -193,6 +193,23 @@ defineExpose({ revealItem })
       </template>
     </template>
 
+    <section
+      v-else-if="recentItems.length"
+      class="archive-strip"
+      aria-label="Archive calendar"
+    >
+      <header class="archive-strip-head">
+        <div class="ash-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+          </svg>
+          Archive · 0 finished {{ plural(2) }}
+        </div>
+        <p class="ash-hint">Older than {{ archiveAfterHours }}h — pick a date to reveal its {{ plural(2) }}. Still searchable by name.</p>
+      </header>
+      <div class="cal-cells" />
+    </section>
+
     <slot v-if="matchingItems.length === 0" name="empty" />
   </div>
 </template>
@@ -200,24 +217,62 @@ defineExpose({ revealItem })
 <style scoped>
 .archive-calendar { display: grid; gap: 12px; min-width: 0; }
 .archive-items { display: grid; gap: 10px; min-width: 0; }
-.archive-strip { border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-grad); overflow: hidden; }
-.archive-strip-head { padding: 12px 15px 10px; border-bottom: 1px solid var(--line); }
-.archive-title { display: flex; align-items: center; gap: 9px; font-family: var(--display); font-weight: 600; font-size: 13px; color: var(--text); }
-.archive-title svg { color: var(--muted); }
-.archive-strip-head p { margin: 5px 0 0; font-size: 11.5px; color: var(--muted); }
-.calendar-cells { display: flex; gap: 8px; padding: 14px 15px; overflow-x: auto; }
-.calendar-cell { flex: none; width: 60px; padding: 10px 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-2); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; color: var(--text-2); transition: all .14s; }
-.calendar-cell:hover { border-color: var(--line-2); background: var(--panel-2); transform: translateY(-1px); }
-.calendar-cell.open { border-color: var(--accent-line-2); background: var(--accent-dim); color: var(--text); box-shadow: 0 0 0 1px var(--accent-line); }
-.calendar-weekday, .calendar-month { font-family: var(--mono); color: var(--muted); }
-.calendar-weekday { font-size: 8.5px; letter-spacing: .6px; }
-.calendar-cell.open .calendar-weekday { color: var(--accent); }
-.calendar-day { font-family: var(--display); font-size: 20px; font-weight: 600; line-height: 1; letter-spacing: -.5px; }
-.calendar-month { font-size: 9px; }
-.calendar-count { position: absolute; top: -6px; right: -6px; min-width: 17px; height: 17px; border-radius: 9px; background: var(--accent); color: #fff; font-family: var(--mono); font-size: 10px; font-weight: 700; display: grid; place-items: center; padding: 0 4px; box-sizing: border-box; }
+.archive-strip {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: linear-gradient(180deg, var(--panel), var(--bg-2));
+  margin: 12px 2px 4px;
+  overflow: hidden;
+}
+.archive-strip-head { padding: 12px 15px 10px; border-bottom: 1px solid var(--line-soft); }
+.ash-title { display: flex; align-items: center; gap: 9px; font-family: var(--display); font-weight: 600; font-size: 13px; color: var(--text); }
+.ash-title svg { color: var(--muted); }
+.ash-hint { margin: 5px 0 0; font-size: 11.5px; color: var(--muted); }
+.cal-cells { display: flex; gap: 8px; padding: 14px 15px; overflow-x: auto; min-height: 24px; }
+.cal-cell {
+  flex: none;
+  width: 60px;
+  padding: 10px 6px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+  color: var(--text-2);
+  transition: border-color 0.14s, background 0.14s, transform 0.14s, color 0.14s;
+}
+.cal-cell:hover { border-color: var(--line-2); background: var(--panel-2); transform: translateY(-1px); }
+.cal-cell.open { border-color: var(--accent-line-2); background: var(--accent-wash); color: var(--text); box-shadow: 0 0 0 1px var(--accent-line); }
+.cal-wd { font-family: var(--mono); font-size: 8.5px; letter-spacing: .6px; color: var(--muted); }
+.cal-cell.open .cal-wd { color: var(--accent); }
+.cal-day { font-family: var(--display); font-size: 20px; font-weight: 600; line-height: 1; letter-spacing: -.5px; }
+.cal-mo { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; }
+.cal-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 6px -2px var(--accent-cast-sm);
+}
 .archive-result-head, .archive-day-head { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
 .archive-day { display: grid; gap: 10px; }
-.calendar-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+.cal-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
 .head-line { flex: 1; height: 1px; background: var(--line); }
 .archive-day-head button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font: inherit; text-transform: none; }
 .archive-day-head button:hover { color: var(--text); }

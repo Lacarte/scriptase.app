@@ -39,20 +39,29 @@ describe('ArchiveCalendar', () => {
 
     expect(wrapper.find('[data-id="recent"]').exists()).toBe(true)
     expect(wrapper.find('[data-id="old-one"]').exists()).toBe(false)
-    expect(wrapper.findAll('.calendar-cell')).toHaveLength(1)
-    expect(wrapper.find('.calendar-count').text()).toBe('2')
+    expect(wrapper.findAll('.cal-cell')).toHaveLength(1)
+    expect(wrapper.find('.cal-count').text()).toBe('2')
   })
 
   it('reveals and hides every item on a clicked archive date', async () => {
     const wrapper = mountCalendar()
 
-    await wrapper.find('.calendar-cell').trigger('click')
+    await wrapper.find('.cal-cell').trigger('click')
     expect(wrapper.find('[data-id="old-one"]').attributes('data-archived')).toBe('true')
     expect(wrapper.find('[data-id="old-two"]').exists()).toBe(true)
-    expect(wrapper.find('.calendar-cell').attributes('aria-expanded')).toBe('true')
+    expect(wrapper.find('.cal-cell').attributes('aria-expanded')).toBe('true')
 
     await wrapper.find('.archive-day-head button').trigger('click')
     expect(wrapper.find('[data-id="old-one"]').exists()).toBe(false)
+  })
+
+  it('keeps the archive strip at the bottom when nothing is older than 48 hours', () => {
+    const wrapper = mountCalendar({
+      items: [item('recent', 'Fresh Cut', 3)],
+    })
+    expect(wrapper.find('.archive-strip').exists()).toBe(true)
+    expect(wrapper.find('.ash-title').text()).toContain('Archive · 0 finished jobs')
+    expect(wrapper.findAll('.cal-cell')).toHaveLength(0)
   })
 
   it('finds an archived item by name without opening its date first', async () => {

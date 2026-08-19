@@ -175,7 +175,7 @@ describe('library fidelity — the lib-* family (step 6.7)', () => {
     // The track is the Library's; the markup and the 48-hour line are the
     // calendar's, which is what Production draws its rows with.
     expect(wrapper.find('.archive-calendar .archive-items.lib-grid').exists()).toBe(true)
-    expect(wrapper.find('.archive-strip .calendar-cell').exists()).toBe(true)
+    expect(wrapper.find('.archive-strip .cal-cell').exists()).toBe(true)
     // Older than 48h, so it is behind a date cell rather than in the gallery.
     expect(wrapper.findAllComponents(ExportCard)).toHaveLength(1)
   })

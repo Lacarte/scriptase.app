@@ -70,7 +70,6 @@ const WHY = {
   scroller: [BEHAVIOUR, "the prototype's queue reorder drag handle"],
   protoOnly: [BEHAVIOUR, "prototype-internal shorthand with no rendered counterpart — the app's markup does not emit it"],
 
-  calendar: [UNPORTED, 'the archive calendar: the app reinvented it as `archive-day-*` instead of porting `cal-*`'],
   modal: [UNPORTED, 'the modal and shortcuts-sheet chrome'],
   player: [UNPORTED, 'the narration player: transport, waveform and caption track'],
   states: [UNPORTED, 'the draft/preparing/stopping/stopped run states'],
@@ -106,19 +105,9 @@ const LEDGER = {
   'editor-view': 'protoOnly',
   'cl-label': 'protoOnly',
   cavatar: 'protoOnly',
-  'ash-hint': 'protoOnly',
-  'ash-title': 'protoOnly',
   stage: 'protoOnly',
 
   // --- unported: real debt -----------------------------------------------
-  'cal-cell': 'calendar',
-  'cal-cells': 'calendar',
-  'cal-count': 'calendar',
-  'cal-day': 'calendar',
-  'cal-dot': 'calendar',
-  'cal-mo': 'calendar',
-  'cal-wd': 'calendar',
-
   modal: 'modal',
   'modal-foot': 'modal',
   'modal-head': 'modal',
@@ -271,7 +260,7 @@ describe('remaining port debt is visible', () => {
     // Not a target to game: the number moves when a step ports a family and
     // deletes its entries. It is asserted so that porting work shows up as a
     // failing test the moment the ledger and the CSS disagree.
-    expect(debt.length).toBe(35)
+    expect(debt.length).toBe(28)
   })
 
   it('every reason names at least one class', () => {

@@ -162,9 +162,9 @@ OWNERSHIP_TABLE: tuple[OwnershipRow, ...] = (
         problem_key=PROBLEM_CAPTION_BRANDING,
         description="Caption outside safe area, branding missing",
         owner=OWNER_COMPOSER,
-        label="Composer",
+        label="Assembly",
         stage_key="composer",
-        # Captions collapse into the Composer stage (stage_projection SIDE_BRANCH).
+        # Captions collapse into Assembly (stage_projection SIDE_BRANCH).
         node_types=("assemble.project", "captions.generate", "timeline.project"),
         issue_types=("policy_violation",),
     ),

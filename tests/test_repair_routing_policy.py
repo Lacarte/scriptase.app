@@ -88,7 +88,7 @@ SECTION_12_2_ROWS: tuple[tuple[str, str, str, str], ...] = (
     ),
     (
         "Caption outside safe area, branding missing",
-        "Composer",
+        "Assembly",
         "composer",
         "assemble.project",
     ),

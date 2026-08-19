@@ -43,7 +43,7 @@ STAGE_CATALOG: tuple[dict[str, Any], ...] = (
     {"key": "images", "label": "Images", "ordinal": 5},
     {"key": "videos", "label": "Videos", "ordinal": 6},
     {"key": "review", "label": "Review", "ordinal": 7},
-    {"key": "composer", "label": "Composer", "ordinal": 8},
+    {"key": "composer", "label": "Assembly", "ordinal": 8},
     {"key": "export", "label": "Export", "ordinal": 9},
 )
 

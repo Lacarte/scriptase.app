@@ -349,8 +349,8 @@ def synthesize(
     result = boundary.invoke(
         lambda inv: provider.invoke(request, inv),
         invocation,
-        provider_version=instance.version,
-        contract_version=instance.contract_version,
+        provider_version=package.version,
+        contract_version=package.contract_version,
         settings_version=settings_manager.load_settings().get("version", 1),
     )
 

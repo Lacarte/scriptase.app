@@ -48,7 +48,7 @@ DEFAULT_LABELS = [
     "Images",
     "Videos",
     "Review",
-    "Composer",
+    "Assembly",
     "Export",
 ]
 
@@ -264,7 +264,7 @@ class PartialWorkflowProjectionTests(unittest.TestCase):
         labels = [s["label"] for s in projection["stages"]]
         self.assertNotIn("Review", labels)
         self.assertIn("Videos", labels)
-        self.assertIn("Composer", labels)
+        self.assertIn("Assembly", labels)
 
 
 class ProviderCapabilityTests(unittest.TestCase):

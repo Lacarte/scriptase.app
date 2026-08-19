@@ -29,10 +29,12 @@ echo   [2] Codex builds, fixes, and reviews
 echo   [3] Claude builds, fixes, and reviews
 echo   [4] AGY codes; Codex limit fallback; Codex reviews
 echo   [5] Grok 4.5 codes; Codex limit fallback; Codex reviews
+echo   [6] Claude codes,  Grok 4.5 reviews
 echo   [Q] Cancel
 echo.
-choice /c 12345Q /n /m "Select 1, 2, 3, 4, 5, or Q: "
-if errorlevel 6 goto :cancelled
+choice /c 123456Q /n /m "Select 1, 2, 3, 4, 5, 6, or Q: "
+if errorlevel 7 goto :cancelled
+if errorlevel 6 goto :claude_code_grok_review
 if errorlevel 5 goto :grok_code_codex_review
 if errorlevel 4 goto :agy_code_codex_review
 if errorlevel 3 goto :all_claude
@@ -72,6 +74,17 @@ goto :launch
 set "PROFILE=Grok 4.5 builds and fixes; Codex limit fallback; Codex reviews"
 set "RUNARGS=--by-phase --builder grok --fixer grok --coding-fallback codex --reviewer codex"
 set "USES_CLAUDE=0"
+goto :launch
+
+:claude_code_grok_review
+:: The two agents named are the only two used: Grok reviews, and Grok also takes
+:: over coding if Claude hits its usage limit. Codex is not pulled in as the
+:: fallback here because the point of this profile is a second opinion from a
+:: different model family -- falling back to Codex would quietly make it a
+:: third, and a limit hit must never halt a run with steps still queued.
+set "PROFILE=Claude builds and fixes; Grok 4.5 limit fallback; Grok 4.5 reviews"
+set "RUNARGS=--by-phase --builder claude --fixer claude --coding-fallback grok --reviewer grok"
+set "USES_CLAUDE=1"
 goto :launch
 
 :launch

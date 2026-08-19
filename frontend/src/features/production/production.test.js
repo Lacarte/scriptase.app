@@ -145,7 +145,7 @@ const DEFAULT_STAGES = [
   },
   {
     key: 'composer',
-    label: 'Composer',
+    label: 'Assembly',
     ordinal: 2,
     node_ids: ['n_assemble', 'n_captions'],
     status: 'idle',
@@ -210,7 +210,7 @@ describe('useProductionStages', () => {
     expect(stages.map((s) => s.label)).toEqual([
       'Script',
       'Voice',
-      'Composer',
+      'Assembly',
     ])
     // Labels came from the API payload, not a local constant.
     expect(stages.every((s) => typeof s.key === 'string')).toBe(true)
@@ -479,7 +479,7 @@ describe('stageActions mapping (step 2.4)', () => {
   }
   const composerStage = {
     key: 'composer',
-    label: 'Composer',
+    label: 'Assembly',
     node_ids: ['n_assemble', 'n_captions'],
     provider_capable: false,
   }
@@ -627,7 +627,7 @@ describe('StepDetailPanel', () => {
   it('renders §18 actions and hides Provider on non-capable stages', async () => {
     const stage = {
       key: 'composer',
-      label: 'Composer',
+      label: 'Assembly',
       status: 'idle',
       node_ids: ['n_assemble', 'n_captions'],
       provider_capable: false,
@@ -1354,7 +1354,7 @@ describe('ProductionPage', () => {
     const text = wrapper.text()
     expect(text).toContain('Script')
     expect(text).toContain('Voice')
-    expect(text).toContain('Composer')
+    expect(text).toContain('Assembly')
     // Provider capability is metadata, not a "-P" suffix on the name.
     expect(text).not.toMatch(/Script\s*-P/)
     expect(text).not.toMatch(/Voice-P/)
@@ -1382,7 +1382,7 @@ describe('ProductionPage', () => {
     await flushPromises()
 
     expect(wrapper.findAll('.job')).toHaveLength(1)
-    expect(wrapper.find('.calendar-cell').exists()).toBe(true)
+    expect(wrapper.find('.cal-cell').exists()).toBe(true)
     const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
     // Completed rows carry the two "open beside Production" destinations
     // inline; everything else lives in the expanded detail.
