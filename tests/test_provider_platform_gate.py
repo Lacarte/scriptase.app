@@ -82,7 +82,7 @@ PROVIDER_NODES = {
 # Local-only adapters that must never grow a provider dimension (pinned at 3.2).
 MUSIC_ADAPTER = Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "music.py"
 CAPTIONS_ADAPTER = Path(ROOT_DIR) / "scriptase" / "engine" / "adapters" / "captions.py"
-MUSIC_ADAPTER_BLOB = "722f503413ab9e76c98760a32411a53095d6ac13"
+MUSIC_ADAPTER_BLOB = "be16517cb20d0206b718cb006607948ed6f27759"
 CAPTIONS_ADAPTER_BLOB = "2d0a76deb3fa5c35915b8f399d5c5391fdcd0aaf"
 
 # Surfaces that must resolve providers through the hub, never by package import.

@@ -6,10 +6,12 @@ import random
 
 from loguru import logger
 
-from config import APP_ASSETS_DIR, PROJECTS_DIR
+from config import APP_ASSETS_DIR, MUSIC_DIR, PROJECTS_DIR
 from scriptase.shared.io_utils import safe_json_read, safe_json_write
 
 _MUSIC_ROOT = os.path.join(APP_ASSETS_DIR, "sounds", "music")
+# V2 import location: tracks land here flat, not organised by tone.
+_MUSIC_IMPORT_ROOT = MUSIC_DIR
 _SFX_ROOT = os.path.join(APP_ASSETS_DIR, "sounds", "sfx")
 _INITIAL_FILENAME = "initial.json"
 _HISTORY_LIMIT = 10
@@ -141,7 +143,13 @@ def _last_valid_history_track(history, root):
 
 
 def select_music(story_tone, history=None):
-    """Pick a random music track matching the story tone."""
+    """Pick a random music track matching the story tone.
+
+    Searches tone-organised folders under the built-in library first.  When
+    none of them contain tracks the V2 import location (``output/musics/``) is
+    checked as a flat fallback — the import puts every bed there regardless of
+    tone.
+    """
     folders = TONE_MUSIC_MAP.get(story_tone)
     if not folders:
         logger.debug("No music mapping for story_tone '{}', skipping auto-music", story_tone)
@@ -173,6 +181,29 @@ def select_music(story_tone, history=None):
             "ducking_enabled": True,
             "ducking_level": 0.20,
         }
+
+    # Fallback: the V2 import stores tracks flat in output/musics/ without
+    # tone sub-folders.  Pick any track from there rather than failing.
+    import_tracks = _list_tracks(_MUSIC_IMPORT_ROOT)
+    if import_tracks:
+        chosen = _pick_with_history(import_tracks, history)
+        if chosen:
+            next_history = _normalize_history(history + [chosen])
+            logger.info(
+                "Auto-music: tone='{}' -> import fallback -> '{}'",
+                story_tone,
+                os.path.basename(chosen),
+            )
+            return {
+                "path": chosen,
+                "history": next_history,
+                "volume": 0.15,
+                "fade_in": 2.0,
+                "fade_out": 3.0,
+                "loop": True,
+                "ducking_enabled": True,
+                "ducking_level": 0.20,
+            }
 
     logger.warning("Auto-music: no tracks found for tone '{}' in folders {}", story_tone, folders)
     return None

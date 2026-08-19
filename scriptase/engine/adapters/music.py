@@ -2,23 +2,31 @@ from __future__ import annotations
 
 import os
 
-from config import MUSIC_LIBRARY_DIR
+from config import MUSIC_DIR, MUSIC_LIBRARY_DIR
 from scriptase.modules.music.selector import load_project_audio_history, select_music, select_random_music
 from .common import AdapterError, inherited_config, outputs, project_id
 
+# Two valid roots: the read-only built-in library and the writable V2 import
+# location.  A track from either is accepted as managed.
+_MANAGED_ROOTS: tuple[tuple[str, str], ...] = (
+    (os.path.abspath(MUSIC_LIBRARY_DIR), "/assets/sounds/music/"),
+    (os.path.abspath(MUSIC_DIR), "musics/"),
+)
+
 
 def _managed_track(path: str) -> str:
-    root = os.path.abspath(MUSIC_LIBRARY_DIR)
     absolute = os.path.abspath(path)
-    try:
-        if os.path.commonpath([root, absolute]) != root:
-            raise ValueError
-    except ValueError as exc:
-        raise AdapterError("ARTIFACT_UNMANAGED", "Music must come from the managed music library") from exc
-    if not os.path.isfile(absolute):
-        raise AdapterError("ARTIFACT_MISSING", "The selected music track does not exist")
-    rel = os.path.relpath(absolute, root).replace("\\", "/")
-    return f"/assets/sounds/music/{rel}"
+    for root, prefix in _MANAGED_ROOTS:
+        try:
+            if os.path.commonpath([root, absolute]) != root:
+                continue
+        except ValueError:
+            continue
+        if not os.path.isfile(absolute):
+            raise AdapterError("ARTIFACT_MISSING", "The selected music track does not exist")
+        rel = os.path.relpath(absolute, root).replace("\\", "/")
+        return f"{prefix}{rel}"
+    raise AdapterError("ARTIFACT_UNMANAGED", "Music must come from the managed music library")
 
 
 def select(inputs, config, context):
@@ -30,6 +38,8 @@ def select(inputs, config, context):
         ref = str(merged.get("track_ref") or "")
         if ref.startswith("/assets/sounds/music/"):
             path = os.path.join(MUSIC_LIBRARY_DIR, ref[len("/assets/sounds/music/"):].replace("/", os.sep))
+        elif ref.startswith("musics/"):
+            path = os.path.join(MUSIC_DIR, ref[len("musics/"):].replace("/", os.sep))
         else:
             path = ref
         picked = {"path": path}
