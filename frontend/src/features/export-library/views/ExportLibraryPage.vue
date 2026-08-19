@@ -100,7 +100,8 @@ function clearFilters() {
 }
 
 function openEditor(item) {
-  openAppWindow('editor', { query: { project: item.project_id || '' } })
+  if (!item?.project_id) return
+  openAppWindow('editor', { query: { project: item.project_id } })
 }
 
 function itemKey(item) {

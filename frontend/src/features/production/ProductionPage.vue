@@ -549,7 +549,9 @@ function languageAdvisory(job) {
 }
 
 function openJobInEditor(job) {
-  openAppWindow('editor', { query: { project: job?.project_id || job?.id || '' } })
+  const pid = job?.project_id || job?.id
+  if (!pid) return
+  openAppWindow('editor', { query: { project: pid } })
 }
 
 /**
@@ -825,7 +827,7 @@ onShortcut((event) => {
  * though Library is a nav destination in its own right (step 1.1).
  */
 function openTimelineEditor() {
-  openAppWindow('editor', { query: { project: projectId.value || '' } })
+  openAppWindow('editor', projectId.value ? { query: { project: projectId.value } } : {})
 }
 
 function openExportLibrary() {
