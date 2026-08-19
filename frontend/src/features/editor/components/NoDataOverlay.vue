@@ -17,6 +17,16 @@ watch(() => props.visible, (vis) => {
   if (vis) fetchProjects()
 })
 
+/** Accept a bare array, or the common `{items|projects|videos: [...]}` envelopes. */
+function toArray(payload) {
+  if (Array.isArray(payload)) return payload
+  if (!payload || typeof payload !== 'object') return []
+  for (const key of ['items', 'projects', 'videos', 'exports', 'results']) {
+    if (Array.isArray(payload[key])) return payload[key]
+  }
+  return []
+}
+
 async function fetchProjects() {
   loading.value = true
   fetchError.value = ''
@@ -24,18 +34,27 @@ async function fetchProjects() {
 
   try {
     const [libraryRes, editorRes] = await Promise.all([
-      fetch('/api/export/library').then(r => r.ok ? r.json() : []).catch(() => []),
-      fetch('/api/editor/projects').then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch('/api/export/library').then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/editor/projects').then(r => (r.ok ? r.json() : null)).catch(() => null),
     ])
 
+    // The two endpoints do not agree on shape: /api/export/library answers
+    // `{count, items}` while /api/editor/projects answers a bare array. Reading
+    // both as arrays threw "libraryRes is not iterable" and the overlay showed
+    // the exception where the list belongs. Normalising here keeps the merge
+    // below shape-agnostic, so a collection key that changes name later degrades
+    // to an empty list rather than breaking the page.
+    const library = toArray(libraryRes)
+    const editors = toArray(editorRes)
+
     const editorMap = {}
-    for (const ep of editorRes) {
+    for (const ep of editors) {
       if (ep?.project_id) editorMap[ep.project_id] = ep
     }
 
     // Deduplicate library items by project_id, keeping the most recent
     const libraryByProject = {}
-    for (const item of libraryRes) {
+    for (const item of library) {
       const pid = item?.project_id
       if (!pid) continue
       const existing = libraryByProject[pid]
@@ -67,7 +86,7 @@ async function fetchProjects() {
     }
 
     // Editor-only projects (saved but never exported)
-    for (const ep of editorRes) {
+    for (const ep of editors) {
       const pid = ep.project_id
       if (seen.has(pid)) continue
       seen.add(pid)
