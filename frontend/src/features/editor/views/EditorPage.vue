@@ -105,7 +105,7 @@ onBeforeUnmount(() => {
     <!-- Vue-managed dialogs (migrated from editor-shell-html.js) -->
     <MusicPickerDialog :visible="showMusicPicker" @close="showMusicPicker = false" />
     <ShareDialog :visible="showShareDialog" @close="showShareDialog = false" />
-    <NoDataOverlay :visible="showNoData" />
+    <NoDataOverlay :visible="showNoData" @close="showNoData = false" />
     <AssetPickerDialog :visible="showAssetPicker" @close="showAssetPicker = false" />
     <TTSPickerDialog :visible="showTTSPicker" @close="showTTSPicker = false" />
     <ResetConfirmModal :visible="showResetModal" @confirm="onResetConfirm" @cancel="showResetModal = false" />
