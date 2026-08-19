@@ -251,7 +251,7 @@ defineExpose({ refresh, upsertSummary })
           {{ seedInfo.total_presets ?? '—' }} presets
         </template>
       </span>
-      <button type="button" class="btn xs ghost" :disabled="busy || loading" @click="onSeed">
+      <button type="button" class="reseed-btn" :disabled="busy || loading" @click="onSeed">
         Reseed starters
       </button>
     </div>
@@ -412,6 +412,27 @@ defineExpose({ refresh, upsertSummary })
 }
 
 .ch-rail-foot .counts { display: flex; align-items: center; gap: 7px; flex: 1; }
+
+/* Tucked behind the footer: visible only on hover or keyboard focus so New
+   stays the prominent action and Reseed does not compete for attention. */
+.reseed-btn {
+  flex: none;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .16s, color .14s, background .14s;
+}
+
+.ch-rail-foot:hover .reseed-btn,
+.reseed-btn:focus-visible { opacity: 1; }
+.reseed-btn:hover:not(:disabled) { color: var(--muted); background: var(--raise); }
+.reseed-btn:disabled { cursor: not-allowed; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 </style>

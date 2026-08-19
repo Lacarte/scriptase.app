@@ -172,7 +172,7 @@ const inheritChips = computed(() => {
     ['Image', channel.style || channel.visual_direction?.style],
     ['Tone', channel.content?.tone],
     ['Mood', channel.content?.mood],
-    ['Voice', channel.audio_defaults?.voice],
+    ['TTS', channel.audio_defaults?.voice],
     ['Captions', channel.captions?.preset],
     ['Branding', channel.branding?.watermark || channel.branding?.position],
   ].filter(([, value]) => value)

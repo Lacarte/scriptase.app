@@ -355,7 +355,7 @@ const inheritedChips = computed(() => [
   ['Image', form.visual_direction.style],
   ['Tone', form.content.tone],
   ['Mood', form.content.mood],
-  ['Voice', form.audio_defaults.voice],
+  ['TTS', form.audio_defaults.voice],
   ['Captions', form.captions.preset],
   ['Aspect', form.export_defaults.aspect_ratio],
 ].filter(([, value]) => value))
@@ -1735,7 +1735,6 @@ onMounted(load)
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--bg);
 }
 
 .ch-detail {

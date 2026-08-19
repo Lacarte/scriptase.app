@@ -76,7 +76,7 @@ const PROJECTION = {
     workflow_id: 'wf_AAA111',
     stages: [
       { key: 'script', label: 'Script', ordinal: 0, node_ids: ['n_start'] },
-      { key: 'voice', label: 'Voice', ordinal: 1, node_ids: ['n_speak'] },
+      { key: 'voice', label: 'TTS', ordinal: 1, node_ids: ['n_speak'] },
     ],
   },
 }
@@ -438,7 +438,7 @@ describe('the running job on the graph (step 1.3)', () => {
     expect(pill.exists()).toBe(true)
     expect(pill.text()).toContain('Job job_AAA111')
     // Stage named by the projection, and the percent of the graph settled.
-    expect(pill.text()).toContain('Voice')
+    expect(pill.text()).toContain('TTS')
     expect(pill.text()).toContain('33%')
     // A live run is the prototype's `on` tone.
     expect(pill.classes()).toContain('on')
@@ -863,7 +863,7 @@ describe('Schema cards name the provider (step 7.3)', () => {
     await flushPromises()
 
     const card = wrapper.find('[data-node-id="n_speak"]')
-    expect(card.text()).toContain('Voice')
+    expect(card.text()).toContain('TTS')
   })
 })
 

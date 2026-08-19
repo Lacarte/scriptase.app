@@ -421,7 +421,6 @@ onMounted(() => catalog.loadCatalog())
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--bg);
   color: var(--text);
   font-family: var(--body);
   font-size: 13px;

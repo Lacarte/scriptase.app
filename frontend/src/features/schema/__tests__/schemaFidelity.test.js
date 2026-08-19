@@ -95,7 +95,7 @@ const PROJECTION = {
     workflow_id: 'wf_FID001',
     stages: [
       { key: 'script', label: 'Script', ordinal: 0, node_ids: ['n_start'] },
-      { key: 'voice', label: 'Voice', ordinal: 1, node_ids: ['n_speak'] },
+      { key: 'voice', label: 'TTS', ordinal: 1, node_ids: ['n_speak'] },
     ],
   },
 }

@@ -1053,7 +1053,7 @@ describe('StepDetailPanel virality score (step 16.3)', () => {
       props: {
         stage: {
           key: 'voice',
-          label: 'Voice',
+          label: 'TTS',
           status: 'idle',
           node_ids: ['n_tts'],
           provider_capable: true,

@@ -69,7 +69,7 @@ const PROJECTION = {
   workflow_id: 'wf_AAA111',
   stages: [
     { key: 'script', label: 'Script', ordinal: 0, node_ids: ['n_start'] },
-    { key: 'voice', label: 'Voice', ordinal: 1, node_ids: ['n_speak'] },
+    { key: 'voice', label: 'TTS', ordinal: 1, node_ids: ['n_speak'] },
   ],
 }
 
@@ -77,7 +77,7 @@ describe('stageIndexByNode', () => {
   it('maps every member node onto its stage', () => {
     expect(stageIndexByNode(PROJECTION)).toEqual({
       n_start: { key: 'script', label: 'Script', ordinal: 0 },
-      n_speak: { key: 'voice', label: 'Voice', ordinal: 1 },
+      n_speak: { key: 'voice', label: 'TTS', ordinal: 1 },
     })
   })
 
@@ -154,7 +154,7 @@ describe('buildSchemaGraph', () => {
     const byId = Object.fromEntries(nodes.map((n) => [n.id, n]))
     expect(byId.n_start.stageKey).toBe('script')
     expect(byId.n_start.subtitle).toBe('Script')
-    expect(byId.n_speak.subtitle).toBe('Voice')
+    expect(byId.n_speak.subtitle).toBe('TTS')
   })
 
   it('treats a node no stage claims as infrastructure, not a step', () => {

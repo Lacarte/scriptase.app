@@ -13,7 +13,7 @@
         the ported ScriptToScene editor and is excluded from the sweep.
    ================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Fonts are vendored via @fontsource in main.js — no network request. */
 
 :root {
   /* Native widgets (select popups, scrollbars, date pickers) follow the
