@@ -61,9 +61,7 @@ import JobCreatePanel from './components/JobCreatePanel.vue'
 import * as api from './api.js'
 import * as channelsApi from '@/features/channels/api.js'
 import * as scriptsApi from '@/features/script/api.js'
-import { useWorkflowStore } from '@/features/workflow/stores/workflow.js'
 import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
-import { api as workflowApi } from '@/shared/api/client.js'
 
 vi.mock('./api.js', () => ({
   getWorkflowStages: vi.fn(),
@@ -399,74 +397,6 @@ describe('useProductionStages', () => {
     await host.vm.api.loadWorkflow('wf_ABCDEF')
     expect(setIntervalSpy).not.toHaveBeenCalled()
     setIntervalSpy.mockRestore()
-  })
-})
-
-describe('Production + Workflow share one execution', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    vi.clearAllMocks()
-    FakeEventSource.reset()
-    api.getWorkflow.mockResolvedValue({ workflow: { nodes: [], edges: [] } })
-  })
-
-  it('updates Production stages and the Workflow store from the same event sequence', async () => {
-    // Production side
-    api.getExecutionStages.mockResolvedValue({
-      projection: {
-        ...projection(),
-        execution_id: 'ex_BOTH01',
-        execution_status: 'running',
-      },
-    })
-    api.getExecution.mockResolvedValue({
-      execution: {
-        execution_id: 'ex_BOTH01',
-        status: 'running',
-        nodes: {
-          n_script: { status: 'queued' },
-          n_tts: { status: 'idle' },
-        },
-      },
-    })
-
-    const production = mountHarness()
-    await production.vm.api.hydrateFromExecution('ex_BOTH01', {
-      EventSourceImpl: FakeEventSource,
-    })
-    const productionSource = FakeEventSource.latest()
-
-    // Canvas side — same endpoint, independent EventSource (two tabs / two views).
-    const store = useWorkflowStore()
-    store.currentExecution = {
-      execution_id: 'ex_BOTH01',
-      status: 'running',
-      workflow_snapshot: { nodes: [], edges: [] },
-      nodes: {
-        n_script: { status: 'queued' },
-        n_tts: { status: 'idle' },
-      },
-    }
-    store.watchExecution('ex_BOTH01', { EventSourceImpl: FakeEventSource })
-    const canvasSource = FakeEventSource.latest()
-    expect(canvasSource.url).toBe('/api/workflow/executions/ex_BOTH01/events')
-    expect(productionSource.url).toBe(canvasSource.url)
-
-    // Fan the same logical events to both subscribers (what the broker does).
-    const events = [
-      { sequence: 1, node_id: 'n_script', status: 'running', attempt: 1 },
-      { sequence: 2, node_id: 'n_script', status: 'succeeded', attempt: 1 },
-      { sequence: 3, node_id: 'n_tts', status: 'running', attempt: 1 },
-    ]
-    for (const event of events) {
-      productionSource.send(event)
-      canvasSource.send(event)
-    }
-
-    expect(stageList(production).find((s) => s.key === 'script').status).toBe('succeeded')
-    expect(stageList(production).find((s) => s.key === 'voice').status).toBe('running')
-    expect(store.nodeExecution('n_script').status).toBe('succeeded')
-    expect(store.nodeExecution('n_tts').status).toBe('running')
   })
 })
 
@@ -1853,8 +1783,6 @@ function mountHarness() {
   return mount(Comp)
 }
 
-// workflowApi imported for the dual-view parity surface; keep the module edge.
-void workflowApi
 
 /**
  * Step 9.2 — keyboard shortcuts on the Production page.

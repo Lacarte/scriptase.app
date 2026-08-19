@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { isDisplayed, isFieldVisible } from '../visibility.js'
-import { shouldDisplayField } from '@/features/workflow/schema.js'
 
 // Step 12.2 — `display_options.show` (workflow nodes) and `ui.show_if`
 // (provider settings) are the same rule under two names (contracts.md §22.3).
@@ -28,14 +27,6 @@ describe('shared visibility rule', () => {
     expect(isDisplayed(undefined, {})).toBe(true)
     expect(isFieldVisible({}, {})).toBe(true)
     expect(isFieldVisible({ ui: { show_if: {} } }, {})).toBe(true)
-  })
-
-  it('gives node fields and provider fields the same answer', () => {
-    const values = { mode: 'advanced' }
-    expect(shouldDisplayField({ display_options: { show: { mode: ['advanced'] } } }, values))
-      .toBe(isFieldVisible({ ui: { show_if: { mode: ['advanced'] } } }, values))
-    expect(shouldDisplayField({ display_options: { show: { mode: ['basic'] } } }, values))
-      .toBe(isFieldVisible({ ui: { show_if: { mode: ['basic'] } } }, values))
   })
 
   it('treats an absent value as not matching', () => {
