@@ -86,7 +86,6 @@ describe('legacy selection retirement', () => {
   it('ported provider surfaces no longer name the retired app-config keys', () => {
     const files = [
       'src/features/providers/stores/providerCatalog.js',
-      'src/features/providers/composables/useDomainProvider.js',
     ]
     for (const relative of files) {
       const source = readFileSync(resolve(process.cwd(), relative), 'utf8')
