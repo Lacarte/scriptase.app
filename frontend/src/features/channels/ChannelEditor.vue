@@ -3,13 +3,19 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
+  CHANNEL_COLORS,
+  PLATFORM_COLORS,
+  PLATFORM_NAMES,
+  PLATFORM_ORDER,
   channelAccent,
   channelInitials,
 } from '@/shared/utils/channelIdentity.js'
+import { listJobs } from '@/features/production/api.js'
 
 import ChannelRail from './ChannelRail.vue'
 import {
   composeVisualPrompt,
+  createChannel,
   deleteChannel,
   getChannel,
   getChannelDefaults,
@@ -60,6 +66,7 @@ const form = reactive({
   branding: {
     logo_asset_id: null,
     thumbnail_asset_id: null,
+    accent_color: null,
     enabled: false,
     position: 'bottom-right',
     size: 0.12,
@@ -76,6 +83,7 @@ const form = reactive({
     hook_style: '',
     cta_style: '',
     duration_target: null,
+    platforms: [],
   },
   script_template: {
     brief: '',
@@ -148,7 +156,8 @@ const form = reactive({
  */
 const carried = { cadence: null, fallback_policies: {} }
 
-const accent = computed(() => channelAccent(meta.id))
+const accent = computed(() => channelAccent(meta.id, form.branding.accent_color))
+const channelStats = reactive({ videos: 0, published: 0, batch: 0 })
 const initials = computed(() => channelInitials(form.name))
 
 const logoPreviewUrl = computed(() => {
@@ -189,6 +198,97 @@ const POSITIONS = [
 
 const ASPECT_RATIOS = ['9:16', '16:9', '1:1', '4:5']
 const SPEEDS = [0.9, 1, 1.1, 1.15, 1.25, 1.5]
+const LANGUAGES = ['English', 'French', 'Spanish', 'Haitian Creole']
+const IMAGE_STYLES = ['Cinematic Muted', 'Noir Contrast', 'Bright Warm', 'Archival Sepia', 'Neon Synth', 'Editorial Clean']
+const TONES = ['Reflective', 'Ominous', 'Uplifting', 'Narrative', 'Provocative', 'Calm']
+const MOODS = ['Contemplative', 'Tense', 'Energetic', 'Grounded', 'Dreamy', 'Urgent']
+const CAPTION_PRESETS = ['Minimal Serif', 'Bold Impact', 'Kinetic Pop', 'Documentary', 'Clean Sans', 'Handwritten']
+const VOICES = ['Ashley', 'Marcus', 'Ryan', 'Ellen', 'Nova', 'Theo']
+const BRANDING_OPTIONS = ['None', 'Lower-third watermark', 'Corner bug', 'End card']
+const LENGTHS = ['30–60s', '45–75s', '60–90s', '90–120s']
+
+function withCurrent(options, current) {
+  const value = String(current || '').trim()
+  if (!value || options.includes(value)) return options
+  return [value, ...options]
+}
+
+const languageOptions = computed(() => withCurrent(LANGUAGES, displayLanguage.value))
+const imageStyleOptions = computed(() => withCurrent(IMAGE_STYLES, form.visual_direction.style))
+const toneOptions = computed(() => withCurrent(TONES, form.content.tone))
+const moodOptions = computed(() => withCurrent(MOODS, form.content.mood))
+const captionOptions = computed(() => withCurrent(CAPTION_PRESETS, form.captions.preset))
+const voiceOptions = computed(() => withCurrent(VOICES, form.audio_defaults.voice))
+
+const LANGUAGE_LABELS = { en: 'English', fr: 'French', es: 'Spanish', ht: 'Haitian Creole', 'ht-ht': 'Haitian Creole' }
+const displayLanguage = computed(() => {
+  const raw = String(form.content.language || '').trim()
+  return LANGUAGE_LABELS[raw.toLowerCase()] || raw || 'English'
+})
+
+const lengthLabel = computed(() => {
+  const seconds = Number(form.content.duration_target)
+  if (!Number.isFinite(seconds) || seconds <= 0) return '60–90s'
+  if (seconds <= 45) return '30–60s'
+  if (seconds <= 70) return '45–75s'
+  if (seconds <= 90) return '60–90s'
+  return '90–120s'
+})
+
+const brandingTreatment = computed(() => {
+  if (!form.branding.enabled) return 'None'
+  if (form.branding.position.startsWith('bottom')) return 'Lower-third watermark'
+  if (form.branding.position === 'center') return 'End card'
+  return 'Corner bug'
+})
+
+function setLanguage(value) {
+  form.content.language = value
+  markDirty()
+}
+
+function setLength(value) {
+  const map = { '30–60s': 45, '45–75s': 60, '60–90s': 75, '90–120s': 105 }
+  form.content.duration_target = map[value] || 75
+  markDirty()
+}
+
+function setBrandingTreatment(value) {
+  if (value === 'None') {
+    form.branding.enabled = false
+  } else {
+    form.branding.enabled = true
+    if (value === 'Lower-third watermark') form.branding.position = 'bottom-right'
+    else if (value === 'End card') form.branding.position = 'center'
+    else form.branding.position = 'top-right'
+  }
+  markDirty()
+}
+
+function setAccent(color) {
+  form.branding.accent_color = color
+  markDirty()
+}
+
+function togglePlatform(code) {
+  const current = [...(form.content.platforms || [])]
+  const index = current.indexOf(code)
+  if (index >= 0) {
+    if (current.length === 1) {
+      error.value = 'Keep at least one platform'
+      return
+    }
+    current.splice(index, 1)
+  } else {
+    current.push(code)
+  }
+  form.content.platforms = current
+  markDirty()
+}
+
+function platformOn(code) {
+  return (form.content.platforms || []).includes(code)
+}
 
 const positionLabel = computed(
   () => POSITIONS.find((p) => p.id === form.branding.position)?.label || 'Top right',
@@ -290,6 +390,7 @@ function applyDocument(doc) {
   Object.assign(form.branding, {
     logo_asset_id: null,
     thumbnail_asset_id: null,
+    accent_color: null,
     enabled: false,
     position: 'bottom-right',
     size: 0.12,
@@ -307,8 +408,10 @@ function applyDocument(doc) {
     hook_style: '',
     cta_style: '',
     duration_target: null,
+    platforms: [],
     ...(doc.content || {}),
   })
+  form.content.platforms = Array.isArray(doc.content?.platforms) ? [...doc.content.platforms] : []
   Object.assign(form.script_template, {
     brief: '',
     sections: [],
@@ -511,6 +614,7 @@ async function load() {
     applyDocument(channel)
     brandingAssets.value = branding.assets || []
     musicAssets.value = Array.isArray(music) ? music : music?.tracks || []
+    await loadChannelStats(requestedId)
   } catch (err) {
     if (requestId !== loadRequest || channelId.value !== requestedId) return
     error.value = err.message || String(err)
@@ -526,6 +630,8 @@ function syncRailSummary(channel) {
     version: channel.version,
     niche: channel.content?.niche || '',
     style: channel.visual_direction?.style || '',
+    platforms: channel.content?.platforms || [],
+    accent_color: channel.branding?.accent_color || null,
     thumbnail_asset_id: channel.branding?.thumbnail_asset_id || null,
     track_count: channel.music_library?.tracks?.length || 0,
     created_at: channel.created_at,
@@ -569,6 +675,44 @@ async function onDelete() {
   try {
     await deleteChannel(meta.id, meta.version)
     await router.push({ name: 'channels' })
+  } catch (err) {
+    error.value = err.message || String(err)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function loadChannelStats(id) {
+  channelStats.videos = 0
+  channelStats.published = 0
+  channelStats.batch = 0
+  try {
+    const data = await listJobs({ limit: 500 })
+    const jobs = (data.jobs || []).filter((job) => job.channel_id === id)
+    const done = jobs.filter((job) => job.status === 'completed')
+    channelStats.videos = done.length
+    channelStats.published = done.length
+    channelStats.batch = jobs.filter((job) => ['queued', 'running', 'paused'].includes(job.status)).length
+  } catch {
+    /* counters stay at zero */
+  }
+}
+
+function useInBatch() {
+  if (!meta.id) return
+  router.push({ name: 'production', query: { channel: meta.id } })
+}
+
+async function duplicateChannel() {
+  saving.value = true
+  error.value = ''
+  try {
+    const { channel } = await createChannel({
+      ...draftPayload(),
+      name: `${form.name} (copy)`,
+    })
+    railRef.value?.upsertSummary(channel)
+    await router.push({ name: 'channel-edit', params: { id: channel.id } })
   } catch (err) {
     error.value = err.message || String(err)
   } finally {
@@ -805,34 +949,36 @@ onMounted(load)
               @input="markDirty"
             />
             <div class="ch-hero-sub">
-              <span>{{ form.content.language || 'en' }}</span>
+              <span v-if="form.content.platforms.length" class="plats">
+                <span
+                  v-for="plat in form.content.platforms"
+                  :key="plat"
+                  class="plat-ic"
+                  :style="{ background: PLATFORM_COLORS[plat] }"
+                >{{ plat[0] }}</span>
+              </span>
+              <span v-else class="no-plats">No platforms</span>
               <span class="dot-sep" />
-              <span>{{ form.export_defaults.aspect_ratio }}</span>
-              <template v-if="form.content.duration_target">
-                <span class="dot-sep" />
-                <span>{{ form.content.duration_target }}s</span>
-              </template>
+              <span>{{ displayLanguage }}</span>
               <span class="dot-sep" />
-              <span>{{ meta.id }}</span>
+              <span>{{ form.export_defaults.aspect_ratio }} · {{ lengthLabel }}</span>
               <span class="dot-sep" />
-              <span>schema {{ meta.schema_version }}</span>
+              <span class="mono">{{ form.content.niche || meta.id }}</span>
             </div>
           </div>
 
-          <!-- The prototype counts videos and published uploads. Neither is a
-               Channel field, so these are the counters this document owns. -->
           <div class="ch-hero-stats">
             <div class="ch-stat">
-              <div class="n">{{ form.script_template.sections.length }}</div>
-              <div class="l">Sections</div>
+              <div class="n">{{ channelStats.videos }}</div>
+              <div class="l">Videos</div>
             </div>
             <div class="ch-stat">
-              <div class="n">{{ form.music_library.tracks.length }}</div>
-              <div class="l">Tracks</div>
+              <div class="n">{{ channelStats.published }}</div>
+              <div class="l">Published</div>
             </div>
             <div class="ch-stat">
-              <div class="n">{{ meta.version }}</div>
-              <div class="l">Revision</div>
+              <div class="n">{{ channelStats.batch }}</div>
+              <div class="l">In batch</div>
             </div>
           </div>
         </div>
@@ -848,24 +994,48 @@ onMounted(load)
               Identity
             </h3>
             <div class="desc">
-              How the channel presents itself. Language and niche flow into every job.
+              How the channel presents itself. Platforms and language flow into every job.
             </div>
             <div class="ch-grid">
               <div class="ch-field">
+                <span class="ch-field-label">Accent color</span>
+                <div class="ch-swatches" role="radiogroup" aria-label="Accent color">
+                  <button
+                    v-for="color in CHANNEL_COLORS"
+                    :key="color"
+                    type="button"
+                    class="ch-sw"
+                    :class="{ sel: accent.toLowerCase() === color }"
+                    :style="{ background: color, color }"
+                    :aria-label="color"
+                    :aria-checked="accent.toLowerCase() === color"
+                    role="radio"
+                    @click="setAccent(color)"
+                  />
+                </div>
+              </div>
+              <div class="ch-field">
                 <label for="ch-language">Language</label>
-                <input id="ch-language" v-model="form.content.language" class="ch-input" type="text" @input="markDirty" />
+                <select id="ch-language" class="ch-select" :value="displayLanguage" @change="setLanguage($event.target.value)">
+                  <option v-for="lang in languageOptions" :key="lang" :value="lang">{{ lang }}</option>
+                </select>
               </div>
-              <div class="ch-field">
-                <label for="ch-niche">Niche</label>
-                <input id="ch-niche" v-model="form.content.niche" class="ch-input" type="text" @input="markDirty" />
-              </div>
-              <div class="ch-field">
-                <label for="ch-audience">Audience</label>
-                <input id="ch-audience" v-model="form.content.audience" class="ch-input" type="text" @input="markDirty" />
-              </div>
-              <div class="ch-field">
-                <label for="ch-workflow">Default workflow id</label>
-                <input id="ch-workflow" v-model="form.default_workflow_id" class="ch-input mono" type="text" placeholder="optional" @input="markDirty" />
+            </div>
+            <div class="ch-field" style="margin-top: 14px">
+              <span class="ch-field-label">Platforms</span>
+              <div class="ch-plat-row">
+                <button
+                  v-for="code in PLATFORM_ORDER"
+                  :key="code"
+                  type="button"
+                  class="ch-plat"
+                  :class="{ on: platformOn(code) }"
+                  @click="togglePlatform(code)"
+                >
+                  <span class="pdot" :style="{ background: PLATFORM_COLORS[code] }">{{ code[0] }}</span>
+                  {{ PLATFORM_NAMES[code] }}
+                  <svg class="pcheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                </button>
               </div>
             </div>
           </section>
@@ -877,37 +1047,44 @@ onMounted(load)
               Look &amp; voice
             </h3>
             <div class="desc">
-              Inherited by Script Studio and the production pipeline. Change once here,
-              every job follows.
+              Inherited by S1 and the production pipeline. Change once here, every job follows.
             </div>
             <div class="ch-grid">
               <div class="ch-field">
                 <label for="ch-style">Image style</label>
-                <input id="ch-style" v-model="form.visual_direction.style" class="ch-input" type="text" @input="markDirty" />
+                <select id="ch-style" v-model="form.visual_direction.style" class="ch-select" @change="markDirty">
+                  <option v-for="opt in imageStyleOptions" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
               </div>
               <div class="ch-field">
-                <label for="ch-voice">Narration voice</label>
-                <input id="ch-voice" v-model="form.audio_defaults.voice" class="ch-input" type="text" @input="markDirty" />
+                <label for="ch-voice">Narration voice · Inworld</label>
+                <select id="ch-voice" v-model="form.audio_defaults.voice" class="ch-select" @change="markDirty">
+                  <option v-for="opt in voiceOptions" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
               </div>
               <div class="ch-field">
                 <label for="ch-tone">Tone</label>
-                <input id="ch-tone" v-model="form.content.tone" class="ch-input" type="text" @input="markDirty" />
+                <select id="ch-tone" v-model="form.content.tone" class="ch-select" @change="markDirty">
+                  <option v-for="opt in toneOptions" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
               </div>
               <div class="ch-field">
                 <label for="ch-mood">Mood</label>
-                <input id="ch-mood" v-model="form.content.mood" class="ch-input" type="text" @input="markDirty" />
+                <select id="ch-mood" v-model="form.content.mood" class="ch-select" @change="markDirty">
+                  <option v-for="opt in moodOptions" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
               </div>
               <div class="ch-field">
-                <label for="ch-script-style">Script style</label>
-                <input id="ch-script-style" v-model="form.content.script_style" class="ch-input" type="text" @input="markDirty" />
+                <label for="ch-captions">Caption preset</label>
+                <select id="ch-captions" v-model="form.captions.preset" class="ch-select" @change="markDirty">
+                  <option v-for="opt in captionOptions" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
               </div>
               <div class="ch-field">
-                <label for="ch-hook">Hook style</label>
-                <input id="ch-hook" v-model="form.content.hook_style" class="ch-input" type="text" @input="markDirty" />
-              </div>
-              <div class="ch-field">
-                <label for="ch-cta">CTA style</label>
-                <input id="ch-cta" v-model="form.content.cta_style" class="ch-input" type="text" @input="markDirty" />
+                <label for="ch-branding">Branding</label>
+                <select id="ch-branding" class="ch-select" :value="brandingTreatment" @change="setBrandingTreatment($event.target.value)">
+                  <option v-for="opt in BRANDING_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
               </div>
             </div>
             <div class="ch-field wide">
@@ -1404,6 +1581,12 @@ onMounted(load)
             Unsaved changes
           </div>
           <div class="spacer"></div>
+          <button type="button" class="btn ghost sm" :disabled="saving" @click="useInBatch">
+            → New job with this
+          </button>
+          <button type="button" class="btn sm" :disabled="saving" @click="duplicateChannel">
+            Duplicate
+          </button>
           <button type="button" class="btn danger sm" :disabled="saving" @click="onDelete">
             Delete
           </button>
@@ -1436,7 +1619,13 @@ onMounted(load)
   background: var(--bg);
 }
 
-.ch-detail { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.ch-detail {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
 .ch-empty {
   flex: 1;
@@ -1548,7 +1737,11 @@ onMounted(load)
 
 /* ── Sections and fields ──────────────────────────────────────────── */
 .ch-body {
-  padding: 24px 32px 40px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 32px 28px;
   display: flex;
   flex-direction: column;
   gap: 26px;
@@ -1633,6 +1826,62 @@ textarea.ch-input { resize: vertical; line-height: 1.5; }
   outline: none;
   border-color: var(--accent-line-2);
   box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.ch-swatches { display: flex; gap: 7px; flex-wrap: wrap; }
+.ch-sw {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  transition: transform 0.1s;
+}
+.ch-sw:hover { transform: scale(1.12); }
+.ch-sw.sel { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px currentColor; }
+
+.ch-plat-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.ch-plat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r-s);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-2);
+  transition: border-color 0.14s, background 0.14s, color 0.14s;
+}
+.ch-plat:hover { border-color: var(--line-2); }
+.ch-plat.on { color: var(--text); border-color: var(--accent-line-2); background: var(--accent-wash); }
+.ch-plat .pdot {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+}
+.ch-plat .pcheck { color: var(--accent); opacity: 0; }
+.ch-plat.on .pcheck { opacity: 1; }
+
+.plats { display: inline-flex; gap: 5px; }
+.no-plats { color: var(--faint); }
+.plat-ic {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
 }
 
 input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex: none; }
@@ -1964,15 +2213,15 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent);
 
 /* ── Footer ───────────────────────────────────────────────────────── */
 .ch-foot {
+  flex: none;
   padding: 14px 32px;
   border-top: 1px solid var(--line-soft);
   background: var(--bg-2);
   display: flex;
   align-items: center;
   gap: 10px;
-  position: sticky;
-  bottom: 0;
-  margin-top: auto;
+  position: relative;
+  z-index: 4;
 }
 .ch-foot .spacer { flex: 1; }
 
@@ -1997,7 +2246,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent);
 /* The prototype hides the rail here. It is the only way back to the list on
    this route, so it stacks above the editor instead. */
 @media (max-width: 820px) {
-  .chview { display: block; overflow-y: auto; }
+  .chview { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
   .ch-rail { border-right: 0; border-bottom: 1px solid var(--line); }
   .ch-hero, .ch-body, .ch-foot { padding-left: 18px; padding-right: 18px; }
 }

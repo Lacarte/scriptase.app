@@ -18,7 +18,6 @@ import {
   createJob,
   createJobBatch,
   getJobDefaults,
-  listWorkflows,
   startJob,
 } from '../api.js'
 import {
@@ -30,8 +29,10 @@ import {
 } from '../sourceModes.js'
 
 const props = defineProps({
-  /** Prefill workflow id when the Production page already selected one. */
-  initialWorkflowId: { type: String, default: '' },
+  /** Prefill S1 Library with this script id (Use in Batch). */
+  initialScriptId: { type: String, default: '' },
+  /** Prefill the channel picker (New job with this). */
+  initialChannelId: { type: String, default: '' },
   /** When true and Run Now is selected, start the Job immediately after create. */
   autoStart: { type: Boolean, default: true },
 })
@@ -39,12 +40,10 @@ const props = defineProps({
 const emit = defineEmits(['created', 'started', 'cancel'])
 
 const channels = ref([])
-const workflows = ref([])
 const sourceModes = ref([...SOURCE_MODE_CATALOG])
 const executionModes = ref([...EXECUTION_MODE_CATALOG])
 
 const channelId = ref('')
-const workflowId = ref('')
 const executionMode = ref('manual')
 const sourceMode = ref('paste')
 const sourceKind = ref('input')
@@ -241,7 +240,6 @@ function buildDraft() {
     execution_mode: mode,
     source: buildSource(),
   }
-  if (workflowId.value) draft.workflow_id = workflowId.value
   return draft
 }
 
@@ -283,10 +281,9 @@ async function loadCatalogs() {
   loading.value = true
   error.value = ''
   try {
-    const [defaults, channelData, workflowData] = await Promise.all([
+    const [defaults, channelData] = await Promise.all([
       getJobDefaults().catch(() => null),
       listChannels({ limit: 500, seed: true }),
-      listWorkflows({ limit: 200 }),
     ])
     if (defaults?.source_modes?.length) {
       sourceModes.value = defaults.source_modes
@@ -302,12 +299,13 @@ async function loadCatalogs() {
       sourceMode.value = defaults.defaults.source.mode
     }
     channels.value = channelData.channels || []
-    workflows.value = workflowData.workflows || workflowData.items || []
-    if (!channelId.value && channels.value.length === 1) {
+    if (props.initialChannelId && channels.value.some((ch) => ch.id === props.initialChannelId)) {
+      channelId.value = props.initialChannelId
+    } else if (!channelId.value && channels.value.length === 1) {
       channelId.value = channels.value[0].id
     }
-    if (!workflowId.value && props.initialWorkflowId) {
-      workflowId.value = props.initialWorkflowId
+    if (props.initialScriptId) {
+      sourceKind.value = 'studio'
     }
   } catch (err) {
     error.value = err.message || String(err)
@@ -335,7 +333,6 @@ async function onSubmit() {
         script_ids: [...selectedScriptIds.value],
         execution_mode: resolvedMode,
       }
-      if (workflowId.value) batch.workflow_id = workflowId.value
       const result = await createJobBatch(batch)
       const jobs = result.jobs || []
       emit('created', { job: jobs[0] || null, jobs, batch: result })
@@ -362,16 +359,21 @@ async function onSubmit() {
   }
 }
 
-watch(
-  () => props.initialWorkflowId,
-  (id) => {
-    if (id && !workflowId.value) workflowId.value = id
-  },
-)
-
 watch([sourceKind, channelId], () => {
   void loadStudioScripts()
 })
+
+watch(
+  () => studioScripts.value.map((script) => script.id).join(','),
+  () => {
+    if (!props.initialScriptId) return
+    if (studioScripts.value.some((script) => script.id === props.initialScriptId)) {
+      if (!selectedScriptIds.value.includes(props.initialScriptId)) {
+        selectedScriptIds.value = [...selectedScriptIds.value, props.initialScriptId]
+      }
+    }
+  },
+)
 
 onMounted(() => {
   void loadCatalogs()
@@ -393,7 +395,7 @@ void defaultJobDraft
       <div class="sub">Channel → Source → Execution. The rest is inherited.</div>
     </div>
 
-    <p v-if="loading" class="muted rail-loading">Loading channels and workflows…</p>
+    <p v-if="loading" class="muted rail-loading">Loading channels…</p>
 
     <form v-else class="rail-form" @submit.prevent="onSubmit">
       <div class="rail-body">
@@ -607,31 +609,35 @@ void defaultJobDraft
             }}
           </p>
           <div class="narration-grid">
-            <label class="field">
-              <span class="field-label">
-                Remove silence
-                <em v-if="removeSilenceOverride === 'inherit'">Inherited</em>
-              </span>
-              <select v-model="removeSilenceOverride" :disabled="submitting || !channelId">
-                <option value="inherit">
-                  Inherited ({{ inheritedRemoveSilence ? 'On' : 'Off' }})
-                </option>
-                <option value="on">On</option>
-                <option value="off">Off</option>
-              </select>
+            <label class="field-label" for="narration-silence">
+              Remove silence
+              <em v-if="removeSilenceOverride === 'inherit'">inherited</em>
             </label>
-            <label class="field">
-              <span class="field-label">
-                Speed
-                <em v-if="speedOverride === ''">Inherited</em>
-              </span>
-              <select v-model="speedOverride" :disabled="submitting || !channelId">
-                <option value="">Inherited ({{ inheritedSpeed }}×)</option>
-                <option v-for="speed in [0.9, 1, 1.1, 1.15, 1.25, 1.5]" :key="speed" :value="String(speed)">
-                  {{ speed }}×
-                </option>
-              </select>
+            <label class="field-label" for="narration-speed">
+              Speed
+              <em v-if="speedOverride === ''">inherited</em>
             </label>
+            <select
+              id="narration-silence"
+              v-model="removeSilenceOverride"
+              :disabled="submitting || !channelId"
+            >
+              <option value="inherit">
+                Inherited ({{ inheritedRemoveSilence ? 'On' : 'Off' }})
+              </option>
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+            <select
+              id="narration-speed"
+              v-model="speedOverride"
+              :disabled="submitting || !channelId"
+            >
+              <option value="">Inherited ({{ inheritedSpeed }}×)</option>
+              <option v-for="speed in [0.9, 1, 1.1, 1.15, 1.25, 1.5]" :key="speed" :value="String(speed)">
+                {{ speed }}×
+              </option>
+            </select>
           </div>
         </fieldset>
 
@@ -663,20 +669,6 @@ void defaultJobDraft
             </label>
           </div>
         </div>
-
-        <label class="field workflow-field">
-          <span class="field-label">Workflow</span>
-          <select v-model="workflowId" :disabled="submitting">
-            <option value="">Channel default workflow</option>
-            <option
-              v-for="wf in workflows"
-              :key="wf.workflow_id || wf.id"
-              :value="wf.workflow_id || wf.id"
-            >
-              {{ wf.name || wf.workflow_id || wf.id }}
-            </option>
-          </select>
-        </label>
 
         <ul v-if="fieldErrors.length" class="errors" role="alert">
           <li v-for="(msg, idx) in fieldErrors" :key="idx">{{ msg }}</li>
@@ -971,7 +963,13 @@ select:focus {
   color: var(--muted);
 }
 
-.txt {
+/* The prototype writes this as `input.txt`, and the element qualifier is
+   load-bearing: `.txt` is also the label block inside every `.seg-opt` tile
+   (`<span class="txt"><span class="t">…`). Unqualified, every source and
+   execution tile got a text input's background, border and 10px padding
+   painted behind its label — the dark box that made the tiles read as nested
+   panels instead of the prototype's flat cards. */
+input.txt {
   width: 100%;
   background: var(--bg-2);
   border: 1px solid var(--line);
@@ -982,7 +980,7 @@ select:focus {
   padding: 10px 11px;
 }
 
-.txt::placeholder { color: var(--faint); }
+input.txt::placeholder { color: var(--faint); }
 
 .idea-hint {
   font-size: 11px;
@@ -1060,29 +1058,48 @@ select:focus {
 .narration-source { margin: 0 0 10px; }
 .narration-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 6px;
+  align-items: stretch;
+}
+
+.narration-grid .field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  min-height: 1.4em;
 }
 
 .field-label em {
-  margin-left: 6px;
+  margin-left: 0;
+  flex: none;
   color: var(--accent);
   font-style: normal;
   letter-spacing: 0;
   text-transform: lowercase;
 }
 
-.workflow-field select,
 .narration-fieldset select {
   width: 100%;
+  min-width: 0;
+  height: 38px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
   border-radius: var(--r-s);
-  padding: 9px 11px;
+  padding: 0 28px 0 11px;
   font-family: var(--body);
   font-size: 13px;
+  line-height: 38px;
   cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237c8698' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
 }
 
 .provider-note {

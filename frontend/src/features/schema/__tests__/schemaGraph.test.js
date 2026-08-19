@@ -93,6 +93,54 @@ describe('buildSchemaGraph', () => {
     expect(nodes.map((n) => n.id)).toEqual(['n_start', 'n_speak', 'n_end'])
   })
 
+  it('paints the registry schema skin when the definition carries one', () => {
+    const { nodes } = buildSchemaGraph({
+      workflow: {
+        nodes: [{ id: 'n_go', type: 'demo.start', name: 'Manual Trigger', position: { x: 0, y: 0 } }],
+        edges: [],
+      },
+      registry: {
+        ...REGISTRY,
+        node_types: {
+          ...REGISTRY.node_types,
+          'demo.start': {
+            ...REGISTRY.node_types['demo.start'],
+            schema: { sub: 'Job trigger', glyph: '▶', accent: '#3fb68b', role: 'flow' },
+          },
+        },
+      },
+    })
+    expect(nodes[0].name).toBe('Start')
+    expect(nodes[0].subtitle).toBe('Job trigger')
+    expect(nodes[0].glyph).toBe('▶')
+    expect(nodes[0].accent).toBe('#3fb68b')
+    expect(nodes[0].role).toBe('flow')
+  })
+
+  it('keeps a registry branch role even when a stage claims the node', () => {
+    const { nodes } = buildSchemaGraph({
+      workflow: {
+        nodes: [{ id: 'n_music', type: 'demo.speak', name: 'Music', position: { x: 0, y: 0 } }],
+        edges: [],
+      },
+      registry: {
+        ...REGISTRY,
+        node_types: {
+          ...REGISTRY.node_types,
+          'demo.speak': {
+            ...REGISTRY.node_types['demo.speak'],
+            schema: { sub: 'Background Music', glyph: '♪', accent: '#e0a44a', role: 'branch' },
+          },
+        },
+      },
+      projection: {
+        stages: [{ key: 'composer', label: 'Composer', ordinal: 8, node_ids: ['n_music'] }],
+      },
+    })
+    expect(nodes[0].role).toBe('branch')
+    expect(nodes[0].subtitle).toBe('Background Music')
+  })
+
   it('takes label, icon and accent from the registry', () => {
     const { nodes } = buildSchemaGraph({ workflow: WORKFLOW, registry: REGISTRY, projection: PROJECTION })
     const speak = nodes.find((n) => n.id === 'n_speak')
@@ -116,6 +164,22 @@ describe('buildSchemaGraph', () => {
     expect(end.role).toBe('flow')
     // Falls back to the registry category label rather than inventing a stage.
     expect(end.subtitle).toBe('Utility')
+  })
+
+  it('prefers the registry display name over an authored canvas label', () => {
+    const { nodes } = buildSchemaGraph({
+      workflow: {
+        nodes: [{
+          id: 'n_trigger',
+          type: 'demo.start',
+          name: 'Manual Trigger',
+          position: { x: 0, y: 0 },
+        }],
+        edges: [],
+      },
+      registry: REGISTRY,
+    })
+    expect(nodes[0].name).toBe('Start')
   })
 
   it('renders a node type it has never seen without special-casing it', () => {

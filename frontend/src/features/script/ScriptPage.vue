@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 
 import { getChannel, listChannels } from '@/features/channels/api.js'
 import { useToast } from '@/shared/composables/useToast.js'
@@ -21,6 +21,7 @@ import ViralityPanel from './ViralityPanel.vue'
 
 defineOptions({ name: 'ScriptPage' })
 
+const router = useRouter()
 const toast = useToast()
 const scripts = ref([])
 const channels = ref([])
@@ -53,6 +54,8 @@ const draft = reactive({
   idea: '',
   body: '',
 })
+/** Session-only, like the prototype — Narration has no persist field for it. */
+const autoTts = ref(false)
 
 const originLabels = {
   auto: 'Auto',
@@ -289,6 +292,7 @@ async function save() {
     toast.warning('Give this script a title')
     return
   }
+  const bodyChanged = form.body !== selected.value.body
   saving.value = true
   error.value = ''
   try {
@@ -303,10 +307,32 @@ async function save() {
     dirty.value = false
     await loadLibrary()
     toast.success(`${payload.script.id} saved`)
+    if (autoTts.value && bodyChanged && narrationState.value !== 'ready') {
+      toast.info('Auto-generate on: creating narration…')
+      await makeNarration()
+    }
   } catch (exc) {
     error.value = exc.message || 'Could not save the script'
   } finally {
     saving.value = false
+  }
+}
+
+async function duplicateScript() {
+  if (!selected.value) return
+  try {
+    const payload = await createScript({
+      title: `${form.title.trim() || selected.value.title} (copy)`,
+      body: form.body,
+      channel_id: selected.value.channel_id,
+      origin: selected.value.origin || 'paste',
+      narration: { state: 'none', voice: narrationForm.voice || '' },
+    })
+    await loadLibrary()
+    toast.success(`${payload.script.id} duplicated`)
+    await openScript(payload.script)
+  } catch (exc) {
+    error.value = exc.message || 'Could not duplicate the script'
   }
 }
 
@@ -452,6 +478,19 @@ function cancelCreate() {
   creating.value = false
   if (scripts.value[0]) openScript(scripts.value[0])
 }
+
+function useInBatch() {
+  if (!selected.value) return
+  router.push({ name: 'production', query: { script: selected.value.id } })
+}
+
+const formatLabel = computed(() => {
+  const mime = String(narrationAudio.value?.mime || '')
+  if (!mime) return ''
+  if (mime.includes('mpeg') || mime.includes('mp3')) return '48kHz · mp3'
+  if (mime.includes('wav')) return '48kHz · wav'
+  return mime.replace(/^audio\//, '')
+})
 
 function generationOptions(channel) {
   const content = channel?.content || {}
@@ -655,7 +694,7 @@ onBeforeUnmount(() => {
 
         <div class="s1-doc-body single">
           <div class="s1-script-col">
-            <div class="s1-col-label"><span>How should Scriptase create it?</span></div>
+            <div class="s1-col-label"><span>How should S1 create it?</span></div>
             <div class="segmented create-modes" role="tablist" aria-label="Create mode">
               <button type="button" role="tab" class="seg-opt" :class="{ sel: draft.mode === 'auto' }" :aria-selected="draft.mode === 'auto'" @click="chooseMode('auto')">
                 <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 3v2M12 19v2M3 12h2M19 12h2" /></svg></span>
@@ -663,7 +702,7 @@ onBeforeUnmount(() => {
               </button>
               <button type="button" role="tab" class="seg-opt" :class="{ sel: draft.mode === 'idea' }" :aria-selected="draft.mode === 'idea'" @click="chooseMode('idea')">
                 <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18h6M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" /></svg></span>
-                <span class="txt"><span class="t">Topic to Idea</span><span class="d">Topic → script</span></span>
+                <span class="txt"><span class="t">Idea</span><span class="d">Topic → script</span></span>
               </button>
               <button type="button" role="tab" class="seg-opt" :class="{ sel: draft.mode === 'paste' }" :aria-selected="draft.mode === 'paste'" @click="chooseMode('paste')">
                 <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1" /><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" /></svg></span>
@@ -700,11 +739,27 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div v-else class="rail-state">Loading Channel template…</div>
+              <button
+                class="btn primary s1-create-go"
+                type="button"
+                :disabled="generating || !draft.channelId"
+                @click="createNew"
+              >
+                <svg v-if="draft.mode === 'auto'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v3M12 18v3M5 12H2M22 12h-3"/><circle cx="12" cy="12" r="4"/></svg>
+                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+                {{ generating ? 'Writing…' : draft.mode === 'auto' ? 'Generate script' : 'Send to S1 → write script' }}
+              </button>
             </template>
 
             <template v-else>
               <textarea id="paste-script" v-model="draft.body" class="s1-script-area paste" aria-label="Pasted script" placeholder="Paste your script here…" />
               <div class="script-meta"><span>{{ pasteWordCount }} words</span><span>~{{ formatDuration(pasteDuration) }} narration</span></div>
+              <button
+                class="btn primary s1-create-go"
+                type="button"
+                :disabled="generating || !draft.channelId"
+                @click="createNew"
+              >{{ generating ? 'Saving…' : 'Save pasted script' }}</button>
             </template>
           </div>
         </div>
@@ -712,9 +767,6 @@ onBeforeUnmount(() => {
         <div class="s1-doc-foot">
           <div class="spacer" />
           <button class="btn ghost sm" type="button" :disabled="generating" @click="cancelCreate">Cancel</button>
-          <button class="btn primary sm" type="button" :disabled="generating || !draft.channelId" @click="createNew">
-            {{ generating ? 'Writing…' : draft.mode === 'paste' ? 'Save pasted script' : 'Generate script' }}
-          </button>
         </div>
       </template>
 
@@ -816,9 +868,9 @@ onBeforeUnmount(() => {
                   <span class="k">Duration</span>
                   <span class="v mono">{{ takeDuration ? formatDuration(takeDuration) : '—' }}</span>
                 </div>
-                <div v-if="narrationAudio?.mime" class="s1-kv">
+                <div class="s1-kv">
                   <span class="k">Format</span>
-                  <span class="v mono">{{ narrationAudio.mime }}</span>
+                  <span class="v mono">{{ formatLabel || '—' }}</span>
                 </div>
 
                 <div v-if="audioUrl" class="s1-player">
@@ -905,6 +957,24 @@ onBeforeUnmount(() => {
                     ↺ Reset to channel default
                   </button>
                 </div>
+
+                <div class="s1-autogen">
+                  <div class="txt">
+                    <div class="t">Auto-generate on save</div>
+                    <div class="d">Keep narration in sync with the script</div>
+                  </div>
+                  <div
+                    class="s1-toggle"
+                    :class="{ on: autoTts }"
+                    role="switch"
+                    tabindex="0"
+                    :aria-checked="autoTts"
+                    aria-label="Auto-generate on save"
+                    @click="autoTts = !autoTts"
+                    @keydown.enter.prevent="autoTts = !autoTts"
+                    @keydown.space.prevent="autoTts = !autoTts"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -916,6 +986,11 @@ onBeforeUnmount(() => {
             Unsaved changes
           </div>
           <div class="spacer" />
+          <button class="btn ghost sm" type="button" :disabled="!selected" @click="useInBatch">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            Use in Batch
+          </button>
+          <button class="btn sm" type="button" :disabled="!selected" @click="duplicateScript">Duplicate</button>
           <button class="btn primary sm" type="button" :disabled="saving || !dirty" @click="save">{{ saving ? 'Saving…' : 'Save' }}</button>
         </div>
       </template>
@@ -1131,6 +1206,11 @@ input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow:
 .s1-player audio { display: none; }
 
 .s1-tts-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.s1-create-go { margin-top: 14px; }
+.s1-autogen { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line-soft); }
+.s1-autogen .txt { flex: 1; }
+.s1-autogen .txt .t { font-size: 12.5px; font-weight: 500; }
+.s1-autogen .txt .d { font-size: 10.5px; color: var(--muted); margin-top: 1px; }
 
 .s1-proc { margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line-soft); }
 .s1-proc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
@@ -1159,7 +1239,7 @@ input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow:
 .banner.error button { margin-left: auto; border: 0; background: transparent; color: inherit; font-size: 15px; cursor: pointer; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 
-@media (max-width: 1100px) {
+@media (max-width: 820px) {
   .s1-doc-body { grid-template-columns: 1fr; }
   .s1-tts { position: static; }
 }

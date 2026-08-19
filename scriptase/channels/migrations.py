@@ -161,6 +161,23 @@ def _restrict_provider_references(data: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+@_register(7)
+def _add_presentation_identity(data: dict[str, Any]) -> dict[str, Any]:
+    """Add the prototype's accent colour and platform chips."""
+    migrated = deepcopy(data)
+    branding = migrated.get("branding")
+    if not isinstance(branding, dict):
+        branding = {}
+        migrated["branding"] = branding
+    branding.setdefault("accent_color", None)
+    content = migrated.get("content")
+    if not isinstance(content, dict):
+        content = {}
+        migrated["content"] = content
+    content.setdefault("platforms", [])
+    return migrated
+
+
 # Future schema changes register the next consecutive target here and land in
 # the same step that changes the model (CLAUDE.md non-negotiable).
 

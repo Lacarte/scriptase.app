@@ -282,6 +282,8 @@ def channel_summary(document: ChannelProfile) -> dict[str, Any]:
         "schema_version": document.schema_version,
         "niche": document.content.niche,
         "style": document.visual_direction.style,
+        "platforms": list(document.content.platforms),
+        "accent_color": document.branding.accent_color,
         "thumbnail_asset_id": document.branding.thumbnail_asset_id,
         "track_count": len(document.music_library.tracks),
         "audio_defaults": {

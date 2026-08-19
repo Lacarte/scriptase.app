@@ -76,6 +76,7 @@ function makeRouter() {
     routes: [
       { path: '/script', component: ScriptPage },
       { path: '/channels/:id', component: { template: '<div />' } },
+      { path: '/production', name: 'production', component: { template: '<div />' } },
     ],
   })
 }
@@ -148,7 +149,7 @@ describe('Script Studio step 3.2', () => {
       expect(wrapper.text()).toContain(section)
     }
 
-    await wrapper.get('.s1-doc-foot .primary').trigger('click')
+    await wrapper.get('.s1-create-go').trigger('click')
     await flushPromises()
 
     expect(scriptApi.generateScript).toHaveBeenCalledTimes(1)
@@ -166,10 +167,10 @@ describe('Script Studio step 3.2', () => {
     await wrapper.get('.s1-rail-title .primary').trigger('click')
     await flushPromises()
 
-    const ideaTab = wrapper.findAll('[role="tab"]').find(button => button.text().includes('Topic to Idea'))
+    const ideaTab = wrapper.findAll('[role="tab"]').find(button => button.text().includes('Idea'))
     await ideaTab.trigger('click')
     await wrapper.get('#idea-input').setValue('Why old arguments replay in our heads')
-    await wrapper.get('.s1-doc-foot .primary').trigger('click')
+    await wrapper.get('.s1-create-go').trigger('click')
     await flushPromises()
 
     expect(scriptApi.generateScript).toHaveBeenCalledWith(expect.objectContaining({
@@ -189,7 +190,7 @@ describe('Script Studio step 3.2', () => {
     const pasteTab = wrapper.findAll('[role="tab"]').find(button => button.text().includes('Paste'))
     await pasteTab.trigger('click')
     await wrapper.get('#paste-script').setValue(pasted)
-    await wrapper.get('.s1-doc-foot .primary').trigger('click')
+    await wrapper.get('.s1-create-go').trigger('click')
     await flushPromises()
 
     expect(scriptApi.generateScript).not.toHaveBeenCalled()
@@ -262,7 +263,7 @@ describe('Script Studio step 3.3 narration', () => {
     expect(wrapper.findAll('.s1-wave-track i')).toHaveLength(48)
     expect(wrapper.get('.s1-player .time').text()).toBe('0:00 / 0:12')
     expect(wrapper.get('.s1-kv .mono').text()).toBe('0:12')
-    expect(wrapper.text()).toContain('audio/mpeg')
+    expect(wrapper.text()).toContain('48kHz · mp3')
   })
 
   it('names the Channel provider instance without hardcoding a provider', async () => {
@@ -302,7 +303,7 @@ describe('Script Studio step 3.3 narration', () => {
     const pasteTab = wrapper.findAll('[role="tab"]').find(button => button.text().includes('Paste'))
     await pasteTab.trigger('click')
     await wrapper.get('#paste-script').setValue('A fresh pasted script.')
-    await wrapper.get('.s1-doc-foot .primary').trigger('click')
+    await wrapper.get('.s1-create-go').trigger('click')
     await flushPromises()
 
     expect(wrapper.get('[aria-label="Narration voice"]').element.value).toBe('Alex')

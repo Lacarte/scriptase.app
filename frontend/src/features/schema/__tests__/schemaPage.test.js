@@ -185,7 +185,7 @@ describe('Schema graph (step 1.2)', () => {
     const cards = wrapper.findAll('.sch-node')
     expect(cards).toHaveLength(3)
     expect(cards.map((c) => c.attributes('data-node-id'))).toEqual(['n_start', 'n_speak', 'n_end'])
-    expect(cards[1].text()).toContain('Narrate')
+    expect(cards[1].text()).toContain('Speak')
   })
 
   it('renders one path per edge the backend returned', async () => {
@@ -499,7 +499,7 @@ describe('the running job on the graph (step 1.3)', () => {
 
     const panel = wrapper.find('.sch-inspect.show')
     expect(panel.exists()).toBe(true)
-    expect(panel.text()).toContain('Narrate')
+    expect(panel.text()).toContain('Speak')
     expect(panel.text()).toContain('Running')
     // The resolved provider is an instance reference — never a credential.
     expect(panel.text()).toContain('inst_main')

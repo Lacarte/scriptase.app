@@ -178,7 +178,7 @@ describe('schema fidelity (step 6.6)', () => {
 
     // The legend is the prototype's five states, in its order.
     expect(wrapper.findAll('.sch-legend .sl').map((s) => s.text())).toEqual([
-      'Pending', 'Active', 'Done', 'Failed', 'Skipped',
+      'Pending', 'Running', 'Done', 'Failed', 'Skipped',
     ])
     expect(wrapper.findAll('.sch-legend .sd').map((d) => d.classes()[1])).toEqual([
       'd-pending', 'd-active', 'd-done', 'd-failed', 'd-skip',
@@ -280,7 +280,7 @@ describe('schema fidelity (step 6.6)', () => {
 
     const tip = wrapper.find('[data-node-id="n_speak"] .sch-node-err')
     expect(tip.classes()).toContain('show')
-    expect(tip.find('.ne-h').text()).toContain('Narrate')
+    expect(tip.find('.ne-h').text()).toContain('Speak')
     expect(tip.find('.ne-msg').text()).toBe('Provider timed out')
     expect(tip.find('.ne-code').text()).toBe('VOICE_TIMEOUT')
 
@@ -302,7 +302,7 @@ describe('schema fidelity (step 6.6)', () => {
     const panel = wrapper.find('.sch-err')
     expect(panel.classes()).toContain('show')
     expect(panel.find('.se-head .se-ic').exists()).toBe(true)
-    expect(panel.find('.se-t .se-node').text()).toBe('Narrate')
+    expect(panel.find('.se-t .se-node').text()).toBe('Speak')
     expect(panel.findAll('.se-body .se-row .k').map((k) => k.text())).toEqual([
       'Node', 'Stage', 'Job',
     ])
@@ -336,7 +336,7 @@ describe('schema fidelity (step 6.6)', () => {
     expect(panel.classes()).toContain('show')
     expect(card.classes()).toContain('picked')
     expect(panel.find('.si-head .si-ic').exists()).toBe(true)
-    expect(panel.find('.si-t .nm').text()).toBe('Narrate')
+    expect(panel.find('.si-t .nm').text()).toBe('Speak')
     expect(panel.find('.si-badge').classes()).toContain('s-active')
     expect(panel.find('.si-x').exists()).toBe(true)
     expect(panel.find('.si-h.in .arrow').exists()).toBe(true)

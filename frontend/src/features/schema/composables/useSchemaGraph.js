@@ -136,7 +136,6 @@ export function useSchemaGraph() {
   }
 
   async function loadRegistry() {
-    if (registry.value) return registry.value
     registry.value = await getNodeTypes()
     return registry.value
   }

@@ -24,7 +24,7 @@ CHANNEL_ID_RE = re.compile(r"^ch_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py). Distinct from
 # the content ``version`` field, which bumps on every successful update.
-CHANNEL_SCHEMA_VERSION = 6
+CHANNEL_SCHEMA_VERSION = 7
 
 WATERMARK_POSITIONS = (
     "top-left",
@@ -94,6 +94,7 @@ class Branding(BaseModel):
 
     logo_asset_id: str | None = None
     thumbnail_asset_id: str | None = None
+    accent_color: str | None = None
     enabled: bool = False
     position: str = "bottom-right"
     size: float = Field(default=0.12, ge=0.0, le=1.0)
@@ -104,6 +105,16 @@ class Branding(BaseModel):
     @classmethod
     def _logo(cls, value: Any) -> str | None:
         return _managed_ref(value, ("branding/",))
+
+    @field_validator("accent_color", mode="before")
+    @classmethod
+    def _accent(cls, value: Any) -> str | None:
+        text = _optional_str(value)
+        if text is None:
+            return None
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", text):
+            raise ValueError("accent_color must be a #RRGGBB hex")
+        return text.lower()
 
     @field_validator("position", mode="before")
     @classmethod
@@ -158,6 +169,7 @@ class Content(BaseModel):
     hook_style: str = ""
     cta_style: str = ""
     duration_target: int | None = Field(default=None, ge=1, le=600)
+    platforms: list[str] = Field(default_factory=list)
 
     @field_validator(
         "niche",
@@ -173,6 +185,27 @@ class Content(BaseModel):
     @classmethod
     def _strip_fields(cls, value: Any) -> str:
         return _strip_str(value)
+
+    @field_validator("platforms", mode="before")
+    @classmethod
+    def _platforms(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError("platforms must be a list")
+        aliases = {
+            "yt": "YT", "youtube": "YT",
+            "tt": "TT", "tiktok": "TT",
+            "ig": "IG", "instagram": "IG",
+        }
+        seen: list[str] = []
+        for item in value:
+            key = aliases.get(_strip_str(item).lower(), _strip_str(item).upper())
+            if key not in {"YT", "TT", "IG"}:
+                raise ValueError("platforms must be YT, TT, or IG")
+            if key not in seen:
+                seen.append(key)
+        return seen
 
 
 class ScriptTemplate(BaseModel):

@@ -378,7 +378,10 @@ defineExpose({
           @keydown="onNodeKey(node.id, $event)"
           @contextmenu="openMenu($event, node)"
         >
-          <span class="sch-ic"><NodeIcon :icon="node.icon" /></span>
+          <span class="sch-ic" :class="{ glyph: Boolean(node.glyph) }">
+            <template v-if="node.glyph">{{ node.glyph }}</template>
+            <NodeIcon v-else :icon="node.icon" />
+          </span>
           <span class="sch-nt">
             <span class="nm">{{ node.name }}</span>
             <span class="sb">{{ node.subtitle }}</span>
@@ -434,7 +437,7 @@ defineExpose({
 
     <div class="sch-legend">
       <span class="sl"><span class="sd d-pending" /> Pending</span>
-      <span class="sl"><span class="sd d-active" /> Active</span>
+      <span class="sl"><span class="sd d-active" /> Running</span>
       <span class="sl"><span class="sd d-done" /> Done</span>
       <span class="sl"><span class="sd d-failed" /> Failed</span>
       <span class="sl"><span class="sd d-skip" /> Skipped</span>
@@ -502,20 +505,16 @@ defineExpose({
 }
 
 /* Work is crossing it right now. The dash flows towards the active card,
-   which is the direction the data is going. */
+   which is the direction the data is going. Keyframes live unscoped —
+   Vue hashes scoped @keyframes and SVG <path> then never sees them. */
 .sch-edge.e-active {
   stroke: var(--run);
   stroke-width: 2;
   stroke-dasharray: 5 5;
-  animation: schflow 0.6s linear infinite;
 }
 
 .sch-edge.e-fail {
   stroke: rgba(240, 97, 109, 0.5);
-}
-
-@keyframes schflow {
-  to { stroke-dashoffset: -20; }
 }
 
 .sch-nodes {
@@ -535,7 +534,7 @@ defineExpose({
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 50%), var(--panel);
+  background: var(--panel);
   box-shadow: 0 4px 14px -8px rgba(0, 0, 0, 0.6);
   cursor: grab;
   user-select: none;
@@ -818,6 +817,11 @@ defineExpose({
   height: 14px;
 }
 
+.sch-ic.glyph {
+  font-size: 13px;
+  line-height: 1;
+}
+
 .sch-nt {
   display: block;
   flex: 1;
@@ -910,6 +914,24 @@ defineExpose({
   .sch-legend {
     gap: 10px;
     padding: 6px 10px;
+  }
+}
+</style>
+
+<style>
+/* Unscoped: Vue hashes scoped @keyframes, and SVG <path> never matches
+   the rewritten name — so the prototype's dash never flowed. */
+@keyframes schflow {
+  to { stroke-dashoffset: -20; }
+}
+
+.sch-canvas .sch-edge.e-active {
+  animation: schflow 0.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sch-canvas .sch-edge.e-active {
+    animation: none;
   }
 }
 </style>

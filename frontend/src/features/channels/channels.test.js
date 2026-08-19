@@ -5,6 +5,11 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import ChannelsPage from './ChannelsPage.vue'
 import ChannelEditor from './ChannelEditor.vue'
 import * as api from './api.js'
+import * as jobsApi from '@/features/production/api.js'
+
+vi.mock('@/features/production/api.js', () => ({
+  listJobs: vi.fn(),
+}))
 
 vi.mock('./api.js', () => ({
   listChannels: vi.fn(),
@@ -53,6 +58,7 @@ describe('ChannelsPage', () => {
       starter_mappings: { stoicism_cinematic: 'ch_AAAAAA' },
       seed: { created: 0, skipped: 81, total_presets: 81 },
     })
+    jobsApi.listJobs.mockResolvedValue({ jobs: [], total: 0 })
   })
 
   it('lists channels and marks starters', async () => {
@@ -291,6 +297,7 @@ describe('ChannelEditor', () => {
     api.listMusicAssets.mockResolvedValue([
       { filename: 'bed.mp3', ref: 'musics/bed_12345678.mp3', category: 'uploads' },
     ])
+    jobsApi.listJobs.mockResolvedValue({ jobs: [], total: 0 })
     api.composeVisualPrompt.mockResolvedValue({
       prompt: 'A lone traveler finds a glowing door in the rain. Painterly chiaroscuro with restrained bronze highlights. Aspect ratio: 9:16.',
     })
@@ -480,13 +487,12 @@ describe('ChannelEditor', () => {
     const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.get('.ch-litem .lrow').text()).toContain('v1')
+    expect(wrapper.get('.ch-litem .lname').text()).toBe('Cinematic Stoicism')
 
     await wrapper.get('.ch-name-input').setValue('Stoicism Nightly')
     await wrapper.get('[data-testid="channel-save"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('.ch-litem .lrow').text()).toContain('v2')
     expect(wrapper.get('.ch-litem .lname').text()).toBe('Stoicism Nightly')
   })
 

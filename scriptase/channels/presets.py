@@ -1565,6 +1565,12 @@ def preset_to_channel_draft(preset_id: str, preset: dict | None = None) -> dict[
             "hook_style": "",
             "cta_style": "",
             "duration_target": duration_target,
+            # Every preset exports 9:16 (see export_defaults below), which is
+            # the vertical short-form triad — Shorts, TikTok and Reels. The
+            # field is per-Channel and editable; this is the starting point a
+            # vertical preset implies, not a claim about where anything was
+            # published.
+            "platforms": ["YT", "TT", "IG"],
         },
         "script_template": {
             "brief": (

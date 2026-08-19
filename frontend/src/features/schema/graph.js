@@ -36,6 +36,22 @@ const FALLBACK_ACCENT = '#9CA3AF'
 
 export const DEFAULT_VIEW = Object.freeze({ zoom: 1, panX: 0, panY: 0 })
 
+/**
+ * Prototype card skin from the registry (`definition.schema`). Schema never
+ * maps a type key itself — it only paints what the registry already said.
+ */
+function schemaSkin(definition) {
+  const skin = definition?.schema
+  if (!skin || typeof skin !== 'object') return { glyph: '', accent: '', sub: '', role: '' }
+  const role = typeof skin.role === 'string' ? skin.role : ''
+  return {
+    glyph: typeof skin.glyph === 'string' ? skin.glyph : '',
+    accent: typeof skin.accent === 'string' ? skin.accent : '',
+    sub: typeof skin.sub === 'string' ? skin.sub : '',
+    role: role === 'branch' || role === 'flow' || role === 'stage' ? role : '',
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Model
 // ---------------------------------------------------------------------------
@@ -151,21 +167,28 @@ export function buildSchemaGraph({ workflow, registry, projection } = {}) {
     const stage = stages[node.id] || null
     const providerDomain = providerDomainOf(definition)
     const narrationProcessing = narrationProcessingFor(workflow, node, providerDomain)
+    const skin = schemaSkin(definition)
     nodes.push({
       id: node.id,
       type: node.type || '',
-      name: node.name || definition.display_name || node.type || node.id,
+      // Registry label wins over the authored canvas name so a saved
+      // "Manual Trigger" still reads as Execution — Schema shows what the
+      // node *is*, not what someone typed on the old editable canvas.
+      name: definition.display_name || node.name || node.type || node.id,
       // The one thing Schema knows that the workflow document does not: which
       // Production stage this node reports into.
       stageKey: stage ? stage.key : null,
       stageLabel: stage ? stage.label : null,
       // A node the projection never claims is graph infrastructure, not a
       // step. A node that routes control is a branch whichever of the two it
-      // is, because that is what its card has to say.
-      role: branchesControl(definition) ? 'branch' : (stage ? 'stage' : 'flow'),
-      subtitle: stage ? stage.label : (categories[category]?.label || 'Infrastructure'),
+      // is, because that is what its card has to say. The registry may also
+      // stamp a prototype role (music / analyzer / captions sit off the
+      // spine as dashed cards even though they have no conditional port).
+      role: skin.role || (branchesControl(definition) ? 'branch' : (stage ? 'stage' : 'flow')),
+      subtitle: skin.sub || (stage ? stage.label : (categories[category]?.label || 'Infrastructure')),
       icon: definition.icon || '',
-      accent: categories[category]?.color || FALLBACK_ACCENT,
+      glyph: skin.glyph,
+      accent: skin.accent || categories[category]?.color || FALLBACK_ACCENT,
       category,
       // What Test needs to ask for this node (step 1.4): the ports it takes
       // input on, and the domain a one-shot provider override would come from.

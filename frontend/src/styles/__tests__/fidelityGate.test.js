@@ -63,14 +63,11 @@ const UNPORTED = 'unported'
 
 /** Shared reasons, so a hundred entries do not become a hundred paragraphs. */
 const WHY = {
-  swatches: [BEHAVIOUR, 'the accent-colour picker — ChannelProfile has no `color` field (channels/README.md)'],
-  platforms: [BEHAVIOUR, 'platform toggles — ChannelProfile has no `platforms` field (channels/README.md)'],
   transcode: [BEHAVIOUR, 'format and quality selects with no transcode behind them (export-library/README.md)'],
   simulated: [BEHAVIOUR, 'a simulated encode; download is one fetch (export-library/README.md)'],
   noSecret: [BEHAVIOUR, 'a provider is discovered or excluded, never enabled, and stored secrets are never returned to the browser (providers/README.md)'],
   rowMenu: [BEHAVIOUR, 'the row context menu — ProductionPage.vue, the `.job` comment'],
   scroller: [BEHAVIOUR, "the prototype's queue reorder drag handle"],
-  noField: [BEHAVIOUR, 'Narration has no such field (script/README.md)'],
   protoOnly: [BEHAVIOUR, "prototype-internal shorthand with no rendered counterpart — the app's markup does not emit it"],
 
   calendar: [UNPORTED, 'the archive calendar: the app reinvented it as `archive-day-*` instead of porting `cal-*`'],
@@ -85,16 +82,7 @@ const WHY = {
 /** class → key in WHY. */
 const LEDGER = {
   // --- behaviour ---------------------------------------------------------
-  'ch-sw': 'swatches',
-  'ch-swatches': 'swatches',
-  'ch-plat': 'platforms',
-  'ch-plat-row': 'platforms',
-  plat: 'platforms',
-  'plat-ic': 'platforms',
-  plats: 'platforms',
-  lplats: 'platforms',
-  pcheck: 'platforms',
-  pdot: 'platforms',
+  plat: 'protoOnly',
   'exp-opt': 'transcode',
   'exp-opts': 'transcode',
   'exp-progress': 'simulated',
@@ -102,7 +90,6 @@ const LEDGER = {
   'pv-enable': 'noSecret',
   'pv-secret': 'noSecret',
   'job-menu-btn': 'rowMenu',
-  's1-autogen': 'noField',
   am: 'protoOnly',
   an: 'protoOnly',
   app: 'protoOnly',

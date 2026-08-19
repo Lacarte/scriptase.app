@@ -12,7 +12,9 @@ import { useUndoableAction } from '@/shared/composables/useUndoableAction.js'
 import {
   channelAvatarLabel,
   channelAvatarStyle,
+  PLATFORM_COLORS,
 } from '@/shared/utils/channelIdentity.js'
+import { listJobs } from '@/features/production/api.js'
 
 import { createChannel, deleteChannel, listChannels, seedChannels } from './api.js'
 
@@ -32,6 +34,7 @@ const loading = ref(true)
 const error = ref('')
 const filter = ref('')
 const busy = ref(false)
+const jobCounts = ref({})
 
 const selectedId = computed(() => route.params.id || '')
 
@@ -54,10 +57,20 @@ async function refresh({ silent = false } = {}) {
   if (!silent) loading.value = true
   error.value = ''
   try {
-    const data = await listChannels({ limit: 500 })
+    const [data, jobs] = await Promise.all([
+      listChannels({ limit: 500 }),
+      listJobs({ limit: 500 }).catch(() => ({ jobs: [] })),
+    ])
     channels.value = data.channels || []
     starterMappings.value = data.starter_mappings || {}
     seedInfo.value = data.seed || null
+    const counts = {}
+    for (const job of jobs.jobs || []) {
+      const id = job.channel_id
+      if (!id) continue
+      counts[id] = (counts[id] || 0) + 1
+    }
+    jobCounts.value = counts
   } catch (err) {
     error.value = err.message || String(err)
   } finally {
@@ -164,8 +177,7 @@ defineExpose({ refresh, upsertSummary })
         </button>
       </div>
       <div class="ch-rail-sub">
-        Identity &amp; production defaults inherited by every job. Provider
-        credentials never live here — only instance references.
+        Identity &amp; production defaults inherited by every job.
       </div>
       <label class="search-field rail-search">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
@@ -202,12 +214,20 @@ defineExpose({ refresh, upsertSummary })
             <span class="lmeta">
               <span class="lname">{{ ch.name }}</span>
               <span class="lrow">
-                <span v-if="starterIds.has(ch.id)" class="lstarter">starter</span>
-                <span class="lid">{{ ch.id }}</span>
+                <span v-if="ch.platforms?.length" class="lplats">
+                  <span
+                    v-for="plat in ch.platforms"
+                    :key="plat"
+                    class="plat-ic"
+                    :style="{ background: PLATFORM_COLORS[plat] || 'var(--raise)' }"
+                  >{{ plat[0] }}</span>
+                </span>
+                <span v-else-if="starterIds.has(ch.id)" class="lstarter">starter</span>
+                <template v-else>
+                  <span class="lid">{{ ch.id }}</span>
+                </template>
                 <span class="dot-sep" />
-                <span class="ltrunc">{{ ch.niche || ch.style || '—' }}</span>
-                <span class="dot-sep" />
-                v{{ ch.version }}
+                {{ jobCounts[ch.id] || 0 }} videos
               </span>
             </span>
           </button>
@@ -339,6 +359,18 @@ defineExpose({ refresh, upsertSummary })
 }
 .ch-litem .lid { flex: none; }
 .ch-litem .ltrunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-litem .lplats { display: inline-flex; gap: 3px; }
+.plat-ic {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
 
 /* A starter marker is informational, so it takes the `sched` violet and
    never the accent — the accent means "selected" in this rail. */

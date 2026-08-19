@@ -89,17 +89,14 @@ reference**, never a provider name written into this view.
 
 Accounted for so they do not read as drift:
 
-- **`s1-autogen`** and its `.txt` / `.t` / `.d` children — the prototype's
-  "Auto-generate on save" switch. `Narration` has no such field and forbids
-  extras, so the switch would have nowhere to persist. It is unstyled rather
-  than faked.
+- **`s1-autogen`** is session-only, like the prototype: it is not stored on
+  `Narration`. Turning it on generates TTS after a save that changed the body.
 - **`s1-card:focus-visible`** — the prototype groups it with `button:focus-visible`
   and gives it the standard ring. The card *is* a button here, so
   `shared.css`'s `:focus-visible` already carries those two declarations.
-- **`s1-doc-foot`'s Use in Batch and Duplicate** — Production's create panel
-  reads only `?create=1` from the route, and duplication has no endpoint; both
-  are features, not styling. The footer keeps the prototype's spacer and layout
-  with Save alone.
+- **Use in Batch / Duplicate** sit in `s1-doc-foot` with Save, matching the
+  prototype. Duplicate creates a new Script document; Use in Batch opens
+  Production with that script selected on the rail.
 - ~~**The channel avatar's colour.**~~ Answered in step 6.4: `cavatar` became
   the shared `.ch-avatar`, tinted from a hash of the channel id so the same
   channel reads the same here, in a job row and in the Channels rail.

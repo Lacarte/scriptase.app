@@ -544,27 +544,6 @@ watch(
         {{ pill.text }}
       </p>
 
-      <label v-if="workflows.length" class="sch-pick">
-        <span class="sr-only">Workflow</span>
-        <select class="filter-select" :value="selectedWorkflowId" @change="onPickWorkflow">
-          <option v-for="wf in workflows" :key="wf.workflow_id" :value="wf.workflow_id">
-            {{ wf.name || wf.workflow_id }}
-          </option>
-        </select>
-      </label>
-
-      <label v-if="runs.length" class="sch-pick">
-        <span class="sr-only">Run</span>
-        <select class="filter-select" :value="liveExecutionId" @change="onPickRun">
-          <option value="">No run — idle graph</option>
-          <option v-for="run in runs" :key="run.execution_id" :value="run.execution_id">
-            {{ run.execution_id }}<template v-if="run.status"> — {{ statusLabel(run.status) }}</template>
-          </option>
-        </select>
-      </label>
-
-      <div v-if="meta" class="sch-meta">{{ meta }}</div>
-
       <button
         class="sch-pause"
         type="button"

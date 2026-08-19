@@ -80,7 +80,7 @@ const gauge = computed(() => {
         </div>
         <div class="vt">
           <div class="tt">Virality score <span class="grade" :class="`grade-${score.band}`">{{ score.band }}</span></div>
-          <div class="sub">{{ stale ? 'Text changed since this score was run.' : 'Advisory only — it never blocks saving.' }}</div>
+          <div class="sub">{{ stale ? 'Text changed since this score was run.' : 'Advisory only — this channel sets no virality threshold.' }}</div>
         </div>
         <button class="btn xs s1-vir-recheck" type="button" @click="$emit('analyze')">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4" /><path d="M21 3v6h-6" /></svg>

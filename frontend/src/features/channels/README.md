@@ -96,21 +96,13 @@ held outside `form` — plain, never rendered — and written back verbatim.
 
 Accounted for so they do not read as drift:
 
-- **`ch-swatches` / `ch-sw`** — the accent-colour picker. There is no `color`
-  field to persist it to; see *The avatar is derived* above.
-- **`ch-plat-row` / `ch-plat`** — the YouTube/TikTok/Instagram toggles.
-  `ChannelProfile` has no `platforms` field and nothing downstream consumes
-  one, so this is a feature, not a style. `lplats` in the rail row and `plats`
-  in the hero go with them; the rail shows niche and revision instead.
-- **The hero's Videos / Published counters.** Neither number is on a Channel —
-  they would need a Jobs and a Library query. The three `ch-stat` counters
-  carry what this document owns: sections, tracks and revision.
+- **The hero's Videos / Published / In batch counters** come from the Job list
+  for this channel (completed vs live), not invented Channel fields.
 - **The prototype's "Add location" button and its `D:\Scriptase\music\channel`
   placeholder.** It browses to a folder on disk and scans it. Uploads go
   through the managed music endpoint here, and `music_library.folder` is a
   collection label — an absolute path is rejected by the model.
-- **The footer's Duplicate and "New job with this".** Duplication has no
-  endpoint and Production's create panel reads only `?create=1`; both are
-  features. The footer keeps the prototype's dirty note, spacer and layout.
+- **The footer's Duplicate** copies the draft through `createChannel`.
+  **New job with this** opens Production with `?channel=`.
 - **The 820px breakpoint** hides the rail in the prototype. It is the only way
   to reach a channel from these routes, so it stacks above the detail instead.

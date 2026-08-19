@@ -129,7 +129,7 @@ describe('inspector conditional rendering + issue badges', () => {
     store.nodeTypes = {
       'project.setup': {
         type_version: 1,
-        display_name: 'Project Setup',
+        display_name: 'Channel',
         category: 'input',
         icon: 'briefcase',
         inputs: [],

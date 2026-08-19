@@ -14,7 +14,7 @@ import {
 } from './shared/composables/useShortcuts.js'
 
 /** The prototype's order: create, run, monitor, output, configure. */
-const DESTINATIONS = ['Script', 'Production', 'Schema', 'Library', 'Channels', 'Providers']
+const DESTINATIONS = ['Script(S1)', 'Production', 'Schema', 'Library', 'Channels', 'Providers']
 
 async function mountShell(path = '/') {
   const router = createRouter({
@@ -27,7 +27,7 @@ async function mountShell(path = '/') {
       { path: '/library', component: { template: '<div>library</div>' } },
       { path: '/channels', component: { template: '<div>channels</div>' } },
       { path: '/providers', component: { template: '<div>providers</div>' } },
-      { path: '/editor', component: { template: '<div>editor</div>' } },
+      { path: '/editor', component: { template: '<div>editor</div>' }, meta: { bare: true, fullHeight: true } },
     ],
   })
   router.push(path)
@@ -129,6 +129,12 @@ describe('scaffold', () => {
     // The prototype's active treatment hangs off `.active` (step 6.1).
     expect(wrapper.findAll('.topnav a.active')).toHaveLength(1)
     expect(current[0].classes()).toContain('active')
+  })
+
+  it('opens the Editor without the studio topbar', async () => {
+    const { wrapper } = await mountShell('/editor')
+    expect(wrapper.find('header.topbar').exists()).toBe(false)
+    expect(wrapper.find('.app-root--bare').exists()).toBe(true)
   })
 
   it('wears the prototype topbar and brand (step 6.1)', async () => {

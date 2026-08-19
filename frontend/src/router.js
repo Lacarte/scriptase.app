@@ -24,7 +24,7 @@ export const routes = [
     path: '/script',
     name: 'script',
     component: ScriptPage,
-    meta: { title: 'Script', fullHeight: true },
+    meta: { title: 'Script(S1)', fullHeight: true },
   },
   {
     path: '/production',
@@ -74,7 +74,7 @@ export const routes = [
     path: '/editor',
     name: 'editor',
     component: () => import('./features/editor/views/EditorPage.vue'),
-    meta: { title: 'Timeline Editor', fullHeight: true },
+    meta: { title: 'Timeline Editor', fullHeight: true, bare: true },
   },
 
   // ---- Redirects from every previous path ------------------------------

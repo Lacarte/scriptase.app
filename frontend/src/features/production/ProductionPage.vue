@@ -1131,7 +1131,8 @@ onMounted(async () => {
 <template>
   <section class="production-page">
     <JobCreatePanel
-      :initial-workflow-id="selectedWorkflowId || workflowId || ''"
+      :initial-script-id="String(route.query.script || '')"
+      :initial-channel-id="String(route.query.channel || '')"
       :auto-start="false"
       @created="onJobCreated"
       @started="onJobStarted"
@@ -1142,6 +1143,11 @@ onMounted(async () => {
         <div class="sheet-title-row">
           <h1>Production Batch</h1>
           <span class="sheet-kicker">Orchestrate &amp; monitor — S1 owns scripts &amp; TTS</span>
+          <span
+            v-if="active"
+            class="live-pill"
+            title="Receiving live execution events over SSE"
+          >Live</span>
           <div class="spacer" />
           <div class="page-header">
           <div class="actions sheet-actions">
@@ -1156,14 +1162,6 @@ onMounted(async () => {
               {{ pauseActionRunning
                 ? (executionStatus === 'paused' ? 'Resuming…' : 'Pausing…')
                 : (executionStatus === 'paused' ? 'Resume' : 'Pause') }}
-            </button>
-            <button
-              type="button"
-              class="btn sm ghost"
-              :disabled="!workflowId && !selectedWorkflowId"
-              @click="openWorkflowCanvas"
-            >
-              Open Workflow
             </button>
             <button
               type="button"
@@ -1509,54 +1507,7 @@ onMounted(async () => {
       </ArchiveCalendar>
       </div>
 
-    <div class="pickers">
-      <label class="picker">
-        <span class="picker-label">Workflow</span>
-        <select
-          v-model="selectedWorkflowId"
-          :disabled="workflowsLoading || loading"
-          @change="onWorkflowChange"
-        >
-          <option value="">Select a workflow…</option>
-          <option
-            v-for="wf in workflows"
-            :key="wf.workflow_id || wf.id"
-            :value="wf.workflow_id || wf.id"
-          >
-            {{ wf.name || wf.workflow_id || wf.id }}
-          </option>
-        </select>
-      </label>
-
-      <label class="picker">
-        <span class="picker-label">Run</span>
-        <select
-          v-model="selectedExecutionId"
-          :disabled="!selectedWorkflowId || executionsLoading || loading"
-          @change="onExecutionChange"
-        >
-          <option value="">Workflow only (idle stages)</option>
-          <option
-            v-for="ex in executions"
-            :key="ex.execution_id"
-            :value="ex.execution_id"
-          >
-            {{ ex.execution_id }}
-            <template v-if="ex.status"> — {{ statusLabel(ex.status) }}</template>
-          </option>
-        </select>
-      </label>
-
-      <span
-        v-if="active"
-        class="live-pill"
-        title="Receiving live execution events over SSE"
-      >
-        Live
-      </span>
-    </div>
-
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="error" class="error sheet-error" role="alert">{{ error }}</p>
     <p v-if="pauseActionError" class="error" role="alert">{{ pauseActionError }}</p>
     <p v-if="streamError && !error" class="stream-warn" role="status">{{ streamError }}</p>
 
@@ -1572,7 +1523,7 @@ onMounted(async () => {
 
     <!-- Step 9.3: Job cost accounting (generations + cost by stage / instance) -->
     <section
-      v-if="activeJobId && (jobCost || jobCostLoading || jobCostError)"
+      v-if="activeJobId && jobExpanded({ id: activeJobId }) && (jobCost || jobCostLoading || jobCostError)"
       class="cost-panel"
       aria-label="Job cost report"
     >
@@ -1659,13 +1610,14 @@ onMounted(async () => {
       </template>
     </section>
 
-    <p v-if="loading" class="muted">Loading stages…</p>
+    <p v-if="loading && hasStages" class="muted sheet-note">Loading stages…</p>
 
-    <!-- A failure is presented on its own Job row now: the `.err-banner` in
-         the expanded detail, beside the rail stage that failed and the Retry
-         that repairs it. Restating it here separated the two. -->
-
-    <div v-if="hasStages" class="stage-layout">
+    <!-- The prototype has no separate step list: stages live on the job
+         rail. This projection stays in the DOM for keyboard/tests and for
+         the bound job's detail actions, but it is not the page chrome. -->
+    <details v-if="hasStages" class="stage-advanced">
+      <summary>Step projection · {{ stages.length }} stages</summary>
+      <div class="stage-layout">
       <div class="stage-column">
         <div class="stage-filter">
           <input
@@ -1758,11 +1710,8 @@ onMounted(async () => {
         @inspect="onStageInspect"
         @test-run="onTestRun"
       />
-    </div>
-
-    <div v-else-if="!loading && selectedWorkflowId" class="stage-empty-page muted">
-      <p>This workflow has no production stages to project.</p>
-    </div>
+      </div>
+    </details>
     </main>
   </section>
 </template>
@@ -2408,7 +2357,26 @@ button:disabled {
   transform: none;
 }
 
-.pickers,
+.stage-advanced {
+  margin: 8px 24px 24px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.stage-advanced summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  letter-spacing: 0.3px;
+}
+
+.stage-advanced[open] summary {
+  border-bottom: 1px solid var(--line-soft);
+}
+
 .stage-layout,
 .cost-panel,
 .language-banner,

@@ -18,6 +18,8 @@ import { useToast } from './shared/composables/useToast.js'
 
 const route = useRoute()
 const fullHeight = computed(() => Boolean(route.meta?.fullHeight))
+/** The Timeline Editor is its own window — no studio nav, on-air, or welcome. */
+const bare = computed(() => Boolean(route.meta?.bare))
 
 /**
  * The prototype's six destinations, ordered create, run, monitor, output,
@@ -25,7 +27,7 @@ const fullHeight = computed(() => Boolean(route.meta?.fullHeight))
  * else belongs in the first rank.
  */
 const navItems = [
-  { to: '/script', icon: 'script', label: 'Script' },
+  { to: '/script', icon: 'script', label: 'Script', sub: '(S1)' },
   { to: '/production', icon: 'production', label: 'Production' },
   { to: '/schema', icon: 'schema', label: 'Schema' },
   { to: '/library', icon: 'library', label: 'Library' },
@@ -121,8 +123,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-root" :class="{ 'app-root--full': fullHeight }">
-    <header class="topbar">
+  <div class="app-root" :class="{ 'app-root--full': fullHeight, 'app-root--bare': bare }">
+    <header v-if="!bare" class="topbar">
       <router-link class="brand" to="/" :aria-label="APP_NAME">
         <span class="logo" aria-hidden="true"></span>
         <span class="name">Script<b>ase</b></span>
@@ -160,7 +162,7 @@ onBeforeUnmount(() => {
               @click.exact.prevent="goto(navigate)"
             >
               <NavIcon :name="item.icon" />
-              <span>{{ item.label }}</span>
+              <span>{{ item.label }}<span v-if="item.sub" class="nav-sub">{{ item.sub }}</span></span>
             </a>
           </router-link>
         </div>
@@ -220,8 +222,8 @@ onBeforeUnmount(() => {
       <router-view />
     </main>
     <ToastContainer />
-    <ShortcutsSheet />
-    <WelcomeOverlay />
+    <ShortcutsSheet v-if="!bare" />
+    <WelcomeOverlay v-if="!bare" />
   </div>
 </template>
 
@@ -248,6 +250,10 @@ a {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+.app-root--bare .app-main {
+  min-height: 100%;
 }
 
 /* The prototype's topbar: a lit bar over the ambient wash, with a hairline
@@ -398,9 +404,7 @@ a {
   color: var(--accent);
 }
 
-/* The prototype qualifies one destination with a mono suffix — "Script (S1)".
-   S1 is its own internal view id, so no destination here carries one; the slot
-   is part of the family and stays. */
+/* The prototype qualifies Script with a mono suffix — "Script(S1)". */
 .topnav a .nav-sub {
   font-family: var(--mono);
   font-size: 10px;

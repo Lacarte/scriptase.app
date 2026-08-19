@@ -22,6 +22,10 @@ export const CHANNEL_COLORS = [
   '#5bd1c9',
 ]
 
+export const PLATFORM_COLORS = { YT: '#ff4444', TT: '#111', IG: '#e1306c' }
+export const PLATFORM_NAMES = { YT: 'YouTube', TT: 'TikTok', IG: 'Instagram' }
+export const PLATFORM_ORDER = ['YT', 'TT', 'IG']
+
 /**
  * The prototype's `deriveCode`: two initials from two words, the first two
  * letters from one.
@@ -41,7 +45,9 @@ export function channelInitials(name) {
  * hash reduced mod a power-of-two palette maps most of them onto the same
  * colour. This one mixes the low bits.
  */
-export function channelAccent(id) {
+export function channelAccent(id, color) {
+  const chosen = String(color || '').trim()
+  if (/^#[0-9a-f]{6}$/i.test(chosen)) return chosen.toLowerCase()
   const text = String(id || '')
   let hash = 2166136261
   for (let i = 0; i < text.length; i += 1) {
@@ -59,7 +65,7 @@ export function channelAccent(id) {
 export function channelAvatarStyle(channel) {
   const thumbnail = channel?.thumbnail_asset_id || channel?.branding?.thumbnail_asset_id
   if (thumbnail) return { background: `center/cover url("/output/${thumbnail}")` }
-  return { background: channelAccent(channel?.id) }
+  return { background: channelAccent(channel?.id, channel?.accent_color || channel?.branding?.accent_color) }
 }
 
 /** The avatar's text: empty when a thumbnail covers it. */
