@@ -81,6 +81,12 @@ prototype's 48-bar track. The bars are a progress track, not a waveform — ther
 is no per-sample envelope to draw — and they follow the real `<audio>` element's
 `timeupdate`, which stays in the DOM with its controls hidden.
 
+The prototype also defines a generic `play-btn` / `wave` pair used in the
+Production detail panel as a simulated preview button. The app does not emit
+those classes: real narration playback lives entirely behind `s1-play` and
+`s1-wave-track`, which drive an `<audio>` element rather than calling `toast()`.
+The fidelity gate records `play-btn` and `wave` as BEHAVIOUR / `s1Player`.
+
 `.prov` names the Channel's `tts_provider_instance_id` (falling back to
 `provider_defaults.tts`, then "Channel default"). It is an **instance
 reference**, never a provider name written into this view.

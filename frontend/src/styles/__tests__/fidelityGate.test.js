@@ -69,9 +69,10 @@ const WHY = {
   rowMenu: [BEHAVIOUR, 'the row context menu — ProductionPage.vue, the `.job` comment'],
   scroller: [BEHAVIOUR, "the prototype's queue reorder drag handle"],
   protoOnly: [BEHAVIOUR, "prototype-internal shorthand with no rendered counterpart — the app's markup does not emit it"],
+  edModifier: [BEHAVIOUR, 'modifier class always scoped under an ed-* selector in the prototype; the Editor is excluded from the gate'],
+  s1Player: [BEHAVIOUR, "the app uses s1-play / s1-wave-track for real narration audio; the prototype's generic play-btn is simulated-only and not emitted (script/README.md)"],
 
   modal: [UNPORTED, 'the modal and shortcuts-sheet chrome'],
-  player: [UNPORTED, 'the narration player: transport, waveform and caption track'],
   states: [UNPORTED, 'the draft/preparing/stopping/stopped run states'],
   finder: [UNPORTED, 'queue reorder drag handles'],
   media: [UNPORTED, 'aspect-ratio and watermark presentation'],
@@ -87,6 +88,7 @@ const LEDGER = {
   'exp-opts': 'transcode',
   'exp-progress': 'simulated',
   'exp-watermark': 'simulated',
+  track: 'simulated',
   'pv-enable': 'noSecret',
   'pv-secret': 'noSecret',
   'job-menu-btn': 'rowMenu',
@@ -106,6 +108,13 @@ const LEDGER = {
   'cl-label': 'protoOnly',
   cavatar: 'protoOnly',
   stage: 'protoOnly',
+  subtitle: 'protoOnly',
+  'play-btn': 's1Player',
+  wave: 's1Player',
+  played: 'edModifier',
+  tick: 'edModifier',
+  audio: 'edModifier',
+  caption: 'edModifier',
 
   // --- unported: real debt -----------------------------------------------
   modal: 'modal',
@@ -117,15 +126,6 @@ const LEDGER = {
   krow: 'modal',
   'drag-handle': 'scroller',
   'drag-over': 'finder',
-
-  'play-btn': 'player',
-  played: 'player',
-  track: 'player',
-  tick: 'player',
-  wave: 'player',
-  audio: 'player',
-  caption: 'player',
-  subtitle: 'player',
 
   'st-draft': 'states',
   'st-preparing': 'states',
@@ -260,7 +260,7 @@ describe('remaining port debt is visible', () => {
     // Not a target to game: the number moves when a step ports a family and
     // deletes its entries. It is asserted so that porting work shows up as a
     // failing test the moment the ledger and the CSS disagree.
-    expect(debt.length).toBe(28)
+    expect(debt.length).toBe(20)
   })
 
   it('every reason names at least one class', () => {
