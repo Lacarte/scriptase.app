@@ -12,6 +12,9 @@ import {
   onShortcut,
   toggleShortcutsSheet,
 } from './shared/composables/useShortcuts.js'
+import { useAccentTheme } from './shared/composables/useAccentTheme.js'
+import { useOnAir } from './shared/composables/useOnAir.js'
+import { useToast } from './shared/composables/useToast.js'
 
 const route = useRoute()
 const fullHeight = computed(() => Boolean(route.meta?.fullHeight))
@@ -42,6 +45,42 @@ const windowLinks = [{ target: 'editor', label: 'Editor' }]
 /** Below 860px the destinations collapse behind one toggle (prototype shell). */
 const navOpen = ref(false)
 
+/**
+ * The prototype's on-air pill. It reads the Job list rather than holding run
+ * state of its own — see `useOnAir` for why this polls instead of streaming.
+ */
+const { live: onAirLive, label: onAirLabel, title: onAirTitle, subscribe: subscribeOnAir } = useOnAir()
+
+/** The prototype's accent shuffle: click to reroll, right-click to reset. */
+const { shuffle: shuffleAccent, reset: resetAccent, restore: restoreAccent } = useAccentTheme()
+const toast = useToast()
+
+/**
+ * The prototype hardcodes "DV" here. The app is local-first and has no user
+ * model to draw from, so the avatar reads a name this browser has been given
+ * and falls back to the prototype's initials when it has not — chrome that can
+ * be made true rather than a fabricated account.
+ */
+const profileInitials = computed(() => {
+  let name = null
+  try {
+    name = localStorage.getItem('scriptase.profile.name')
+  } catch { /* storage disabled; the default stands */ }
+  if (!name || !name.trim()) return 'DV'
+  const parts = name.trim().split(/\s+/).slice(0, 2)
+  return parts.map(part => part[0]).join('').toUpperCase()
+})
+
+function onShuffleAccent() {
+  const hue = shuffleAccent()
+  toast.success(`Accent shuffled · hue ${hue}°`)
+}
+
+function onResetAccent() {
+  resetAccent()
+  toast.info('Theme reset to default')
+}
+
 function pathFor(target) {
   return APP_WINDOW_TARGETS[target].path
 }
@@ -67,12 +106,17 @@ onShortcut((event) => {
 })
 
 let teardownShortcuts = null
+let releaseOnAir = null
 onMounted(() => {
   teardownShortcuts = installShortcuts()
+  restoreAccent()
+  releaseOnAir = subscribeOnAir()
 })
 onBeforeUnmount(() => {
   teardownShortcuts?.()
   teardownShortcuts = null
+  releaseOnAir?.()
+  releaseOnAir = null
 })
 </script>
 
@@ -134,6 +178,34 @@ onBeforeUnmount(() => {
 
       <div class="spacer"></div>
 
+      <div
+        class="onair"
+        :class="{ live: onAirLive }"
+        role="status"
+        aria-live="polite"
+        :title="onAirTitle"
+      >
+        <span class="dot" aria-hidden="true"></span>
+        <span>{{ onAirLabel }}</span>
+      </div>
+
+      <button
+        type="button"
+        class="theme-btn"
+        title="Shuffle accent theme · right-click to reset"
+        aria-label="Shuffle accent theme"
+        @click="onShuffleAccent()"
+        @contextmenu.prevent="onResetAccent()"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="13.5" cy="6.5" r="2.5" />
+          <circle cx="17.5" cy="12.5" r="2.5" />
+          <circle cx="8.5" cy="7.5" r="2.5" />
+          <circle cx="6.5" cy="14.5" r="2.5" />
+          <path d="M12 22a10 10 0 1 1 0-20 6 6 0 0 0 0 12 3 3 0 0 0 0 6z" />
+        </svg>
+      </button>
+
       <button
         type="button"
         class="help-btn"
@@ -141,6 +213,8 @@ onBeforeUnmount(() => {
         title="Keyboard shortcuts (?)"
         @click="toggleShortcutsSheet()"
       >?</button>
+
+      <div class="avatar-me" aria-hidden="true">{{ profileInitials }}</div>
     </header>
     <main id="app-main" class="app-main" :class="{ 'app-main--full': fullHeight }">
       <router-view />
@@ -179,15 +253,12 @@ a {
 /* The prototype's topbar: a lit bar over the ambient wash, with a hairline
    of light along the top and a hard shadow beneath so it sits above the page.
 
-   Three of the prototype's topbar controls are deliberately absent, and stay
-   absent — they are not styling gaps:
-     - `.avatar-me` renders a hardcoded "DV". The app is local-first and has
-       no user model, so there is no one to show.
-     - `.theme-btn` shuffles the accent duotone at random. That is a feature,
-       and a settings-shaped one; it is not part of porting a stylesheet.
-     - `.onair` reports whether anything is running. That is Production's
-       projection, not the shell's, and wiring it here would mean the shell
-       polling for run state. It lands with Production (step 6.2). */
+   The three controls after the spacer — `.onair`, `.theme-btn`, `.avatar-me` —
+   were left out by the first pass and are now ported. Each is answered by real
+   state rather than the prototype's literals: the pill counts the Job list
+   (`useOnAir`), the shuffle writes the accent tokens `theme.css` declares
+   (`useAccentTheme`), and the avatar shows this browser's profile initials,
+   falling back to the prototype's when none is set. */
 .topbar {
   display: flex;
   align-items: center;
@@ -486,6 +557,114 @@ a {
   .topnav a {
     padding: 11px 12px;
     font-size: 14px;
+  }
+}
+
+/* --- topbar tail, ported from the prototype ---------------------------- */
+
+.topbar .spacer {
+  flex: 1;
+}
+
+/* Live on-air indicator */
+.onair {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  padding: 6px 13px 6px 11px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--panel-grad);
+  box-shadow: var(--hairline-top);
+  color: var(--text-2);
+  flex: none;
+  white-space: nowrap;
+}
+
+.onair .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.onair.live {
+  border-color: rgba(88, 166, 255, 0.45);
+  color: var(--run);
+  background: var(--run-dim);
+  box-shadow: var(--hairline-top), 0 0 20px -6px rgba(88, 166, 255, 0.5);
+}
+
+.onair.live .dot {
+  background: var(--run);
+  box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.7), 0 0 8px var(--run);
+  animation: onair-pulse 1.6s infinite;
+}
+
+@keyframes onair-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.6); }
+  70% { box-shadow: 0 0 0 7px rgba(88, 166, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0); }
+}
+
+/* The pulse is decorative; a reduced-motion request keeps the colour and
+   drops the animation rather than hiding the indicator. */
+@media (prefers-reduced-motion: reduce) {
+  .onair.live .dot {
+    animation: none;
+  }
+}
+
+.theme-btn {
+  width: 30px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent);
+  cursor: pointer;
+  flex: none;
+  transition: transform 0.35s var(--ease-spring), border-color 0.2s, background 0.2s;
+}
+
+.theme-btn:hover {
+  background: var(--panel-2);
+  border-color: rgba(106, 140, 255, 0.4);
+}
+
+.theme-btn:active {
+  transform: rotate(180deg) scale(0.92);
+}
+
+.theme-btn svg {
+  color: var(--accent);
+}
+
+.avatar-me {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #2b323b, #1a1e24);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  flex: none;
+}
+
+/* The prototype drops the pill and the avatar before the nav collapses —
+   the shuffle and the shortcuts key are the two that stay reachable. */
+@media (max-width: 860px) {
+  .onair,
+  .avatar-me {
+    display: none;
   }
 }
 </style>

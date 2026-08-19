@@ -1456,6 +1456,13 @@ onMounted(load)
   gap: 20px;
   position: relative;
   overflow: hidden;
+  /* The prototype's `.ch-detail` is a plain block, so the hero sits at its
+     natural height. Here `.ch-detail` is a flex column — `.ch-empty` needs a
+     flex parent to centre in — which makes the hero a flex child free to
+     shrink, and `overflow: hidden` then clips the avatar and the stats rather
+     than scrolling them. Opting out of shrinking restores the prototype's
+     height without taking the centring away from `.ch-empty`. */
+  flex: none;
 }
 
 /* The channel's own colour bleeding in from the top-left corner. */

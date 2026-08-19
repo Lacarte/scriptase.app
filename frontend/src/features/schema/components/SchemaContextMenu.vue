@@ -124,7 +124,7 @@ onBeforeUnmount(() => {
 .ctx-menu {
   position: fixed;
   z-index: 100;
-  min-width: 190px;
+  min-width: 176px;
   padding: 5px;
   border: 1px solid var(--line);
   border-radius: var(--r);
