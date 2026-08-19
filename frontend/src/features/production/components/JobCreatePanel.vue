@@ -1,16 +1,18 @@
 <script setup>
 /**
- * Job creation (steps 2.5 and 4.1).
+ * Job creation rail (steps 2.5 and 4.1) — the prototype's config rail.
  *
- * Channel picker, Script stage source mode (topic / idea / paste / manual /
- * automatic), existing Studio-script multi-select, workflow choice, and
- * execution mode. Provider UI appears only when the selected source mode
- * needs a script provider (§6).
+ * Channel → Script source → Execution, then Add to Batch. Provider UI
+ * appears only when the selected source mode needs a script provider (§6).
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { listChannels } from '@/features/channels/api.js'
 import { listScripts } from '@/features/script/api.js'
+import {
+  channelAvatarLabel,
+  channelAvatarStyle,
+} from '@/shared/utils/channelIdentity.js'
 
 import {
   createJob,
@@ -30,7 +32,7 @@ import {
 const props = defineProps({
   /** Prefill workflow id when the Production page already selected one. */
   initialWorkflowId: { type: String, default: '' },
-  /** When true, start the Job immediately after create. */
+  /** When true and Run Now is selected, start the Job immediately after create. */
   autoStart: { type: Boolean, default: true },
 })
 
@@ -60,6 +62,65 @@ const submitting = ref(false)
 const error = ref('')
 const fieldErrors = ref([])
 
+/** Queue / Run Now / Scheduled / Auto — when the Job should start. */
+const launchIntent = ref(props.autoStart ? 'now' : 'queue')
+const previousExec = ref('manual')
+const channelOpen = ref(false)
+const channelPickEl = ref(null)
+
+const SOURCE_TILES = [
+  {
+    id: 'auto',
+    kind: 'input',
+    mode: 'automatic',
+    t: 'Auto',
+    d: 'Scriptase picks the next topic',
+  },
+  {
+    id: 'paste',
+    kind: 'input',
+    mode: 'paste',
+    t: 'Paste',
+    d: 'Bring your own script',
+  },
+  {
+    id: 'idea',
+    kind: 'input',
+    mode: 'idea',
+    t: 'Idea → Script',
+    d: 'S1 writes from a topic',
+  },
+  {
+    id: 's1',
+    kind: 'studio',
+    mode: null,
+    t: 'S1 Library',
+    d: 'Reuse a saved script',
+  },
+]
+
+const EXEC_TILES = [
+  { id: 'queue', t: 'Queue', d: 'Runs on next slot' },
+  { id: 'now', t: 'Run Now', d: 'Starts immediately' },
+  { id: 'scheduled', t: 'Scheduled', d: 'At a set time' },
+  { id: 'auto', t: 'Auto', d: 'Unattended pipeline' },
+]
+
+const SOURCE_SUMMARY = {
+  automatic: 'Auto Script',
+  topic: 'Topic → Script',
+  idea: 'Idea → Script',
+  paste: 'Pasted Script',
+  manual: 'Manual',
+}
+
+const EXEC_SUMMARY = {
+  queue: 'Queue',
+  now: 'Run Now',
+  scheduled: 'Scheduled',
+  auto: 'Auto',
+}
+
 const selectedSource = computed(
   () => sourceModes.value.find((m) => m.mode === sourceMode.value) || null,
 )
@@ -77,17 +138,17 @@ const inheritedSpeed = computed(
 
 const showTopic = computed(() => {
   const fields = selectedSource.value?.input_fields || []
-  return fields.includes('topic')
+  return sourceKind.value === 'input' && fields.includes('topic') && sourceMode.value !== 'automatic'
 })
 
 const showIdea = computed(() => {
   const fields = selectedSource.value?.input_fields || []
-  return fields.includes('idea')
+  return sourceKind.value === 'input' && fields.includes('idea') && sourceMode.value !== 'automatic'
 })
 
 const showPaste = computed(() => {
   const fields = selectedSource.value?.input_fields || []
-  return fields.includes('pasted_script')
+  return sourceKind.value === 'input' && fields.includes('pasted_script')
 })
 
 const canSubmit = computed(() => {
@@ -96,6 +157,51 @@ const canSubmit = computed(() => {
   if (sourceKind.value === 'studio') return selectedScriptIds.value.length > 0
   return validateJobSource(buildSource()).length === 0
 })
+
+const activeSourceTile = computed(() => {
+  if (sourceKind.value === 'studio') return 's1'
+  if (sourceMode.value === 'automatic') return 'auto'
+  if (sourceMode.value === 'idea' || sourceMode.value === 'topic') return 'idea'
+  return 'paste'
+})
+
+const inheritChips = computed(() => {
+  const channel = selectedChannel.value
+  if (!channel) return []
+  return [
+    ['Image', channel.style || channel.visual_direction?.style],
+    ['Tone', channel.content?.tone],
+    ['Mood', channel.content?.mood],
+    ['Voice', channel.audio_defaults?.voice],
+    ['Captions', channel.captions?.preset],
+    ['Branding', channel.branding?.watermark || channel.branding?.position],
+  ].filter(([, value]) => value)
+})
+
+const pickMeta = computed(() => {
+  const channel = selectedChannel.value
+  if (!channel) return 'Pick a channel'
+  return [channel.niche, channel.style].filter(Boolean).join(' · ')
+})
+
+const addSummary = computed(() => {
+  const channel = selectedChannel.value?.name || 'Channel'
+  const source = sourceKind.value === 'studio'
+    ? 'S1 Library'
+    : (SOURCE_SUMMARY[sourceMode.value] || 'Script')
+  return `${channel} · ${source} · ${EXEC_SUMMARY[launchIntent.value] || 'Queue'}`
+})
+
+const pasteChars = computed(() => pastedScript.value.length)
+const pasteDuration = computed(() => {
+  const words = pastedScript.value.trim() ? pastedScript.value.trim().split(/\s+/).length : 0
+  const seconds = Math.round((words / 150) * 60)
+  const mm = String(Math.floor(seconds / 60)).padStart(2, '0')
+  const ss = String(seconds % 60).padStart(2, '0')
+  return `~${mm}:${ss} narration`
+})
+
+const willStart = computed(() => launchIntent.value === 'now')
 
 async function loadStudioScripts() {
   selectedScriptIds.value = []
@@ -129,13 +235,48 @@ function buildSource() {
 }
 
 function buildDraft() {
+  const mode = launchIntent.value === 'auto' ? 'automatic' : executionMode.value
   const draft = {
     channel_id: channelId.value,
-    execution_mode: executionMode.value,
+    execution_mode: mode,
     source: buildSource(),
   }
   if (workflowId.value) draft.workflow_id = workflowId.value
   return draft
+}
+
+function selectSource(tile) {
+  if (tile.kind === 'studio') {
+    sourceKind.value = 'studio'
+    return
+  }
+  sourceKind.value = 'input'
+  sourceMode.value = tile.mode
+}
+
+function selectExec(intent) {
+  if (launchIntent.value !== 'auto') previousExec.value = executionMode.value
+  launchIntent.value = intent
+  if (intent === 'auto') {
+    executionMode.value = 'automatic'
+  } else if (executionMode.value === 'automatic') {
+    executionMode.value = previousExec.value || 'assisted'
+  }
+}
+
+function selectChannel(id) {
+  channelId.value = id
+  channelOpen.value = false
+}
+
+function toggleChannelDD(event) {
+  event.stopPropagation()
+  if (!channels.value.length) return
+  channelOpen.value = !channelOpen.value
+}
+
+function onDocumentClick(event) {
+  if (!channelPickEl.value?.contains(event.target)) channelOpen.value = false
 }
 
 async function loadCatalogs() {
@@ -155,6 +296,7 @@ async function loadCatalogs() {
     }
     if (defaults?.defaults?.execution_mode) {
       executionMode.value = defaults.defaults.execution_mode
+      previousExec.value = defaults.defaults.execution_mode
     }
     if (defaults?.defaults?.source?.mode) {
       sourceMode.value = defaults.defaults.source.mode
@@ -186,11 +328,12 @@ async function onSubmit() {
   submitting.value = true
   error.value = ''
   try {
+    const resolvedMode = launchIntent.value === 'auto' ? 'automatic' : executionMode.value
     if (sourceKind.value === 'studio') {
       const batch = {
         channel_id: channelId.value,
         script_ids: [...selectedScriptIds.value],
-        execution_mode: executionMode.value,
+        execution_mode: resolvedMode,
       }
       if (workflowId.value) batch.workflow_id = workflowId.value
       const result = await createJobBatch(batch)
@@ -200,7 +343,7 @@ async function onSubmit() {
     }
     const { job } = await createJob(buildDraft())
     emit('created', { job })
-    if (props.autoStart) {
+    if (willStart.value) {
       const started = await startJob(job.id, { force: false })
       emit('started', {
         job: started.job || job,
@@ -232,6 +375,11 @@ watch([sourceKind, channelId], () => {
 
 onMounted(() => {
   void loadCatalogs()
+  document.addEventListener('click', onDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick)
 })
 
 // Keep defaultJobDraft referenced so tree-shaking never drops the helper.
@@ -239,305 +387,404 @@ void defaultJobDraft
 </script>
 
 <template>
-  <section class="job-create" aria-labelledby="job-create-title">
-    <header class="create-head">
-      <div>
-        <p class="step-tag">Step 0</p>
-        <h2 id="job-create-title">Create Job</h2>
-        <p class="lede">
-          Pick a Channel, Script input mode, workflow, and execution mode.
-          Paste and Manual need no script provider.
-        </p>
-      </div>
-      <button type="button" class="ghost" :disabled="submitting" @click="emit('cancel')">
-        Close
-      </button>
-    </header>
+  <aside class="rail" aria-labelledby="job-create-title">
+    <div class="rail-head">
+      <h2 id="job-create-title">New Production Job</h2>
+      <div class="sub">Channel → Source → Execution. The rest is inherited.</div>
+    </div>
 
-    <p v-if="loading" class="muted">Loading channels and workflows…</p>
+    <p v-if="loading" class="muted rail-loading">Loading channels and workflows…</p>
 
-    <form v-else class="create-form" @submit.prevent="onSubmit">
-      <label class="field">
-        <span class="field-label">Channel</span>
-        <select v-model="channelId" required :disabled="submitting">
+    <form v-else class="rail-form" @submit.prevent="onSubmit">
+      <div class="rail-body">
+        <!-- Hidden native controls keep the existing tests and a11y contract. -->
+        <select
+          v-model="channelId"
+          required
+          class="sr-only"
+          data-testid="channel-select"
+          aria-label="Channel"
+          :disabled="submitting"
+        >
           <option value="">Select a channel…</option>
           <option v-for="ch in channels" :key="ch.id" :value="ch.id">
             {{ ch.name || ch.id }}
           </option>
         </select>
-      </label>
-
-      <label class="field">
-        <span class="field-label">Script source</span>
-        <select v-model="sourceKind" data-testid="script-source-kind" :disabled="submitting">
+        <select
+          v-model="sourceKind"
+          class="sr-only"
+          data-testid="script-source-kind"
+          aria-label="Script source kind"
+          :disabled="submitting"
+        >
           <option value="input">New script input</option>
           <option value="studio">Existing Studio scripts</option>
         </select>
-        <span class="field-hint">Select several Studio scripts to create one queued Job for each.</span>
-      </label>
 
-      <fieldset v-if="sourceKind === 'studio'" class="field studio-fieldset">
-        <legend class="field-label">Studio scripts</legend>
-        <p v-if="scriptsLoading" class="muted">Loading scripts...</p>
-        <p v-else-if="!studioScripts.length" class="provider-note">
-          This Channel has no Studio scripts yet.
-        </p>
-        <div v-else class="s1-list" data-testid="studio-script-list">
-          <label v-for="script in studioScripts" :key="script.id" class="s1-row" :class="{ sel: selectedScriptIds.includes(script.id) }">
-            <span class="top">
-              <input v-model="selectedScriptIds" type="checkbox" :value="script.id" :disabled="submitting" />
-              <span class="title">{{ script.title || script.id }}</span>
-              <span class="tts-tag" :class="script.narration?.state === 'ready' ? 'tts-ready' : 'tts-only'">
-                {{ script.narration?.state === 'ready' ? 'TTS Ready' : 'Script Only' }}
-              </span>
-            </span>
-            <span class="meta2">{{ script.word_count || 0 }} words</span>
-          </label>
-        </div>
-        <span class="field-hint">
-          {{ selectedScriptIds.length }} selected. Jobs stay queued until you run the batch.
-        </span>
-      </fieldset>
-
-      <fieldset v-if="sourceKind === 'input'" class="field mode-fieldset">
-        <legend class="field-label">Script stage mode</legend>
-        <div class="segmented mode-grid">
-          <label
-            v-for="mode in sourceModes"
-            :key="mode.mode"
-            class="seg-opt"
-            :class="{ sel: sourceMode === mode.mode }"
+        <!-- A. Channel -->
+        <div class="field">
+          <div class="lbl"><span>Channel</span><span class="step-n">01</span></div>
+          <div
+            ref="channelPickEl"
+            class="channel-pick"
+            :class="{ open: channelOpen }"
+            role="button"
+            tabindex="0"
+            :aria-expanded="String(channelOpen)"
+            aria-haspopup="listbox"
+            @click="toggleChannelDD"
+            @keydown.enter.prevent="toggleChannelDD"
+            @keydown.space.prevent="toggleChannelDD"
           >
-            <input
-              v-model="sourceMode"
-              type="radio"
-              name="source_mode"
-              :value="mode.mode"
+            <div
+              class="ch-avatar"
+              :style="selectedChannel ? channelAvatarStyle(selectedChannel) : {}"
+              aria-hidden="true"
+            >{{ selectedChannel ? channelAvatarLabel(selectedChannel) : '—' }}</div>
+            <div class="ch-meta">
+              <div class="nm">{{ selectedChannel?.name || 'Select a channel' }}</div>
+              <div class="row2">{{ pickMeta }}</div>
+            </div>
+            <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            <div class="dropdown" :class="{ open: channelOpen }" role="listbox">
+              <button
+                v-for="ch in channels"
+                :key="ch.id"
+                type="button"
+                class="dd-item"
+                :class="{ sel: ch.id === channelId }"
+                role="option"
+                :aria-selected="String(ch.id === channelId)"
+                @click.stop="selectChannel(ch.id)"
+              >
+                <span class="ch-avatar" :style="channelAvatarStyle(ch)" aria-hidden="true">
+                  {{ channelAvatarLabel(ch) }}
+                </span>
+                <span class="dd-txt">
+                  <span class="nm">{{ ch.name || ch.id }}</span>
+                  <span class="src">{{ [ch.niche, ch.style].filter(Boolean).join(' · ') }}</span>
+                </span>
+                <svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
+            </div>
+          </div>
+          <div v-if="inheritChips.length" class="inherits">
+            <span v-for="[key, value] in inheritChips" :key="key" class="inherit-chip">
+              <span class="k">{{ key }}</span>{{ value }}
+            </span>
+          </div>
+          <div class="inherit-note">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="3"/></svg>
+            Style, voice, tone, captions &amp; branding load from the channel.
+          </div>
+        </div>
+
+        <!-- B. Script source -->
+        <div class="field">
+          <div class="lbl"><span>Script Source</span><span class="step-n">02</span></div>
+          <div class="segmented seg-2" id="sourceSeg">
+            <label
+              v-for="tile in SOURCE_TILES"
+              :key="tile.id"
+              class="seg-opt"
+              :class="{ sel: activeSourceTile === tile.id }"
+            >
+              <input
+                type="radio"
+                name="source_tile"
+                :value="tile.mode || 'studio'"
+                :checked="activeSourceTile === tile.id"
+                :disabled="submitting"
+                @change="selectSource(tile)"
+              />
+              <span class="ic" aria-hidden="true">
+                <svg v-if="tile.id === 'auto'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M5 12H2M22 12h-3M6.3 6.3 4 4M20 20l-2.3-2.3M6.3 17.7 4 20M20 4l-2.3 2.3"/><circle cx="12" cy="12" r="4"/></svg>
+                <svg v-else-if="tile.id === 'paste'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg>
+                <svg v-else-if="tile.id === 'idea'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg>
+                <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              </span>
+              <span class="txt"><span class="t">{{ tile.t }}</span><span class="d">{{ tile.d }}</span></span>
+            </label>
+          </div>
+
+          <!-- Catalog radios (topic / manual / idea) stay in the tree for tests. -->
+          <div class="sr-only" aria-hidden="true">
+            <label v-for="mode in sourceModes" :key="mode.mode">
+              <input
+                v-model="sourceMode"
+                type="radio"
+                name="source_mode"
+                :value="mode.mode"
+                :disabled="submitting"
+                @change="sourceKind = 'input'"
+              />
+              {{ mode.label }}
+            </label>
+          </div>
+
+          <div class="source-detail" :class="{ show: showPaste }">
+            <textarea
+              v-if="showPaste"
+              v-model="pastedScript"
+              class="script-in"
+              maxlength="10000"
+              placeholder="Paste your narration script here…"
               :disabled="submitting"
             />
-            <span class="txt">
-              <span class="t">{{ mode.label }}</span>
-              <span class="d">{{ mode.description }}</span>
-              <span
-                class="mode-badge"
-                :data-provider="mode.provider_required ? 'yes' : 'no'"
+            <div v-if="showPaste" class="script-meta">
+              <span>{{ pasteChars }} characters</span>
+              <span>{{ pasteDuration }}</span>
+            </div>
+          </div>
+
+          <div class="source-detail" :class="{ show: showIdea || showTopic }">
+            <input
+              v-if="showTopic"
+              v-model="topic"
+              class="txt"
+              type="text"
+              maxlength="4000"
+              placeholder="e.g. Why people remember negative experiences more strongly…"
+              :disabled="submitting"
+            />
+            <input
+              v-else-if="showIdea"
+              v-model="idea"
+              class="txt"
+              type="text"
+              maxlength="4000"
+              placeholder="e.g. Why people remember negative experiences more strongly…"
+              :disabled="submitting"
+            />
+            <div v-if="showIdea || showTopic" class="idea-hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              Sent to <b>S1</b> to generate &amp; save a full script.
+            </div>
+          </div>
+
+          <div class="source-detail" :class="{ show: sourceKind === 'studio' }" data-testid="studio-script-list">
+            <p v-if="scriptsLoading" class="muted">Loading scripts...</p>
+            <p v-else-if="sourceKind === 'studio' && !studioScripts.length" class="provider-note">
+              This Channel has no Studio scripts yet.
+            </p>
+            <div v-else-if="sourceKind === 'studio'" class="s1-list">
+              <label
+                v-for="script in studioScripts"
+                :key="script.id"
+                class="s1-row"
+                :class="{ sel: selectedScriptIds.includes(script.id) }"
               >
-                {{ mode.provider_required ? 'Provider required' : 'No provider' }}
+                <span class="top">
+                  <input v-model="selectedScriptIds" type="checkbox" :value="script.id" :disabled="submitting" />
+                  <span class="title">{{ script.title || script.id }}</span>
+                  <span class="tts-tag" :class="script.narration?.state === 'ready' ? 'tts-ready' : 'tts-only'">
+                    {{ script.narration?.state === 'ready' ? 'TTS Ready' : 'Script Only' }}
+                  </span>
+                </span>
+                <span class="meta2">{{ script.word_count || 0 }} words</span>
+              </label>
+            </div>
+          </div>
+
+          <div v-if="sourceKind === 'input' && providerRequired" class="provider-note" role="status">
+            This mode uses a script provider from the Channel defaults. Configure
+            providers under the Channel editor if generation fails.
+          </div>
+          <div v-else-if="sourceKind === 'input'" class="provider-note local" role="status">
+            No provider. Paste / Manual run through Script Input only — no
+            script provider is configured or required.
+          </div>
+        </div>
+
+        <fieldset v-if="sourceKind === 'input'" class="field narration-fieldset">
+          <legend class="field-label">Narration processing</legend>
+          <p class="field-hint narration-source">
+            {{
+              removeSilenceOverride === 'inherit' && speedOverride === ''
+                ? `Inherited from ${selectedChannel?.name || 'Channel'}`
+                : 'Overridden for this script'
+            }}
+          </p>
+          <div class="narration-grid">
+            <label class="field">
+              <span class="field-label">
+                Remove silence
+                <em v-if="removeSilenceOverride === 'inherit'">Inherited</em>
               </span>
-            </span>
-          </label>
+              <select v-model="removeSilenceOverride" :disabled="submitting || !channelId">
+                <option value="inherit">
+                  Inherited ({{ inheritedRemoveSilence ? 'On' : 'Off' }})
+                </option>
+                <option value="on">On</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">
+                Speed
+                <em v-if="speedOverride === ''">Inherited</em>
+              </span>
+              <select v-model="speedOverride" :disabled="submitting || !channelId">
+                <option value="">Inherited ({{ inheritedSpeed }}×)</option>
+                <option v-for="speed in [0.9, 1, 1.1, 1.15, 1.25, 1.5]" :key="speed" :value="String(speed)">
+                  {{ speed }}×
+                </option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- C. Execution -->
+        <div class="field">
+          <div class="lbl"><span>Execution</span><span class="step-n">03</span></div>
+          <div class="segmented seg-2" id="execSeg">
+            <label
+              v-for="tile in EXEC_TILES"
+              :key="tile.id"
+              class="seg-opt"
+              :class="{ sel: launchIntent === tile.id }"
+            >
+              <input
+                type="radio"
+                name="exec_tile"
+                :value="tile.id"
+                :checked="launchIntent === tile.id"
+                :disabled="submitting"
+                @change="selectExec(tile.id)"
+              />
+              <span class="ic" aria-hidden="true">
+                <svg v-if="tile.id === 'queue'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+                <svg v-else-if="tile.id === 'now'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                <svg v-else-if="tile.id === 'scheduled'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><path d="M16 2l4 4-4 4" stroke-width="1.6"/></svg>
+              </span>
+              <span class="txt"><span class="t">{{ tile.t }}</span><span class="d">{{ tile.d }}</span></span>
+            </label>
+          </div>
         </div>
-      </fieldset>
 
-      <label v-if="sourceKind === 'input' && showTopic" class="field">
-        <span class="field-label">Topic</span>
-        <input
-          v-model="topic"
-          type="text"
-          maxlength="4000"
-          placeholder="e.g. Marcus Aurelius on control of the mind"
-          :disabled="submitting"
-        />
-      </label>
+        <label class="field workflow-field">
+          <span class="field-label">Workflow</span>
+          <select v-model="workflowId" :disabled="submitting">
+            <option value="">Channel default workflow</option>
+            <option
+              v-for="wf in workflows"
+              :key="wf.workflow_id || wf.id"
+              :value="wf.workflow_id || wf.id"
+            >
+              {{ wf.name || wf.workflow_id || wf.id }}
+            </option>
+          </select>
+        </label>
 
-      <label v-if="sourceKind === 'input' && showIdea" class="field">
-        <span class="field-label">Idea</span>
-        <textarea
-          v-model="idea"
-          rows="4"
-          maxlength="4000"
-          placeholder="Rough premise the script provider will expand…"
-          :disabled="submitting"
-        />
-      </label>
-
-      <label v-if="sourceKind === 'input' && showPaste" class="field">
-        <span class="field-label">
-          {{ sourceMode === 'manual' ? 'Script text' : 'Pasted script' }}
-        </span>
-        <textarea
-          v-model="pastedScript"
-          rows="8"
-          maxlength="10000"
-          placeholder="Final narration text — no AI generation needed."
-          :disabled="submitting"
-        />
-        <span class="field-hint">{{ pastedScript.length }} / 10000</span>
-      </label>
-
-      <div v-if="sourceKind === 'input' && providerRequired" class="provider-note" role="status">
-        This mode uses a script provider from the Channel defaults. Configure
-        providers under the Channel editor if generation fails.
-      </div>
-      <div v-else-if="sourceKind === 'input'" class="provider-note local" role="status">
-        Paste / Manual run through Script Input only — no script provider is
-        configured or required.
+        <ul v-if="fieldErrors.length" class="errors" role="alert">
+          <li v-for="(msg, idx) in fieldErrors" :key="idx">{{ msg }}</li>
+        </ul>
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>
 
-      <fieldset v-if="sourceKind === 'input'" class="field narration-fieldset">
-        <legend class="field-label">Narration processing</legend>
-        <p class="field-hint narration-source">
-          {{
-            removeSilenceOverride === 'inherit' && speedOverride === ''
-              ? `Inherited from ${selectedChannel?.name || 'Channel'}`
-              : 'Overridden for this script'
-          }}
-        </p>
-        <div class="narration-grid">
-          <label class="field">
-            <span class="field-label">
-              Remove silence
-              <em v-if="removeSilenceOverride === 'inherit'">Inherited</em>
-            </span>
-            <select v-model="removeSilenceOverride" :disabled="submitting || !channelId">
-              <option value="inherit">
-                Inherited ({{ inheritedRemoveSilence ? 'On' : 'Off' }})
-              </option>
-              <option value="on">On</option>
-              <option value="off">Off</option>
-            </select>
-          </label>
-          <label class="field">
-            <span class="field-label">
-              Speed
-              <em v-if="speedOverride === ''">Inherited</em>
-            </span>
-            <select v-model="speedOverride" :disabled="submitting || !channelId">
-              <option value="">Inherited ({{ inheritedSpeed }}×)</option>
-              <option v-for="speed in [0.9, 1, 1.1, 1.15, 1.25, 1.5]" :key="speed" :value="String(speed)">
-                {{ speed }}×
-              </option>
-            </select>
-          </label>
-        </div>
-        <button
-          v-if="removeSilenceOverride !== 'inherit' || speedOverride !== ''"
-          type="button"
-          class="ghost reset-processing"
-          @click="removeSilenceOverride = 'inherit'; speedOverride = ''"
-        >
-          Reset to Channel defaults
-        </button>
-      </fieldset>
-
-      <label class="field">
-        <span class="field-label">Execution mode</span>
-        <select v-model="executionMode" :disabled="submitting">
-          <option
-            v-for="mode in executionModes"
-            :key="mode.mode"
-            :value="mode.mode"
-          >
-            {{ mode.label }}
-          </option>
-        </select>
-        <span class="field-hint">
-          {{
-            executionModes.find((m) => m.mode === executionMode)?.description
-              || ''
-          }}
-        </span>
-      </label>
-
-      <label class="field">
-        <span class="field-label">Workflow</span>
-        <select v-model="workflowId" :disabled="submitting">
-          <option value="">Channel default workflow</option>
-          <option
-            v-for="wf in workflows"
-            :key="wf.workflow_id || wf.id"
-            :value="wf.workflow_id || wf.id"
-          >
-            {{ wf.name || wf.workflow_id || wf.id }}
-          </option>
-        </select>
-      </label>
-
-      <ul v-if="fieldErrors.length" class="errors" role="alert">
-        <li v-for="(msg, idx) in fieldErrors" :key="idx">{{ msg }}</li>
-      </ul>
-      <p v-if="error" class="error" role="alert">{{ error }}</p>
-
-      <div class="form-actions">
-        <button type="button" class="ghost" :disabled="submitting" @click="emit('cancel')">
-          Cancel
-        </button>
-        <button type="submit" class="primary" :disabled="!canSubmit">
+      <div class="rail-foot">
+        <button type="submit" class="btn primary block" :disabled="!canSubmit">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           {{
             submitting
-              ? 'Creating…'
+              ? 'Adding…'
               : sourceKind === 'studio'
                 ? `Queue ${selectedScriptIds.length} Job${selectedScriptIds.length === 1 ? '' : 's'}`
-                : autoStart ? 'Create & Run' : 'Create Job'
+                : 'Add to Batch'
           }}
         </button>
+        <div class="add-summary">{{ addSummary }}</div>
       </div>
     </form>
-  </section>
+  </aside>
 </template>
 
 <style scoped>
-/* Raised panel — lit from above by the top hairline. */
-.job-create {
-  margin-bottom: 20px;
-  padding: 18px 18px 20px;
-  background: var(--panel-grad);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--bg-2), var(--bg));
   font-family: var(--body);
   font-size: 13px;
   color: var(--text);
 }
 
-.create-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 16px;
+.rail-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 18px 20px 12px;
+  background: linear-gradient(180deg, var(--bg-2) 70%, transparent);
 }
 
-.step-tag {
-  margin: 0 0 6px;
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-h2 {
-  margin: 0 0 5px;
-  font-family: var(--display);
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.4px;
-  color: var(--text);
-}
-
-.lede {
+.rail-head h2 {
   margin: 0;
-  max-width: 560px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--muted);
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.create-form {
+.rail-head .sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.rail-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
+
+.rail-body {
+  padding: 4px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.rail-loading { padding: 8px 20px; }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
 }
 
-/* Micro-label — mono, uppercase, tracked out. */
+.field > .lbl {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.step-n { color: var(--faint); font-size: 10px; }
+
 .field-label {
   font-family: var(--mono);
   font-size: 10px;
@@ -554,75 +801,200 @@ h2 {
   color: var(--faint);
 }
 
-select,
-input[type='text'],
-textarea {
-  width: 100%;
+.channel-pick {
   border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--text);
+  border-radius: var(--r);
+  background: var(--panel-grad);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.16s, background 0.16s, box-shadow 0.16s;
+  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.channel-pick:hover {
+  border-color: var(--line-2);
+  background: var(--panel-grad2);
+  box-shadow: var(--hairline-top), 0 6px 16px -8px rgba(0, 0, 0, 0.5);
+}
+
+.channel-pick .chev {
+  margin-left: auto;
+  color: var(--muted);
+  flex: none;
+  transition: transform 0.18s;
+}
+
+.channel-pick.open .chev { transform: rotate(180deg); }
+
+.ch-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 15px;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.ch-meta { min-width: 0; }
+.ch-meta .nm {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch-meta .row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  padding: 5px;
+  display: none;
+}
+
+.dropdown.open { display: block; animation: pop 0.14s ease; }
+
+@keyframes pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.dd-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px;
+  border: 0;
   border-radius: var(--r-s);
-  padding: 9px 11px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.dd-item:hover { background: var(--raise); }
+.dd-item.sel { background: var(--accent-wash); }
+.dd-item .ch-avatar { width: 32px; height: 32px; font-size: 13px; border-radius: 8px; }
+.dd-item .check { margin-left: auto; color: var(--accent); opacity: 0; flex: none; }
+.dd-item.sel .check { opacity: 1; }
+.dd-txt { min-width: 0; display: flex; flex-direction: column; }
+.dd-txt .nm { font-size: 13px; font-weight: 600; }
+.dd-txt .src { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+.inherits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.inherit-chip {
+  font-size: 11px;
+  color: var(--text-2);
+  border: 1px solid var(--line-soft);
+  background: var(--bg-2);
+  border-radius: 20px;
+  padding: 3px 9px 3px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.inherit-chip .k { color: var(--muted); font-size: 10px; }
+
+.inherit-note {
+  font-size: 11px;
+  color: var(--faint);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.source-detail { display: none; }
+.source-detail.show { display: block; animation: pop 0.16s ease; }
+
+.script-in {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  color: var(--text);
   font-family: var(--body);
   font-size: 13px;
-  transition: border-color 0.16s, box-shadow 0.16s;
+  line-height: 1.5;
+  padding: 10px 11px;
 }
 
-select {
-  cursor: pointer;
-}
-
-select:focus,
-input[type='text']:focus,
-textarea:focus {
+.script-in:focus,
+.txt:focus,
+select:focus {
   outline: none;
   border-color: var(--accent-line-2);
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-input[type='text']::placeholder,
-textarea::placeholder {
-  color: var(--faint);
-}
-
-select:disabled,
-input[type='text']:disabled,
-textarea:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-textarea {
-  resize: vertical;
-  min-height: 96px;
+.script-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
   font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 10.5px;
+  color: var(--muted);
 }
 
-.mode-fieldset {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-
-.narration-fieldset {
-  padding: 13px;
+.txt {
+  width: 100%;
+  background: var(--bg-2);
   border: 1px solid var(--line);
   border-radius: var(--r-s);
-  background: var(--bg-2);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
+  padding: 10px 11px;
 }
 
-.studio-fieldset {
-  margin: 0;
-  padding: 13px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--bg-2);
+.txt::placeholder { color: var(--faint); }
+
+.idea-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* Multi-select Studio picker: one Job per checked script; `.sel` tracks the box. */
+.idea-hint b { color: var(--accent); font-weight: 600; }
+
 .s1-list {
   display: flex;
   flex-direction: column;
@@ -641,22 +1013,9 @@ textarea {
   transition: border-color 0.14s, background 0.14s;
 }
 
-.s1-row:hover {
-  border-color: var(--line-2);
-  background: var(--panel-2);
-}
-
-.s1-row.sel {
-  border-color: var(--accent-line);
-  background: var(--accent-wash);
-}
-
-.s1-row .top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
+.s1-row:hover { border-color: var(--line-2); background: var(--panel-2); }
+.s1-row.sel { border-color: var(--accent-line); background: var(--accent-wash); }
+.s1-row .top { display: flex; align-items: center; gap: 8px; }
 .s1-row .title {
   flex: 1;
   min-width: 0;
@@ -667,7 +1026,6 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .s1-row .meta2 {
   display: flex;
   align-items: center;
@@ -678,12 +1036,28 @@ textarea {
   font-size: 10px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .s1-row { transition: none; }
+.tts-tag {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.3px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  flex: none;
+  text-transform: uppercase;
+}
+
+.tts-ready { color: var(--ok); background: var(--ok-dim); box-shadow: inset 0 0 0 1px var(--ok-line); }
+.tts-only { color: var(--muted); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
+
+.narration-fieldset {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--bg-2);
 }
 
 .narration-source { margin: 0 0 10px; }
-
 .narration-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -698,43 +1072,19 @@ textarea {
   text-transform: lowercase;
 }
 
-.reset-processing { align-self: flex-start; margin-top: 8px; }
-
-/* The options themselves are the shared `.segmented` / `.seg-opt` primitive
-   (step 6.1); only the track's column count is this panel's business. */
-.mode-grid {
-  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
-  gap: 9px;
+.workflow-field select,
+.narration-fieldset select {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: var(--r-s);
+  padding: 9px 11px;
+  font-family: var(--body);
+  font-size: 13px;
+  cursor: pointer;
 }
 
-.mode-badge {
-  align-self: flex-start;
-  margin-top: 6px;
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  padding: 3px 9px;
-  border-radius: 20px;
-  color: var(--queue);
-  background: var(--bg-2);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-
-.mode-badge[data-provider='yes'] {
-  color: var(--warn);
-  background: var(--warn-dim);
-  box-shadow: inset 0 0 0 1px var(--warn-line);
-}
-
-.mode-badge[data-provider='no'] {
-  color: var(--ok);
-  background: var(--ok-dim);
-  box-shadow: inset 0 0 0 1px var(--ok-line);
-}
-
-/* Advisory banners: status wash + status hairline. */
 .provider-note {
   border-radius: var(--r-s);
   padding: 11px 13px;
@@ -751,77 +1101,21 @@ textarea {
   color: var(--ok);
 }
 
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 9px;
-  margin-top: 4px;
+.rail-foot {
+  margin-top: auto;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+  position: sticky;
+  bottom: 0;
 }
 
-/* Secondary button. */
-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel-grad);
-  color: var(--text);
-  border-radius: var(--r-s);
-  padding: 9px 14px;
-  font-family: var(--body);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.28);
-  transition: background 0.16s, border-color 0.16s, color 0.14s,
-    box-shadow 0.16s, transform 0.12s var(--ease-spring);
-}
-
-button:hover:not(:disabled) {
-  background: var(--panel-grad2);
-  border-color: var(--line-2);
-  transform: translateY(-1px);
-  box-shadow: var(--hairline-top), 0 4px 12px -4px rgba(0, 0, 0, 0.5);
-}
-
-button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: var(--hairline-top), inset 0 2px 4px rgba(0, 0, 0, 0.35);
-}
-
-/* Primary button. */
-button.primary {
-  background: var(--accent-grad);
-  border-color: transparent;
-  color: #fff;
-  font-weight: 600;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast);
-}
-
-button.primary:hover:not(:disabled) {
-  filter: brightness(1.07) saturate(1.05);
-  border-color: transparent;
-  background: var(--accent-grad);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), var(--accent-cast-lg);
-}
-
-/* Ghost button. */
-button.ghost {
-  background: transparent;
-  box-shadow: none;
-}
-
-button.ghost:hover:not(:disabled) {
-  background: var(--panel);
-  box-shadow: var(--hairline-top);
-}
-
-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
+.add-summary {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 9px;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .errors {
@@ -842,9 +1136,14 @@ button:disabled {
   line-height: 1.5;
 }
 
-.muted {
-  color: var(--muted);
-  font-size: 13px;
+.muted { color: var(--muted); font-size: 13px; }
+
+@media (max-width: 820px) {
+  .rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    max-height: none;
+  }
 }
 
 @media (max-width: 640px) {

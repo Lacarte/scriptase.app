@@ -38,6 +38,7 @@ vi.mock('../api.js', () => ({
   getExecutionStages: vi.fn(),
   getJob: vi.fn(),
   listFailedJobs: vi.fn(),
+  listJobs: vi.fn(),
   testJobNode: vi.fn(),
   runWorkflow: vi.fn(),
 }))
@@ -173,6 +174,7 @@ beforeEach(() => {
     },
   })
   api.listFailedJobs.mockResolvedValue({ jobs: [] })
+  api.listJobs.mockResolvedValue({ jobs: [], total: 0 })
   api.testJobNode.mockResolvedValue({ execution_id: 'ex_TEST01', status: 'queued' })
   api.runWorkflow.mockResolvedValue({ execution_id: 'ex_RETRY1', status: 'queued' })
 })
@@ -550,12 +552,33 @@ describe('the running job on the graph (step 1.3)', () => {
     // The pill is always there; with nothing bound it says so and stays grey.
     expect(wrapper.find('.sch-live').text()).toContain('Idle · no active job')
     expect(wrapper.find('.sch-live').classes()).toEqual(['sch-live'])
-    expect(wrapper.find('.sch-pause').exists()).toBe(false)
+    expect(wrapper.find('.sch-pause').exists()).toBe(true)
+    expect(wrapper.find('.sch-pause').text()).toContain('Freeze view')
     for (const card of wrapper.findAll('.sch-node')) {
       expect(card.attributes('data-visual')).toBe('pending')
       // Nothing watched is `s-idle`, not "this run has not got here yet".
       expect(card.classes()).toContain('s-idle')
     }
+  })
+
+  it('follows the live Job when Schema is opened with no address', async () => {
+    api.listJobs.mockResolvedValue({
+      jobs: [
+        {
+          id: 'job_AAA111',
+          status: 'running',
+          workflow_id: 'wf_AAA111',
+          execution_id: 'ex_LIVE01',
+        },
+      ],
+      total: 1,
+    })
+    const { wrapper } = await mountPage('/schema')
+    expect(api.listJobs).toHaveBeenCalled()
+    expect(api.getJob).toHaveBeenCalledWith('job_AAA111')
+    expect(api.getExecution).toHaveBeenCalledWith('ex_LIVE01')
+    expect(wrapper.find('.sch-live').text()).toMatch(/Job job_AAA111/)
+    expect(wrapper.findAll('.sch-node')[1].attributes('data-visual')).toBe('active')
   })
 })
 

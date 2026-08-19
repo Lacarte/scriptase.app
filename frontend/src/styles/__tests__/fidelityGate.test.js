@@ -68,17 +68,16 @@ const WHY = {
   transcode: [BEHAVIOUR, 'format and quality selects with no transcode behind them (export-library/README.md)'],
   simulated: [BEHAVIOUR, 'a simulated encode; download is one fetch (export-library/README.md)'],
   noSecret: [BEHAVIOUR, 'a provider is discovered or excluded, never enabled, and stored secrets are never returned to the browser (providers/README.md)'],
-  rowMenu: [BEHAVIOUR, 'batch selection and the row context menu — ProductionPage.vue, the `.job` comment'],
-  scroller: [BEHAVIOUR, "the prototype's fixed-height scroller; the list is ArchiveCalendar's"],
+  rowMenu: [BEHAVIOUR, 'the row context menu — ProductionPage.vue, the `.job` comment'],
+  scroller: [BEHAVIOUR, "the prototype's queue reorder drag handle"],
   noField: [BEHAVIOUR, 'Narration has no such field (script/README.md)'],
   protoOnly: [BEHAVIOUR, "prototype-internal shorthand with no rendered counterpart — the app's markup does not emit it"],
 
   calendar: [UNPORTED, 'the archive calendar: the app reinvented it as `archive-day-*` instead of porting `cal-*`'],
   modal: [UNPORTED, 'the modal and shortcuts-sheet chrome'],
-  rail: [UNPORTED, "Production's config rail and its inheritance chips"],
   player: [UNPORTED, 'the narration player: transport, waveform and caption track'],
   states: [UNPORTED, 'the draft/preparing/stopping/stopped run states'],
-  finder: [UNPORTED, 'the search field, its dropdown and the selection bar'],
+  finder: [UNPORTED, 'queue reorder drag handles'],
   media: [UNPORTED, 'aspect-ratio and watermark presentation'],
   language: [UNPORTED, 'the language banner and its badge'],
 }
@@ -102,9 +101,7 @@ const LEDGER = {
   'exp-watermark': 'simulated',
   'pv-enable': 'noSecret',
   'pv-secret': 'noSecret',
-  'job-check': 'rowMenu',
   'job-menu-btn': 'rowMenu',
-  joblist: 'scroller',
   's1-autogen': 'noField',
   am: 'protoOnly',
   an: 'protoOnly',
@@ -112,18 +109,15 @@ const LEDGER = {
   as: 'protoOnly',
   body: 'protoOnly',
   ci: 'protoOnly',
-  cnt: 'protoOnly',
   ico: 'protoOnly',
   kk: 'protoOnly',
   ti: 'protoOnly',
-  line: 'protoOnly',
   head: 'protoOnly',
   kick: 'protoOnly',
   welcomed: 'protoOnly',
   'editor-view': 'protoOnly',
   'cl-label': 'protoOnly',
   cavatar: 'protoOnly',
-  chev: 'protoOnly',
   'ash-hint': 'protoOnly',
   'ash-title': 'protoOnly',
   stage: 'protoOnly',
@@ -144,24 +138,8 @@ const LEDGER = {
   'keys-modal': 'modal',
   kbd: 'modal',
   krow: 'modal',
-  'sheet-head': 'modal',
-  'sheet-title-row': 'modal',
-
-  rail: 'rail',
-  'rail-body': 'rail',
-  'rail-foot': 'rail',
-  'rail-head': 'rail',
-  'batch-controls': 'rail',
-  'step-n': 'rail',
-  'inherit-chip': 'rail',
-  'inherit-note': 'rail',
-  inherits: 'rail',
-  'channel-pick': 'rail',
-  'source-detail': 'rail',
-  'add-summary': 'rail',
-  'group-head': 'rail',
-  'script-in': 'rail',
-  toolbar: 'rail',
+  'drag-handle': 'scroller',
+  'drag-over': 'finder',
 
   'play-btn': 'player',
   played: 'player',
@@ -176,16 +154,7 @@ const LEDGER = {
   'st-preparing': 'states',
   'st-stopped': 'states',
   'st-stopping': 'states',
-  'is-live': 'states',
   scenetag: 'states',
-
-  search: 'finder',
-  dropdown: 'finder',
-  'dd-item': 'finder',
-  selbar: 'finder',
-  'sel-checked': 'finder',
-  'drag-handle': 'finder',
-  'drag-over': 'finder',
 
   'r-1-1': 'media',
   'r-16-9': 'media',
@@ -314,7 +283,7 @@ describe('remaining port debt is visible', () => {
     // Not a target to game: the number moves when a step ports a family and
     // deletes its entries. It is asserted so that porting work shows up as a
     // failing test the moment the ledger and the CSS disagree.
-    expect(debt.length).toBe(59)
+    expect(debt.length).toBe(35)
   })
 
   it('every reason names at least one class', () => {

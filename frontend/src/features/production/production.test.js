@@ -1194,8 +1194,8 @@ describe('JobCreatePanel (step 2.5)', () => {
     })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Create Job')
-    expect(wrapper.text()).toContain('Paste Script')
+    expect(wrapper.text()).toContain('New Production Job')
+    expect(wrapper.text()).toContain('Paste')
     expect(wrapper.text()).toContain('No provider')
 
     await wrapper.get('select').setValue('ch_AAAAAA')
@@ -1841,6 +1841,13 @@ describe('ProductionPage keyboard control (step 0.3)', () => {
         ],
       },
     })
+    api.listJobs.mockResolvedValue({ jobs: [], total: 0 })
+    api.getJobDefaults.mockResolvedValue({
+      source_modes: SOURCE_MODE_CATALOG,
+      execution_modes: [{ mode: 'manual', label: 'Manual', description: '' }],
+      defaults: { execution_mode: 'manual', source: { mode: 'paste' } },
+    })
+    channelsApi.listChannels.mockResolvedValue({ channels: [], total: 0 })
     api.runWorkflow.mockResolvedValue({ execution_id: 'ex_KB01', status: 'queued' })
 
     const router = createRouter({

@@ -27,8 +27,10 @@ import {
   retryFailedJobs,
   retryJob,
   runWorkflow,
+  startJob,
   testJobNode,
 } from './api.js'
+import { useUndoableAction } from '@/shared/composables/useUndoableAction.js'
 import JobCreatePanel from './components/JobCreatePanel.vue'
 import StepDetailPanel from './components/StepDetailPanel.vue'
 import { useProductionStages } from './composables/useProductionStages.js'
@@ -99,6 +101,10 @@ const jobsError = ref('')
 const jobSearch = ref('')
 const jobActionRunning = ref('')
 const jobActionError = ref('')
+const channelFilter = ref('')
+const statusFilter = ref(null)
+const selectedJobIds = ref(new Set())
+const undoable = useUndoableAction()
 
 /** Free-text stage filter — the input `/` focuses (step 0.3). */
 const stageFilter = ref('')
@@ -124,12 +130,53 @@ const focusedStage = computed(() =>
   visibleStages.value.find((s) => s.key === focusedStageKey.value) || null,
 )
 
+const RUNNING_STATUSES = new Set(['running', 'paused', 'awaiting_approval'])
+const COMPLETED_STATUSES = new Set(['completed', 'succeeded'])
+
+const jobCounts = computed(() => {
+  const counts = { total: jobs.value.length, running: 0, queued: 0, completed: 0, failed: 0 }
+  for (const job of jobs.value) {
+    const status = String(job.status || '')
+    if (RUNNING_STATUSES.has(status)) counts.running += 1
+    else if (status === 'queued') counts.queued += 1
+    else if (COMPLETED_STATUSES.has(status)) counts.completed += 1
+    else if (status === 'failed') counts.failed += 1
+  }
+  return counts
+})
+
+const jobChannels = computed(() => {
+  const seen = new Map()
+  for (const job of jobs.value) {
+    const id = job.channel_id
+    if (!id || seen.has(id)) continue
+    seen.set(id, job.channel_name || id)
+  }
+  return [...seen.entries()].map(([id, name]) => ({ id, name }))
+})
+
+const filteredJobs = computed(() => jobs.value.filter((job) => {
+  if (channelFilter.value && job.channel_id !== channelFilter.value) return false
+  const status = String(job.status || '')
+  if (statusFilter.value === 'running' && !RUNNING_STATUSES.has(status)) return false
+  if (statusFilter.value === 'queued' && status !== 'queued') return false
+  if (statusFilter.value === 'completed' && !COMPLETED_STATUSES.has(status)) return false
+  if (statusFilter.value === 'failed' && status !== 'failed') return false
+  return true
+}))
+
 /** Finished Jobs alone age into the archive; queued/running/failed work stays visible. */
-const calendarJobs = computed(() => jobs.value.map(job => ({
+const calendarJobs = computed(() => filteredJobs.value.map(job => ({
   ...job,
   name: job.name || job.title || job.source_name || job.id,
-  archive_at: job.status === 'completed' ? (job.completed_at || job.created_at) : null,
+  archive_at: COMPLETED_STATUSES.has(job.status) ? (job.completed_at || job.created_at) : null,
 })))
+
+const selectedJobs = computed(() =>
+  jobs.value.filter((job) => selectedJobIds.value.has(job.id)),
+)
+
+const batchLive = computed(() => jobCounts.value.running > 0)
 
 async function refreshJobs() {
   jobsLoading.value = true
@@ -178,6 +225,155 @@ async function retryAllFailed() {
   } finally {
     jobActionRunning.value = ''
   }
+}
+
+function toggleStatusFilter(key) {
+  statusFilter.value = statusFilter.value === key ? null : key
+}
+
+function jobChecked(job) {
+  return selectedJobIds.value.has(job.id)
+}
+
+function toggleJobCheck(job, event) {
+  event?.stopPropagation()
+  const next = new Set(selectedJobIds.value)
+  if (next.has(job.id)) next.delete(job.id)
+  else next.add(job.id)
+  selectedJobIds.value = next
+}
+
+function clearSelection() {
+  selectedJobIds.value = new Set()
+}
+
+async function runBatch() {
+  const queued = jobs.value.filter((job) => job.status === 'queued')
+  if (!queued.length || jobActionRunning.value) return
+  jobActionRunning.value = 'run-batch'
+  jobActionError.value = ''
+  try {
+    // Serial drain lives on the backend. Starting each queued Job is enough;
+    // the engine will not run two at once (step 13.1).
+    for (const job of queued) {
+      await startJob(job.id, { force: false })
+    }
+    await refreshJobs()
+  } catch (err) {
+    jobActionError.value = err?.message || String(err)
+  } finally {
+    jobActionRunning.value = ''
+  }
+}
+
+async function stopBatch() {
+  const live = jobs.value.filter((job) => ['running', 'paused'].includes(job.status))
+  if (!live.length || jobActionRunning.value) return
+  jobActionRunning.value = 'stop-batch'
+  jobActionError.value = ''
+  try {
+    for (const job of live) {
+      if (job.status === 'running') await pauseJob(job.id)
+    }
+    await refreshJobs()
+  } catch (err) {
+    jobActionError.value = err?.message || String(err)
+  } finally {
+    jobActionRunning.value = ''
+  }
+}
+
+function clearCompleted() {
+  const done = jobs.value.filter((job) => COMPLETED_STATUSES.has(job.status))
+  if (!done.length || jobActionRunning.value) return
+  const snapshot = [...jobs.value]
+  const ids = new Set(done.map((job) => job.id))
+  jobs.value = jobs.value.filter((job) => !ids.has(job.id))
+  undoable.run({
+    message: `Cleared ${done.length} completed job${done.length === 1 ? '' : 's'}`,
+    commit: async () => {
+      for (const job of done) await deleteJob(job.id)
+    },
+    undo: () => { jobs.value = snapshot },
+    onError: (err) => { jobActionError.value = err?.message || String(err) },
+  })
+}
+
+function cancelAll() {
+  const affected = jobs.value.filter((job) =>
+    ['queued', 'running', 'paused', 'awaiting_approval'].includes(job.status),
+  )
+  if (!affected.length || jobActionRunning.value) return
+  const snapshot = [...jobs.value]
+  const ids = new Set(affected.map((job) => job.id))
+  jobs.value = jobs.value.filter((job) => !ids.has(job.id))
+  undoable.run({
+    message: `Cancelled ${affected.length} job${affected.length === 1 ? '' : 's'}`,
+    commit: async () => {
+      for (const job of affected) {
+        if (job.status === 'running') {
+          try { await pauseJob(job.id) } catch { /* still remove */ }
+        }
+        await deleteJob(job.id)
+      }
+    },
+    undo: () => { jobs.value = snapshot },
+    onError: (err) => { jobActionError.value = err?.message || String(err) },
+  })
+}
+
+async function startSelected() {
+  const targets = selectedJobs.value.filter((job) =>
+    ['queued', 'cancelled', 'failed'].includes(job.status),
+  )
+  if (!targets.length || jobActionRunning.value) return
+  jobActionRunning.value = 'start-selected'
+  jobActionError.value = ''
+  try {
+    for (const job of targets) {
+      if (job.status === 'failed') await retryJob(job.id)
+      else await startJob(job.id, { force: false })
+    }
+    clearSelection()
+    await refreshJobs()
+  } catch (err) {
+    jobActionError.value = err?.message || String(err)
+  } finally {
+    jobActionRunning.value = ''
+  }
+}
+
+async function duplicateSelected() {
+  const targets = selectedJobs.value
+  if (!targets.length || jobActionRunning.value) return
+  jobActionRunning.value = 'dup-selected'
+  jobActionError.value = ''
+  try {
+    for (const job of targets) await duplicateJob(job.id)
+    clearSelection()
+    await refreshJobs()
+  } catch (err) {
+    jobActionError.value = err?.message || String(err)
+  } finally {
+    jobActionRunning.value = ''
+  }
+}
+
+function removeSelected() {
+  const targets = selectedJobs.value
+  if (!targets.length || jobActionRunning.value) return
+  const snapshot = [...jobs.value]
+  const ids = new Set(targets.map((job) => job.id))
+  jobs.value = jobs.value.filter((job) => !ids.has(job.id))
+  clearSelection()
+  undoable.run({
+    message: `Removed ${targets.length} job${targets.length === 1 ? '' : 's'}`,
+    commit: async () => {
+      for (const job of targets) await deleteJob(job.id)
+    },
+    undo: () => { jobs.value = snapshot },
+    onError: (err) => { jobActionError.value = err?.message || String(err) },
+  })
 }
 
 function openJob(job) {
@@ -268,7 +464,7 @@ function jobStageLine(job) {
   const status = String(job?.status || '')
   const pct = jobExpanded(job) ? activeStageProgress.value : null
   const stage = stageKeyLabel(job, job?.current_stage)
-  if (status === 'completed') return { name: 'Complete', pct: 100, fill: 100 }
+  if (status === 'completed' || status === 'succeeded') return { name: 'Export complete', pct: 100, fill: 100 }
   if (status === 'failed') {
     const label = job?.failure?.stage_label || stage
     return { name: label ? `Failed · ${label}` : 'Failed', pct, fill: pct ?? 0 }
@@ -934,109 +1130,225 @@ onMounted(async () => {
 
 <template>
   <section class="production-page">
-    <header class="page-header">
-      <div>
-        <h1>Production</h1>
-        <p class="lede">
-          Step list projected from the workflow graph. Live status shares the
-          same execution stream as the Workflow canvas — one run, two views.
-        </p>
-        <p v-if="headerMeta" class="meta-line">{{ headerMeta }}</p>
-        <p v-if="activeJobExecutionMode" class="meta-line">
-          Execution mode: {{ activeJobExecutionMode }}
-        </p>
-      </div>
-      <div class="actions">
-        <button type="button" class="primary" @click="openJobCreate">
-          New Job
-        </button>
-        <button
-          v-if="activeJobId && ['running', 'paused'].includes(executionStatus)"
-          type="button"
-          class="ghost"
-          :disabled="pauseActionRunning"
-          :aria-label="executionStatus === 'paused' ? 'Resume job' : 'Pause job'"
-          @click="toggleJobPause"
-        >
-          {{ pauseActionRunning
-            ? (executionStatus === 'paused' ? 'Resuming…' : 'Pausing…')
-            : (executionStatus === 'paused' ? 'Resume' : 'Pause') }}
-        </button>
-        <button
-          type="button"
-          class="ghost"
-          :disabled="!workflowId && !selectedWorkflowId"
-          @click="openWorkflowCanvas"
-        >
-          Open Workflow
-        </button>
-        <button
-          type="button"
-          class="ghost"
-          title="Open the Timeline Editor in its own window"
-          @click="openTimelineEditor"
-        >
-          Timeline Editor ↗
-        </button>
-        <button
-          type="button"
-          class="ghost"
-          title="Open the Library in its own window"
-          @click="openExportLibrary"
-        >
-          Library ↗
-        </button>
-      </div>
-    </header>
-
     <JobCreatePanel
-      v-if="showJobCreate"
       :initial-workflow-id="selectedWorkflowId || workflowId || ''"
-      @cancel="closeJobCreate"
+      :auto-start="false"
       @created="onJobCreated"
       @started="onJobStarted"
     />
 
-    <section class="job-index" aria-labelledby="production-jobs-title">
-      <header class="job-index-head">
-        <div>
-          <h2 id="production-jobs-title">Jobs</h2>
-          <p>Recent work stays at hand; completed work older than 48 hours packs into the calendar.</p>
+    <main class="sheet">
+      <div class="sheet-head">
+        <div class="sheet-title-row">
+          <h1>Production Batch</h1>
+          <span class="sheet-kicker">Orchestrate &amp; monitor — S1 owns scripts &amp; TTS</span>
+          <div class="spacer" />
+          <div class="page-header">
+          <div class="actions sheet-actions">
+            <button
+              v-if="activeJobId && ['running', 'paused'].includes(executionStatus)"
+              type="button"
+              class="btn sm ghost"
+              :disabled="pauseActionRunning"
+              :aria-label="executionStatus === 'paused' ? 'Resume job' : 'Pause job'"
+              @click="toggleJobPause"
+            >
+              {{ pauseActionRunning
+                ? (executionStatus === 'paused' ? 'Resuming…' : 'Pausing…')
+                : (executionStatus === 'paused' ? 'Resume' : 'Pause') }}
+            </button>
+            <button
+              type="button"
+              class="btn sm ghost"
+              :disabled="!workflowId && !selectedWorkflowId"
+              @click="openWorkflowCanvas"
+            >
+              Open Workflow
+            </button>
+            <button
+              type="button"
+              class="btn sm ghost"
+              title="Open the Timeline Editor in its own window"
+              @click="openTimelineEditor"
+            >
+              Timeline Editor ↗
+            </button>
+            <button
+              type="button"
+              class="btn sm ghost"
+              title="Open the Library in its own window"
+              @click="openExportLibrary"
+            >
+              Library ↗
+            </button>
+          </div>
+          </div>
         </div>
-        <label class="job-search">
-          <span class="sr-only">Search jobs by name</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input v-model="jobSearch" type="search" placeholder="Search jobs by name…" />
-        </label>
-        <button
-          v-if="jobs.some(job => job.status === 'failed')"
-          type="button"
-          class="ghost retry-failed"
-          :disabled="Boolean(jobActionRunning)"
-          @click="retryAllFailed"
-        >Retry Failed</button>
-      </header>
-      <p v-if="jobActionError" class="error" role="alert">{{ jobActionError }}</p>
-      <p v-if="jobsLoading && !jobs.length" class="muted">Loading jobs…</p>
-      <p v-else-if="jobsError" class="error" role="alert">{{ jobsError }}</p>
+
+        <div class="summary" role="group" aria-label="Batch totals">
+          <button
+            type="button"
+            class="stat total clickable"
+            :class="{ 'active-filter': statusFilter === null }"
+            @click="statusFilter = null"
+          >
+            <span class="num">{{ jobCounts.total }}</span>
+            <span class="lbl">Jobs</span>
+          </button>
+          <button
+            type="button"
+            class="stat running clickable"
+            :class="{ 'active-filter': statusFilter === 'running' }"
+            @click="toggleStatusFilter('running')"
+          >
+            <span class="num"><span class="sd" :style="{ background: 'var(--run)' }" />{{ jobCounts.running }}</span>
+            <span class="lbl">Running</span>
+          </button>
+          <button
+            type="button"
+            class="stat queued clickable"
+            :class="{ 'active-filter': statusFilter === 'queued' }"
+            @click="toggleStatusFilter('queued')"
+          >
+            <span class="num"><span class="sd" :style="{ background: 'var(--queue)' }" />{{ jobCounts.queued }}</span>
+            <span class="lbl">Queued</span>
+          </button>
+          <button
+            type="button"
+            class="stat done clickable"
+            :class="{ 'active-filter': statusFilter === 'completed' }"
+            @click="toggleStatusFilter('completed')"
+          >
+            <span class="num"><span class="sd" :style="{ background: 'var(--ok)' }" />{{ jobCounts.completed }}</span>
+            <span class="lbl">Completed</span>
+          </button>
+          <button
+            type="button"
+            class="stat failed clickable"
+            :class="{ 'active-filter': statusFilter === 'failed' }"
+            @click="toggleStatusFilter('failed')"
+          >
+            <span class="num"><span class="sd" :style="{ background: 'var(--fail)' }" />{{ jobCounts.failed }}</span>
+            <span class="lbl">Failed</span>
+          </button>
+        </div>
+
+        <div class="toolbar">
+          <label class="search job-search">
+            <span class="sr-only">Search jobs, titles, channels</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input v-model="jobSearch" type="search" placeholder="Search jobs, titles, channels." />
+          </label>
+          <select v-model="channelFilter" class="filter-select" aria-label="Filter by channel">
+            <option value="">All channels</option>
+            <option v-for="channel in jobChannels" :key="channel.id" :value="channel.id">
+              {{ channel.name }}
+            </option>
+          </select>
+          <div class="spacer" />
+          <div class="batch-controls">
+            <button
+              type="button"
+              class="btn sm"
+              :class="{ 'is-live': batchLive }"
+              :disabled="!jobCounts.queued || Boolean(jobActionRunning)"
+              @click="runBatch"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+              <span class="rb-label">Run Batch</span>
+            </button>
+            <button
+              type="button"
+              class="btn sm warnb"
+              :disabled="!jobCounts.running || Boolean(jobActionRunning)"
+              @click="stopBatch"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              Stop
+            </button>
+            <button
+              type="button"
+              class="btn sm retry-failed"
+              :disabled="!jobCounts.failed || Boolean(jobActionRunning)"
+              @click="retryAllFailed"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+              Retry Failed
+            </button>
+            <button
+              type="button"
+              class="btn sm ghost"
+              :disabled="!jobCounts.completed || Boolean(jobActionRunning)"
+              @click="clearCompleted"
+            >Clear Done</button>
+            <button
+              type="button"
+              class="btn sm danger"
+              :disabled="!(jobCounts.queued || jobCounts.running) || Boolean(jobActionRunning)"
+              @click="cancelAll"
+            >Cancel All</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="selbar" :class="{ show: selectedJobs.length }">
+        <span><span class="cnt">{{ selectedJobs.length }}</span> selected</span>
+        <div class="spacer" />
+        <button type="button" class="btn xs" :disabled="Boolean(jobActionRunning)" @click="duplicateSelected">Duplicate</button>
+        <button type="button" class="btn xs" :disabled="Boolean(jobActionRunning)" @click="startSelected">Start</button>
+        <button type="button" class="btn xs danger" :disabled="Boolean(jobActionRunning)" @click="removeSelected">Remove</button>
+        <button type="button" class="btn xs ghost" @click="clearSelection">Clear</button>
+      </div>
+
+      <p v-if="headerMeta" class="meta-line sheet-meta">{{ headerMeta }}</p>
+      <p v-if="jobActionError" class="error sheet-error" role="alert">{{ jobActionError }}</p>
+      <p v-if="jobsLoading && !jobs.length" class="muted sheet-note">Loading jobs…</p>
+      <p v-else-if="jobsError" class="error sheet-error" role="alert">{{ jobsError }}</p>
+
+      <div v-if="!jobsLoading && !jobs.length" class="empty show">
+        <div class="ic">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+        </div>
+        <h3>No jobs in the batch</h3>
+        <p>Pick a channel and script source on the left, then <b>Add to Batch</b>. Queue as many as you like before running.</p>
+      </div>
+
+      <div v-else-if="!jobsLoading && !jobsError && !calendarJobs.length" class="empty show">
+        <div class="ic">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+        </div>
+        <h3>No matching jobs</h3>
+        <p>Nothing matches the current search or filter. <b>Clear filters</b> to see the full batch.</p>
+      </div>
+
+      <div v-else class="joblist">
       <ArchiveCalendar
-        v-else
         :items="calendarJobs"
         :search-query="jobSearch"
         timestamp-key="archive_at"
         item-key="id"
-        :search-keys="['name', 'id', 'channel_id', 'status']"
+        :search-keys="['name', 'id', 'channel_id', 'channel_name', 'status']"
         noun="job"
+        items-class="joblist-items"
       >
         <template #item="{ item, archived }">
           <article
             class="job"
-            :class="[`st-${item.status}`, { expanded: jobExpanded(item) }]"
+            :class="[`st-${item.status}`, { expanded: jobExpanded(item), 'sel-checked': jobChecked(item) }]"
           >
             <!-- Clicking anywhere on the row toggles it, but the chevron is
                  the control. A role="button" here would nest the quick
                  actions inside an interactive element. -->
             <div class="job-main" @click="toggleJobExpand(item)">
+              <button
+                type="button"
+                class="job-check"
+                :aria-label="`Select ${item.id}`"
+                :aria-pressed="String(jobChecked(item))"
+                @click="toggleJobCheck(item, $event)"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
               <div class="job-id mono">{{ item.id }}</div>
               <div class="job-ch">
                 <span
@@ -1195,7 +1507,7 @@ onMounted(async () => {
           <p class="muted job-empty">No jobs match “{{ jobSearch }}”.</p>
         </template>
       </ArchiveCalendar>
-    </section>
+      </div>
 
     <div class="pickers">
       <label class="picker">
@@ -1448,28 +1760,211 @@ onMounted(async () => {
       />
     </div>
 
-    <div v-else-if="!loading" class="empty muted">
-      <p v-if="!selectedWorkflowId && !showJobCreate">
-        Create a Job (Step 0) or choose a workflow to project its Production
-        stages. The list is computed on the backend from the graph — never
-        hardcoded here.
-      </p>
-      <p v-else-if="selectedWorkflowId">
-        This workflow has no production stages to project.
-      </p>
+    <div v-else-if="!loading && selectedWorkflowId" class="stage-empty-page muted">
+      <p>This workflow has no production stages to project.</p>
     </div>
+    </main>
   </section>
 </template>
 
 <style scoped>
 .production-page {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 24px 20px 48px;
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  max-width: none;
+  margin: 0;
+  padding: 0;
   font-family: var(--body);
   font-size: 13px;
   color: var(--text);
 }
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sheet-head {
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--bg-2), rgba(14, 17, 22, 0.6));
+  padding: 14px 24px 0;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.sheet-title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.sheet-title-row h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.sheet-kicker { color: var(--muted); font-size: 12.5px; }
+.sheet-title-row .spacer,
+.toolbar .spacer,
+.selbar .spacer { flex: 1; }
+
+.sheet-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+
+.summary {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 14px 0 12px;
+}
+
+.summary .stat {
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  padding: 7px 11px;
+  min-width: 210px;
+}
+
+.search:focus-within {
+  border-color: var(--accent-line-2);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.search input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  width: 100%;
+  font-family: var(--body);
+}
+
+.search input::placeholder { color: var(--faint); }
+.search svg { color: var(--muted); flex: none; }
+
+.filter-select {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  color: var(--text-2);
+  font-size: 12.5px;
+  padding: 7px 10px;
+  font-family: var(--body);
+  cursor: pointer;
+}
+
+.filter-select:focus { outline: none; border-color: var(--accent-line-2); }
+
+.batch-controls { display: flex; align-items: center; gap: 7px; }
+
+.is-live {
+  color: var(--run);
+  border-color: var(--run);
+  background: var(--run-dim);
+}
+
+.selbar {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-wash);
+  font-size: 13px;
+}
+
+.selbar.show { display: flex; animation: slidedown 0.18s ease; }
+
+@keyframes slidedown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.selbar .cnt { font-weight: 600; color: var(--accent); }
+
+.joblist {
+  flex: none;
+  min-width: 0;
+  overflow: visible;
+  padding: 14px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 2px 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.group-head .line { flex: 1; height: 1px; background: var(--line-soft); }
+
+.sheet-meta,
+.sheet-error,
+.sheet-note { padding: 8px 24px 0; }
+
+.empty {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted);
+}
+
+.empty.show { display: flex; }
+
+.empty .ic {
+  width: 66px;
+  height: 66px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--faint);
+  margin-bottom: 20px;
+}
+
+.empty h3 { margin: 0 0 8px; font-size: 17px; color: var(--text); }
+.empty p { margin: 0; font-size: 13px; max-width: 360px; line-height: 1.6; }
 
 .page-header {
   display: flex;
@@ -1494,14 +1989,11 @@ onMounted(async () => {
    row follows whichever accent is in scope — the same rule the shared
    primitives follow.
 
-   Four of the prototype's row affordances are features this app does
-   not have, and are left out rather than styled into dead markup:
-   `.job-check` and `.sel-checked` (batch selection), `.drag-handle`
-   with `.dragging` / `.drag-over` (queue reordering), `.job-menu-btn`
-   (a context menu) and `.joblist` (its fixed-height scroller — the
-   list container here is ArchiveCalendar's). The `.st-preparing`,
-   `.st-stopping`, `.st-stopped` and `.st-draft` spines are likewise
-   absent: JobStatus has no such members.
+   `.drag-handle` / `.dragging` / `.drag-over` (queue reordering) and
+   `.job-menu-btn` (a context menu) stay unported: JobStatus has no
+   draft/preparing/stopping members and the row menu is not a product
+   surface yet. Batch selection (`.job-check` / `.sel-checked`) and
+   the sheet scroller (`.joblist`) are live.
 
    `.job.kb-focus` and `.job:focus-visible` go with them. They ring a
    row the prototype's arrow-key navigation has landed on; here the
@@ -1548,6 +2040,26 @@ onMounted(async () => {
 .job.st-paused::before, .job.st-awaiting_approval::before { background: var(--sched); opacity: .8; }
 .job.st-queued::before { background: var(--queue); opacity: .35; }
 .job.st-cancelled::before { background: var(--faint); opacity: .5; }
+.job.sel-checked { border-color: var(--accent-line-2); box-shadow: 0 0 0 1px var(--accent-line), 0 6px 20px -10px var(--accent-cast); }
+
+.job-check {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  border: 1.5px solid var(--line);
+  flex: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  background: var(--bg-2);
+  color: transparent;
+  box-shadow: none;
+  transition: all 0.12s;
+}
+
+.job-check:hover { border-color: var(--line-2); transform: none; }
+.job.sel-checked .job-check { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 .job-main {
   display: flex;
@@ -1779,9 +2291,23 @@ onMounted(async () => {
   .job-quick .quick-btn span { display: inline; }
 }
 
+@media (max-width: 820px) {
+  .production-page {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: auto;
+  }
+  .toolbar { row-gap: 8px; }
+  .batch-controls { flex-wrap: wrap; }
+  .summary { flex-wrap: wrap; row-gap: 12px; }
+  .sheet-head { padding: 12px 14px 0; }
+  .joblist { padding: 12px 14px 60px; }
+  .sheet-title-row { flex-wrap: wrap; }
+}
+
 @media (max-width: 720px) {
   .job-index-head { align-items: stretch; flex-direction: column; }
-  .job-search { width: auto; }
+  .job-search { width: auto; min-width: 0; }
 }
 
 h1 {
@@ -1880,6 +2406,15 @@ button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   transform: none;
+}
+
+.pickers,
+.stage-layout,
+.cost-panel,
+.language-banner,
+.stage-empty-page {
+  padding-left: 24px;
+  padding-right: 24px;
 }
 
 .pickers {

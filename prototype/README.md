@@ -224,5 +224,29 @@ Carry these into the real UI — they're the baseline, not extras:
   browser `FileReader` and are not persisted.
 - The archive "clock" is pinned to a fixed *now* so the 48h calendar is deterministic.
 
+---
+
+## The fidelity gate reads this file
+
+`frontend/src/styles/__tests__/fidelityGate.test.js` (plan step 6.8) parses the `<style>`
+block below the `<head>` and asserts that every class of a family Phase 6 ported —
+`topnav`, `btn`, `badge`, `seg`, `stat`, `toast`, `welcome-*`, `si-*`, `job*`, `srstage`,
+`s1*`, `ch-*`, `pv-*`, `sch-*`, `lib-*`, `exp-*` — carries a rule somewhere in the app's
+CSS. `ed-*` is exempt: the Editor keeps its own identity in
+`features/editor/styles/editor.css`, which the gate does not scan.
+
+Two consequences worth knowing before editing this file:
+
+- **Adding a class to a ported family breaks the build** until the app answers it or the
+  test's `EXCLUSIONS` ledger records why it is not answered. That is the point — it is how
+  a prototype change reaches the app instead of quietly becoming drift.
+- **Renaming or removing a family** fails the gate's own sanity check, which asserts each
+  declared family still matches something here.
+
+The gate compares class *presence*, never declarations: the app spells the prototype's
+inline literals as tokens and its `.toast.out` as a Vue transition, both correct and
+neither textually equal.
+
 This file is a **reference artifact**, not shipped code. When the real views exist, the
-prototype's role is done — keep it only as long as it's a useful spec.
+prototype's role is done — but the gate is wired to it, so retiring it means retiring
+that test in the same change.

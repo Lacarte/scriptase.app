@@ -31,6 +31,7 @@ vi.mock('../api.js', () => ({
   getExecutionStages: vi.fn(),
   getJob: vi.fn(),
   listFailedJobs: vi.fn(),
+  listJobs: vi.fn(),
   testJobNode: vi.fn(),
   runWorkflow: vi.fn(),
 }))
@@ -155,6 +156,7 @@ beforeEach(() => {
   api.getExecution.mockResolvedValue({ execution: execution() })
   api.getExecutionStages.mockResolvedValue(PROJECTION)
   api.listFailedJobs.mockResolvedValue({ jobs: [] })
+  api.listJobs.mockResolvedValue({ jobs: [], total: 0 })
   api.getJob.mockResolvedValue({ job: {} })
 })
 
@@ -164,9 +166,11 @@ describe('schema fidelity (step 6.6)', () => {
 
     expect(wrapper.find('.schema-view').exists()).toBe(true)
     expect(wrapper.find('.sch-topbar .sch-title h1').text()).toBe('Workflow Schema')
-    expect(wrapper.find('.sch-sub').exists()).toBe(true)
+    expect(wrapper.find('.sch-title svg').exists()).toBe(true)
+    expect(wrapper.find('.sch-sub').text()).toBe('Read-only overview · nodes animate live as a job runs')
     expect(wrapper.find('.sch-topbar .spacer').exists()).toBe(true)
     expect(wrapper.find('.sch-live').exists()).toBe(true)
+    expect(wrapper.find('.sch-pause').text()).toContain('Freeze view')
     expect(wrapper.findAll('.sch-zoom .sch-zbtn')).toHaveLength(3)
 
     expect(wrapper.find('.sch-canvas .sch-world .sch-edges').exists()).toBe(true)

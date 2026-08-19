@@ -138,6 +138,11 @@ The topbar also carries three controls the prototype has no need for, because it
 draws one fixed graph: the workflow picker, the run picker and the `sch-meta`
 counts. They reuse the shared vocabulary rather than inventing one.
 
+Opened with no `?job=` / `?run=` / `?workflow=`, Schema follows the batch the
+way the prototype's `schemaFocusJob` does: a live Job, else the first failure,
+else the most recent completed. Freeze view is always on the bar — it never
+pauses production.
+
 ## What is cosmetic and what is fixed
 
 `useSchemaCanvas` owns positions and the camera. Dragging a card, auto-aligning,

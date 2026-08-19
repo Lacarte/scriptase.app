@@ -1,6 +1,12 @@
 # production
 
-The step/window Production view (Phase 2, steps 2.3–2.5).
+The Production Batch view (Phase 2, steps 2.3–2.5).
+
+The page is the prototype's two-column run-sheet: a **config rail**
+(Channel → Script source → Execution → Add to Batch) beside a **batch
+sheet** (totals, search, channel filter, Run / Stop / Retry / Clear /
+Cancel, and the job list). Stages still come from the backend
+projection — the rail never invents a pipeline.
 
 It renders the ordered stage list returned by the backend stage-projection
 endpoints (step 2.2) and consumes the **same** SSE stream the workflow canvas
@@ -86,15 +92,11 @@ Two consequences worth keeping:
   when there is nothing to say; a tooltip reading "Skipped" repeats what the
   dimmed node already said.
 
-Four of the prototype's row affordances are features this app does not have and
-are deliberately unstyled rather than faked: `.job-check` / `.sel-checked`
-(batch selection), `.drag-handle` (queue reordering), `.job-menu-btn` (a context
-menu) and `.joblist` (its fixed-height scroller — `ArchiveCalendar` owns the
-list container here). The `.st-preparing`, `.st-stopping`, `.st-stopped` and
-`.st-draft` spines are absent for the same reason: `JobStatus` has no such
-members. `.job.kb-focus` and `.job:focus-visible` ring a row the prototype's
-arrow-key navigation has landed on; the row is not a tab stop here — the
-chevron is the control and takes the shared `:focus-visible`.
+Batch selection (`.job-check` / `.sel-checked`) and the sheet scroller
+(`.joblist`) are live. Two prototype row affordances stay unported rather
+than faked: `.drag-handle` (queue reordering) and `.job-menu-btn` (a
+context menu). The `.st-preparing`, `.st-stopping`, `.st-stopped` and
+`.st-draft` spines are absent because `JobStatus` has no such members.
 
 The channel avatar landed with the `ch-*` family in step 6.4: `.job-ch` is now
 the prototype's flex row seating a shared `.ch-avatar`, whose colour is derived

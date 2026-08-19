@@ -89,6 +89,18 @@ export function listFailedJobs({ limit = 500 } = {}) {
 }
 
 /**
+ * Newest-first Job list. Schema uses this the way the prototype's
+ * `schemaFocusJob` does: when the view is opened with no address, follow
+ * whatever the batch is actually doing.
+ */
+export function listJobs({ status, limit = 200 } = {}) {
+  return apiGet('/jobs', {
+    status: status || undefined,
+    limit,
+  })
+}
+
+/**
  * Isolated test against a Job snapshot. The exploratory execution id returned
  * here is never written onto the Job by the backend.
  */

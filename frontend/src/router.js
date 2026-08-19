@@ -30,7 +30,7 @@ export const routes = [
     path: '/production',
     name: 'production',
     component: ProductionPage,
-    meta: { title: 'Production' },
+    meta: { title: 'Production', fullHeight: true },
   },
   {
     path: '/schema',

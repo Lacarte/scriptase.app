@@ -37,6 +37,7 @@ import {
 import {
   getExecution,
   listFailedJobs,
+  listJobs,
   runWorkflow,
   testJobNode,
 } from './api.js'
@@ -283,6 +284,26 @@ async function refreshFailedJobs() {
   }
 }
 
+const LIVE_FOCUS = new Set(['running', 'paused', 'awaiting_approval'])
+
+/**
+ * The job the prototype would draw: a live one, else the first failure,
+ * else the most recent completed. Schema never starts anything — it only
+ * decides which existing run the canvas is watching.
+ */
+async function findFocusJob() {
+  try {
+    const data = await listJobs({ limit: 200 })
+    const jobs = data?.jobs || []
+    return jobs.find((job) => LIVE_FOCUS.has(job.status))
+      || jobs.find((job) => job.status === 'failed')
+      || jobs.find((job) => job.status === 'completed' || job.status === 'succeeded')
+      || null
+  } catch {
+    return null
+  }
+}
+
 /** One click: open the first failed Job, select its failed node, and centre it. */
 async function onErrorBadge() {
   if (currentFailure.value) {
@@ -440,7 +461,25 @@ async function openFromRoute() {
       // Reported through `error`; fall through to the workflow it belongs to.
     }
   }
-  await load(workflowId).catch(() => null)
+  if (workflowId) {
+    await load(workflowId).catch(() => null)
+    await refreshRuns(selectedWorkflowId.value)
+    return
+  }
+
+  // Bare Schema follows the batch, the way the prototype's schemaFocusJob does.
+  const focus = await findFocusJob()
+  if (focus?.id) {
+    try {
+      await loadRegistry()
+      await refreshWorkflows()
+      await bindJob(focus.id)
+      return
+    } catch {
+      // Fall through to the idle default graph.
+    }
+  }
+  await load('').catch(() => null)
   await refreshRuns(selectedWorkflowId.value)
 }
 
@@ -474,10 +513,14 @@ watch(
   <section class="schema-page schema-view">
     <header class="sch-topbar">
       <div class="sch-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="5" rx="1" />
+          <rect x="14" y="8" width="7" height="5" rx="1" />
+          <rect x="3" y="16" width="7" height="5" rx="1" />
+          <path d="M10 5.5h2a2 2 0 0 1 2 2v3M10 18.5h2a2 2 0 0 0 2-2v-3" />
+        </svg>
         <h1>Workflow Schema</h1>
-        <p class="sch-sub">
-          Read-only graph. Test and Retry create separate engine executions; they never edit it.
-        </p>
+        <span class="sch-sub">Read-only overview · nodes animate live as a job runs</span>
       </div>
 
       <div class="spacer" />
@@ -503,7 +546,7 @@ watch(
 
       <label v-if="workflows.length" class="sch-pick">
         <span class="sr-only">Workflow</span>
-        <select :value="selectedWorkflowId" @change="onPickWorkflow">
+        <select class="filter-select" :value="selectedWorkflowId" @change="onPickWorkflow">
           <option v-for="wf in workflows" :key="wf.workflow_id" :value="wf.workflow_id">
             {{ wf.name || wf.workflow_id }}
           </option>
@@ -512,7 +555,7 @@ watch(
 
       <label v-if="runs.length" class="sch-pick">
         <span class="sr-only">Run</span>
-        <select :value="liveExecutionId" @change="onPickRun">
+        <select class="filter-select" :value="liveExecutionId" @change="onPickRun">
           <option value="">No run — idle graph</option>
           <option v-for="run in runs" :key="run.execution_id" :value="run.execution_id">
             {{ run.execution_id }}<template v-if="run.status"> — {{ statusLabel(run.status) }}</template>
@@ -523,18 +566,18 @@ watch(
       <div v-if="meta" class="sch-meta">{{ meta }}</div>
 
       <button
-        v-if="bound"
         class="sch-pause"
         type="button"
         :class="{ on: frozen }"
         :aria-pressed="String(frozen)"
-        title="Hold this view still. The job keeps running."
+        title="Freeze the canvas animation — does not pause the jobs (use the job row's Pause for that)"
         @click="onToggleFreeze"
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" />
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="6" y="5" width="4" height="14" rx="1" />
+          <rect x="14" y="5" width="4" height="14" rx="1" />
         </svg>
-        {{ frozen ? `Frozen · ${behind}` : 'Freeze view' }}
+        <span>{{ frozen ? `Frozen · ${behind}` : 'Freeze view' }}</span>
       </button>
 
       <div class="sch-zoom" role="group" aria-label="Zoom">
@@ -659,6 +702,15 @@ watch(
   z-index: 5;
 }
 
+.sch-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.sch-title svg { color: var(--muted); flex: none; }
+
 .sch-title h1 {
   margin: 0;
   font-family: var(--display);
@@ -666,12 +718,13 @@ watch(
   font-weight: 600;
   letter-spacing: -0.3px;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .sch-sub {
-  margin: 2px 0 0;
-  font-size: 12px;
   color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .spacer {
@@ -709,16 +762,24 @@ watch(
   color: var(--fail);
 }
 
+.sch-pick .filter-select,
 .sch-pick select {
   height: 30px;
-  max-width: 220px;
-  padding: 0 8px;
+  max-width: 200px;
+  padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--r-s);
   background: var(--panel);
   color: var(--text-2);
   font-family: var(--body);
-  font-size: 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.sch-pick .filter-select:focus,
+.sch-pick select:focus {
+  outline: none;
+  border-color: var(--accent-line-2);
 }
 
 .sch-zoom {
@@ -1021,6 +1082,10 @@ watch(
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .sch-sub { display: none; }
 }
 
 @media (max-width: 820px) {
