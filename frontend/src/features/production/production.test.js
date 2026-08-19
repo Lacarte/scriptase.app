@@ -1434,7 +1434,7 @@ describe('ProductionPage', () => {
 
     expect(wrapper.find('.job').classes()).toContain('st-failed')
     expect(wrapper.find('.failed-stage').text()).toBe('Failed · Videos')
-    expect(wrapper.find('.language-badge').text()).toContain('es')
+    expect(wrapper.find('.lang-badge').text()).toContain('es')
     expect(wrapper.find('.job-status').text()).toBe('Failed')
 
     // Expanding a row binds the Job: the detail's rail draws that Job's

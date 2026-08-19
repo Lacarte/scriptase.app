@@ -1301,7 +1301,7 @@ onMounted(async () => {
               <div class="job-title">
                 <div class="t">
                   {{ item.name }}
-                  <span v-if="languageAdvisory(item)" class="language-badge" title="Script language differs from the Channel">
+                  <span v-if="languageAdvisory(item)" class="lang-badge" title="Script language differs from the Channel">
                     {{ languageAdvisory(item).script_language }} ⚠
                   </span>
                 </div>
@@ -1453,12 +1453,18 @@ onMounted(async () => {
 
     <aside
       v-if="activeJob?.advisories?.some(a => a.code === 'LANGUAGE_MISMATCH')"
-      class="language-banner"
+      class="lang-banner"
       role="status"
     >
-      <strong>Language mismatch — advisory only.</strong>
-      {{ activeJob.advisories.find(a => a.code === 'LANGUAGE_MISMATCH').message }}
-      Production can still run; narration remains authoritative.
+      <span class="ic">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20M12 2a10 10 0 0 1 0 20M2 12h20M12 2c-3 3-3 17 0 20M12 2c3 3 3 17 0 20"/></svg>
+      </span>
+      <div class="msg">
+        <b>Language mismatch — advisory only.</b>
+        {{ activeJob.advisories.find(a => a.code === 'LANGUAGE_MISMATCH').message }}
+        Production can still run; narration remains authoritative.
+        <div class="lang-actions"></div>
+      </div>
     </aside>
 
     <p v-if="loading && hasStages" class="muted sheet-note">Loading stages…</p>
@@ -1800,11 +1806,11 @@ onMounted(async () => {
    row follows whichever accent is in scope — the same rule the shared
    primitives follow.
 
-   `.drag-handle` / `.dragging` / `.drag-over` (queue reordering) and
-   `.job-menu-btn` (a context menu) stay unported: JobStatus has no
-   draft/preparing/stopping members and the row menu is not a product
-   surface yet. Batch selection (`.job-check` / `.sel-checked`) and
-   the sheet scroller (`.joblist`) are live.
+   `.dragging` and `.drag-over` are CSS-ready for queue reordering;
+   `.drag-handle` is a prototype grip the gate records as behaviour.
+   `.job-menu-btn` (a context menu) stays unported: the row menu is
+   not a product surface yet.  Batch selection (`.job-check` /
+   `.sel-checked`) and the sheet scroller (`.joblist`) are live.
 
    `.job.kb-focus` and `.job:focus-visible` go with them. They ring a
    row the prototype's arrow-key navigation has landed on; here the
@@ -1851,6 +1857,8 @@ onMounted(async () => {
 .job.st-paused::before, .job.st-awaiting_approval::before { background: var(--sched); opacity: .8; }
 .job.st-queued::before { background: var(--queue); opacity: .35; }
 .job.st-cancelled::before { background: var(--faint); opacity: .5; }
+.job.dragging { opacity: .5; }
+.job.drag-over { border-color: var(--accent); box-shadow: 0 -2px 0 var(--accent); }
 .job.sel-checked { border-color: var(--accent-line-2); box-shadow: 0 0 0 1px var(--accent-line), 0 6px 20px -10px var(--accent-cast); }
 
 .job-check {
@@ -2071,9 +2079,13 @@ onMounted(async () => {
 
 .failed-stage { color: var(--fail); font-weight: 600; }
 .archived-label, .job-title .sub time { font-family: var(--mono); font-size: 10px; }
-.language-badge { margin-left: 5px; padding: 1px 6px; border-radius: 5px; background: var(--warn-dim); box-shadow: inset 0 0 0 1px var(--warn-line); color: var(--warn); font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; white-space: nowrap; }
-.language-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--warn-line); border-radius: var(--r-s); background: var(--warn-dim); color: var(--text); }
-.language-banner strong { color: var(--warn); }
+.lang-badge { margin-left: 5px; padding: 1px 6px; border-radius: 5px; background: var(--warn-dim); box-shadow: inset 0 0 0 1px var(--warn-line); color: var(--warn); font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .3px; white-space: nowrap; }
+.lang-banner { display: flex; align-items: flex-start; gap: 11px; margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--warn-line); border-radius: var(--r-s); background: var(--warn-dim); }
+.lang-banner .ic { flex: none; margin-top: 1px; color: var(--warn); }
+.lang-banner .msg { font-size: 12.5px; color: var(--text-2); line-height: 1.55; }
+.lang-banner .msg b { color: var(--warn); font-weight: 600; }
+.lang-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.lang-actions .btn { border-color: var(--warn-line); }
 .job-empty { margin: 4px 0; text-align: center; }
 
 /* The row reflows rather than truncating: title first, then the stage bar
@@ -2225,7 +2237,7 @@ button:disabled {
 
 .stage-layout,
 .cost-panel,
-.language-banner,
+.lang-banner,
 .stage-empty-page {
   padding-left: 24px;
   padding-right: 24px;

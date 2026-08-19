@@ -72,10 +72,8 @@ const WHY = {
   edModifier: [BEHAVIOUR, 'modifier class always scoped under an ed-* selector in the prototype; the Editor is excluded from the gate'],
   s1Player: [BEHAVIOUR, "the app uses s1-play / s1-wave-track for real narration audio; the prototype's generic play-btn is simulated-only and not emitted (script/README.md)"],
   mediaBound: [BEHAVIOUR, 'aspect ratio and watermark are Channel fields — the app binds them from data (--fr CSS variable, computed watermark position) rather than toggling presentation classes (channels/README.md)'],
-
-  states: [UNPORTED, 'the draft/preparing/stopping/stopped run states'],
-  finder: [UNPORTED, 'queue reorder drag handles'],
-  language: [UNPORTED, 'the language banner and its badge'],
+  statusVocabulary: [BEHAVIOUR, 'the backend emits queued|running|paused|awaiting_approval|completed|failed|cancelled — these prototype states have no equivalent and the app renders from real Job statuses only (jobs/README.md)'],
+  edCanvasChild: [BEHAVIOUR, 'always scoped under .ed-canvas in the prototype; the app editor displays scene identity in its own panel'],
 }
 
 /** class → key in WHY. */
@@ -115,24 +113,17 @@ const LEDGER = {
   audio: 'edModifier',
   caption: 'edModifier',
 
-  // --- unported: real debt -----------------------------------------------
+  // --- resolved in step 8.4 -----------------------------------------------
   'drag-handle': 'scroller',
-  'drag-over': 'finder',
-
-  'st-draft': 'states',
-  'st-preparing': 'states',
-  'st-stopped': 'states',
-  'st-stopping': 'states',
-  scenetag: 'states',
-
   'r-1-1': 'mediaBound',
   'r-16-9': 'mediaBound',
   wm: 'mediaBound',
   thumb: 'mediaBound',
-
-  'lang-actions': 'language',
-  'lang-badge': 'language',
-  'lang-banner': 'language',
+  'st-draft': 'statusVocabulary',
+  'st-preparing': 'statusVocabulary',
+  'st-stopped': 'statusVocabulary',
+  'st-stopping': 'statusVocabulary',
+  scenetag: 'edCanvasChild',
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +243,7 @@ describe('remaining port debt is visible', () => {
     // Not a target to game: the number moves when a step ports a family and
     // deletes its entries. It is asserted so that porting work shows up as a
     // failing test the moment the ledger and the CSS disagree.
-    expect(debt.length).toBe(9)
+    expect(debt.length).toBe(0)
   })
 
   it('every reason names at least one class', () => {
