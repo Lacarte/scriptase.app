@@ -3,14 +3,20 @@
 export const EDITOR_SHELL_HTML = `
     <header class="app-header">
         <div class="header-left">
-            <a href="#" onclick="event.preventDefault();editorShowAssetPicker()" class="back-link"
-                title="Import Project">
+            <a href="#" onclick="event.preventDefault();editorGoBack()" class="back-link"
+                title="Back to Production">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 12H5" />
                     <path d="M12 19l-7-7 7-7" />
                 </svg>
             </a>
             <h1>Video Editor</h1>
+            <a href="#" onclick="event.preventDefault();editorShowAssetPicker()" class="back-link"
+                title="Open another project">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                </svg>
+            </a>
             <span class="project-name" id="project-name">No project loaded</span>
             <span id="save-status" class="save-status" style="display:none"></span>
         </div>

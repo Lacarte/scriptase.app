@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useEditor } from '../composables/useEditor.js'
 import { EDITOR_SHELL_HTML } from '../editor-shell-html.js' // dialogs now Vue components
 import { initEditorInlineScripts } from '../editor-inline-scripts.js'
@@ -18,6 +18,7 @@ defineOptions({ name: 'EditorPage' })
 
 const { init, destroy, reset } = useEditor()
 const route = useRoute()
+const router = useRouter()
 const shellRef = ref(null)
 
 // Dialog visibility state
@@ -48,6 +49,27 @@ function setupDialogBridge() {
   window._vueHideAssetPicker = () => { showAssetPicker.value = false }
   window._vueShowTTSPicker = () => { showTTSPicker.value = true }
   window._vueHideTTSPicker = () => { showTTSPicker.value = false }
+
+  /**
+   * The way out.
+   *
+   * `/editor` is a `bare` route, so App.vue renders no topbar — the Editor
+   * keeps its own teal identity, as the prototype intends. That left it with
+   * no exit at all: the one back-arrow in the header was wired to the asset
+   * picker and titled "Import Project", so the control that looked like the
+   * way back was the one thing that was not.
+   *
+   * Opened through `Editor ↗` this is its own window, and closing it is what
+   * the user means by back. Navigated to in the same tab there is nothing to
+   * close, so it returns to Production — the prototype's "Back to batch".
+   */
+  window.editorGoBack = () => {
+    if (window.opener && !window.opener.closed) {
+      window.close()
+      return
+    }
+    router.push({ name: 'production' })
+  }
 }
 
 function cleanupDialogBridge() {
@@ -60,6 +82,7 @@ function cleanupDialogBridge() {
     '_vueShowNoData', '_vueHideNoData',
     '_vueShowAssetPicker', '_vueHideAssetPicker',
     '_vueShowTTSPicker', '_vueHideTTSPicker',
+    'editorGoBack',
   ]
   keys.forEach(k => delete window[k])
 }
