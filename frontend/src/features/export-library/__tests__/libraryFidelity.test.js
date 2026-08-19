@@ -255,6 +255,14 @@ describe('library fidelity — the exp-* family (step 6.7)', () => {
     wrapper.unmount()
   })
 
+  it('stacks the play control on the preview, not in a second clipped row', () => {
+    // jsdom will not compute scoped SFC position; the regression is absent
+    // absolute centering next to the video that already owns grid cell 1/1.
+    const source = readSource('../components/ExportDetailModal.vue')
+    expect(source).toMatch(/\.exp-thumb \.play\s*\{[^}]*position:\s*absolute/s)
+    expect(source).toMatch(/\.exp-thumb \.play\s*\{[^}]*inset:\s*0/s)
+  })
+
   it('names the managed relative path, never an absolute one', async () => {
     const wrapper = mountModal()
     await nextTick()

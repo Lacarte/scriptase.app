@@ -1,7 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createRouter, createMemoryHistory } from 'vue-router'
+
+// Teleported modals leave document listeners behind if a mid-test assertion
+// throws before unmount; auto-unmount keeps later page tests hermetic.
+enableAutoUnmount(afterEach)
 
 // Step 14.3 — the library is idiomatic Vue with no legacy bridge, so the parts
 // worth pinning are the ones that decide what the user sees: the filter/sort
@@ -330,6 +334,17 @@ describe('ExportDetailModal', () => {
     wrapper.unmount()
   })
 
+  it('leaves Escape alone while a nested confirm owns it', async () => {
+    const wrapper = mount(ExportDetailModal, {
+      props: { item: makeItem(), escapeDisabled: true },
+    })
+    await nextTick()
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(wrapper.emitted('close')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('renders nothing at all without an item', () => {
     const wrapper = mount(ExportDetailModal, { props: { item: null } })
     expect(document.querySelector('.export-modal')).toBeNull()
@@ -479,6 +494,24 @@ describe('ExportLibraryPage', () => {
     expect(wrapper.find('.calendar-cell').exists()).toBe(true)
     // The modal went with the row it was describing.
     expect(document.querySelector('.export-modal')).toBeNull()
+  })
+
+  it('Escapes the delete confirm without also closing the detail underneath', async () => {
+    const wrapper = await mountPage()
+
+    await wrapper.findAllComponents(ExportCard)[0].find('.lib-card').trigger('click')
+    await nextTick()
+    document.querySelector('.exp-foot .btn.danger').click()
+    await nextTick()
+
+    expect(document.querySelector('.export-modal')).not.toBeNull()
+    expect(wrapper.findComponent(DeleteExportDialog).props('visible')).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await nextTick()
+
+    expect(wrapper.findComponent(DeleteExportDialog).props('visible')).toBe(false)
+    expect(document.querySelector('.export-modal')).not.toBeNull()
   })
 })
 

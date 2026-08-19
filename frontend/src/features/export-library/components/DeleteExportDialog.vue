@@ -95,10 +95,11 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
 </template>
 
 <style scoped>
+/* Sit above ExportDetailModal (z-index 9999) while both are teleported. */
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;

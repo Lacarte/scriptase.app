@@ -376,6 +376,7 @@ const extendedStats = computed(() => {
 
     <ExportDetailModal
       :item="openedItem"
+      :escape-disabled="!!pendingTrashItem"
       @close="closeDetail"
       @editor="openEditor"
       @export="downloadVideo"

@@ -8,6 +8,8 @@ defineOptions({ name: 'ExportDetailModal' })
 
 const props = defineProps({
   item: { type: Object, default: null },
+  /* While a nested confirm (delete) owns Escape, the detail view stays put. */
+  escapeDisabled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'editor', 'export', 'download-zip', 'trash'])
@@ -134,7 +136,8 @@ function onOverlayClick(event) {
 }
 
 function onEscape(event) {
-  if (props.item && event.key === 'Escape') emit('close')
+  if (props.escapeDisabled || !props.item || event.key !== 'Escape') return
+  emit('close')
 }
 
 watch(() => props.item, () => { playing.value = false })
@@ -375,7 +378,13 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
   z-index: 1;
 }
 
+/* Same overlay geometry as `.lib-thumb .play`: the video already claimed
+   grid cell 1/1, so without absolute centering the button auto-places into a
+   second row and gets clipped by `overflow: hidden`. */
 .exp-thumb .play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
   width: 44px;
   height: 44px;
   border: none;
@@ -387,7 +396,7 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
   color: #fff;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
   cursor: pointer;
-  z-index: 2;
+  z-index: 4;
 }
 
 .exp-thumb .play:hover {
