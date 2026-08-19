@@ -98,6 +98,10 @@ vi.mock('@/features/script/api.js', () => ({
   listScripts: vi.fn(),
 }))
 
+beforeEach(() => {
+  setActivePinia(createPinia())
+})
+
 class FakeEventSource {
   static instances = []
   constructor(url) {
