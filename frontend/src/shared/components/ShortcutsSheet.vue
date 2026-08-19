@@ -1,9 +1,12 @@
 <script setup>
 /**
- * The `?` cheat sheet (step 0.3).
+ * The `?` cheat sheet (step 0.3, restyled step 8.3).
  *
  * Rendered from SHORTCUTS so the documented bindings and the dispatched ones
  * cannot drift apart. Escape is handled centrally by the dispatcher.
+ *
+ * The chrome is the prototype's `modal keys-modal` → `modal-head` →
+ * `modal-body` with a `keys-grid` of `krow` entries → `modal-foot`.
  */
 import { nextTick, ref, watch } from 'vue'
 
@@ -24,26 +27,33 @@ watch(shortcutsSheetOpen, (open) => {
   <Teleport to="body">
     <div
       v-if="shortcutsSheetOpen"
-      class="sheet-backdrop"
+      class="overlay"
       @click.self="closeShortcutsSheet()"
     >
       <div
-        class="sheet"
+        class="modal keys-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="shortcuts-title"
       >
-        <h2 id="shortcuts-title" class="sheet-title">Keyboard shortcuts</h2>
-        <dl class="sheet-list">
-          <div v-for="shortcut in SHORTCUTS" :key="shortcut.label" class="sheet-row">
-            <dt class="sheet-keys">
-              <kbd v-for="key in shortcut.keys" :key="key">{{ key }}</kbd>
-            </dt>
-            <dd class="sheet-label">{{ shortcut.label }}</dd>
+        <div class="modal-head">
+          <div class="ic" style="background:var(--run-dim);color:var(--run)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/>
+            </svg>
           </div>
-        </dl>
-        <div class="sheet-foot">
-          <button ref="closeButton" type="button" class="sheet-close" @click="closeShortcutsSheet()">
+          <h3 id="shortcuts-title">Keyboard shortcuts</h3>
+        </div>
+        <div class="modal-body" style="padding-left:20px">
+          <div class="keys-grid">
+            <div v-for="shortcut in SHORTCUTS" :key="shortcut.label" class="krow">
+              <kbd v-for="key in shortcut.keys" :key="key">{{ key }}</kbd>
+              <span>{{ shortcut.label }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button ref="closeButton" type="button" class="btn ghost" @click="closeShortcutsSheet()">
             Close
           </button>
         </div>
@@ -51,109 +61,3 @@ watch(shortcutsSheetOpen, (open) => {
     </div>
   </Teleport>
 </template>
-
-<style scoped>
-.sheet-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9997;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(4, 6, 10, 0.72);
-}
-
-.sheet {
-  width: min(440px, 100%);
-  max-height: 100%;
-  overflow: auto;
-  background: var(--panel-grad);
-  border: 1px solid var(--line);
-  border-radius: var(--r-l);
-  box-shadow: var(--shadow);
-  padding: 20px;
-  font-family: var(--body);
-  color: var(--text);
-}
-
-.sheet-title {
-  margin: 0 0 16px;
-  font-family: var(--display);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.3px;
-}
-
-.sheet-list {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sheet-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.sheet-row:last-child {
-  border-bottom: none;
-}
-
-.sheet-keys {
-  flex: none;
-  display: flex;
-  gap: 4px;
-  min-width: 92px;
-  margin: 0;
-}
-
-kbd {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 600;
-  line-height: 1;
-  padding: 5px 7px;
-  min-width: 22px;
-  text-align: center;
-  color: var(--text-2);
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.4);
-}
-
-.sheet-label {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--text-2);
-}
-
-.sheet-foot {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.sheet-close {
-  border: 1px solid var(--line);
-  background: var(--panel-grad);
-  color: var(--text);
-  border-radius: var(--r-s);
-  padding: 8px 16px;
-  font-family: var(--body);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  box-shadow: var(--hairline-top);
-}
-
-.sheet-close:hover {
-  background: var(--panel-grad2);
-  border-color: var(--line-2);
-}
-</style>

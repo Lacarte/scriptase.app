@@ -989,6 +989,156 @@ pre {
 }
 
 /* ================================================================
+   Overlay — the backdrop behind any modal dialog.
+
+   Fixed, full-screen, centred flexbox. The entrance is a short
+   fade + lift, so the modal reads as arriving rather than appearing.
+   ================================================================ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(4, 6, 9, .68);
+  backdrop-filter: blur(4px) saturate(1.1);
+  animation: modal-pop .16s ease;
+}
+
+@keyframes modal-pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ================================================================
+   Modal — the prototype's dialog chrome.
+
+   Three zones: `.modal-head` (icon + title), `.modal-body` (prose),
+   `.modal-foot` (action row). The head icon carries a status colour
+   class — `.danger`, `.warn`, or an inline style.
+   ================================================================ */
+.modal {
+  background: var(--panel-grad2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  width: 400px;
+  max-width: 92vw;
+  box-shadow: var(--shadow), 0 40px 80px -30px rgba(0, 0, 0, .85);
+  overflow: hidden;
+}
+
+.modal-head {
+  padding: 18px 20px 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-head .ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.modal-head .ic.danger {
+  background: var(--fail-dim);
+  color: var(--fail);
+}
+
+.modal-head .ic.warn {
+  background: var(--warn-dim);
+  color: var(--warn);
+}
+
+.modal-head h3 {
+  font-size: 15px;
+}
+
+.modal-body {
+  padding: 4px 20px 18px 68px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-2);
+}
+
+/* ================================================================
+   Shortcuts sheet — keyboard help overlay.
+
+   `.keys-modal` widens the base `.modal` for the two-column grid.
+   `.keys-grid` stacks rows; each `.krow` pairs one or more `<kbd>`
+   badges with the action label.
+   ================================================================ */
+.keys-modal {
+  width: 420px;
+}
+
+.keys-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.krow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  font-size: 13px;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.krow:last-child {
+  border-bottom: none;
+}
+
+.krow span:last-child {
+  margin-left: auto;
+  color: var(--text);
+  text-align: right;
+}
+
+/* The keycap badge inside a shortcut row. Larger than the inline `.kbd`
+   because the grid has room and the keys are the primary visual. */
+.krow kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  min-width: 24px;
+  text-align: center;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line), 0 1px 0 var(--line);
+  color: var(--text);
+}
+
+/* Inline keyboard key badge — the smaller variant used in tooltips,
+   docs and anywhere a key reference sits inside running prose. */
+.kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--muted);
+}
+
+/* ================================================================
    Reduced motion — kill every looping animation, keep the state
    ================================================================ */
 @media (prefers-reduced-motion: reduce) {

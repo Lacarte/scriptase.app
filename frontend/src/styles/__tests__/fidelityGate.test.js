@@ -73,7 +73,6 @@ const WHY = {
   s1Player: [BEHAVIOUR, "the app uses s1-play / s1-wave-track for real narration audio; the prototype's generic play-btn is simulated-only and not emitted (script/README.md)"],
   mediaBound: [BEHAVIOUR, 'aspect ratio and watermark are Channel fields — the app binds them from data (--fr CSS variable, computed watermark position) rather than toggling presentation classes (channels/README.md)'],
 
-  modal: [UNPORTED, 'the modal and shortcuts-sheet chrome'],
   states: [UNPORTED, 'the draft/preparing/stopping/stopped run states'],
   finder: [UNPORTED, 'queue reorder drag handles'],
   language: [UNPORTED, 'the language banner and its badge'],
@@ -117,13 +116,6 @@ const LEDGER = {
   caption: 'edModifier',
 
   // --- unported: real debt -----------------------------------------------
-  modal: 'modal',
-  'modal-foot': 'modal',
-  'modal-head': 'modal',
-  'keys-grid': 'modal',
-  'keys-modal': 'modal',
-  kbd: 'modal',
-  krow: 'modal',
   'drag-handle': 'scroller',
   'drag-over': 'finder',
 
@@ -260,7 +252,7 @@ describe('remaining port debt is visible', () => {
     // Not a target to game: the number moves when a step ports a family and
     // deletes its entries. It is asserted so that porting work shows up as a
     // failing test the moment the ledger and the CSS disagree.
-    expect(debt.length).toBe(16)
+    expect(debt.length).toBe(9)
   })
 
   it('every reason names at least one class', () => {
