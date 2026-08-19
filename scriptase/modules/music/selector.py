@@ -150,10 +150,19 @@ def select_music(story_tone, history=None):
     checked as a flat fallback — the import puts every bed there regardless of
     tone.
     """
-    folders = TONE_MUSIC_MAP.get(story_tone)
+    # An unmapped tone used to return here, before the import fallback below
+    # could run. TONE_MUSIC_MAP knows seven tones; the Channel presets ship
+    # many more (motivation, psychology, true_crime, wealth...), so most
+    # channels could never resolve a bed and every job died at the composer
+    # with MUSIC_NOT_FOUND. An unknown tone is not a reason to have no music —
+    # it only means there is no preferred folder, so the search falls through
+    # to the flat import root the same way an empty tone folder does.
+    folders = TONE_MUSIC_MAP.get(story_tone) or []
     if not folders:
-        logger.debug("No music mapping for story_tone '{}', skipping auto-music", story_tone)
-        return None
+        logger.debug(
+            "No folder mapping for story_tone '{}' — falling back to the import root",
+            story_tone,
+        )
 
     history = _normalize_history(history)
 

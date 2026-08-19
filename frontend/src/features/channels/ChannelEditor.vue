@@ -344,6 +344,40 @@ const trackName = (refId) =>
   musicAssets.value.find((track) => track.ref === refId)?.filename
   || refId.split('/').pop()
 
+const channelTracks = computed(() =>
+  (form.music_library.tracks || []).map((ref) => ({
+    ref,
+    filename: trackName(ref),
+    path: musicAssets.value.find((track) => track.ref === ref)?.path || '',
+  })),
+)
+
+const defaultBedOptions = computed(() => {
+  const names = channelTracks.value.map((track) => track.filename).filter(Boolean)
+  return names.length ? [...names, 'None'] : ['(no tracks)', 'None']
+})
+
+const defaultBedValue = computed(() => {
+  if (!form.audio_defaults.music_profile) return channelTracks.value.length ? 'None' : '(no tracks)'
+  return trackName(form.audio_defaults.music_profile) || 'None'
+})
+
+function setDefaultBed(filename) {
+  if (!filename || filename === 'None' || filename === '(no tracks)') {
+    form.audio_defaults.music_profile = ''
+    markDirty()
+    return
+  }
+  const hit = channelTracks.value.find((track) => track.filename === filename)
+  form.audio_defaults.music_profile = hit?.ref || filename
+  markDirty()
+}
+
+function selectBed(refId) {
+  form.audio_defaults.music_profile = refId
+  markDirty()
+}
+
 function markDirty() {
   dirty.value = true
   success.value = ''
@@ -809,6 +843,12 @@ async function onMusicFolder(event) {
     return
   }
 
+  const relative = audio[0]?.webkitRelativePath || audio[0]?.name || ''
+  const folderName = relative.includes('/') ? relative.split('/')[0] : ''
+  if (folderName && !form.music_library.folder.trim()) {
+    form.music_library.folder = folderName
+  }
+
   uploadBusy.value = true
   error.value = ''
   success.value = ''
@@ -824,6 +864,9 @@ async function onMusicFolder(event) {
           form.music_library.tracks.push(asset.ref)
         }
         added += 1
+        if (!form.audio_defaults.music_profile) {
+          form.audio_defaults.music_profile = asset.ref
+        }
       } catch (err) {
         // One bad file must not abandon the rest of the folder.
         failures.push(`${file.name}: ${err.message || err}`)
@@ -1335,39 +1378,52 @@ onMounted(load)
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
               Music library
             </h3>
-            <div class="desc">
-              A reusable bed list for this channel. Uploads are validated and stored as
-              managed assets — this is a library, not a folder on your disk.
-            </div>
-            <div class="ch-field wide">
-              <label for="ch-folder">Collection label</label>
+            <div class="desc">Music beds are loaded from this channel's folder. Point it at your tracks.</div>
+            <div class="ch-field">
+              <label for="ch-folder">Music folder</label>
               <div class="ch-path-row">
-                <input id="ch-folder" v-model="form.music_library.folder" class="ch-input mono" type="text" placeholder="e.g. Documentary beds" @input="markDirty" />
-                <label class="btn sm upload-btn">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
-                  Upload track
-                  <input type="file" class="hidden-file" accept="audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/flac" :disabled="uploadBusy" @change="onMusicFile" />
-                </label>
-                <label class="btn sm upload-btn" title="Add every audio file in a folder — the files are uploaded, the folder is not linked">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
-                  Upload folder
+                <input
+                  id="ch-folder"
+                  v-model="form.music_library.folder"
+                  class="ch-input mono"
+                  type="text"
+                  placeholder="e.g. D:\Scriptase\music\channel"
+                  @input="markDirty"
+                />
+                <label class="btn sm upload-btn" :class="{ disabled: uploadBusy }" title="Choose a folder of tracks — files are uploaded, the disk path is not stored">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+                  {{ uploadBusy ? 'Adding…' : 'Add location' }}
                   <input type="file" class="hidden-file" webkitdirectory directory multiple :disabled="uploadBusy" @change="onMusicFolder" />
                 </label>
               </div>
             </div>
-            <div class="ch-tracklist" role="group" aria-label="Channel music tracks">
-              <button
-                v-for="track in musicAssets"
+            <div class="ch-field" style="margin-top: 14px">
+              <label for="ch-default-bed">
+                Default music bed
+                <span class="note">· {{ channelTracks.length }} track{{ channelTracks.length === 1 ? '' : 's' }} in folder</span>
+              </label>
+              <select
+                id="ch-default-bed"
+                class="ch-select"
+                :value="defaultBedValue"
+                :disabled="!channelTracks.length"
+                @change="setDefaultBed($event.target.value)"
+              >
+                <option v-for="opt in defaultBedOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+            </div>
+            <div v-if="channelTracks.length" class="ch-tracklist" role="listbox" aria-label="Tracks in folder">
+              <div
+                v-for="track in channelTracks"
                 :key="track.ref"
-                type="button"
                 class="ch-track"
-                :class="{ sel: form.music_library.tracks.includes(track.ref) }"
-                :aria-pressed="form.music_library.tracks.includes(track.ref)"
-                @click="toggleTrack(track.ref)"
+                :class="{ sel: form.audio_defaults.music_profile === track.ref }"
+                role="option"
+                :aria-selected="String(form.audio_defaults.music_profile === track.ref)"
+                @click="selectBed(track.ref)"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
                 {{ track.filename }}
-                <span class="tspan">{{ track.category || track.source }}</span>
                 <span
                   v-if="track.path"
                   class="ch-track-play"
@@ -1381,17 +1437,9 @@ onMounted(load)
                   <svg v-if="playingRef === track.ref" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" /><rect x="14" y="5" width="4" height="14" /></svg>
                   <svg v-else width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>
                 </span>
-              </button>
-              <p v-if="!musicAssets.length" class="desc">
-                No tracks in the managed library yet.
-              </p>
+              </div>
             </div>
             <audio ref="previewAudio" class="hidden-file" @ended="playingRef = ''"></audio>
-            <p v-if="form.music_library.tracks.length" class="ch-wm-note">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
-              <b>{{ form.music_library.tracks.length }}</b>
-              &nbsp;selected: {{ form.music_library.tracks.map(trackName).join(', ') }}
-            </p>
           </section>
 
           <!-- ── Narration processing ───────────────────────────────── -->
