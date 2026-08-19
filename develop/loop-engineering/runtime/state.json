@@ -724,6 +724,12 @@
       "step": "9.6",
       "event": "start",
       "detail": ""
+    },
+    {
+      "ts": "2026-08-19T13:38:14",
+      "step": "9.6",
+      "event": "validation_red",
+      "detail": "vitest FAILED:\n\u001b[31m\u001b[2m\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[4/22]\u23af\u001b[22m\u001b[39m\n\n\u001b[41m\u001b[1m FAIL \u001b[22m\u001b[49m src/styles/__tests__/fidelityGate.test.js\u001b[2m > \u001b[22mevery prototype class is accounted for\u001b[2m > \u001b[22mcovers the whole prototype, not a list of prefixes\n\u001b[31m\u001b[1mAssertionError\u001b[22m: expected 592 to be 593 // Object.is equality\u001b[39m\n\n\u001b[32m- Expected\u001b[39m\n\u001b[31m+ Received\u001b[39m\n\n\u001b[32m- 593\u001b[39m\n\u001b[31m+ 592\u001b[39"
     }
   ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
