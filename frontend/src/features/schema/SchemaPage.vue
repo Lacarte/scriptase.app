@@ -23,6 +23,8 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { useToast } from '@/shared/composables/useToast.js'
 import { statusLabel } from '@/features/production/stageStatus.js'
+import { useProviderCatalogStore } from '@/features/providers/stores/providerCatalog.js'
+import { AVAILABLE } from '@/features/providers/availability.js'
 import SchemaCanvas from './components/SchemaCanvas.vue'
 import SchemaInspector from './components/SchemaInspector.vue'
 import { useSchemaGraph } from './composables/useSchemaGraph.js'
@@ -86,6 +88,8 @@ const {
   detach: detachLive,
 } = useSchemaLive()
 
+const catalog = useProviderCatalogStore()
+
 const canvasRef = ref(null)
 const selectedNodeId = ref('')
 const testOpen = ref(false)
@@ -96,6 +100,25 @@ const failedJobs = ref([])
 // ---------------------------------------------------------------------------
 // The running Job, reflected
 // ---------------------------------------------------------------------------
+
+/**
+ * Step 7.3: resolve the provider that would run each node, so the card names
+ * the instance rather than the category.  Reads from the same catalog
+ * `selectedProvider` the executor follows — change the selection and the card
+ * changes with it, without touching the node registry.
+ */
+const enrichedNodes = computed(() => {
+  return nodes.value.map((node) => {
+    if (!node.providerDomain) return node
+    const provider = catalog.selectedProvider(node.providerDomain)
+    if (!provider) return node
+    return {
+      ...node,
+      providerLabel: provider.label || provider.id || '',
+      providerAvailable: provider.availability === AVAILABLE,
+    }
+  })
+})
 
 /** Every card's look, derived from the run — never authored here. */
 const nodeStates = computed(() => buildNodeStates(nodes.value, liveRecords.value))
@@ -484,6 +507,7 @@ async function openFromRoute() {
 }
 
 onMounted(() => {
+  void catalog.loadCatalog()
   void refreshFailedJobs()
   void openFromRoute()
 })
@@ -585,7 +609,7 @@ watch(
     <div v-if="hasGraph" class="sch-stage">
       <SchemaCanvas
         ref="canvasRef"
-        :nodes="nodes"
+        :nodes="enrichedNodes"
         :edges="edges"
         :node-states="nodeStates"
         :selected-id="selectedNodeId"

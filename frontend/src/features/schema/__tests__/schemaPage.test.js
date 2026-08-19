@@ -748,6 +748,125 @@ describe('Schema node actions and failure navigation (step 1.4)', () => {
   })
 })
 
+describe('Schema cards name the provider (step 7.3)', () => {
+  function providerRegistry() {
+    return {
+      ...REGISTRY,
+      node_types: {
+        ...REGISTRY.node_types,
+        'demo.speak': {
+          ...REGISTRY.node_types['demo.speak'],
+          inputs: [{ id: 'text', type: 'text', required: true }],
+          config_schema: [
+            { name: 'provider_id', type: 'provider', provider_domain: 'voice' },
+          ],
+        },
+      },
+    }
+  }
+
+  function seedCatalog(overrides = {}) {
+    const catalog = useProviderCatalogStore()
+    catalog.catalogVersion = 1
+    catalog.domains = {
+      voice: {
+        label: 'Voice',
+        default_provider: 'voice_type',
+        providers: [
+          { id: 'voice_type', label: 'Voice Provider', availability: 'available', aliases: [] },
+        ],
+        instances: [
+          { instance_id: 'inst_main', provider_type: 'voice_type', label: 'Main Voice', availability: 'available', selected: true },
+          { instance_id: 'inst_alt', provider_type: 'voice_type', label: 'Alternate', availability: 'available' },
+        ],
+        selected: 'inst_main',
+        selected_instance_id: 'inst_main',
+        excluded: [],
+        ...overrides,
+      },
+    }
+    return catalog
+  }
+
+  it('shows the selected provider label on a provider-capable card', async () => {
+    api.getNodeTypes.mockResolvedValue(providerRegistry())
+    const { wrapper } = await mountPage()
+    seedCatalog()
+    await flushPromises()
+
+    const card = wrapper.find('[data-node-id="n_speak"]')
+    expect(card.text()).toContain('Main Voice')
+  })
+
+  it('leaves non-provider cards showing the stage label', async () => {
+    api.getNodeTypes.mockResolvedValue(providerRegistry())
+    const { wrapper } = await mountPage()
+    seedCatalog()
+    await flushPromises()
+
+    // n_start has no providerDomain — its subtitle stays the stage label.
+    const card = wrapper.find('[data-node-id="n_start"]')
+    expect(card.text()).toContain('Script')
+  })
+
+  it('marks an unconfigured provider as visibly unusable', async () => {
+    api.getNodeTypes.mockResolvedValue(providerRegistry())
+    const { wrapper } = await mountPage()
+    seedCatalog({
+      providers: [
+        { id: 'voice_type', label: 'Voice Provider', availability: 'needs_configuration', aliases: [] },
+      ],
+      instances: [],
+      selected: null,
+      selected_instance_id: null,
+    })
+    await flushPromises()
+
+    const card = wrapper.find('[data-node-id="n_speak"]')
+    expect(card.find('.sb').classes()).toContain('sb-unavail')
+    // Still names the provider, just visually distinct.
+    expect(card.text()).toContain('Voice Provider')
+  })
+
+  it('updates the card when the selection changes without touching the registry', async () => {
+    api.getNodeTypes.mockResolvedValue(providerRegistry())
+    const { wrapper } = await mountPage()
+    const catalog = seedCatalog()
+    await flushPromises()
+
+    expect(wrapper.find('[data-node-id="n_speak"]').text()).toContain('Main Voice')
+
+    // Flip the selection to the alternate instance.
+    catalog.domains = {
+      ...catalog.domains,
+      voice: {
+        ...catalog.domains.voice,
+        selected: 'inst_alt',
+        selected_instance_id: 'inst_alt',
+        instances: catalog.domains.voice.instances.map((i) => ({
+          ...i,
+          selected: i.instance_id === 'inst_alt',
+        })),
+      },
+    }
+    await flushPromises()
+
+    expect(wrapper.find('[data-node-id="n_speak"]').text()).toContain('Alternate')
+    // The registry was fetched exactly once — the card changed from the catalog alone.
+    expect(api.getNodeTypes).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to the stage label when the catalog has not loaded', async () => {
+    api.getNodeTypes.mockResolvedValue(providerRegistry())
+    const { wrapper } = await mountPage()
+    // No seedCatalog — catalog.domains is empty.
+    await flushPromises()
+
+    const card = wrapper.find('[data-node-id="n_speak"]')
+    expect(card.text()).toContain('Voice')
+  })
+})
+
 describe('no hardcoded structure (steps 1.2, 1.3)', () => {
   const SOURCES = [
     '../graph.js',

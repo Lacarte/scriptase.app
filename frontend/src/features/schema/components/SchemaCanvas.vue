@@ -373,7 +373,7 @@ defineExpose({
           :data-stage="node.stageKey || ''"
           :data-visual="nodeVisual(node)"
           :style="nodeStyle(node)"
-          :title="`${node.name} · ${node.subtitle}`"
+          :title="`${node.name} · ${node.providerLabel || node.subtitle}`"
           @mousedown="onNodeDown(node.id, $event)"
           @keydown="onNodeKey(node.id, $event)"
           @contextmenu="openMenu($event, node)"
@@ -384,7 +384,10 @@ defineExpose({
           </span>
           <span class="sch-nt">
             <span class="nm">{{ node.name }}</span>
-            <span class="sb">{{ node.subtitle }}</span>
+            <span
+              class="sb"
+              :class="{ 'sb-unavail': node.providerLabel && !node.providerAvailable }"
+            >{{ node.providerLabel || node.subtitle }}</span>
           </span>
 
           <span class="sch-io in" aria-hidden="true" />
@@ -848,6 +851,11 @@ defineExpose({
   font-family: var(--mono);
   font-size: 8.5px;
   color: var(--muted);
+}
+
+/* Step 7.3: a provider the domain needs but has not configured yet. */
+.sch-nt .sb.sb-unavail {
+  color: var(--warn);
 }
 
 .sch-io {
