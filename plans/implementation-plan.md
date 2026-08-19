@@ -112,9 +112,12 @@ is the Production row's job.
 
 ### 1.4 Node actions in the inspector, including test with a provider override
 
-Retiring the editable canvas would otherwise delete step 13.3's capability, so it moves here.
-The inspector carries a Test action with input bindings and a one-shot provider-instance
-override, reusing the existing test panel and the `provider_instance_id` parameter from 13.2.
+Retiring the editable canvas would otherwise delete the capability built by the **delivered
+plan's** step 13.3, so it moves here. The inspector carries a Test action with input bindings
+and a one-shot provider-instance override, reusing the existing test panel and the
+`provider_instance_id` parameter added by the delivered plan's 13.2. (Step ids below 9.x in
+this document are this plan's; anything higher refers to
+`plans/archive/implementation-plan-v1-delivered.md`.)
 Failures surface as the prototype specifies: the node glows red with an inline tooltip, a
 panel lists node, stage, job, reason and error code with Locate node and Retry, and a topbar
 badge counts errors across jobs.
@@ -228,7 +231,7 @@ selecting several scripts to create one job each.
 
 ### 4.2 Serial drain with a first-class pause
 
-The queue drains one job at a time, which step 13.1 already defaults to. Add Pause and Resume
+The queue drains one job at a time, which the delivered plan's step 13.1 already defaults to. Add Pause and Resume
 as a real job state: a paused job holds its queue slot so nothing advances past it, and
 resumes from the same stage rather than restarting. Model pause in the engine, not as a
 stop-then-recreate.
@@ -654,3 +657,61 @@ Three constraints carried forward from the delivered plan:
   Freeze view must never be able to pause execution — the canvas is a projection.
 - **Secrets stay write-only.** Never returned by an API, and never present in a Job
   snapshot, execution record, SSE event, log, export, or the Providers simulate console.
+
+---
+
+## Verification
+
+`python` and `pytest` are not on PATH. Always use the venv interpreter. All
+three must be green before any commit; the loop orchestrator runs them itself
+and never trusts an agent's claim.
+
+```bash
+venv/Scripts/python.exe -m pytest tests/ -q     # from the repo root
+cd frontend && npm run test                     # vitest
+cd frontend && npm run build                    # writes ../static/dist
+
+venv/Scripts/python.exe -m scriptase.engine.docs --check      # node-doc drift
+venv/Scripts/python.exe -m scriptase.providers.docs --check   # provider-doc drift
+```
+
+Green as of the Phase 6 close:
+
+| Suite | Count |
+|---|---|
+| pytest | 1705 passed, 1 skipped, 517 subtests |
+| vitest | 649 passed across 59 files |
+| fidelity gate unported ledger | **35** — Phase 8 drives this to zero |
+
+The skip is the `live` marker and is expected. A skipped `live` test is normal;
+a skipped anything-else is a defect.
+
+Two numbers above are assertions rather than observations. The gate asserts its
+own unported count, so porting a family fails the suite until the ledger is
+updated in the same change — that is the mechanism, not an inconvenience.
+
+### What the suites cannot tell you
+
+The suite was 1705 green while **every TTS run in the project's history died with
+an internal `NameError`**. The line only executes when a provider is genuinely
+invoked, which no unit test does, and `instance` is a legal module-scope name so
+no linter or static pass flagged it. The music library pointed at a directory
+that has never existed, and nothing noticed.
+
+Both were found in ten minutes of running one Job. Until step 7.2 lands, treat a
+green board as evidence about the surfaces and about nothing else — no part of
+this project has yet demonstrated a Job reaching `completed`.
+
+### Definition of done for the plan
+
+1. `run.bat --status` reports every phase complete with no `REVIEW INCOMPLETE`.
+2. A Job runs start to export from a clean checkout with no credentials
+   configured, against fixtures, and reaches `completed` (7.2).
+3. Auto and Topic → Idea both originate a script; Paste still needs no provider
+   (7.1).
+4. The fidelity gate's unported count is zero, and every remaining ledger entry
+   is BEHAVIOUR with a reason that is true (8.4).
+5. Adding a provider still requires creating and registering its package alone,
+   proven by `tests/test_provider_extensibility.py`.
+6. No secret appears in an API response, Job snapshot, execution record, SSE
+   event, log, export, or the Providers simulate console.
