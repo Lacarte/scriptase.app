@@ -565,6 +565,24 @@
       "step": "7.3",
       "event": "done",
       "detail": "153820e"
+    },
+    {
+      "ts": "2026-08-19T04:41:50",
+      "step": "phase-7",
+      "event": "done",
+      "detail": "7e12616"
+    },
+    {
+      "ts": "2026-08-19T04:41:55",
+      "step": "phase-8",
+      "event": "start",
+      "detail": "7e12616"
+    },
+    {
+      "ts": "2026-08-19T04:41:55",
+      "step": "8.1",
+      "event": "start",
+      "detail": ""
     }
   ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
