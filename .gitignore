@@ -62,6 +62,13 @@ bin/*
 develop/loop-engineering/live-verification/n8n-data/
 develop/loop-engineering/runtime/logs/
 
+# --- Whole-project LLM export dumps ------------------------------------------
+# The "Easy Whole Project to Single Text File for LLMs" extension writes
+# <project>-output.md / .txt beside the repo root. They concatenate the entire
+# tree, so each one lands at ~140 MB and both are pure derived data.
+*-output.md
+*-output.txt
+
 # --- Editor / OS -------------------------------------------------------------
 .idea/
 .vscode/
