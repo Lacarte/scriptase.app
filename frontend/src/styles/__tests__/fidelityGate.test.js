@@ -71,11 +71,11 @@ const WHY = {
   protoOnly: [BEHAVIOUR, "prototype-internal shorthand with no rendered counterpart — the app's markup does not emit it"],
   edModifier: [BEHAVIOUR, 'modifier class always scoped under an ed-* selector in the prototype; the Editor is excluded from the gate'],
   s1Player: [BEHAVIOUR, "the app uses s1-play / s1-wave-track for real narration audio; the prototype's generic play-btn is simulated-only and not emitted (script/README.md)"],
+  mediaBound: [BEHAVIOUR, 'aspect ratio and watermark are Channel fields — the app binds them from data (--fr CSS variable, computed watermark position) rather than toggling presentation classes (channels/README.md)'],
 
   modal: [UNPORTED, 'the modal and shortcuts-sheet chrome'],
   states: [UNPORTED, 'the draft/preparing/stopping/stopped run states'],
   finder: [UNPORTED, 'queue reorder drag handles'],
-  media: [UNPORTED, 'aspect-ratio and watermark presentation'],
   language: [UNPORTED, 'the language banner and its badge'],
 }
 
@@ -133,10 +133,10 @@ const LEDGER = {
   'st-stopping': 'states',
   scenetag: 'states',
 
-  'r-1-1': 'media',
-  'r-16-9': 'media',
-  wm: 'media',
-  thumb: 'media',
+  'r-1-1': 'mediaBound',
+  'r-16-9': 'mediaBound',
+  wm: 'mediaBound',
+  thumb: 'mediaBound',
 
   'lang-actions': 'language',
   'lang-badge': 'language',
@@ -260,7 +260,7 @@ describe('remaining port debt is visible', () => {
     // Not a target to game: the number moves when a step ports a family and
     // deletes its entries. It is asserted so that porting work shows up as a
     // failing test the moment the ledger and the CSS disagree.
-    expect(debt.length).toBe(20)
+    expect(debt.length).toBe(16)
   })
 
   it('every reason names at least one class', () => {
