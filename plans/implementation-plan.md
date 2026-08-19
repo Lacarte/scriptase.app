@@ -468,65 +468,30 @@ where the prototype has one composition.
 
 **Done when:** the Schema topbar carries only what the prototype's `.sch-topbar` carries, no workflow id is hardcoded anywhere in the frontend, and route-query addressing still reaches a specific run.
 
-### 6.11 Script studio (S1) — template-first
-
-The first view built the new way from the start. Lift the prototype's `s1-*`
-markup — the library rail, the document header and title input, the create flow
-with its template preview chips, the narration panel with its transport, and the
-virality gauge — then bind the script clients and Channel template preview that
-already exist.
-
-The narration player family (`play-btn`, `played`, `track`, `tick`, `wave`,
-`audio`, `caption`, `subtitle`) leaves the ledger here. Its transport controls a
-real audio element over a real narration artifact; nothing about playback may be
-mimed the way the prototype mimes it.
-
-**Done when:** the studio matches the prototype's three columns and its narration panel plays a real artifact, the template preview still reads from the selected Channel, and the gate's unported count drops by eight.
-
-### 6.12 Channels — template-first
-
-Same method. Lift the `ch-*` editor: identity, look and voice, script template
-with its section outline, narration processing, music, thumbnail, and the
-nine-position watermark picker. Bind the Channel API that already serves them.
-
-The media families (`r-16-9`, `r-1-1`, `wm`, `thumb`) leave the ledger here —
-aspect ratio and watermark are Channel fields, so they bind rather than being
-drawn. `ch-sw`/`ch-swatches` and the platform chips stay excused: `ChannelProfile`
-has no `color` and no `platforms`.
-
-**Done when:** the Channels editor matches the prototype including the 3×3 watermark picker, every field round-trips through the Channel API, and the gate's unported count drops by four.
-
-### 6.13 Shared chrome — calendar, modal, shortcuts sheet
-
-The three families that belong to no single view. The archive calendar is the
-clearest case of the old method's failure: the app built `archive-day-*` instead
-of porting `cal-*`, so it has never been restylable. Lift `cal-cells` / `cal-cell`
-with its `open` state and the `cal-wd` / `cal-day` / `cal-mo` / `cal-count` /
-`cal-dot` internals onto `shared/components/ArchiveCalendar.vue`, which both
-Production and the Library render. Then the modal and shortcuts-sheet chrome:
-`modal`, `modal-head`, `modal-foot`, `keys-modal`, `keys-grid`, `kbd`, `krow`.
-
-**Done when:** the 48-hour strip is the prototype's, both views still collapse older items, the shortcuts sheet matches, and the gate's unported count drops by fourteen.
-
-### 6.14 Run states and the language banner — ledger to zero
-
-The tail. `st-draft`, `st-preparing`, `st-stopping`, `st-stopped`, `is-live` and
-`scenetag` must map onto the Job statuses the backend actually emits — `queued`,
-`running`, `paused`, `awaiting_approval`, `completed`, `failed`, `cancelled` —
-rather than introducing a seventh vocabulary in the frontend. Where a prototype
-state has no backend equivalent, its ledger entry moves from UNPORTED to
-BEHAVIOUR with the reason, which is an honest outcome and not a failure. Then
-`lang-banner` with `lang-badge` and `lang-actions`, and `drag-over`.
-
-**Done when:** every prototype run state either renders from a real Job status or is recorded as behaviour with its reason, and the gate's unported count reaches zero.
-
 ---
 
-## Phase 7 — Functional gaps surfaced by the fidelity pass
+## Phase 7 — Make one video
 
-Phase 6 is presentational by definition. Where comparing against the prototype
-reveals a control that was never built rather than built differently, it belongs
-here — styling an absent element would hide the problem.
+Phases 0–6 built the surfaces. Nothing has ever run through them end to end,
+and that turns out to matter more than the remaining fidelity work.
+
+Two defects surfaced within ten minutes of actually starting a Job, and neither
+was reachable by unit test or static analysis:
+
+- `scriptase/modules/tts/dispatch.py` passed `provider_version=instance.version`
+  where the object is `package`. **Every TTS run since it was written died with
+  an internal `NameError`**, whatever the provider or its configuration, and the
+  real reason was never reached. `instance` is a legal module-scope name and the
+  line only executes when a provider is genuinely invoked, which no test does.
+- `config.MUSIC_LIBRARY_DIR` resolves to `resources/sounds/music/<tone>/`, a tree
+  that does not exist. The V2 import brought 69 beds across into
+  `output/musics/` and never organised them, so every Job failed earlier still
+  at the composer with `MUSIC_NOT_FOUND`.
+
+Both were found by running, not by reading. That is the argument for this phase
+existing at all, and for it coming before the remaining fidelity steps: six more
+presentational passes polish an app that cannot originate a script or finish a
+video.
 
 ### 7.1 Restore a script provider so Auto and Idea work
 
@@ -544,6 +509,101 @@ provider configured, per the reference document's §6.
 
 **Done when:** Auto and Topic → Idea both produce a script end to end, Paste still needs no provider, and the Providers page shows whatever now serves the script capability.
 
+### 7.2 Drive one Job from start to export
+
+The step that would have caught both defects above, and the one that proves the
+engine rather than the surfaces.
+
+Run a Job through every stage against deterministic fixtures wherever a real
+provider is unavailable — the suite already has fixture providers, and this must
+not depend on a credential to stay green. The run is the assertion: each stage
+produces its artifact, the projection reports it, and the Job reaches
+`completed`. Fixture substitution has to be explicit in provenance, so a
+fixture-backed run can never be mistaken for a real one.
+
+Fix what it surfaces in the same step. Two are already known: the music library
+location — either the import organises beds into the tone folders the selector
+reads, or the selector learns where the import actually puts them; pick one and
+make it true on a clean checkout — and any stage that cannot run without a
+credential must fail with a `PROVIDER_UNAVAILABLE` naming what is missing,
+never an internal error.
+
+**Done when:** a Job reaches `completed` from a clean checkout with no credentials configured, every stage records an artifact, provenance marks each fixture-backed call as such, and the run is a test that fails if any stage regresses.
+
+### 7.3 Schema cards name the provider that will run
+
+A Schema node shows its category where the prototype shows the provider — `TTS`
+rather than `Inworld`, `Video` rather than `Grok`. The projection already
+resolves a provider instance per node; the card simply does not read it.
+
+Resolve it at render from the same selection the executor will make, so the card
+and the run cannot disagree. **The provider name must not be written into the
+node registry**: a provider may never modify a node definition, and
+`tests/test_provider_extensibility.py` fails the moment a provider literal
+appears there — it already caught one attempt.
+
+**Done when:** each node card names the instance that would run it, an unconfigured instance is visibly unusable, changing the selection changes the card without touching the registry, and the extensibility test stays green.
+
+---
+
+## Phase 8 — Template-first fidelity
+
+The remaining ledger, ported by the method Phase 6 describes: lift the
+prototype's markup and CSS onto the composables that already exist. The gate's
+unported count is 35, and each step names the number it must remove.
+
+### 8.1 Script studio (S1) — template-first
+
+The first view built the new way from the start. Lift the prototype's `s1-*`
+markup — the library rail, the document header and title input, the create flow
+with its template preview chips, the narration panel with its transport, and the
+virality gauge — then bind the script clients and Channel template preview that
+already exist.
+
+The narration player family (`play-btn`, `played`, `track`, `tick`, `wave`,
+`audio`, `caption`, `subtitle`) leaves the ledger here. Its transport controls a
+real audio element over a real narration artifact; nothing about playback may be
+mimed the way the prototype mimes it.
+
+**Done when:** the studio matches the prototype's three columns and its narration panel plays a real artifact, the template preview still reads from the selected Channel, and the gate's unported count drops by eight.
+
+### 8.2 Channels — template-first
+
+Same method. Lift the `ch-*` editor: identity, look and voice, script template
+with its section outline, narration processing, music, thumbnail, and the
+nine-position watermark picker. Bind the Channel API that already serves them.
+
+The media families (`r-16-9`, `r-1-1`, `wm`, `thumb`) leave the ledger here —
+aspect ratio and watermark are Channel fields, so they bind rather than being
+drawn.
+
+**Done when:** the Channels editor matches the prototype including the 3×3 watermark picker, every field round-trips through the Channel API, and the gate's unported count drops by four.
+
+### 8.3 Shared chrome — calendar, modal, shortcuts sheet
+
+The three families that belong to no single view. The archive calendar is the
+clearest case of the old method's failure: the app built `archive-day-*` instead
+of porting `cal-*`, so it has never been restylable. Lift `cal-cells` and
+`cal-cell` with its `open` state and the `cal-wd` / `cal-day` / `cal-mo` /
+`cal-count` / `cal-dot` internals onto `shared/components/ArchiveCalendar.vue`,
+which both Production and the Library render. Then the modal and shortcuts-sheet
+chrome: `modal`, `modal-head`, `modal-foot`, `keys-modal`, `keys-grid`, `kbd`,
+`krow`.
+
+**Done when:** the 48-hour strip is the prototype's, both views still collapse older items, the shortcuts sheet matches, and the gate's unported count drops by fourteen.
+
+### 8.4 Run states and the language banner — ledger to zero
+
+The tail. `st-draft`, `st-preparing`, `st-stopping`, `st-stopped` and `scenetag`
+must map onto the Job statuses the backend actually emits — `queued`, `running`,
+`paused`, `awaiting_approval`, `completed`, `failed`, `cancelled` — rather than
+introducing a seventh vocabulary in the frontend. Where a prototype state has no
+backend equivalent, its ledger entry moves from UNPORTED to BEHAVIOUR with the
+reason, which is an honest outcome and not a failure. Then `lang-banner` with
+`lang-badge` and `lang-actions`, and `drag-over`.
+
+**Done when:** every prototype run state either renders from a real Job status or is recorded as behaviour with its reason, and the gate's unported count reaches zero.
+
 ---
 
 ## Step count and sequencing
@@ -556,10 +616,19 @@ provider configured, per the reference document's §6.
 | 3 — Script studio | 3.1–3.4 (4) | 3.1 before the rest; needs 2.1 and 2.3. |
 | 4 — Batch orchestrator | 4.1–4.5 (5) | 4.2 and 4.3 are engine changes. 4.3 needs 3.1. |
 | 5 — Library and Providers | 5.1–5.3 (3) | 5.1 reuses 4.4's calendar. 5.3 retires non-prototype providers. |
-| **6 — Prototype fidelity pass** | 6.1–6.8 (8) | **6.1 first** — every later step composes the shared primitives. |
-| **7 — Functional gaps** | 7.1 (1) | Surfaced by Phase 6; 7.1 unblocks two of the studio's three create modes. |
+| **6 — Prototype fidelity pass** | 6.1–6.10 (10) | **6.1 first** — every later step composes the shared primitives. 6.9 onward use the lift-the-template method. |
+| **7 — Make one video** | 7.1–7.3 (3) | **Ahead of the remaining fidelity work.** 7.2 is the first end-to-end run the project has had. |
+| **8 — Template-first fidelity** | 8.1–8.4 (4) | Drives the gate ledger from 35 unported to zero. |
 
-**33 steps across 8 phases.** Phases 0–5 are delivered; Phase 6 is the fidelity pass and Phase 7 collects the functional gaps it surfaces.
+**41 steps across 9 phases.** Phases 0–6 are delivered. Phase 7 makes the pipeline
+actually produce a video; Phase 8 finishes the prototype port.
+
+Phase 7 comes first deliberately. Six more presentational passes would polish an
+app that cannot originate a script or finish a video, and the two defects that
+blocked every run — an undefined name in TTS dispatch and a music library
+pointing at a tree that does not exist — were both found by running a Job, not by
+reading code or running the suite. The fidelity ledger does not rot while it
+waits; a pipeline nobody has executed accumulates exactly this kind of defect.
 
 Critical path: **0.1 → 1.1 → 1.2 → 1.3 → 1.4 → 1.5**, then
 **2.1 → 2.3 → 3.1 → 3.2 → 3.3 → 4.1 → 4.2 → 4.3**. Phase 5 is independent of that chain

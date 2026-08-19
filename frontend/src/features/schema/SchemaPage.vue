@@ -741,26 +741,6 @@ watch(
   color: var(--fail);
 }
 
-.sch-pick .filter-select,
-.sch-pick select {
-  height: 30px;
-  max-width: 200px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  background: var(--panel);
-  color: var(--text-2);
-  font-family: var(--body);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.sch-pick .filter-select:focus,
-.sch-pick select:focus {
-  outline: none;
-  border-color: var(--accent-line-2);
-}
-
 .sch-zoom {
   display: flex;
   gap: 4px;

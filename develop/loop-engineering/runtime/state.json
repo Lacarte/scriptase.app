@@ -32,7 +32,8 @@
     "6.6",
     "6.7",
     "6.8",
-    "6.9"
+    "6.9",
+    "6.10"
   ],
   "history": [
     {
@@ -507,6 +508,12 @@
       "step": "6.9",
       "event": "done",
       "detail": "484284c"
+    },
+    {
+      "ts": "2026-08-19T00:21:25",
+      "step": "6.10",
+      "event": "done",
+      "detail": "pickers removed; dead .sch-pick CSS cleared"
     }
   ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
