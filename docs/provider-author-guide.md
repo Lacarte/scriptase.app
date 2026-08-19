@@ -183,7 +183,7 @@ Field tables are loaded from each domain's request/result models at generation t
 
 ### Script / Story (`script`)
 
-- **Default provider:** `None`
+- **Default provider:** `gemini`
 - **Package:** `scriptase.modules.script.providers`
 - **Providers folder:** `scriptase/modules/script/providers`
 - **Execution shape:** sync document
@@ -427,7 +427,7 @@ Snapshot of providers discovered when this guide was generated.
 
 | Domain | Providers |
 |---|---|
-| `script` | — |
+| `script` | `gemini`, `random_template` |
 | `scene_director` | `n8n` |
 | `tts` | `inworld` |
 | `image` | `gemini_ws` |

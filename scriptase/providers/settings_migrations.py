@@ -37,7 +37,9 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 # v8 = backfill domains added to the catalog after v6 (step 7.3 `review`).
 # v9 = the same backfill for `viral` (step 16.2). See `migrate_to_v9`.
 # v10 = prototype-only provider catalogue (step 5.3).
-SETTINGS_VERSION = 10
+# v11 = restore script catalogue (step 7.1). v10 removed it; Auto and Idea
+#        need a script provider, so backfill gemini as the default.
+SETTINGS_VERSION = 11
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -409,6 +411,20 @@ def migrate_to_v10(data: dict, legacy_user: dict) -> dict:
     return data
 
 
+@_register(11)
+def migrate_to_v11(data: dict, legacy_user: dict) -> dict:
+    """Restore the `script` domain's default instance (step 7.1).
+
+    v10 removed script providers because the prototype named none. Step 7.1
+    reverses that: Auto and Idea source modes need a script provider, so the
+    catalogue now includes ``gemini`` and ``random_template``, with ``gemini``
+    as the default. Files already at v10 have an empty script block
+    (``selected_instance_id: null, instances: {}``); the v8 body detects that
+    as "needs backfill" and writes the default instance.
+    """
+    return migrate_to_v8(data, legacy_user)
+
+
 def apply_migrations(data: dict, legacy_user: dict | None = None) -> tuple[dict, bool]:
     """Upgrade `data` to `SETTINGS_VERSION`.
 
@@ -458,4 +474,5 @@ __all__ = [
     "migrate_to_v8",
     "migrate_to_v9",
     "migrate_to_v10",
+    "migrate_to_v11",
 ]

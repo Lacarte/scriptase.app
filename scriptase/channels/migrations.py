@@ -92,10 +92,10 @@ def _add_channel_media_library(data: dict[str, Any]) -> dict[str, Any]:
 
 
 _PROTOTYPE_PROVIDER_REPLACEMENTS: dict[str, dict[str, str | None]] = {
+    # Step 7.1 restored gemini and random_template to the script catalogue;
+    # only the legacy bridge alias and the contract-only provider still retire.
     "script": {
-        "builtin": None,
-        "gemini": None,
-        "random_template": None,
+        "builtin": "gemini",
         "scaffold_check": None,
     },
     "tts": {"kokoro": "inworld"},

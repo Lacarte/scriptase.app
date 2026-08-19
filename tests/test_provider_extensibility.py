@@ -386,15 +386,18 @@ class CatalogApiTests(FixtureCatalogCase):
 # ---------------------------------------------------------------------------
 
 class OptionSourceTests(SharedCatalogCase):
-    def test_the_provider_dropdown_offers_the_fixture_when_product_has_no_script_provider(self):
+    def test_the_provider_dropdown_offers_the_fixture_alongside_shipped_script_providers(self):
         options, _context = options_module.resolve_options("script_providers")
         self.assertIn(
             {"value": "fixture_document", "label": "Fixture Document Generator"},
             options,
         )
-        self.assertEqual(options, [
-            {"value": "fixture_document", "label": "Fixture Document Generator"}
-        ])
+        # The shipped catalog now includes gemini and random_template (step 7.1),
+        # plus the fixture added by SharedCatalogCase.
+        values = [o["value"] for o in options]
+        self.assertIn("gemini", values)
+        self.assertIn("random_template", values)
+        self.assertIn("fixture_document", values)
 
     def test_a_provider_supplies_its_own_voices_through_its_schema(self):
         """§22.4 — declaring `ui.options` is the whole of "offer my voices"."""

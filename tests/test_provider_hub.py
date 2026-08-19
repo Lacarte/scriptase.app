@@ -130,7 +130,7 @@ class HubSurfaceTests(unittest.TestCase):
         self.assertIsNone(payload['video']['selected'])
         self.assertEqual(
             [p['id'] for p in payload['script']['providers']],
-            [],
+            ['gemini', 'random_template'],
         )
         self.assertEqual([p['id'] for p in payload['scene_director']['providers']], ['n8n'])
 

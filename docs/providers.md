@@ -5,7 +5,7 @@
 
 # Provider Reference
 
-Live catalog: **7 domains**, **5 registered providers**.
+Live catalog: **7 domains**, **7 registered providers**.
 
 This document is generated from the domain catalog (`scriptase.providers.domains`) and the process-wide hub (`scriptase.providers.hub`). It is the same discovery surface served by `GET /api/providers`. Music and Captions are deliberately **not** provider domains — they remain local services without a provider dimension.
 
@@ -20,7 +20,7 @@ python -m scriptase.engine.docs --check
 
 | Domain | Label | Default provider | Package | Shape |
 |---|---|---|---|---|
-| `script` | Script / Story | `None` | `scriptase.modules.script.providers` | sync document |
+| `script` | Script / Story | `gemini` | `scriptase.modules.script.providers` | sync document |
 | `scene_director` | Scene Director | `n8n` | `scriptase.modules.scene_director.providers` | sync document |
 | `tts` | Text to Speech | `inworld` | `scriptase.modules.tts.providers` | sync artifact |
 | `image` | Image | `gemini_ws` | `scriptase.modules.image.providers` | async multi-asset |
@@ -49,7 +49,7 @@ Allowed kinds: `cloud`, `extension`, `local`, `webhook`.
 
 ### Script / Story (`script`)
 
-- **Default provider:** `None`
+- **Default provider:** `gemini`
 - **Package:** `scriptase.modules.script.providers`
 - **Providers folder:** `scriptase/modules/script/providers`
 - **Execution shape:** sync document
@@ -293,7 +293,27 @@ Providers are discovered by scanning each domain's `providers/` folder. There is
 
 ### `script` providers
 
-_No providers currently registered._
+| Id | Label | Kind | Version | Contract | Capabilities |
+|---|---|---|---|---|---|
+| `gemini` | Gemini story generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
+| `random_template` | Random template | `local` | `1.0.0` | v1 | `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections` |
+
+#### `gemini` — Gemini story generator
+
+AI story generation via the configured n8n/Gemini webhook. Returns hook/build/climax/CTA sections and writes stories/{id}/story.json.
+
+- **Kind:** `webhook`
+- **Version:** `1.0.0` (contract v1)
+- **Aliases:** `builtin`
+- **Capabilities:** `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene`
+
+#### `random_template` — Random template
+
+Picks a curated sample narration from a local catalog. Offline, deterministic when seeded, and free of network or credentials.
+
+- **Kind:** `local`
+- **Version:** `1.0.0` (contract v1)
+- **Capabilities:** `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections`
 
 ### `scene_director` providers
 

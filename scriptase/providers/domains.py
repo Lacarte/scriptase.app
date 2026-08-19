@@ -80,13 +80,15 @@ DOMAINS: dict[str, DomainSpec] = {
             label="Script / Story",
             package="scriptase.modules.script.providers",
             providers_base=_base("scriptase", "modules", "script", "providers"),
-            # Historical AI path (step 13.2). The 12.3 `builtin` bridge ID remains
-            # a permanent *input* alias on the gemini package (contracts.md §40.3).
-            default_provider=None,
+            # Step 7.1 restores the catalogue that step 5.3 emptied: Auto and
+            # Idea source modes need a script provider, so both shipped
+            # providers are exposed. The 12.3 `builtin` bridge ID remains a
+            # permanent *input* alias on the gemini package (contracts.md §40.3).
+            default_provider="gemini",
             capability_vocabulary=_caps("structured_sections", "language_select", "offline"),
             request_model="scriptase.modules.script.providers.contract:ScriptRequest",
             result_model="scriptase.modules.script.providers.contract:ScriptResultPayload",
-            catalog_provider_ids=frozenset(),
+            catalog_provider_ids=frozenset({"gemini", "random_template"}),
             contract_provider_ids=frozenset({"scaffold_check"}),
         ),
         DomainSpec(

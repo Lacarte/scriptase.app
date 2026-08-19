@@ -1,4 +1,5 @@
-"""Step 5.3: the product catalogue contains only prototype providers."""
+"""Steps 5.3 / 7.1: the product catalogue contains prototype providers plus the
+restored script providers."""
 
 from scriptase.channels.migrations import apply_migrations as migrate_channel
 from scriptase.providers.domains import DOMAINS
@@ -7,7 +8,7 @@ from scriptase.providers.settings_migrations import apply_migrations as migrate_
 
 
 EXPECTED = {
-    "script": [],
+    "script": ["gemini", "random_template"],
     "scene_director": ["n8n"],
     "tts": ["inworld"],
     "image": ["gemini_ws"],
@@ -17,13 +18,13 @@ EXPECTED = {
 }
 
 
-def test_catalog_exposes_exactly_the_five_prototype_providers():
+def test_catalog_exposes_the_prototype_and_restored_script_providers():
     providers = ProviderHub()
     providers.discover_all()
 
     found = {domain: providers.registry(domain).list_ids() for domain in providers.domains()}
     assert found == EXPECTED
-    assert sum(map(len, found.values())) == 5
+    assert sum(map(len, found.values())) == 7
 
     # The committed scaffolder demonstration stays executable without becoming
     # a user-facing catalogue entry.
@@ -69,7 +70,10 @@ def test_settings_migrate_retired_default_and_named_instances():
     assert migrated["domains"]["image"]["instances"]["images_backup"]["type"] == "gemini_ws"
     assert migrated["domains"]["image"]["instances"]["images_backup"]["settings"] == {}
     assert migrated["domains"]["video"]["selected_instance_id"] == "grok_automa"
-    assert migrated["domains"]["script"] == {"selected_instance_id": None, "instances": {}}
+    # Step 7.1 restored gemini as the default; v10 now maps it through, v11
+    # backfills when needed.
+    assert migrated["domains"]["script"]["selected_instance_id"] == "gemini"
+    assert migrated["domains"]["script"]["instances"]["gemini"]["type"] == "gemini"
     assert migrated["domains"]["review"] == {"selected_instance_id": None, "instances": {}}
     assert all(
         block["selected_instance_id"] in block["instances"]
@@ -99,7 +103,7 @@ def test_channel_rewrites_every_direct_retired_provider_reference():
 
     assert changed is True
     assert migrated["provider_defaults"] == {
-        "script": None,
+        "script": "random_template",
         "tts": "inworld",
         "image": "gemini_ws",
         "video": "grok_automa",

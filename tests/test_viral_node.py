@@ -159,8 +159,9 @@ class ViralDomainCatalogTests(unittest.TestCase):
         self.assertEqual(
             migrated["domains"][DOMAIN]["selected_instance_id"], "deterministic"
         )
-        # The subsequent prototype-catalogue migration retires script providers.
-        self.assertIsNone(migrated["domains"]["script"]["selected_instance_id"])
+        # Step 7.1 restored the script catalogue; v10 now maps existing
+        # gemini instances through, and v11 backfills when needed.
+        self.assertEqual(migrated["domains"]["script"]["selected_instance_id"], "gemini")
 
 
 class DeterministicProviderTests(unittest.TestCase):
