@@ -312,16 +312,55 @@ rules** across `prototype/scriptase-prototype.html`, and the app re-invented tha
 layer instead of reproducing it. The result reads as a different product wearing
 the same palette — same colours, different spacing, structure and density.
 
-This phase ports the remaining layer view by view. The prototype's HTML sections
-are thin shells; its DOM is built in JS, so the target is the **rendered
-structure and its class names**, not the markup as written. Each step ports one
-family, and the criterion is mechanical: the prototype's classes for that family
-exist in the app and carry the prototype's declarations.
+### The method — brain and skin
 
-Two things stay as they are. The Editor keeps its own teal identity (`ed-*`, 103
-rules) — it mirrors the ported ScriptToScene editor and is deliberately outside
-the system. And no step may hardcode data the backend owns; fidelity is a
-presentation change, never a second source of truth.
+Steps 6.1–6.8 ported CSS onto markup the app had already invented, and it did not
+converge. Every mismatch found by eye was **structural, not stylistic**: the
+archive strip was built as `archive-day-*` rather than `cal-*`, the topbar tail
+was simply absent, the node icon is a rounded square because the app wrote its
+own element. No amount of restyling reaches a different DOM.
+
+So the direction flips. **Lift the prototype's templates and CSS into Vue, and
+mount them on the composables that already exist.** Markup and CSS first, binding
+second. Fidelity then holds by construction — the classes match because they are
+the same elements — instead of being chased screenshot by screenshot.
+
+What each side owns is not negotiable:
+
+| Keep — the brain (this repo) | Take — the skin (the prototype) |
+|---|---|
+| `useProductionStages`, the job APIs, SSE | rail and batch-sheet markup |
+| the Schema graph, live layer and inspector | `sch-*` topbar, canvas chrome, legend |
+| Channel, provider and script clients | their rails and cards |
+| contracts, tests, the fidelity gate | tokens, motion, empty states |
+
+Four rules bind every remaining step:
+
+1. **No second frontend.** The Vue app and the Flask backend stay. The prototype
+   is a template source, never a starting point.
+2. **One view at a time**, markup and CSS first, then bind the composables that
+   already serve that view.
+3. **Tuck the surfaces that fight the layout.** The workflow and run pickers,
+   cost panels and step detail are power-user chrome the prototype was drawn
+   without; they are hidden or moved, not left to break the composition.
+4. **Never port prototype JS that *runs* anything — only what *shows* it.** Its
+   `pumpQueue()`, its hardcoded `STAGES` and its retry-from-zero are precisely
+   the second execution engine this project forbids. They are a drawing of an
+   engine, not one.
+
+Rule 4 is the one that carries real risk. The prototype makes **zero network
+calls** — 43 top-level data literals, 178 `getElementById`, 65 `innerHTML`
+assignments and no `fetch`. Everything it appears to do is mimed. Porting any of
+that behaviour would reintroduce the hardcoded step array the whole architecture
+exists to prevent.
+
+The Editor stays outside all of this: it keeps its own teal identity (`ed-*`, 103
+rules), mirroring the ported ScriptToScene editor.
+
+The gate in step 6.8 measures progress. It carries a ledger of every prototype
+class the app does not have, split into BEHAVIOUR (the app deliberately lacks it)
+and UNPORTED (debt), and it asserts the unported count — so a step cannot be
+called done while its classes are still excused.
 
 ### 6.1 Shared primitives
 
@@ -400,54 +439,86 @@ a judgement call into a check.
 
 **Done when:** the gate passes, and deleting a ported rule from the app makes it fail.
 
-### 6.9 Archive calendar
+### 6.9 Production rail and batch sheet
 
-The gate's ledger opens with the largest single divergence: the app reinvented
-the prototype's 48-hour archive strip as `archive-day-*` instead of porting
-`cal-*`. Port the seven classes — `cal-cells`, `cal-cell` with its `open` state,
-and the `cal-wd` / `cal-day` / `cal-mo` / `cal-count` / `cal-dot` internals —
-onto `shared/components/ArchiveCalendar.vue`, which both Production and the
-Library render. The badge count and the day cells keep reading the same data
-they read now; only the names and the declarations change. Delete the seven
-ledger entries in the same step.
+*Delivered.* The first step done by the method above: the prototype's two-column
+run-sheet lifted whole — config rail (Channel → Script source → Execution → Add
+to Batch) beside a batch sheet carrying totals, search, the channel filter, the
+Run / Stop / Retry / Clear / Cancel controls and the job list — mounted on the
+existing job APIs and `useProductionStages`. Three families left the ledger:
+`rail-*` with its inheritance chips and step numbers, the finder row, and batch
+selection. Unported debt fell 59 → 35.
 
-**Done when:** the strip matches the prototype's cells, badges and open state, both views still collapse items older than 48h, and the gate's unported count drops by seven.
+**Done when:** the Production page is the prototype's run-sheet, stages still come from the backend projection, and the gate's unported count is 35.
 
-### 6.10 Production config rail
+### 6.10 Strip the chrome that fights the skin
 
-Port `rail`, `rail-head`, `rail-body`, `rail-foot`, `batch-controls`, `step-n`,
-`channel-pick`, `source-detail`, `add-summary`, `group-head`, `script-in`,
-`toolbar` and the inheritance trio `inherits` / `inherit-chip` / `inherit-note` —
-fifteen classes, the biggest remaining family. The rail is where a job is
-configured, so the numbered field steps and the chips that say what the Channel
-already supplies are load-bearing, not decoration. Inheritance chips must render
-from the selected Channel, never from a literal.
+Rule 3, applied to what is left over. The prototype was drawn without a workflow
+picker, a run picker, a second stage list beneath the batch, or the advisory
+banners the app grew — and those are what make a ported view still read wrong.
 
-**Done when:** the New Production Job rail matches the prototype's field groups, step numbers and inheritance chips, every value still round-trips through the Channel and Job APIs, and the gate's unported count drops by fifteen.
+Remove the workflow and run `<select>`s from the Schema topbar and the Workflow
+field from the job rail, with the state and fetches that exist only to feed them.
+The graph resolves its workflow without a picker and follows the newest running
+job; `?job=`, `?run=` and `?workflow=` stay as the way a specific run is
+addressed. Nothing here may hardcode a workflow id to compensate.
 
-### 6.11 Narration player, modal chrome and the finder row
+Then audit the remaining views for the same shape of leftover: panels stacked
+where the prototype has one composition.
 
-Three smaller families that share no view but do share a shape — each is a
-control the app rebuilt rather than ported. The player: `play-btn`, `played`,
-`track`, `tick`, `wave`, `audio`, `caption`, `subtitle`. The modal and
-shortcuts sheet: `modal`, `modal-head`, `modal-foot`, `keys-modal`, `keys-grid`,
-`kbd`, `krow`, `sheet-head`, `sheet-title-row`. The finder row: `search`,
-`dropdown`, `dd-item`, `selbar`, `sel-checked`, `drag-handle`, `drag-over`.
+**Done when:** the Schema topbar carries only what the prototype's `.sch-topbar` carries, no workflow id is hardcoded anywhere in the frontend, and route-query addressing still reaches a specific run.
 
-**Done when:** the narration transport, the shortcuts sheet and the search row match the prototype, no existing keyboard shortcut or drag behaviour regresses, and the gate's unported count drops by twenty-four.
+### 6.11 Script studio (S1) — template-first
 
-### 6.12 Run states, media presentation and the language banner
+The first view built the new way from the start. Lift the prototype's `s1-*`
+markup — the library rail, the document header and title input, the create flow
+with its template preview chips, the narration panel with its transport, and the
+virality gauge — then bind the script clients and Channel template preview that
+already exist.
 
-The tail of the ledger: the run states `st-draft`, `st-preparing`,
-`st-stopping`, `st-stopped`, `is-live` and `scenetag`; the media classes
-`r-16-9`, `r-1-1`, `wm` and `thumb`; and `lang-banner` with `lang-badge` and
-`lang-actions`. The run states must map onto the Job statuses the backend
-actually emits — `queued`, `running`, `paused`, `awaiting_approval`,
-`completed`, `failed`, `cancelled` — rather than adding a seventh vocabulary;
-where the prototype's name has no backend equivalent, the gate entry stays and
-moves from UNPORTED to BEHAVIOUR with the reason.
+The narration player family (`play-btn`, `played`, `track`, `tick`, `wave`,
+`audio`, `caption`, `subtitle`) leaves the ledger here. Its transport controls a
+real audio element over a real narration artifact; nothing about playback may be
+mimed the way the prototype mimes it.
 
-**Done when:** every prototype run state either renders from a real Job status or is recorded as behaviour with its reason, the media and language classes match, and the gate's unported count reaches zero.
+**Done when:** the studio matches the prototype's three columns and its narration panel plays a real artifact, the template preview still reads from the selected Channel, and the gate's unported count drops by eight.
+
+### 6.12 Channels — template-first
+
+Same method. Lift the `ch-*` editor: identity, look and voice, script template
+with its section outline, narration processing, music, thumbnail, and the
+nine-position watermark picker. Bind the Channel API that already serves them.
+
+The media families (`r-16-9`, `r-1-1`, `wm`, `thumb`) leave the ledger here —
+aspect ratio and watermark are Channel fields, so they bind rather than being
+drawn. `ch-sw`/`ch-swatches` and the platform chips stay excused: `ChannelProfile`
+has no `color` and no `platforms`.
+
+**Done when:** the Channels editor matches the prototype including the 3×3 watermark picker, every field round-trips through the Channel API, and the gate's unported count drops by four.
+
+### 6.13 Shared chrome — calendar, modal, shortcuts sheet
+
+The three families that belong to no single view. The archive calendar is the
+clearest case of the old method's failure: the app built `archive-day-*` instead
+of porting `cal-*`, so it has never been restylable. Lift `cal-cells` / `cal-cell`
+with its `open` state and the `cal-wd` / `cal-day` / `cal-mo` / `cal-count` /
+`cal-dot` internals onto `shared/components/ArchiveCalendar.vue`, which both
+Production and the Library render. Then the modal and shortcuts-sheet chrome:
+`modal`, `modal-head`, `modal-foot`, `keys-modal`, `keys-grid`, `kbd`, `krow`.
+
+**Done when:** the 48-hour strip is the prototype's, both views still collapse older items, the shortcuts sheet matches, and the gate's unported count drops by fourteen.
+
+### 6.14 Run states and the language banner — ledger to zero
+
+The tail. `st-draft`, `st-preparing`, `st-stopping`, `st-stopped`, `is-live` and
+`scenetag` must map onto the Job statuses the backend actually emits — `queued`,
+`running`, `paused`, `awaiting_approval`, `completed`, `failed`, `cancelled` —
+rather than introducing a seventh vocabulary in the frontend. Where a prototype
+state has no backend equivalent, its ledger entry moves from UNPORTED to
+BEHAVIOUR with the reason, which is an honest outcome and not a failure. Then
+`lang-banner` with `lang-badge` and `lang-actions`, and `drag-over`.
+
+**Done when:** every prototype run state either renders from a real Job status or is recorded as behaviour with its reason, and the gate's unported count reaches zero.
 
 ---
 
