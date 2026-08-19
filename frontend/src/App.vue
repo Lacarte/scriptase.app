@@ -246,8 +246,21 @@ a {
   flex-direction: column;
 }
 
+/* Anchored to the viewport, not to `height: 100%`.
+
+   A percentage height is only meaningful if every ancestor has one, so this
+   depended on a four-link chain — html, body, #app, then here — and any link
+   losing its height silently collapsed the shell to its content. That is what
+   the Channels report looked like: the app rendered about 370px tall with the
+   page scrolling underneath it, because `height: 100%` had resolved to `auto`.
+
+   `dvh` also tracks the dynamic viewport, so a mobile browser showing and
+   hiding its chrome does not leave a strip of dead space. The `vh` line before
+   it is the fallback for engines without `dvh`; declaration order does the
+   work, so no @supports is needed. */
 .app-root--full {
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
   min-height: 0;
   overflow: hidden;
 }
