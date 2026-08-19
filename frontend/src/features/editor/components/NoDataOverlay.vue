@@ -17,6 +17,11 @@ watch(() => props.visible, (vis) => {
   if (vis) fetchProjects()
 })
 
+/** A preview that is a video file, so it is not handed to an `<img>`. */
+function isVideo(url) {
+  return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(String(url || ''))
+}
+
 /** Accept a bare array, or the common `{items|projects|videos: [...]}` envelopes. */
 function toArray(payload) {
   if (Array.isArray(payload)) return payload
@@ -200,8 +205,28 @@ function openProject(project) {
               @click="openProject(p)"
             >
               <div style="display:flex;align-items:center;gap:10px">
-                <div v-if="p.preview" class="overlay-thumb">
-                  <img :src="p.preview" style="width:100%;height:100%;object-fit:cover" />
+                <!-- `preview_url` is whatever the library holds, and for an
+                     export that is the finished .mp4. Feeding a video to <img>
+                     is what produced the broken-image glyph, so a video is
+                     rendered as a muted poster frame and only a real image
+                     goes to <img>. Either way a load failure falls through to
+                     the placeholder rather than showing a broken icon. -->
+                <div v-if="p.preview && isVideo(p.preview)" class="overlay-thumb">
+                  <video
+                    :src="p.preview"
+                    muted
+                    playsinline
+                    preload="metadata"
+                    style="width:100%;height:100%;object-fit:cover"
+                    @error="p.preview = ''"
+                  />
+                </div>
+                <div v-else-if="p.preview" class="overlay-thumb">
+                  <img
+                    :src="p.preview"
+                    style="width:100%;height:100%;object-fit:cover"
+                    @error="p.preview = ''"
+                  />
                 </div>
                 <div v-else class="overlay-thumb overlay-thumb-empty">
                   <svg width="18" height="18" fill="none" stroke="var(--text-muted,#666)" stroke-width="1.5" viewBox="0 0 24 24" style="opacity:0.4">

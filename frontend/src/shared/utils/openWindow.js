@@ -85,5 +85,20 @@ export function openAppWindow(target, { query = {}, key, win } = {}) {
   } catch {
     // Focus is a courtesy — the window is already open either way.
   }
-  return handle || null
+
+  // A blocker refusing the popup used to end here, and every caller ignored the
+  // null — so clicking Library did nothing at all and read as a broken button.
+  // The separate window is a preference, not the instruction: the instruction
+  // is "show me this project in the Library". Falling back to this tab honours
+  // it. The URL already carries the whole instruction, so the destination is
+  // identical either way; only the window is lost.
+  if (!handle) {
+    try {
+      host.location?.assign?.(url)
+    } catch {
+      // Nothing further to try — the caller gets null and can decide.
+    }
+    return null
+  }
+  return handle
 }

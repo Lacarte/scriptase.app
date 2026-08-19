@@ -239,7 +239,15 @@ def export_library_list():
             rel_video = os.path.relpath(abs_video, EXPORT_DIR).replace("\\", "/")
             rel_folder = os.path.relpath(root, EXPORT_DIR).replace("\\", "/")
             base = os.path.splitext(fname)[0]
-            folder_project_id = _safe_project_id(os.path.basename(root))
+            # The scanner assumes exports/<project_id>/<video>, so the folder
+            # name is the project. A video written straight into the export
+            # root breaks that: basename(root) is "exports", and the library
+            # then lists the directory itself as a project. Fall back to the
+            # filename, which carries the id as a prefix (pm_ABC123_final.mp4).
+            if os.path.abspath(root) == os.path.abspath(EXPORT_DIR):
+                folder_project_id = _safe_project_id(base.split("_final")[0])
+            else:
+                folder_project_id = _safe_project_id(os.path.basename(root))
             meta_path = os.path.splitext(abs_video)[0] + ".json"
             project_id = ""
             meta_style = ""
