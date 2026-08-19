@@ -400,6 +400,55 @@ a judgement call into a check.
 
 **Done when:** the gate passes, and deleting a ported rule from the app makes it fail.
 
+### 6.9 Archive calendar
+
+The gate's ledger opens with the largest single divergence: the app reinvented
+the prototype's 48-hour archive strip as `archive-day-*` instead of porting
+`cal-*`. Port the seven classes — `cal-cells`, `cal-cell` with its `open` state,
+and the `cal-wd` / `cal-day` / `cal-mo` / `cal-count` / `cal-dot` internals —
+onto `shared/components/ArchiveCalendar.vue`, which both Production and the
+Library render. The badge count and the day cells keep reading the same data
+they read now; only the names and the declarations change. Delete the seven
+ledger entries in the same step.
+
+**Done when:** the strip matches the prototype's cells, badges and open state, both views still collapse items older than 48h, and the gate's unported count drops by seven.
+
+### 6.10 Production config rail
+
+Port `rail`, `rail-head`, `rail-body`, `rail-foot`, `batch-controls`, `step-n`,
+`channel-pick`, `source-detail`, `add-summary`, `group-head`, `script-in`,
+`toolbar` and the inheritance trio `inherits` / `inherit-chip` / `inherit-note` —
+fifteen classes, the biggest remaining family. The rail is where a job is
+configured, so the numbered field steps and the chips that say what the Channel
+already supplies are load-bearing, not decoration. Inheritance chips must render
+from the selected Channel, never from a literal.
+
+**Done when:** the New Production Job rail matches the prototype's field groups, step numbers and inheritance chips, every value still round-trips through the Channel and Job APIs, and the gate's unported count drops by fifteen.
+
+### 6.11 Narration player, modal chrome and the finder row
+
+Three smaller families that share no view but do share a shape — each is a
+control the app rebuilt rather than ported. The player: `play-btn`, `played`,
+`track`, `tick`, `wave`, `audio`, `caption`, `subtitle`. The modal and
+shortcuts sheet: `modal`, `modal-head`, `modal-foot`, `keys-modal`, `keys-grid`,
+`kbd`, `krow`, `sheet-head`, `sheet-title-row`. The finder row: `search`,
+`dropdown`, `dd-item`, `selbar`, `sel-checked`, `drag-handle`, `drag-over`.
+
+**Done when:** the narration transport, the shortcuts sheet and the search row match the prototype, no existing keyboard shortcut or drag behaviour regresses, and the gate's unported count drops by twenty-four.
+
+### 6.12 Run states, media presentation and the language banner
+
+The tail of the ledger: the run states `st-draft`, `st-preparing`,
+`st-stopping`, `st-stopped`, `is-live` and `scenetag`; the media classes
+`r-16-9`, `r-1-1`, `wm` and `thumb`; and `lang-banner` with `lang-badge` and
+`lang-actions`. The run states must map onto the Job statuses the backend
+actually emits — `queued`, `running`, `paused`, `awaiting_approval`,
+`completed`, `failed`, `cancelled` — rather than adding a seventh vocabulary;
+where the prototype's name has no backend equivalent, the gate entry stays and
+moves from UNPORTED to BEHAVIOUR with the reason.
+
+**Done when:** every prototype run state either renders from a real Job status or is recorded as behaviour with its reason, the media and language classes match, and the gate's unported count reaches zero.
+
 ---
 
 ## Phase 7 — Functional gaps surfaced by the fidelity pass
