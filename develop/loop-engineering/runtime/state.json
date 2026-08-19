@@ -514,6 +514,24 @@
       "step": "6.10",
       "event": "done",
       "detail": "pickers removed; dead .sch-pick CSS cleared"
+    },
+    {
+      "ts": "2026-08-19T02:48:39",
+      "step": "phase-5",
+      "event": "done",
+      "detail": "4bf2158"
+    },
+    {
+      "ts": "2026-08-19T02:48:42",
+      "step": "phase-7",
+      "event": "start",
+      "detail": "4bf2158"
+    },
+    {
+      "ts": "2026-08-19T02:48:42",
+      "step": "7.1",
+      "event": "start",
+      "detail": ""
     }
   ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
