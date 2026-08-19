@@ -82,7 +82,8 @@ const WHY = {
 /** class → key in WHY. */
 const LEDGER = {
   // --- behaviour ---------------------------------------------------------
-  plat: 'protoOnly',
+  // `plat` left the ledger when Production's channel picker gained the chips:
+  // it is the prototype's `.ch-meta .row2 .plat` container, not shorthand.
   'exp-opt': 'transcode',
   'exp-opts': 'transcode',
   'exp-progress': 'simulated',

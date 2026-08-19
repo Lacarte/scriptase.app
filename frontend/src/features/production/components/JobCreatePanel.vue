@@ -12,6 +12,7 @@ import { listScripts } from '@/features/script/api.js'
 import {
   channelAvatarLabel,
   channelAvatarStyle,
+  PLATFORM_COLORS,
 } from '@/shared/utils/channelIdentity.js'
 
 import {
@@ -465,7 +466,17 @@ void defaultJobDraft
                 </span>
                 <span class="dd-txt">
                   <span class="nm">{{ ch.name || ch.id }}</span>
-                  <span class="src">{{ [ch.niche, ch.style].filter(Boolean).join(' · ') }}</span>
+                  <span class="src">
+                    <span v-if="ch.platforms?.length" class="plat">
+                      <span
+                        v-for="plat in ch.platforms"
+                        :key="plat"
+                        class="plat-ic"
+                        :style="{ background: PLATFORM_COLORS[plat] || 'var(--raise)' }"
+                      >{{ plat[0] }}</span>
+                    </span>
+                    <span>{{ [ch.niche, ch.style].filter(Boolean).join(' · ') }}</span>
+                  </span>
                 </span>
                 <svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
               </button>
@@ -897,7 +908,16 @@ void defaultJobDraft
 .dd-item.sel .check { opacity: 1; }
 .dd-txt { min-width: 0; display: flex; flex-direction: column; }
 .dd-txt .nm { font-size: 13px; font-weight: 600; }
-.dd-txt .src { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+/* A flex row rather than a text line: the platform chips sit inline with the
+   niche/style text, the way the Channels rail seats them in `.lrow`. */
+.dd-txt .src {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
 
 .inherits {
   display: flex;

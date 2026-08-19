@@ -17,7 +17,6 @@ import {
   duplicateJob,
   getExecution,
   getJob,
-  getJobCost,
   getNodeTypes,
   listJobs,
   listExecutions,
@@ -85,10 +84,6 @@ const activeJobId = ref('')
 const activeJob = ref(null)
 const activeJobSourceMode = ref(null)
 const activeJobExecutionMode = ref(null)
-/** Job cost report (step 9.3) — generations + cost by stage / instance. */
-const jobCost = ref(null)
-const jobCostLoading = ref(false)
-const jobCostError = ref('')
 /** Registry definitions for the Test Node panel port list (step 4.2). */
 const nodeTypes = ref({})
 /** Last Test Node result shown in the detail panel. */
@@ -631,25 +626,6 @@ async function refreshExecutions(wfId) {
   }
 }
 
-async function refreshJobCost(jobId) {
-  if (!jobId) {
-    jobCost.value = null
-    jobCostError.value = ''
-    return
-  }
-  jobCostLoading.value = true
-  jobCostError.value = ''
-  try {
-    const data = await getJobCost(jobId)
-    jobCost.value = data?.cost || data || null
-  } catch (err) {
-    jobCost.value = null
-    jobCostError.value = err?.message || String(err)
-  } finally {
-    jobCostLoading.value = false
-  }
-}
-
 async function toggleJobPause() {
   if (!activeJobId.value || pauseActionRunning.value) return
   pauseActionRunning.value = true
@@ -674,7 +650,6 @@ async function bindJobFromRoute(jobId) {
     activeJob.value = null
     activeJobSourceMode.value = null
     activeJobExecutionMode.value = null
-    jobCost.value = null
     return
   }
   try {
@@ -687,8 +662,6 @@ async function bindJobFromRoute(jobId) {
     if (job.workflow_id) {
       selectedWorkflowId.value = job.workflow_id
     }
-    // Load cost report in parallel with stage hydrate (step 9.3).
-    void refreshJobCost(activeJobId.value)
     if (job.execution_id) {
       selectedExecutionId.value = job.execution_id
       await hydrateFromExecution(job.execution_id)
@@ -775,7 +748,6 @@ async function onJobStarted({ job, executionId: exId }) {
     selectedExecutionId.value = exId
   }
   await router.replace({ name: 'production', query })
-  if (job?.id) void refreshJobCost(job.id)
   if (exId) {
     await hydrateFromExecution(exId)
     await refreshExecutions(job?.workflow_id || selectedWorkflowId.value)
@@ -785,39 +757,6 @@ async function onJobStarted({ job, executionId: exId }) {
   }
   await refreshJobs()
 }
-
-function formatCostAmount(amount, currency = 'USD') {
-  if (amount == null || Number.isNaN(Number(amount))) return '—'
-  const n = Number(amount)
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: currency || 'USD',
-      maximumFractionDigits: 4,
-    }).format(n)
-  } catch {
-    return `${n.toFixed(4)} ${currency || ''}`.trim()
-  }
-}
-
-const costStageRows = computed(() => {
-  const byStage = jobCost.value?.by_stage || {}
-  return Object.entries(byStage).map(([key, row]) => ({
-    key,
-    generations: row?.generations ?? 0,
-    cost: row?.cost ?? 0,
-  }))
-})
-
-const costInstanceRows = computed(() => {
-  const byInst = jobCost.value?.by_provider_instance || {}
-  return Object.entries(byInst).map(([key, row]) => ({
-    key,
-    label: row?.provider_instance_id || row?.provider_id || key,
-    generations: row?.generations ?? 0,
-    cost: row?.cost ?? 0,
-  }))
-})
 
 function onJobCreated({ job }) {
   activeJobId.value = job?.id || ''
@@ -1414,8 +1353,9 @@ onMounted(async () => {
             <div v-if="jobExpanded(item)" class="job-detail">
               <div class="rail-wrap">
                 <div class="rl-lbl">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12h16M4 12l4-4M4 12l4 4"/></svg>
                   Production pipeline
-                  <span class="rl-hint">· projected from the workflow graph</span>
+                  <span class="rl-hint">· hover a dimmed stage to see why it's skipped</span>
                 </div>
                 <p v-if="loading" class="muted rail-note">Loading stages…</p>
                 <p v-else-if="!stages.length" class="muted rail-note">
@@ -1457,7 +1397,7 @@ onMounted(async () => {
 
               <div class="detail-grid">
                 <div class="detail-cell">
-                  <h4>Source</h4>
+                  <h4><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Script · S1</h4>
                   <div class="dkv"><span class="k">Mode</span><span class="v">{{ sourceModeLabel(jobDetail(item).source?.mode || item.source_mode) }}</span></div>
                   <div class="dkv"><span class="k">Channel</span><span class="v">{{ item.channel_name || item.channel_id }}</span></div>
                   <div v-if="jobDetail(item).source?.script_id" class="dkv">
@@ -1466,7 +1406,7 @@ onMounted(async () => {
                   <div class="dkv"><span class="k">Workflow</span><span class="v mono">{{ item.workflow_id || '—' }}</span></div>
                 </div>
                 <div class="detail-cell">
-                  <h4>Narration</h4>
+                  <h4><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v20M6 8v8M18 8v8M2 11v2M22 11v2"/></svg> Narration · TTS</h4>
                   <div class="dkv">
                     <span class="k">Status</span>
                     <span class="v">
@@ -1478,7 +1418,7 @@ onMounted(async () => {
                   <div class="dkv"><span class="k">Language</span><span class="v mono">{{ jobDetail(item).source?.language || '—' }}</span></div>
                 </div>
                 <div class="detail-cell">
-                  <h4>Production</h4>
+                  <h4><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Production</h4>
                   <div class="dkv"><span class="k">Current stage</span><span class="v">{{ stageKeyLabel(item, item.current_stage) || '—' }}</span></div>
                   <div class="dkv"><span class="k">Progress</span><span class="v mono">{{ activeStageProgress == null ? '—' : `${activeStageProgress}%` }}</span></div>
                   <div class="dkv"><span class="k">Execution</span><span class="v">{{ executionModeLabel(item.execution_mode) || '—' }}</span></div>
@@ -1521,102 +1461,24 @@ onMounted(async () => {
       Production can still run; narration remains authoritative.
     </aside>
 
-    <!-- Step 9.3: Job cost accounting (generations + cost by stage / instance) -->
-    <section
-      v-if="activeJobId && jobExpanded({ id: activeJobId }) && (jobCost || jobCostLoading || jobCostError)"
-      class="cost-panel"
-      aria-label="Job cost report"
-    >
-      <header class="cost-header">
-        <h2>Cost</h2>
-        <span v-if="jobCostLoading" class="muted cost-meta">Loading…</span>
-        <span
-          v-else-if="jobCost?.reconcile"
-          class="cost-meta"
-          :class="jobCost.reconcile.ok ? 'reconcile-ok' : 'reconcile-warn'"
-          :title="jobCost.reconcile.ok
-            ? 'budget_spent matches provenance records'
-            : 'budget_spent diverges from provenance sum'"
-        >
-          {{ jobCost.reconcile.ok ? 'Reconciled' : 'Out of sync' }}
-        </span>
-      </header>
-      <p v-if="jobCostError" class="error" role="alert">{{ jobCostError }}</p>
-      <template v-else-if="jobCost">
-        <div class="cost-totals">
-          <div class="cost-stat">
-            <span class="cost-stat-label">Generations</span>
-            <strong class="cost-stat-value">{{ jobCost.totals?.generations ?? 0 }}</strong>
-          </div>
-          <div class="cost-stat">
-            <span class="cost-stat-label">Cost</span>
-            <strong class="cost-stat-value">
-              {{ formatCostAmount(jobCost.totals?.cost, jobCost.currency) }}
-            </strong>
-          </div>
-          <div
-            v-if="jobCost.budget?.max_generations != null || jobCost.budget?.max_cost != null"
-            class="cost-stat"
-          >
-            <span class="cost-stat-label">Ceiling</span>
-            <strong class="cost-stat-value ceiling">
-              <template v-if="jobCost.budget?.max_generations != null">
-                {{ jobCost.budget.max_generations }} gen
-              </template>
-              <template v-if="jobCost.budget?.max_cost != null">
-                · {{ formatCostAmount(jobCost.budget.max_cost, jobCost.budget.currency || jobCost.currency) }}
-              </template>
-            </strong>
-          </div>
-        </div>
-        <div v-if="costStageRows.length" class="cost-breakdown">
-          <h3>By stage</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Stage</th>
-                <th>Generations</th>
-                <th>Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in costStageRows" :key="row.key">
-                <td>{{ row.key }}</td>
-                <td>{{ row.generations }}</td>
-                <td>{{ formatCostAmount(row.cost, jobCost.currency) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div v-if="costInstanceRows.length" class="cost-breakdown">
-          <h3>By provider instance</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Instance</th>
-                <th>Generations</th>
-                <th>Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in costInstanceRows" :key="row.key">
-                <td class="mono">{{ row.label }}</td>
-                <td>{{ row.generations }}</td>
-                <td>{{ formatCostAmount(row.cost, jobCost.currency) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </template>
-    </section>
-
     <p v-if="loading && hasStages" class="muted sheet-note">Loading stages…</p>
 
-    <!-- The prototype has no separate step list: stages live on the job
-         rail. This projection stays in the DOM for keyboard/tests and for
-         the bound job's detail actions, but it is not the page chrome. -->
-    <details v-if="hasStages" class="stage-advanced">
-      <summary>Step projection · {{ stages.length }} stages</summary>
+    <!-- The prototype has no separate step list: stages live on the job rail,
+         and a stage is inspected by clicking its node there.
+
+         This projection is the app's own surface — a filterable listbox with a
+         roving tabindex, per-stage issue counts, and the StepDetailPanel that
+         drives test-node runs. It carried a `Step projection · N stages`
+         disclosure on the page, which is chrome the prototype was drawn
+         without, so the disclosure is gone.
+
+         `hidden` rather than deleted: the behaviour behind it is real and
+         covered (stage selection, issue display, keyboard navigation), and it
+         has no other entry point yet. Step 6.10 moves selection onto the rail
+         nodes, and this block goes with it. Until then it is out of the view
+         and out of the accessibility tree — the same posture it already had
+         behind a collapsed <details>, minus the line of text. -->
+    <div v-if="hasStages" class="stage-advanced sr-only" hidden>
       <div class="stage-layout">
       <div class="stage-column">
         <div class="stage-filter">
@@ -1711,7 +1573,7 @@ onMounted(async () => {
         @test-run="onTestRun"
       />
       </div>
-    </details>
+    </div>
     </main>
   </section>
 </template>
@@ -2358,23 +2220,7 @@ button:disabled {
 }
 
 .stage-advanced {
-  margin: 8px 24px 24px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-s);
-  background: var(--bg-2);
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 11px;
-}
-
-.stage-advanced summary {
-  cursor: pointer;
-  padding: 8px 12px;
-  letter-spacing: 0.3px;
-}
-
-.stage-advanced[open] summary {
-  border-bottom: 1px solid var(--line-soft);
+  display: none !important;
 }
 
 .stage-layout,

@@ -360,17 +360,8 @@ defineExpose({ refresh, upsertSummary })
 .ch-litem .lid { flex: none; }
 .ch-litem .ltrunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ch-litem .lplats { display: inline-flex; gap: 3px; }
-.plat-ic {
-  width: 13px;
-  height: 13px;
-  border-radius: 3px;
-  display: grid;
-  place-items: center;
-  font-size: 8px;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1;
-}
+/* `.plat-ic` is a shared primitive in styles/shared.css — three surfaces draw
+   it and only a global rule reaches all of them. */
 
 /* A starter marker is informational, so it takes the `sched` violet and
    never the accent — the accent means "selected" in this rail. */

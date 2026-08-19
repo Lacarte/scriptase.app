@@ -420,6 +420,32 @@ pre {
   flex: none;
 }
 
+/* Platform chips. The prototype declares `.plat-ic` once, globally, because
+   three surfaces draw the same badge: the Channels rail row, the Channel hero,
+   and Production's channel picker. It lived scoped inside ChannelRail, which is
+   why the picker could not show it. Colour comes from PLATFORM_COLORS in
+   shared/utils/channelIdentity.js, bound inline per chip — the palette is
+   per-platform brand colour, not a theme token, so the accent shuffle leaves
+   it alone. */
+.plat-ic {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  opacity: 0.85;
+  flex: none;
+}
+
+/* The picker's inline run of chips (prototype `.ch-meta .row2 .plat`). */
+.plat {
+  display: inline-flex;
+  gap: 4px;
+}
+
 /* Narration state on a script reference. Cross-cutting because the Script
    library card and Production's job-create picker both carry it (step 6.3). */
 .tts-tag {

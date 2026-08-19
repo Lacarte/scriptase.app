@@ -781,6 +781,66 @@ async function onMusicFile(event) {
   }
 }
 
+/**
+ * Bulk-add a folder of beds.
+ *
+ * `webkitdirectory` makes the browser enumerate the chosen folder and hand
+ * over the *files*, not the path — so this is still the managed upload the
+ * security rule requires: nothing server-side is told where anything lives on
+ * disk, and every track goes through the same validation as a single upload.
+ * A folder is a convenience for choosing, never a location the app reads from.
+ *
+ * Directory pickers ignore `accept`, so the audio filter is applied here.
+ * Uploads run one at a time: the endpoint validates and rewrites each asset,
+ * and a folder of fifty beds firing at once is how you get a queue of failures
+ * that are hard to attribute.
+ */
+async function onMusicFolder(event) {
+  const picked = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (!picked.length) return
+
+  const audio = picked.filter(
+    file => file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac)$/i.test(file.name),
+  )
+  const skipped = picked.length - audio.length
+  if (!audio.length) {
+    error.value = `No audio files in that folder (${picked.length} skipped).`
+    return
+  }
+
+  uploadBusy.value = true
+  error.value = ''
+  success.value = ''
+  const failures = []
+  let added = 0
+
+  try {
+    for (const file of audio) {
+      try {
+        const asset = await uploadMusicTrack(file)
+        musicAssets.value = [asset, ...musicAssets.value.filter(a => a.ref !== asset.ref)]
+        if (!form.music_library.tracks.includes(asset.ref)) {
+          form.music_library.tracks.push(asset.ref)
+        }
+        added += 1
+      } catch (err) {
+        // One bad file must not abandon the rest of the folder.
+        failures.push(`${file.name}: ${err.message || err}`)
+      }
+    }
+    if (added) markDirty()
+
+    const parts = [`${added} track${added === 1 ? '' : 's'} added`]
+    if (skipped) parts.push(`${skipped} non-audio skipped`)
+    if (failures.length) parts.push(`${failures.length} failed`)
+    success.value = added ? `${parts.join(' · ')}.` : ''
+    if (failures.length) error.value = failures.slice(0, 3).join(' | ')
+  } finally {
+    uploadBusy.value = false
+  }
+}
+
 function toggleTrack(refId) {
   const index = form.music_library.tracks.indexOf(refId)
   if (index >= 0) form.music_library.tracks.splice(index, 1)
@@ -1287,6 +1347,11 @@ onMounted(load)
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
                   Upload track
                   <input type="file" class="hidden-file" accept="audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/flac" :disabled="uploadBusy" @change="onMusicFile" />
+                </label>
+                <label class="btn sm upload-btn" title="Add every audio file in a folder — the files are uploaded, the folder is not linked">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+                  Upload folder
+                  <input type="file" class="hidden-file" webkitdirectory directory multiple :disabled="uploadBusy" @change="onMusicFolder" />
                 </label>
               </div>
             </div>
