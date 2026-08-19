@@ -609,6 +609,157 @@ reason, which is an honest outcome and not a failure. Then `lang-banner` with
 
 ---
 
+## Phase 9 — Residue, reachability, and the surfaces the prototype was drawn without
+
+Phase 8 closed the fidelity ledger at zero. What remains is not missing CSS. It
+is **a second UI, code that has been unreachable for eight phases, and
+capability with no way in.**
+
+Three measurements frame the phase:
+
+- **8,267 lines of the frontend cannot be reached from `main.js`** — 26 of 110
+  source files, 22% of the tree. `features/workflow/` is 7,643 of it: the
+  editable canvas step 1.5 retired from the nav and never deleted.
+- **Test, Retry and Inspect have no entry point.** They live on a step list that
+  is `hidden`, and the rail nodes carry no click handler. The block is also
+  marked `class="stage-advanced sr-only" hidden`, which is self-contradictory —
+  `sr-only` exposes an element to screen readers, `hidden` removes it from the
+  accessibility tree entirely.
+- **Provider choice is a typing exercise.** `Channel.provider_defaults` is
+  editable through six `type="text"` inputs where an instance id is typed from
+  memory, with no list, no validation and no health. `ProviderSelector.vue` —
+  440 lines carrying availability states, a health probe, capability badges and
+  disabled-with-reason entries — was built for this and is mounted nowhere.
+
+What is genuinely clean, and is not to be re-litigated: no TODO/FIXME/HACK
+markers anywhere, no dead backend modules once dynamic loading is resolved
+(node executors are string references in the registry, providers are loaded by
+file path), no duplicate channels, and an unported ledger of zero.
+
+Ordering is load-bearing in one place: **9.2 must land before 9.4.** Retiring the
+canvas before Test has been rehoused on the rail would delete a capability
+rather than residue — the distinction step 1.5 drew when it removed the route
+and deliberately left the code.
+
+Three things this phase must not do, carried from the method in Phase 6:
+
+- Never port the prototype's `pumpQueue()` or its hardcoded `STAGES`. They are a
+  drawing of an engine and the second execution engine this project forbids.
+- Never add a second identity or selection system beside one that already
+  persists. Provider choice belongs to the Channel, in one place.
+- Never restyle the Editor's teal timeline to the studio palette. It is a
+  different product surface by design and stays outside the gate.
+
+### 9.1 Residue and the first-run surfaces
+
+Four small independent edits, none of which changes behaviour the app relies on.
+
+Delete Production's `cost-*` and `.pickers` rules — the markup and the script
+both went in an earlier step and `jobCost` now has zero references in the file,
+so the rules style nothing. Redirect `/` to `/production` and drop `HomePage`:
+the prototype has no such destination, and the brand click currently lands on a
+three-button scaffold. Set `fullHeight: true` on Library and Providers so they
+stop scrolling inside a shell that Script, Production, Schema and Channels do
+not. Retarget the Editor's empty state, which still reads "No Assets Available ·
+Import from Asset Manager" — V2 copy that makes an unloaded Editor look broken —
+to name where a project actually comes from here.
+
+**Done when:** no route lands on a page the prototype does not have, every shell page uses the same height model, the Editor's empty state names Production and the Library, and no CSS rule survives whose markup is gone.
+
+### 9.2 The rail is the process
+
+The rail is where a job is read, so it has to speak the prototype's language and
+carry the prototype's actions.
+
+Relabel the projection to the prototype spine — S1 Script, TTS, Alignment,
+Segment, Scene Director, Storyboard, Animator, Assembly, Export — **keeping every
+stage key unchanged**: `voice` stays `voice` and gains the label `TTS`. Keys are
+contract; labels are presentation.
+
+Suppress **Review** for a job whose graph carries no review node. The prototype's
+rail has nine stages and no Review, but the domain is real and the correction
+loop depends on it, so this is a per-job projection decision — **not** an edit to
+`STAGE_CATALOG`, which is shared and read by `default_stage_labels()`.
+
+Then move Test and Retry onto the expanded job's rail nodes, so clicking a stage
+opens it. Only once that lands, delete the `stage-advanced` block with its
+`sr-only`/`hidden` contradiction and move its keyboard tests onto the job rows,
+where arrow navigation already belongs.
+
+**Done when:** the rail reads as the prototype's nine stages with keys unchanged, Review appears only for a job that has one, Test and Retry are reachable by clicking a rail node, and no hidden listbox remains in the DOM.
+
+### 9.3 The Editor joins the studio
+
+Opening `Editor ↗` with no argument shows a V2 project dump. It should offer the
+same thing the rest of the app is about: recent completed jobs and library
+videos, read from the data the Library already serves.
+
+Every deep link into the Editor — from a job row and from a Library card — must
+pass `?project=`, so arriving loaded is the normal case and the empty state is
+the exception.
+
+Touch the boot overlay and the copy only. `public/js/editor/video-editor.js` is
+15.6k lines of working imperative code with no test suite; it is ported, not
+rewritten, and nothing in this step edits it.
+
+**Done when:** opening the Editor with no argument offers real projects to open, every deep link arrives loaded, and `video-editor.js` is unchanged.
+
+### 9.4 One graph UI
+
+With Test rehoused by 9.2, the retired canvas is finally residue rather than the
+last home of a capability.
+
+Retire `WorkflowPage.vue` and the provider components that only it mounted —
+`ProviderConfigurator.vue` and `useDomainProvider.js` — together with the tests
+that exist only to cover them. Keep the workflow store where engine APIs still
+read through it, and keep every backend contract, the node registry and the
+templates untouched, exactly as step 1.5 required. `ProviderSelector.vue` is not
+deleted here: 9.5 mounts it.
+
+Schema is the only canvas users see, and Vue Flow does not return to the nav.
+
+**Done when:** the retired canvas no longer ships, Schema is the only graph UI, the backend workflow API and its tests are unchanged, and all three suites are green without the retired feature.
+
+### 9.5 Provider choice stops being a typing exercise
+
+Replace the six free-text `provider_defaults` inputs in the Channel editor with
+`ProviderSelector`, which already renders availability states, probes health,
+shows capability badges and disables an unusable instance with its reason.
+
+This is one place to choose a provider, not a new one: the Channel already owns
+`provider_defaults` for all six domains and every Job snapshots it. Schema keeps
+*showing* the instance that will run — step 7.3 — and does not gain a picker.
+
+**Done when:** every provider default is chosen from a validated list showing health and availability, an unconfigured instance is visibly unusable, no instance id is typed by hand, and the Channel remains the only place a provider is selected.
+
+### 9.6 A reachability guard
+
+8,267 lines went unreachable and stayed that way for eight phases while every
+suite was green. Nothing measured it, so nothing reported it.
+
+Add a test that walks imports from `frontend/src/main.js` and fails when a source
+file cannot be reached. Tests are excluded from the graph deliberately: a module
+reachable only from its own test is dead product code with a test keeping it
+alive, which is the exact condition this guard exists to catch.
+
+**Done when:** the guard passes on the current tree, and deleting the last import of any module fails the suite with that module named.
+
+### 9.7 Polish
+
+The last of it, after the structural work.
+
+Vendor Inter and Space Grotesk. `styles/theme.css` opens with a live
+`@import` from `fonts.googleapis.com`, which the bundled ungoogled-Chromium will
+never resolve — the app silently falls back to `system-ui` in the one browser it
+ships with. Drop the opaque `--bg` slabs that Script, Channels and Providers
+paint over the body's corner bloom. Tuck Reseed starters behind a quiet control
+and keep New prominent in the Channel rail. Finish the stray engine-speak in the
+expanded job detail, where the stats still read "Voice" rather than TTS.
+
+**Done when:** the app renders in its own typefaces with no network font request, the ambient wash is visible on every page that has one, and no view still names a stage by its engine key.
+
+---
+
 ## Step count and sequencing
 
 | Phase | Steps | Notes |
@@ -622,8 +773,9 @@ reason, which is an honest outcome and not a failure. Then `lang-banner` with
 | **6 — Prototype fidelity pass** | 6.1–6.10 (10) | **6.1 first** — every later step composes the shared primitives. 6.9 onward use the lift-the-template method. |
 | **7 — Make one video** | 7.1–7.3 (3) | **Ahead of the remaining fidelity work.** 7.2 is the first end-to-end run the project has had. |
 | **8 — Template-first fidelity** | 8.1–8.4 (4) | Drives the gate ledger from 35 unported to zero. |
+| **9 — Residue and reachability** | 9.1–9.7 (7) | **9.2 before 9.4** — retiring the canvas first would delete a capability, not residue. |
 
-**41 steps across 9 phases.** Phases 0–6 are delivered. Phase 7 makes the pipeline
+**48 steps across 10 phases.** Phases 0–6 are delivered. Phase 7 makes the pipeline
 actually produce a video; Phase 8 finishes the prototype port.
 
 Phase 7 comes first deliberately. Six more presentational passes would polish an
