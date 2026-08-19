@@ -12,6 +12,8 @@ import {
 } from '@/shared/utils/channelIdentity.js'
 import { listJobs } from '@/features/production/api.js'
 
+import ProviderSelector from '@/features/providers/components/ProviderSelector.vue'
+
 import ChannelRail from './ChannelRail.vue'
 import {
   composeVisualPrompt,
@@ -155,6 +157,24 @@ const form = reactive({
  * chain configured elsewhere.
  */
 const carried = { cadence: null, fallback_policies: {} }
+
+/**
+ * The six provider domains that `ChannelProfile.provider_defaults` carries.
+ * `domain` is what the catalog knows; `key` is the form field; `label` is what
+ * the user reads. The order follows the pipeline.
+ */
+const providerDomains = [
+  { domain: 'script', key: 'script', label: 'Script' },
+  { domain: 'tts', key: 'tts', label: 'TTS' },
+  { domain: 'scene_director', key: 'scene_director', label: 'Scene director' },
+  { domain: 'image', key: 'image', label: 'Image' },
+  { domain: 'video', key: 'video', label: 'Video' },
+  { domain: 'review', key: 'review', label: 'Review' },
+]
+
+function onProviderConfigure() {
+  router.push({ name: 'providers' })
+}
 
 const accent = computed(() => channelAccent(meta.id, form.branding.accent_color))
 const channelStats = reactive({ videos: 0, published: 0, batch: 0 })
@@ -1640,34 +1660,20 @@ onMounted(load)
               Provider defaults
             </h3>
             <div class="desc">
-              Instance references only. Credentials resolve at runtime from the provider
-              instance store and never enter a Channel document.
+              Choose a provider instance for each domain. Credentials resolve at runtime
+              from the provider instance store and never enter a Channel document.
             </div>
-            <div class="ch-grid">
-              <div class="ch-field">
-                <label for="ch-pd-script">Script</label>
-                <input id="ch-pd-script" v-model="form.provider_defaults.script" class="ch-input mono" type="text" @input="markDirty" />
-              </div>
-              <div class="ch-field">
-                <label for="ch-pd-tts">TTS</label>
-                <input id="ch-pd-tts" v-model="form.provider_defaults.tts" class="ch-input mono" type="text" @input="markDirty" />
-              </div>
-              <div class="ch-field">
-                <label for="ch-pd-director">Scene director</label>
-                <input id="ch-pd-director" v-model="form.provider_defaults.scene_director" class="ch-input mono" type="text" @input="markDirty" />
-              </div>
-              <div class="ch-field">
-                <label for="ch-pd-image">Image</label>
-                <input id="ch-pd-image" v-model="form.provider_defaults.image" class="ch-input mono" type="text" @input="markDirty" />
-              </div>
-              <div class="ch-field">
-                <label for="ch-pd-video">Video</label>
-                <input id="ch-pd-video" v-model="form.provider_defaults.video" class="ch-input mono" type="text" @input="markDirty" />
-              </div>
-              <div class="ch-field">
-                <label for="ch-pd-review">Review</label>
-                <input id="ch-pd-review" v-model="form.provider_defaults.review" class="ch-input mono" type="text" @input="markDirty" />
-              </div>
+            <div class="ch-providers">
+              <ProviderSelector
+                v-for="pd in providerDomains"
+                :key="pd.domain"
+                variant="inline"
+                :domain="pd.domain"
+                :label="pd.label"
+                :model-value="form.provider_defaults[pd.key] || ''"
+                @update:model-value="(id) => { form.provider_defaults[pd.key] = id || null; markDirty() }"
+                @configure="onProviderConfigure"
+              />
             </div>
           </section>
 
@@ -1883,6 +1889,7 @@ onMounted(load)
 
 .ch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .ch-grid.spaced { margin-top: 14px; }
+.ch-providers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 
 .ch-field { display: flex; flex-direction: column; gap: 8px; }
 .ch-field.wide { margin-top: 14px; }
@@ -2349,7 +2356,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent);
 .ch-dirty.show { display: flex; }
 
 @media (max-width: 1000px) {
-  .ch-grid { grid-template-columns: 1fr; }
+  .ch-grid, .ch-providers { grid-template-columns: 1fr; }
   .ch-hero { flex-wrap: wrap; }
   .ch-hero-stats { width: 100%; justify-content: flex-start; gap: 30px; }
   .pattern-head, .pattern-row { grid-template-columns: 1fr; }

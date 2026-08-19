@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
+import { createPinia } from 'pinia'
 
 import ChannelsPage from './ChannelsPage.vue'
 import ChannelEditor from './ChannelEditor.vue'
@@ -9,6 +10,21 @@ import * as jobsApi from '@/features/production/api.js'
 
 vi.mock('@/features/production/api.js', () => ({
   listJobs: vi.fn(),
+}))
+
+// ProviderSelector (mounted by the editor since step 9.5) reads the provider
+// catalog through its Pinia store, which fetches from /api/providers.
+vi.mock('@/shared/api/client.js', () => ({
+  api: {
+    get: vi.fn().mockResolvedValue({
+      catalog_version: 'test',
+      dev_reload_enabled: false,
+      domains: {},
+    }),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
 }))
 
 vi.mock('./api.js', () => ({
@@ -324,7 +340,7 @@ describe('ChannelEditor', () => {
     await router.isReady()
 
     const wrapper = mount(ChannelEditor, {
-      global: { plugins: [router] },
+      global: { plugins: [router, createPinia()] },
     })
     await flushPromises()
 
@@ -397,7 +413,7 @@ describe('ChannelEditor', () => {
     router.push('/channels/ch_AAAAAA')
     await router.isReady()
 
-    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router, createPinia()] } })
     await flushPromises()
 
     const cells = wrapper.findAll('.ch-wm-cell')
@@ -438,7 +454,7 @@ describe('ChannelEditor', () => {
     router.push('/channels/ch_AAAAAA')
     await router.isReady()
 
-    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router, createPinia()] } })
     await flushPromises()
 
     await wrapper.get('[data-testid="channel-save"]').trigger('click')
@@ -484,7 +500,7 @@ describe('ChannelEditor', () => {
     router.push('/channels/ch_AAAAAA')
     await router.isReady()
 
-    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router, createPinia()] } })
     await flushPromises()
 
     expect(wrapper.get('.ch-litem .lname').text()).toBe('Cinematic Stoicism')
@@ -540,7 +556,7 @@ describe('ChannelEditor', () => {
     router.push('/channels/ch_AAAAAA')
     await router.isReady()
 
-    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router, createPinia()] } })
     await flushPromises()
 
     expect(wrapper.findAll('.ch-litem')).toHaveLength(1)
@@ -594,7 +610,7 @@ describe('ChannelEditor', () => {
     router.push('/channels/ch_AAAAAA')
     await router.isReady()
 
-    const wrapper = mount(ChannelEditor, { global: { plugins: [router] } })
+    const wrapper = mount(ChannelEditor, { global: { plugins: [router, createPinia()] } })
     // First load is still pending — switch to B before A resolves.
     await router.push('/channels/ch_BBBBBB')
     await flushPromises()
