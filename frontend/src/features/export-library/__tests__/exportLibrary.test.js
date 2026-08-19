@@ -17,6 +17,7 @@ const { useExportLibrary, aspectRatioFromDimensions } = await import(
   '../composables/useExportLibrary.js'
 )
 const ExportCard = (await import('../components/ExportCard.vue')).default
+const ExportDetailModal = (await import('../components/ExportDetailModal.vue')).default
 const LibrarySearch = (await import('../components/LibrarySearch.vue')).default
 const DeleteExportDialog = (await import('../components/DeleteExportDialog.vue')).default
 const ExportLibraryPage = (await import('../views/ExportLibraryPage.vue')).default
@@ -266,11 +267,47 @@ describe('folder sync', () => {
 })
 
 describe('ExportCard', () => {
-  it('shows the metadata the library promises, and both downloads', async () => {
+  it('shows what the gallery promises at a glance', async () => {
     const wrapper = mount(ExportCard, { props: { item: makeItem() } })
     await nextTick()
 
     const text = wrapper.text()
+    expect(text).toContain('pm_ONE')
+    expect(text).toContain('one.mp4')
+    expect(text).toContain('Alpha Channel')
+    expect(text).toContain('0:20')
+
+    expect(wrapper.findAll('.lib-actions .btn').map(b => b.text())).toEqual(['Editor', 'Export'])
+  })
+
+  it('opens the detail modal from the card, and only the card', async () => {
+    const wrapper = mount(ExportCard, { props: { item: makeItem() } })
+
+    await wrapper.find('.lib-actions .btn').trigger('click')
+    expect(wrapper.emitted('open')).toBeUndefined()
+    expect(wrapper.emitted('editor')[0][0].project_id).toBe('pm_ONE')
+
+    await wrapper.find('.lib-card').trigger('click')
+    expect(wrapper.emitted('open')[0][0].project_id).toBe('pm_ONE')
+  })
+
+  // The card itself is not focusable, so the play overlay is what a keyboard
+  // reaches — and it opens the same modal without also firing the card's click.
+  it('opens from the play overlay, exactly once', async () => {
+    const wrapper = mount(ExportCard, { props: { item: makeItem() } })
+
+    await wrapper.find('.lib-thumb .play').trigger('click')
+    expect(wrapper.emitted('open')).toHaveLength(1)
+  })
+})
+
+describe('ExportDetailModal', () => {
+  it('carries the metadata and both downloads the card gave up', async () => {
+    const wrapper = mount(ExportDetailModal, { props: { item: makeItem() } })
+    await nextTick()
+
+    // Teleported to the body, so it is read there.
+    const text = document.querySelector('.export-modal').textContent
     expect(text).toContain('pm_ONE')
     expect(text).toContain('one.mp4')
     expect(text).toContain('Anime Manga')
@@ -279,28 +316,24 @@ describe('ExportCard', () => {
     expect(text).toContain('9:16')
     expect(text).toContain('0:20')
 
-    const labels = wrapper.findAll('.dl-btn').map(b => b.text())
-    expect(labels).toEqual(['Editor', 'Export', 'Project ZIP', 'Delete'])
+    const labels = [...document.querySelectorAll('.exp-foot .btn')].map(b => b.textContent.trim())
+    expect(labels).toEqual(['Open in Editor', 'Project ZIP', 'Delete', 'Close', 'Download'])
+    wrapper.unmount()
   })
 
-  it('hides the ZIP button when the export has none', () => {
-    const wrapper = mount(ExportCard, { props: { item: makeItem({ zip_download_url: '' }) } })
-    expect(wrapper.findAll('.dl-btn').map(b => b.text())).toEqual(['Editor', 'Export', 'Delete'])
+  it('closes on Escape', async () => {
+    const wrapper = mount(ExportDetailModal, { props: { item: makeItem() } })
+    await nextTick()
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
   })
 
-  it('emits the item for each action', async () => {
-    const wrapper = mount(ExportCard, { props: { item: makeItem() } })
-    const [editor, video, zip, del] = wrapper.findAll('.dl-btn')
-
-    await editor.trigger('click')
-    await video.trigger('click')
-    await zip.trigger('click')
-    await del.trigger('click')
-
-    expect(wrapper.emitted('editor')[0][0].project_id).toBe('pm_ONE')
-    expect(wrapper.emitted('export')[0][0].project_id).toBe('pm_ONE')
-    expect(wrapper.emitted('download-zip')).toHaveLength(1)
-    expect(wrapper.emitted('trash')).toHaveLength(1)
+  it('renders nothing at all without an item', () => {
+    const wrapper = mount(ExportDetailModal, { props: { item: null } })
+    expect(document.querySelector('.export-modal')).toBeNull()
+    wrapper.unmount()
   })
 })
 
@@ -340,6 +373,7 @@ describe('LibrarySearch', () => {
     await nextTick()
 
     await wrapper.find('.search-sug-item').trigger('mousedown')
+    await nextTick()
     expect(wrapper.emitted('update:filterStyle').at(-1)).toEqual(['anime_manga'])
 
     // The filters are controlled props, so the parent owns the round trip.
@@ -368,9 +402,9 @@ describe('ExportLibraryPage', () => {
 
     expect(wrapper.findAllComponents(ExportCard)).toHaveLength(2)
     expect(wrapper.find('.calendar-cell').exists()).toBe(true)
-    const stats = wrapper.find('.stats-bar').text()
+    const stats = wrapper.find('.lib-stats').text()
     expect(stats).toContain('3')
-    expect(stats).toContain('Exports')
+    expect(stats).toContain('Videos')
     // 20 + 200 + 5 seconds of finished video.
     expect(stats).toContain('3:45')
   })
@@ -379,7 +413,7 @@ describe('ExportLibraryPage', () => {
     apiGet.mockResolvedValueOnce({ items: [] })
     const wrapper = await mountPage()
 
-    expect(wrapper.find('.export-grid').exists()).toBe(false)
+    expect(wrapper.find('.lib-grid').exists()).toBe(false)
     expect(wrapper.text()).toContain('No exported videos found yet')
     expect(wrapper.find('.sync-btn').attributes('disabled')).toBeDefined()
   })
@@ -394,7 +428,7 @@ describe('ExportLibraryPage', () => {
   it('highlights the export named by ?project=', async () => {
     const wrapper = await mountPage({ project: 'pm_TWO' })
 
-    const highlighted = wrapper.findAll('.export-card.highlighted')
+    const highlighted = wrapper.findAll('.lib-card.lib-flash')
     expect(highlighted).toHaveLength(1)
     expect(highlighted[0].text()).toContain('pm_TWO')
   })
@@ -415,7 +449,7 @@ describe('ExportLibraryPage', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() })
     const wrapper = await mountPage()
 
-    await wrapper.findComponent(ExportCard).findAll('.dl-btn')[0].trigger('click')
+    await wrapper.findComponent(ExportCard).findAll('.lib-actions .btn')[0].trigger('click')
 
     expect(open).toHaveBeenCalledWith(
       '/editor?project=pm_ONE',
@@ -424,11 +458,14 @@ describe('ExportLibraryPage', () => {
     )
   })
 
-  it('opens the delete dialog before trashing anything', async () => {
+  it('opens the delete dialog from the detail modal before trashing anything', async () => {
     const wrapper = await mountPage()
 
-    await wrapper.findAllComponents(ExportCard)[0].find('.dl-btn--danger').trigger('click')
+    await wrapper.findAllComponents(ExportCard)[0].find('.lib-card').trigger('click')
     await nextTick()
+    document.querySelector('.exp-foot .btn.danger').click()
+    await nextTick()
+
     expect(apiPost).not.toHaveBeenCalled()
     expect(wrapper.findComponent(DeleteExportDialog).props('visible')).toBe(true)
 
@@ -440,6 +477,8 @@ describe('ExportLibraryPage', () => {
     })
     expect(wrapper.findAllComponents(ExportCard)).toHaveLength(1)
     expect(wrapper.find('.calendar-cell').exists()).toBe(true)
+    // The modal went with the row it was describing.
+    expect(document.querySelector('.export-modal')).toBeNull()
   })
 })
 

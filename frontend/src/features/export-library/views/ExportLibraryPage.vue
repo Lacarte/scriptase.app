@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ExportCard from '../components/ExportCard.vue'
+import ExportDetailModal from '../components/ExportDetailModal.vue'
 import DeleteExportDialog from '../components/DeleteExportDialog.vue'
 import LibraryAnalytics from '../components/LibraryAnalytics.vue'
 import LibrarySearch from '../components/LibrarySearch.vue'
@@ -44,6 +45,7 @@ const cardRefs = ref({})
 const archiveCalendarRef = ref(null)
 const highlightedItemKey = ref('')
 const focusedQueryKey = ref('')
+const openedItem = ref(null)
 const pendingTrashItem = ref(null)
 const trashing = ref(false)
 let highlightTimer = null
@@ -54,10 +56,12 @@ function setCardRef(el, item) {
   else delete cardRefs.value[key]
 }
 
-function handlePlay(videoEl) {
-  for (const card of Object.values(cardRefs.value)) {
-    if (card && card.videoEl !== videoEl) card.stopPlayback()
-  }
+function openDetail(item) {
+  openedItem.value = item
+}
+
+function closeDetail() {
+  openedItem.value = null
 }
 
 function handleTrash(item) {
@@ -81,6 +85,9 @@ async function confirmTrash() {
   const key = itemKey(item)
   if (highlightedItemKey.value === key) {
     highlightedItemKey.value = ''
+  }
+  if (openedItem.value && itemKey(openedItem.value) === key) {
+    openedItem.value = null
   }
   pendingTrashItem.value = null
 }
@@ -159,15 +166,6 @@ function styleLabel(id) {
   return id.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-function styleColor(id) {
-  if (!id) return 'var(--text-muted)'
-  const map = {
-    cinematic_realistic: '#4ECDC4', anime_manga: '#FF6B6B',
-    watercolor_dreamy: '#A78BFA', pop_art_bold: '#FFB347', minimalist_clean: '#56CCF2',
-  }
-  return map[id] || 'var(--text-muted)'
-}
-
 // --- Extended stats ---
 const extendedStats = computed(() => {
   const all = items.value
@@ -178,6 +176,8 @@ const extendedStats = computed(() => {
   const totalSize = all.reduce((s, i) => s + (i.size_bytes || 0), 0)
   const today = all.filter(i => i.modified_at && (now - new Date(i.modified_at).getTime()) < DAY).length
   const week = all.filter(i => i.modified_at && (now - new Date(i.modified_at).getTime()) < 7 * DAY).length
+  // The same 48-hour line the calendar collapses on, counted for the stat bar.
+  const archived = all.filter(i => i.modified_at && (now - new Date(i.modified_at).getTime()) >= 2 * DAY).length
 
   const styleCounts = {}
   all.forEach(i => { if (i.style) styleCounts[i.style] = (styleCounts[i.style] || 0) + 1 })
@@ -190,18 +190,20 @@ const extendedStats = computed(() => {
   })
   const topRatio = Object.entries(ratioCounts).sort((a, b) => b[1] - a[1])[0]
 
-  return { total: all.length, today, week, totalDur, totalSize, topStyle, topRatio }
+  return { total: all.length, today, week, archived, totalDur, totalSize, topStyle, topRatio }
 })
 </script>
 
 <template>
-  <div class="export-page">
+  <div class="lib-view">
+   <div class="lib-inner">
     <!-- Header -->
-    <div class="page-header">
+    <div class="lib-head">
       <div>
-        <h2 class="page-title">Library</h2>
-        <p class="page-subtitle">Browse exported videos and download</p>
+        <h1>Library</h1>
+        <div class="sub">Every finished video — recent &amp; archived, across all channels.</div>
       </div>
+      <div class="spacer"></div>
       <div class="header-actions">
         <button class="sync-btn" :class="{ 'sync-btn--active': syncing }" :disabled="syncing || items.length === 0" @click="syncToFolder" title="Sync all exported videos to the configured folder. Duplicates are skipped.">
           <span class="sync-btn-icon" :class="{ spinning: syncing }">
@@ -268,46 +270,44 @@ const extendedStats = computed(() => {
       </div>
     </Transition>
 
-    <!-- Stats bar (compact) -->
-    <div v-if="items.length" class="stats-bar">
-      <div class="stat-item">
-        <span class="stat-num" style="color: var(--accent)">{{ extendedStats.total }}</span>
-        <span class="stat-lbl">Exports</span>
+    <!-- Stats bar -->
+    <div v-if="items.length" class="lib-stats">
+      <div class="lib-stat">
+        <div class="n">{{ extendedStats.total }}</div>
+        <div class="l">Videos</div>
       </div>
-      <span class="stat-divider"></span>
-      <div class="stat-item">
-        <span class="stat-num" :style="{ color: extendedStats.today > 0 ? '#26DE81' : 'var(--text-muted)' }">{{ extendedStats.today }}</span>
-        <span class="stat-lbl">Today</span>
+      <div class="lib-stat">
+        <div class="n">{{ channelOptions.length }}</div>
+        <div class="l">Channels</div>
       </div>
-      <span class="stat-divider"></span>
-      <div class="stat-item">
-        <span class="stat-num" style="color: #FFB347">{{ extendedStats.week }}</span>
-        <span class="stat-lbl">This Week</span>
+      <div class="lib-stat">
+        <div class="n">{{ fmtDuration(extendedStats.totalDur) }}</div>
+        <div class="l">Total runtime</div>
       </div>
-      <span class="stat-divider"></span>
-      <div class="stat-item">
-        <span class="stat-num" style="color: #A78BFA">{{ fmtDuration(extendedStats.totalDur) }}</span>
-        <span class="stat-lbl">Duration</span>
+      <div class="lib-stat">
+        <div class="n">{{ extendedStats.archived }}</div>
+        <div class="l">Archived</div>
       </div>
-      <span class="stat-divider"></span>
-      <div class="stat-item">
-        <span class="stat-num" style="color: var(--text-secondary)">{{ formatBytes(extendedStats.totalSize) }}</span>
-        <span class="stat-lbl">Size</span>
+      <div class="lib-stat">
+        <div class="n">{{ extendedStats.today }}</div>
+        <div class="l">Today</div>
       </div>
-      <template v-if="extendedStats.topStyle">
-        <span class="stat-divider"></span>
-        <div class="stat-item">
-          <span class="stat-num" :style="{ color: styleColor(extendedStats.topStyle[0]) }">{{ styleLabel(extendedStats.topStyle[0]) }}</span>
-          <span class="stat-lbl">Top Style</span>
-        </div>
-      </template>
-      <template v-if="extendedStats.topRatio">
-        <span class="stat-divider"></span>
-        <div class="stat-item">
-          <span class="stat-num" style="color: #A78BFA">{{ aspectRatioFromDimensions(extendedStats.topRatio[0]) || extendedStats.topRatio[0] }}</span>
-          <span class="stat-lbl">Top Ratio</span>
-        </div>
-      </template>
+      <div class="lib-stat">
+        <div class="n">{{ extendedStats.week }}</div>
+        <div class="l">This week</div>
+      </div>
+      <div class="lib-stat">
+        <div class="n">{{ formatBytes(extendedStats.totalSize) }}</div>
+        <div class="l">Size</div>
+      </div>
+      <div v-if="extendedStats.topStyle" class="lib-stat">
+        <div class="n">{{ styleLabel(extendedStats.topStyle[0]) }}</div>
+        <div class="l">Top style</div>
+      </div>
+      <div v-if="extendedStats.topRatio" class="lib-stat">
+        <div class="n">{{ aspectRatioFromDimensions(extendedStats.topRatio[0]) || extendedStats.topRatio[0] }}</div>
+        <div class="l">Top ratio</div>
+      </div>
     </div>
 
     <!-- Analytics dashboard -->
@@ -340,8 +340,14 @@ const extendedStats = computed(() => {
     <!-- States -->
     <div v-if="loading && items.length === 0" class="state-msg">Loading export library...</div>
     <div v-else-if="error" class="state-msg state-error">{{ error }}</div>
-    <div v-else-if="!loading && items.length === 0" class="state-msg">No exported videos found yet.</div>
-    <div v-else-if="items.length > 0 && filteredItems.length === 0" class="state-msg">No videos match the current filters.</div>
+    <div v-else-if="!loading && items.length === 0" class="lib-empty">
+      <h3>No videos found</h3>
+      <p>No exported videos found yet.</p>
+    </div>
+    <div v-else-if="items.length > 0 && filteredItems.length === 0" class="lib-empty">
+      <h3>No videos found</h3>
+      <p>Nothing matches the current search or filters.</p>
+    </div>
 
     <!-- The same 48-hour calendar renders Production rows and Library cards. -->
     <ArchiveCalendar
@@ -353,21 +359,29 @@ const extendedStats = computed(() => {
       item-key="video_relpath"
       :search-keys="['project_id', 'project_name', 'video_name', 'channel_id', 'channel_name', 'style']"
       noun="video"
-      layout="grid"
+      items-class="lib-grid"
     >
-      <template #item="{ item }">
+      <template #item="{ item, archived }">
         <ExportCard
           :item="item"
+          :archived="archived"
           :highlighted="highlightedItemKey === itemKey(item)"
           :ref="(el) => setCardRef(el, item)"
-          @play="handlePlay"
+          @open="openDetail"
           @editor="openEditor"
           @export="downloadVideo"
-          @download-zip="downloadZip"
-          @trash="handleTrash"
         />
       </template>
     </ArchiveCalendar>
+
+    <ExportDetailModal
+      :item="openedItem"
+      @close="closeDetail"
+      @editor="openEditor"
+      @export="downloadVideo"
+      @download-zip="downloadZip"
+      @trash="handleTrash"
+    />
 
     <DeleteExportDialog
       :visible="!!pendingTrashItem"
@@ -376,25 +390,51 @@ const extendedStats = computed(() => {
       @close="closeTrashDialog"
       @confirm="confirmTrash"
     />
+   </div>
   </div>
 </template>
 
 <style scoped>
-.export-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px 24px;
+/* The prototype's library shell, ported in step 6.7. */
+.lib-view {
+  display: grid;
+  grid-template-columns: 1fr;
   font-family: var(--body);
   font-size: 13px;
 }
 
-/* ---- Header ----
-   .page-title / .page-subtitle come from the shared primitives. */
-.page-header {
+.lib-inner {
+  padding: 22px 28px 60px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+.lib-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.lib-head h1 {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--text);
+  margin: 0;
+}
+
+.lib-head .sub {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-top: 5px;
+}
+
+.lib-head .spacer {
+  flex: 1;
 }
 
 .header-actions {
@@ -662,30 +702,17 @@ const extendedStats = computed(() => {
   font-weight: 500;
 }
 
-/* ---- Stats Bar ---- */
-.stats-bar {
+/* ---- Stats ----
+   The prototype's naked run of figures: no panel, no dividers, no colour.
+   Every one of them is counted off the rows the backend returned. */
+.lib-stats {
   display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 16px 20px;
-  background: var(--panel-grad);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--hairline-top), 0 1px 2px rgba(0, 0, 0, 0.3);
-  margin-bottom: 12px;
-  overflow-x: auto;
+  gap: 22px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  min-width: 50px;
-}
-
-.stat-num {
+.lib-stat .n {
   font-family: var(--display);
   font-size: 20px;
   font-weight: 600;
@@ -695,23 +722,16 @@ const extendedStats = computed(() => {
   white-space: nowrap;
 }
 
-.stat-lbl {
+.lib-stat .l {
   font-family: var(--mono);
   font-size: 9.5px;
-  text-transform: uppercase;
   letter-spacing: 0.7px;
+  text-transform: uppercase;
   color: var(--muted);
   margin-top: 3px;
 }
 
-.stat-divider {
-  width: 1px;
-  height: 28px;
-  background: var(--line);
-  flex-shrink: 0;
-}
-
-/* (Filter bar moved to LibrarySearch component) */
+/* (The toolbar moved to LibrarySearch component) */
 
 /* ---- States ---- */
 .state-msg {
@@ -733,24 +753,53 @@ const extendedStats = computed(() => {
   box-shadow: none;
 }
 
-/* ---- Grid ---- */
-.export-grid {
+.lib-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 60px 20px;
+}
+
+.lib-empty h3 {
+  color: var(--text);
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 7px;
+}
+
+.lib-empty p {
+  margin: 0;
+}
+
+/* ---- Grid ----
+   The calendar owns the markup; this is the track the Library asks it for.
+   minmax(min(230px, 100%), …) rather than the prototype's flat 230px: below
+   230px the fixed track would be wider than the viewport. */
+:deep(.archive-items.lib-grid) {
   display: grid;
-  /* minmax(0, …) rather than minmax(280px, …): below 280px the fixed track
-     would be wider than the viewport and take a scrollbar with it. */
-  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  :deep(.archive-items.lib-grid) {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 /* Step 0.3 — the title and its two actions need their own lines on a phone. */
 @media (max-width: 820px) {
-  .page-header {
+  .lib-head {
     flex-wrap: wrap;
     gap: 12px;
   }
 
   .header-actions {
     flex-wrap: wrap;
+  }
+
+  .lib-inner {
+    padding: 18px 16px 48px;
   }
 }
 </style>

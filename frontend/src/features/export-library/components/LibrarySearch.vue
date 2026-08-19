@@ -108,93 +108,83 @@ function clearAll() {
 </script>
 
 <template>
-  <div class="search-section">
-    <!-- Search input row -->
-    <div class="search-row">
-      <div class="search-input-wrap" :class="{ focused: searchFocused }">
-        <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input
-          v-model="searchQuery"
-          class="search-input"
-          type="text"
-          placeholder="Search videos, projects, or channels..."
-          aria-label="Search exports"
-          data-shortcut-search
-          @focus="searchFocused = true"
-          @blur="onSearchBlur"
-        />
-        <button
-          v-if="searchQuery"
-          type="button"
-          class="search-clear"
-          aria-label="Clear search"
-          @click="searchQuery = ''"
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+  <div class="lib-toolbar">
+    <div class="search-input-wrap" :class="{ focused: searchFocused }">
+      <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input
+        v-model="searchQuery"
+        class="search-input"
+        type="text"
+        placeholder="Search finished videos…"
+        aria-label="Search exports"
+        data-shortcut-search
+        @focus="searchFocused = true"
+        @blur="onSearchBlur"
+      />
+      <button
+        v-if="searchQuery"
+        type="button"
+        class="search-clear"
+        aria-label="Clear search"
+        @click="searchQuery = ''"
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
 
-        <!-- Suggestions dropdown -->
-        <Transition name="sug-fade">
-          <div v-if="searchFocused && suggestions.length" class="search-suggestions">
-            <button v-for="sug in suggestions" :key="sug.type + sug.value" class="search-sug-item" @mousedown.prevent="applySuggestion(sug)">
-              <span class="sug-type" :class="'sug-type--' + sug.type">{{ sug.type }}</span>
-              <span class="sug-label">{{ sug.label }}</span>
-            </button>
-          </div>
-        </Transition>
-      </div>
-
-      <div class="filter-pills">
-        <select class="f-select" :class="{ active: filterChannel }" :value="filterChannel" aria-label="Filter by channel" @change="emit('update:filterChannel', $event.target.value)">
-          <option value="">All channels</option>
-          <option v-for="channel in channelOptions" :key="channel.value" :value="channel.value">{{ channel.label }}</option>
-        </select>
-
-        <select class="f-select" :value="sortBy" @change="emit('update:sortBy', $event.target.value)">
-          <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
-
-        <select class="f-select" :class="{ active: filterStyle }" :value="filterStyle" @change="emit('update:filterStyle', $event.target.value)">
-          <option value="">All styles</option>
-          <option v-for="s in styleOptions.filter(v => v)" :key="s" :value="s">{{ styleLabel(s) }}</option>
-        </select>
-
-        <select class="f-select" :class="{ active: filterRatio }" :value="filterRatio" @change="emit('update:filterRatio', $event.target.value)">
-          <option value="">All ratios</option>
-          <option v-for="r in ratioOptions.filter(v => v)" :key="r" :value="r">{{ r }}</option>
-        </select>
-
-        <select class="f-select" :class="{ active: filterDuration }" :value="filterDuration" @change="emit('update:filterDuration', $event.target.value)">
-          <option v-for="d in durationFilters" :key="d.value" :value="d.value">{{ d.label }}</option>
-        </select>
-      </div>
+      <!-- Suggestions dropdown -->
+      <Transition name="sug-fade">
+        <div v-if="searchFocused && suggestions.length" class="search-suggestions">
+          <button v-for="sug in suggestions" :key="sug.type + sug.value" class="search-sug-item" @mousedown.prevent="applySuggestion(sug)">
+            <span class="sug-type" :class="'sug-type--' + sug.type">{{ sug.type }}</span>
+            <span class="sug-label">{{ sug.label }}</span>
+          </button>
+        </div>
+      </Transition>
     </div>
 
-    <!-- Active filters + count -->
-    <div class="search-meta">
-      <div class="search-meta-left">
-        <button v-if="hasFilters" class="clear-all-btn" @click="clearAll">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          Clear {{ activeFilterCount }} filter{{ activeFilterCount !== 1 ? 's' : '' }}
-        </button>
-      </div>
-      <span class="search-count">
-        <template v-if="filteredCount < items.length">{{ filteredCount }} / {{ items.length }}</template>
-        <template v-else>{{ items.length }} video{{ items.length !== 1 ? 's' : '' }}</template>
-      </span>
-    </div>
+    <select class="f-select" :class="{ active: filterChannel }" :value="filterChannel" aria-label="Filter by channel" @change="emit('update:filterChannel', $event.target.value)">
+      <option value="">All channels</option>
+      <option v-for="channel in channelOptions" :key="channel.value" :value="channel.value">{{ channel.label }}</option>
+    </select>
+
+    <select class="f-select" :value="sortBy" aria-label="Sort exports" @change="emit('update:sortBy', $event.target.value)">
+      <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+    </select>
+
+    <select class="f-select" :class="{ active: filterStyle }" :value="filterStyle" aria-label="Filter by style" @change="emit('update:filterStyle', $event.target.value)">
+      <option value="">All styles</option>
+      <option v-for="s in styleOptions.filter(v => v)" :key="s" :value="s">{{ styleLabel(s) }}</option>
+    </select>
+
+    <select class="f-select" :class="{ active: filterRatio }" :value="filterRatio" aria-label="Filter by ratio" @change="emit('update:filterRatio', $event.target.value)">
+      <option value="">All ratios</option>
+      <option v-for="r in ratioOptions.filter(v => v)" :key="r" :value="r">{{ r }}</option>
+    </select>
+
+    <select class="f-select" :class="{ active: filterDuration }" :value="filterDuration" aria-label="Filter by duration" @change="emit('update:filterDuration', $event.target.value)">
+      <option v-for="d in durationFilters" :key="d.value" :value="d.value">{{ d.label }}</option>
+    </select>
+
+    <button v-if="hasFilters" class="clear-all-btn" @click="clearAll">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      Clear {{ activeFilterCount }} filter{{ activeFilterCount !== 1 ? 's' : '' }}
+    </button>
+
+    <span class="search-count">
+      <template v-if="filteredCount < items.length">{{ filteredCount }} / {{ items.length }}</template>
+      <template v-else>{{ items.length }} video{{ items.length !== 1 ? 's' : '' }}</template>
+    </span>
   </div>
 </template>
 
 <style scoped>
-.search-section {
-  margin-bottom: 14px;
-}
-
-.search-row {
+/* The prototype's `lib-toolbar`, ported in step 6.7: one wrapping row holding
+   the search field, the filters, and what they add up to. */
+.lib-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
@@ -206,7 +196,7 @@ function clearAll() {
   align-items: center;
   gap: 8px;
   flex: 1;
-  min-width: 200px;
+  min-width: 230px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-s);
@@ -298,14 +288,6 @@ function clearAll() {
 @keyframes sug-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes sug-out { from { opacity: 1; } to { opacity: 0; } }
 
-/* Filter pills */
-.filter-pills {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
 .f-select {
   background: var(--panel);
   color: var(--text-2);
@@ -333,17 +315,6 @@ function clearAll() {
   color: var(--accent);
 }
 
-/* Meta row */
-.search-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-  min-height: 20px;
-}
-
-.search-meta-left { display: flex; gap: 6px; align-items: center; }
-
 .clear-all-btn {
   display: inline-flex;
   align-items: center;
@@ -363,14 +334,14 @@ function clearAll() {
 .clear-all-btn:hover { background: var(--fail-dim); border-color: var(--fail-line-2); }
 
 .search-count {
+  margin-left: auto;
   font-family: var(--mono);
   font-size: 10px;
   color: var(--muted);
 }
 
 @media (max-width: 700px) {
-  .search-row { flex-direction: column; }
-  .search-input-wrap { width: 100%; }
-  .filter-pills { width: 100%; }
+  .search-input-wrap { width: 100%; flex-basis: 100%; }
+  .f-select { flex: 1; min-width: 0; }
 }
 </style>

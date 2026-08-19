@@ -14,11 +14,11 @@ const props = defineProps({
   },
   archiveAfterHours: { type: Number, default: 48 },
   noun: { type: String, default: 'item' },
-  layout: {
-    type: String,
-    default: 'rows',
-    validator: value => ['rows', 'grid'].includes(value),
-  },
+  /* The consuming view's own name for its item track — a gallery grid, say.
+     The calendar keeps `archive-items` and its stacked default; this rides
+     alongside, so a view can lay its items out without this shared component
+     learning any view's vocabulary. */
+  itemsClass: { type: String, default: '' },
   now: { type: [Number, String, Date], default: () => Date.now() },
 })
 
@@ -130,8 +130,8 @@ defineExpose({ revealItem })
 </script>
 
 <template>
-  <div class="archive-calendar" :data-layout="layout">
-    <div v-if="recentItems.length" class="archive-items recent-items">
+  <div class="archive-calendar">
+    <div v-if="recentItems.length" class="archive-items recent-items" :class="itemsClass">
       <slot v-for="(item, index) in recentItems" :key="keyFor(item, index)" name="item" :item="item" :archived="false" />
     </div>
 
@@ -144,7 +144,7 @@ defineExpose({ revealItem })
           Found in archive · {{ archivedItems.length }}
           <span class="head-line" />
         </div>
-        <div class="archive-items search-results">
+        <div class="archive-items search-results" :class="itemsClass">
           <slot v-for="(item, index) in archivedItems" :key="keyFor(item, index)" name="item" :item="item" :archived="true" />
         </div>
       </template>
@@ -186,7 +186,7 @@ defineExpose({ revealItem })
             <span class="head-line" />
             <button type="button" @click="closeDate(group.key)">Hide</button>
           </header>
-          <div class="archive-items revealed-items">
+          <div class="archive-items revealed-items" :class="itemsClass">
             <slot v-for="(item, index) in group.items" :key="keyFor(item, index)" name="item" :item="item" :archived="true" />
           </div>
         </section>
@@ -200,7 +200,6 @@ defineExpose({ revealItem })
 <style scoped>
 .archive-calendar { display: grid; gap: 12px; min-width: 0; }
 .archive-items { display: grid; gap: 10px; min-width: 0; }
-[data-layout="grid"] .archive-items { grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 14px; }
 .archive-strip { border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-grad); overflow: hidden; }
 .archive-strip-head { padding: 12px 15px 10px; border-bottom: 1px solid var(--line); }
 .archive-title { display: flex; align-items: center; gap: 9px; font-family: var(--display); font-weight: 600; font-size: 13px; color: var(--text); }
