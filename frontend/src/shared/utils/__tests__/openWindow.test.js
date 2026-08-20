@@ -98,4 +98,12 @@ describe('openAppWindow', () => {
   it('rejects an unknown target rather than opening an arbitrary URL', () => {
     expect(() => openAppWindow('anything', { win: fakeWindow() })).toThrow(/Unknown app window target/)
   })
+
+  it('falls back to location.assign with the same URL when a popup blocker refuses', () => {
+    const assign = vi.fn()
+    const win = { open: vi.fn(() => null), location: { assign }, screen: { availWidth: 1920, availHeight: 1080 } }
+    expect(openAppWindow('library', { query: { project: 'pm_XYZ789' }, win })).toBeNull()
+    expect(assign).toHaveBeenCalledTimes(1)
+    expect(assign).toHaveBeenCalledWith('/library?project=pm_XYZ789')
+  })
 })
