@@ -223,10 +223,11 @@ def _provider_options_field(domain):
 _NODE_TYPES = {
     "trigger.manual": {
         "type_version": 1,
-        "display_name": "Manual Trigger",
+        "display_name": "Execution",
         "description": "Emits one control token when the run starts.",
         "category": "input",
         "icon": "play",
+        "schema": {"sub": "Job trigger", "glyph": "▶", "accent": "#3fb68b", "role": "flow"},
         "inputs": [],
         "outputs": [_CONTROL_OUT],
         "config_schema": [],
@@ -235,10 +236,11 @@ _NODE_TYPES = {
     },
     "project.setup": {
         "type_version": 1,
-        "display_name": "Project Setup",
+        "display_name": "Channel",
         "description": "Project identity, branding, and creative defaults shared by downstream nodes.",
         "category": "input",
         "icon": "briefcase",
+        "schema": {"sub": "Inherited config", "glyph": "◆", "accent": "#5b8cff", "role": "flow"},
         "inputs": [_TRIGGER_IN],
         "outputs": [_CONTROL_OUT, _out("settings", "project_settings")],
         "config_schema": [
@@ -564,6 +566,7 @@ _NODE_TYPES = {
         ),
         "category": "ai",
         "icon": "gauge",
+        "schema": {"glyph": "📈", "accent": "#e0a44a", "role": "branch"},
         # `script` is the only required input — the analyzer must be usable on
         # nothing but pasted text. `story` and `scenes` sharpen the score when
         # the graph happens to have them and are unwired in the Full Video
@@ -598,6 +601,7 @@ _NODE_TYPES = {
         "description": "Word-level captions grouped from the alignment.",
         "category": "video",
         "icon": "type",
+        "schema": {"glyph": "T", "accent": "#3fb68b", "role": "branch"},
         "inputs": [_TRIGGER_IN, _in("alignment", "alignment", required=True)],
         "outputs": [_CONTROL_OUT, _out("captions", "captions")],
         "config_schema": [
@@ -616,6 +620,7 @@ _NODE_TYPES = {
         "description": "Pick a background track by tone, at random, or explicitly.",
         "category": "audio",
         "icon": "music",
+        "schema": {"glyph": "♪", "accent": "#e0a44a", "role": "branch"},
         "inputs": [_TRIGGER_IN, _in("settings", "project_settings"), _in("project_id", "project_id")],
         "outputs": [_CONTROL_OUT, _out("track", "music_track")],
         "config_schema": [

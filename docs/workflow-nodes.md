@@ -48,7 +48,7 @@ Connections require the source and target port to have the **same** type; there 
 
 ## Input nodes
 
-### Manual Trigger (`trigger.manual`)
+### Execution (`trigger.manual`)
 
 Emits one control token when the run starts.
 
@@ -65,7 +65,7 @@ Emits one control token when the run starts.
 
 **Configuration:** none
 
-### Project Setup (`project.setup`)
+### Channel (`project.setup`)
 
 Project identity, branding, and creative defaults shared by downstream nodes.
 
