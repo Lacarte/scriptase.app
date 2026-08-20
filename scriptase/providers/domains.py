@@ -88,7 +88,7 @@ DOMAINS: dict[str, DomainSpec] = {
             capability_vocabulary=_caps("structured_sections", "language_select", "offline"),
             request_model="scriptase.modules.script.providers.contract:ScriptRequest",
             result_model="scriptase.modules.script.providers.contract:ScriptResultPayload",
-            catalog_provider_ids=frozenset({"gemini", "random_template"}),
+            catalog_provider_ids=frozenset({"gemini", "n8n", "random_template"}),
             contract_provider_ids=frozenset({"scaffold_check"}),
         ),
         DomainSpec(

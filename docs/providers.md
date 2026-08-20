@@ -5,7 +5,7 @@
 
 # Provider Reference
 
-Live catalog: **7 domains**, **7 registered providers**.
+Live catalog: **7 domains**, **8 registered providers**.
 
 This document is generated from the domain catalog (`scriptase.providers.domains`) and the process-wide hub (`scriptase.providers.hub`). It is the same discovery surface served by `GET /api/providers`. Music and Captions are deliberately **not** provider domains — they remain local services without a provider dimension.
 
@@ -296,6 +296,7 @@ Providers are discovered by scanning each domain's `providers/` folder. There is
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
 | `gemini` | Gemini story generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
+| `n8n` | n8n script generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
 | `random_template` | Random template | `local` | `1.0.0` | v1 | `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections` |
 
 #### `gemini` — Gemini story generator
@@ -305,6 +306,14 @@ AI story generation via the configured n8n/Gemini webhook. Returns hook/build/cl
 - **Kind:** `webhook`
 - **Version:** `1.0.0` (contract v1)
 - **Aliases:** `builtin`
+- **Capabilities:** `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene`
+
+#### `n8n` — n8n script generator
+
+Script generation via a configurable n8n webhook. Sends the Channel's niche, style, tone, duration, and template outline, and writes stories/{id}/story.json from the returned script.
+
+- **Kind:** `webhook`
+- **Version:** `1.0.0` (contract v1)
 - **Capabilities:** `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene`
 
 #### `random_template` — Random template

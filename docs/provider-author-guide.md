@@ -427,7 +427,7 @@ Snapshot of providers discovered when this guide was generated.
 
 | Domain | Providers |
 |---|---|
-| `script` | `gemini`, `random_template` |
+| `script` | `gemini`, `n8n`, `random_template` |
 | `scene_director` | `n8n` |
 | `tts` | `inworld` |
 | `image` | `gemini_ws` |

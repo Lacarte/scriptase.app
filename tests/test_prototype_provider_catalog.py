@@ -8,7 +8,7 @@ from scriptase.providers.settings_migrations import apply_migrations as migrate_
 
 
 EXPECTED = {
-    "script": ["gemini", "random_template"],
+    "script": ["gemini", "n8n", "random_template"],
     "scene_director": ["n8n"],
     "tts": ["inworld"],
     "image": ["gemini_ws"],
@@ -24,7 +24,7 @@ def test_catalog_exposes_the_prototype_and_restored_script_providers():
 
     found = {domain: providers.registry(domain).list_ids() for domain in providers.domains()}
     assert found == EXPECTED
-    assert sum(map(len, found.values())) == 7
+    assert sum(map(len, found.values())) == 8
 
     # The committed scaffolder demonstration stays executable without becoming
     # a user-facing catalogue entry.
