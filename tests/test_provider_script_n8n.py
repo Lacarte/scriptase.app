@@ -171,6 +171,64 @@ class RegistrationTests(unittest.TestCase):
         self.assertIsNotNone(instance)
         self.assertEqual(instance.domain, "script")
         self.assertEqual(instance.kind, "webhook")
+        self.assertEqual(instance.label, "Script Generator")
+
+
+class SeededInstanceTests(unittest.TestCase):
+    """The passerelle is seeded beside the gemini default (fresh + migration)."""
+
+    def test_fresh_install_seeds_the_script_generator_instance(self):
+        from scriptase.providers.settings_manager import _default_settings
+
+        script = _default_settings()["domains"]["script"]
+        self.assertIn("n8n", script["instances"])
+        self.assertEqual(script["instances"]["n8n"]["label"], "Script Generator")
+        # The default selection is untouched.
+        self.assertEqual(script["selected_instance_id"], "gemini")
+
+    def test_migration_adds_the_instance_without_disturbing_gemini(self):
+        from scriptase.providers.settings_migrations import (
+            apply_migrations,
+            SETTINGS_VERSION,
+        )
+
+        old = {
+            "version": 11,
+            "domains": {
+                "script": {
+                    "selected_instance_id": "gemini",
+                    "instances": {
+                        "gemini": {"type": "gemini", "label": "gemini", "settings": {}},
+                    },
+                }
+            },
+        }
+        migrated, changed = apply_migrations(old, {})
+        self.assertTrue(changed)
+        self.assertEqual(migrated["version"], SETTINGS_VERSION)
+        script = migrated["domains"]["script"]
+        self.assertIn("n8n", script["instances"])
+        self.assertEqual(script["instances"]["n8n"]["label"], "Script Generator")
+        self.assertIn("gemini", script["instances"])
+        self.assertEqual(script["selected_instance_id"], "gemini")
+
+    def test_migration_is_idempotent(self):
+        from scriptase.providers.settings_migrations import apply_migrations
+
+        seeded = {
+            "version": 12,
+            "domains": {
+                "script": {
+                    "selected_instance_id": "gemini",
+                    "instances": {
+                        "gemini": {"type": "gemini", "label": "gemini", "settings": {}},
+                        "n8n": {"type": "n8n", "label": "Script Generator", "settings": {}},
+                    },
+                }
+            },
+        }
+        _migrated, changed = apply_migrations(seeded, {})
+        self.assertFalse(changed)
 
 
 if __name__ == "__main__":

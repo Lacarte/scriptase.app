@@ -296,7 +296,7 @@ Providers are discovered by scanning each domain's `providers/` folder. There is
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
 | `gemini` | Gemini story generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
-| `n8n` | n8n script generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
+| `n8n` | Script Generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
 | `random_template` | Random template | `local` | `1.0.0` | v1 | `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections` |
 
 #### `gemini` — Gemini story generator
@@ -308,7 +308,7 @@ AI story generation via the configured n8n/Gemini webhook. Returns hook/build/cl
 - **Aliases:** `builtin`
 - **Capabilities:** `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene`
 
-#### `n8n` — n8n script generator
+#### `n8n` — Script Generator
 
 Script generation via a configurable n8n webhook. Sends the Channel's niche, style, tone, duration, and template outline, and writes stories/{id}/story.json from the returned script.
 

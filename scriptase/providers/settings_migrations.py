@@ -39,7 +39,7 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 # v10 = prototype-only provider catalogue (step 5.3).
 # v11 = restore script catalogue (step 7.1). v10 removed it; Auto and Idea
 #        need a script provider, so backfill gemini as the default.
-SETTINGS_VERSION = 11
+SETTINGS_VERSION = 12
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -423,6 +423,32 @@ def migrate_to_v11(data: dict, legacy_user: dict) -> dict:
     as "needs backfill" and writes the default instance.
     """
     return migrate_to_v8(data, legacy_user)
+
+
+@_register(12)
+def migrate_to_v12(data: dict, legacy_user: dict) -> dict:
+    """Seed the `n8n` "Script Generator" instance in the script domain.
+
+    The n8n script provider is a passerelle to the caller's own n8n webhook.
+    Adding it as a seeded instance makes it appear on the providers settings
+    page alongside `gemini` out of the box. The existing default instance and
+    the current selection are left untouched — this only *adds* a binding when
+    one is not already present.
+    """
+    block = data.get("domains", {}).get("script")
+    if not isinstance(block, dict):
+        # An empty/absent script block is backfilled by the v8 body first, which
+        # earlier hops already ran; nothing to add onto here.
+        return data
+    instances = block.setdefault("instances", {})
+    if not isinstance(instances, dict):
+        return data
+    instances.setdefault("n8n", {
+        "type": "n8n",
+        "label": "Script Generator",
+        "settings": {},
+    })
+    return data
 
 
 def apply_migrations(data: dict, legacy_user: dict | None = None) -> tuple[dict, bool]:

@@ -61,6 +61,11 @@ class DomainSpec:
     # packages can remain on disk for contract tests without reaching the UI.
     catalog_provider_ids: frozenset[str] | None = None
     contract_provider_ids: frozenset[str] = frozenset()
+    # Extra catalog types a fresh install binds beyond ``default_provider`` so a
+    # non-default provider still appears on the settings page out of the box.
+    # Each entry is ``(type_id, label)``. Provider ids belong on the spec (§19.1),
+    # which keeps the seeding logic in settings_manager a §26 zero-touch surface.
+    seeded_instances: tuple[tuple[str, str], ...] = ()
 
 
 def _base(*parts: str) -> str:
@@ -90,6 +95,9 @@ DOMAINS: dict[str, DomainSpec] = {
             result_model="scriptase.modules.script.providers.contract:ScriptResultPayload",
             catalog_provider_ids=frozenset({"gemini", "n8n", "random_template"}),
             contract_provider_ids=frozenset({"scaffold_check"}),
+            # The n8n "Script Generator" passerelle is seeded beside the gemini
+            # default so it shows on the settings page without hand-configuration.
+            seeded_instances=(("n8n", "Script Generator"),),
         ),
         DomainSpec(
             id="scene_director",

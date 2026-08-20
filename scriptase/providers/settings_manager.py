@@ -164,7 +164,14 @@ def save_settings(data: dict) -> None:
 
 
 def _default_domain_block(spec) -> dict:
-    """One domain's post-3.1 defaults: a single default instance of the catalog type."""
+    """One domain's post-3.1 defaults: the default instance, plus any seeded extras.
+
+    A `DomainSpec` may declare `seeded_instances` — additional catalog types a
+    fresh install binds beyond the default so a provider that ships without
+    being the default still appears on the settings page. The provider ids live
+    on the spec (§19.1), never inline here, so this stays a §26 zero-touch
+    surface.
+    """
     default = spec.default_provider
     instances = {}
     if default:
@@ -173,6 +180,12 @@ def _default_domain_block(spec) -> dict:
             "label": default,
             "settings": {},
         }
+    for type_id, label in getattr(spec, "seeded_instances", ()) or ():
+        instances.setdefault(type_id, {
+            "type": type_id,
+            "label": label,
+            "settings": {},
+        })
     return {
         "selected_instance_id": default,
         "instances": instances,
