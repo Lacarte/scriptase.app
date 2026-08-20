@@ -66,6 +66,9 @@ class DomainSpec:
     # Each entry is ``(type_id, label)``. Provider ids belong on the spec (§19.1),
     # which keeps the seeding logic in settings_manager a §26 zero-touch surface.
     seeded_instances: tuple[tuple[str, str], ...] = ()
+    # Display label for the seeded *default* instance. Defaults to the provider
+    # id; set it when the settings page should read a friendlier name.
+    default_instance_label: str | None = None
 
 
 def _base(*parts: str) -> str:
@@ -111,6 +114,9 @@ DOMAINS: dict[str, DomainSpec] = {
             request_model="scriptase.modules.scene_director.providers.contract:SceneBlueprintRequest",
             result_model="scriptase.modules.scene_director.providers.contract:SceneBlueprintResultPayload",
             catalog_provider_ids=frozenset({"n8n"}),
+            # The n8n passerelle reads as "Scene Generator" on the settings page,
+            # mirroring the script domain's "Script Generator".
+            default_instance_label="Scene Generator",
         ),
         DomainSpec(
             id="tts",

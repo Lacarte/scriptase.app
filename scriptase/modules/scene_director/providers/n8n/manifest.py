@@ -13,7 +13,7 @@ from scriptase.providers.registry import ProviderManifest
 def manifest() -> ProviderManifest:
     return ProviderManifest(
         id="n8n",
-        label="n8n scene blueprint",
+        label="Scene Generator",
         domain="scene_director",
         kind="webhook",
         version="1.0.0",

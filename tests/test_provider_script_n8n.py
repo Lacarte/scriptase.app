@@ -213,10 +213,13 @@ class SeededInstanceTests(unittest.TestCase):
         self.assertEqual(script["selected_instance_id"], "gemini")
 
     def test_migration_is_idempotent(self):
-        from scriptase.providers.settings_migrations import apply_migrations
+        from scriptase.providers.settings_migrations import (
+            apply_migrations,
+            SETTINGS_VERSION,
+        )
 
         seeded = {
-            "version": 12,
+            "version": SETTINGS_VERSION,
             "domains": {
                 "script": {
                     "selected_instance_id": "gemini",
@@ -224,11 +227,55 @@ class SeededInstanceTests(unittest.TestCase):
                         "gemini": {"type": "gemini", "label": "gemini", "settings": {}},
                         "n8n": {"type": "n8n", "label": "Script Generator", "settings": {}},
                     },
-                }
+                },
+                "scene_director": {
+                    "selected_instance_id": "n8n",
+                    "instances": {
+                        "n8n": {"type": "n8n", "label": "Scene Generator", "settings": {}},
+                    },
+                },
             },
         }
         _migrated, changed = apply_migrations(seeded, {})
         self.assertFalse(changed)
+
+    def test_scene_director_default_reads_as_scene_generator(self):
+        from scriptase.providers.settings_manager import _default_settings
+        from scriptase.providers.settings_migrations import apply_migrations
+
+        # Fresh install.
+        sd = _default_settings()["domains"]["scene_director"]
+        self.assertEqual(sd["instances"]["n8n"]["label"], "Scene Generator")
+
+        # Existing install with the bare-id label is renamed; a custom one is not.
+        old = {
+            "version": 11,
+            "domains": {
+                "scene_director": {
+                    "selected_instance_id": "n8n",
+                    "instances": {"n8n": {"type": "n8n", "label": "n8n", "settings": {}}},
+                }
+            },
+        }
+        migrated, _ = apply_migrations(old, {})
+        self.assertEqual(
+            migrated["domains"]["scene_director"]["instances"]["n8n"]["label"],
+            "Scene Generator",
+        )
+
+        custom = {
+            "version": 12,
+            "domains": {
+                "scene_director": {
+                    "selected_instance_id": "n8n",
+                    "instances": {"n8n": {"type": "n8n", "label": "Mine", "settings": {}}},
+                }
+            },
+        }
+        kept, _ = apply_migrations(custom, {})
+        self.assertEqual(
+            kept["domains"]["scene_director"]["instances"]["n8n"]["label"], "Mine"
+        )
 
 
 if __name__ == "__main__":

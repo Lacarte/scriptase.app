@@ -177,7 +177,7 @@ def _default_domain_block(spec) -> dict:
     if default:
         instances[default] = {
             "type": default,
-            "label": default,
+            "label": getattr(spec, "default_instance_label", None) or default,
             "settings": {},
         }
     for type_id, label in getattr(spec, "seeded_instances", ()) or ():

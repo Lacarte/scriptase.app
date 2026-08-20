@@ -39,7 +39,7 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 # v10 = prototype-only provider catalogue (step 5.3).
 # v11 = restore script catalogue (step 7.1). v10 removed it; Auto and Idea
 #        need a script provider, so backfill gemini as the default.
-SETTINGS_VERSION = 12
+SETTINGS_VERSION = 13
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -448,6 +448,27 @@ def migrate_to_v12(data: dict, legacy_user: dict) -> dict:
         "label": "Script Generator",
         "settings": {},
     })
+    return data
+
+
+@_register(13)
+def migrate_to_v13(data: dict, legacy_user: dict) -> dict:
+    """Rename the scene_director `n8n` instance label to "Scene Generator".
+
+    The instance shipped with its label set to the bare id; the settings page
+    reads the instance label, so it showed "n8n". This renames only the seeded
+    default label to the passerelle's friendly name, mirroring "Script
+    Generator". A label a user changed themselves is left alone.
+    """
+    block = data.get("domains", {}).get("scene_director")
+    if not isinstance(block, dict):
+        return data
+    instances = block.get("instances")
+    if not isinstance(instances, dict):
+        return data
+    record = instances.get("n8n")
+    if isinstance(record, dict) and record.get("label") == "n8n":
+        record["label"] = "Scene Generator"
     return data
 
 
