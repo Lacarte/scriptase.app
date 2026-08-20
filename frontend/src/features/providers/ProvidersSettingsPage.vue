@@ -164,8 +164,46 @@ const providers = computed(() => catalog.domainIds.flatMap((domain) => {
   })
 }))
 
-const selected = computed(() => providers.value.find((p) => p.key === selectedKey.value) || providers.value[0] || null)
-const availableCount = computed(() => providers.value.filter((p) => p.availability === 'available').length)
+/**
+ * Filter the rail by transport (Extension / n8n / Cloud / Local). `all` is the
+ * resting state. Only kinds actually present in the catalog get a chip, so the
+ * bar never offers an empty filter, and each chip carries its live count.
+ */
+const kindFilter = ref('all')
+const kindFilters = computed(() => {
+  const counts = new Map()
+  for (const provider of providers.value) {
+    counts.set(provider.kind, (counts.get(provider.kind) || 0) + 1)
+  }
+  const order = ['extension', 'webhook', 'cloud', 'local']
+  const present = [...counts.keys()].sort(
+    (a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99),
+  )
+  return [
+    { id: 'all', label: 'All', count: providers.value.length },
+    ...present.map((kind) => ({
+      id: kind,
+      label: KINDS[kind]?.label || kind,
+      count: counts.get(kind),
+    })),
+  ]
+})
+const filteredProviders = computed(() =>
+  kindFilter.value === 'all'
+    ? providers.value
+    : providers.value.filter((p) => p.kind === kindFilter.value),
+)
+
+const selected = computed(() =>
+  filteredProviders.value.find((p) => p.key === selectedKey.value)
+  || providers.value.find((p) => p.key === selectedKey.value)
+  || filteredProviders.value[0]
+  || providers.value[0]
+  || null,
+)
+const availableCount = computed(
+  () => filteredProviders.value.filter((p) => p.availability === 'available').length,
+)
 
 /**
  * Two axes, kept apart the way the store keeps them (§21.5): a probe result
@@ -258,10 +296,24 @@ onMounted(() => catalog.loadCatalog())
         </div>
       </div>
 
+      <div v-if="!catalog.loading || catalog.loaded" class="pv-filters" role="group" aria-label="Filter by connection type">
+        <button
+          v-for="f in kindFilters"
+          :key="f.id"
+          type="button"
+          class="pv-fchip"
+          :class="{ on: kindFilter === f.id }"
+          :aria-pressed="kindFilter === f.id"
+          @click="kindFilter = f.id"
+        >
+          {{ f.label }}<span class="pv-fcount">{{ f.count }}</span>
+        </button>
+      </div>
+
       <p v-if="catalog.loading && !catalog.loaded" class="rail-state">Loading providers…</p>
       <nav v-else class="pv-list" aria-label="Provider integrations">
         <button
-          v-for="provider in providers"
+          v-for="provider in filteredProviders"
           :key="provider.key"
           type="button"
           class="pv-litem"
@@ -286,6 +338,10 @@ onMounted(() => catalog.loadCatalog())
           </span>
         </button>
         <p v-if="!providers.length" class="rail-state">No providers discovered.</p>
+        <p v-else-if="!filteredProviders.length" class="rail-state">
+          No {{ (kindFilters.find((f) => f.id === kindFilter) || {}).label }} providers.
+          <button type="button" class="pv-flink" @click="kindFilter = 'all'">Show all</button>
+        </p>
       </nav>
 
       <div class="pv-rail-foot">
@@ -498,6 +554,60 @@ onMounted(() => catalog.loadCatalog())
 .pv-rail-head { padding: 18px 20px 15px; border-bottom: 1px solid var(--line-soft); }
 .pv-rail-head h2 { margin: 0; font-family: var(--display); font-size: 15px; font-weight: 600; }
 .pv-rail-sub { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.45; }
+
+/* Transport filter — a quiet chip row above the list, one chip per kind the
+   catalog actually has, each with its live count. */
+.pv-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 11px 14px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.pv-fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 999px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color .14s, border-color .14s, background .14s;
+}
+.pv-fchip:hover { color: var(--text-2); border-color: var(--line-2); }
+.pv-fchip.on {
+  color: var(--text);
+  border-color: var(--accent-line-2);
+  background: var(--accent-wash);
+}
+.pv-fchip:focus-visible { outline: 2px solid var(--accent-line-2); outline-offset: 1px; }
+.pv-fcount {
+  font-size: 9.5px;
+  color: var(--faint);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  padding: 0 5px;
+  border-radius: 999px;
+  min-width: 16px;
+  text-align: center;
+}
+.pv-fchip.on .pv-fcount { color: var(--text-2); }
+.pv-flink {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  padding: 0 4px;
+  text-decoration: underline;
+}
 
 .pv-list {
   flex: 1;

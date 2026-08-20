@@ -171,4 +171,25 @@ describe('providers fidelity (step 6.5)', () => {
     expect(wrapper.text()).not.toContain('must-not-render')
     expect(wrapper.find('.pv-static').text()).toContain('write-only')
   })
+
+  it('filters the rail by transport, one chip per kind present', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    // A chip per kind in the catalog (cloud + extension), plus All.
+    const chips = wrapper.findAll('.pv-fchip')
+    const labels = chips.map((c) => c.text().replace(/\d+$/, ''))
+    expect(labels).toContain('All')
+    expect(labels).toContain('API key')
+    expect(labels).toContain('Extension')
+    // Resting: every provider shows.
+    expect(wrapper.findAll('.pv-list .pv-litem')).toHaveLength(2)
+
+    // Filtering to Extension leaves only the extension provider.
+    const extension = chips.find((c) => c.text().startsWith('Extension'))
+    await extension.trigger('click')
+    const rows = wrapper.findAll('.pv-list .pv-litem')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].find('.kind').text()).toBe('Extension')
+  })
 })
