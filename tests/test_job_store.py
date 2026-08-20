@@ -82,7 +82,7 @@ class JobStoreTestBase(unittest.TestCase):
         }
         draft["audio_defaults"] = {
             "tts_provider_instance_id": "inst_tts_1",
-            "voice": "af_heart",
+            "voice": "Ashley",
             "speed": 0.95,
         }
         draft["provider_defaults"] = {

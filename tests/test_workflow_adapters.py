@@ -54,10 +54,10 @@ def test_tts_adapter_translates_ports_and_inherited_defaults(monkeypatch, tmp_pa
     })
     result = tts.generate(
         {"script": "hello", "settings": {"tone": "dramatic"}},
-        {"engine": "kokoro", "voice": "af_heart"},
+        {"provider_id": "inworld", "voice": "Ashley"},
         CTX,
     )
-    assert result["metadata"]["voice"] == "af_heart"
+    assert result["metadata"]["voice"] == "Ashley"
     assert result["audio"]["duration_seconds"] == 1.2
     # §36 L7 (15.3): absolute paths never leave the TTS ports.
     assert not os.path.isabs(result["audio"]["wav_path"])

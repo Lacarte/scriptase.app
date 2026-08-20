@@ -15,12 +15,12 @@ const CATALOG = {
     tts: {
       domain: 'tts',
       label: 'Text to Speech',
-      default_provider: 'kokoro',
-      selected: 'kokoro',
+      default_provider: 'sample_tts',
+      selected: 'sample_tts',
       count: 2,
       excluded: [],
       providers: [
-        { id: 'kokoro', label: 'Kokoro', aliases: [], availability: 'available' },
+        { id: 'sample_tts', label: 'Sample', aliases: [], availability: 'available' },
         {
           id: 'inworld',
           label: 'Inworld',
@@ -121,7 +121,7 @@ describe('providerCatalog.selectProvider', () => {
   it('does not write when the provider is already selected', async () => {
     const store = await loadedStore()
 
-    const result = await store.selectProvider('tts', 'kokoro')
+    const result = await store.selectProvider('tts', 'sample_tts')
 
     expect(result).toEqual({ switched: false })
     expect(api.put).not.toHaveBeenCalled()
@@ -136,6 +136,6 @@ describe('providerCatalog.selectProvider', () => {
     const store = await loadedStore()
 
     await expect(store.selectProvider('tts', 'ghost')).rejects.toThrow('Provider not found')
-    expect(store.selectedId('tts')).toBe('kokoro')
+    expect(store.selectedId('tts')).toBe('sample_tts')
   })
 })

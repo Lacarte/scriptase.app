@@ -25,12 +25,12 @@ from scriptase.providers import fixtures, legacy  # noqa: E402
 from scriptase.providers.results import coerce_result  # noqa: E402
 
 
-def _tts_kokoro(raw):
+def _tts_inworld(raw):
     return legacy.tts_metadata_to_result(
         raw,
         audio_ref="tts/pm_SAMPLE/voice.wav",
         manifest_ref="tts/pm_SAMPLE/tts.json",
-        provider_id="kokoro",
+        provider_id="inworld",
         provider_version="1.0.0",
     )
 
@@ -140,7 +140,7 @@ def _scene_blueprint_n8n(raw):
 
 
 BUILDERS = {
-    ("tts", "kokoro"): _tts_kokoro,
+    ("tts", "inworld"): _tts_inworld,
     ("image", "wavespeed_webhook"): _visual(
         "image", "wavespeed_webhook", "storyboard/pm_SAMPLE/storyboard.json", "1.0.0"
     ),

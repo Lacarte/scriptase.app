@@ -100,7 +100,7 @@ describe('no provider id in component control flow', () => {
   const src = resolve(process.cwd(), 'src')
   const componentsDir = join(src, 'features', 'providers', 'components')
   const SHIPPED_PROVIDER_IDS = [
-    'kokoro', 'inworld', 'gemini_ws', 'wavespeed_webhook', 'wavespeed_direct',
+    'inworld', 'gemini_ws', 'wavespeed_webhook', 'wavespeed_direct',
     'grok_automa', 'kie_ai',
   ]
 

@@ -110,8 +110,8 @@ class InworldTTSProvider(TTSProvider):
         base_rate = 1.0 if is_bella else 1.15
 
         # A durable `speed` setting (channel audio default / provider config)
-        # overrides the per-request argument, matching Kokoro. `speed` is a
-        # multiplier on the voice's baseline rate, clamped to Inworld's range.
+        # overrides the per-request argument. `speed` is a multiplier on the
+        # voice's baseline rate, clamped to Inworld's supported range.
         speed = float(settings.get("speed", speed) or 1.0)
         speaking_rate = round(
             max(_MIN_SPEAKING_RATE, min(_MAX_SPEAKING_RATE, base_rate * speed)), 3

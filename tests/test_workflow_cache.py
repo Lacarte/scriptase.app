@@ -88,14 +88,14 @@ def test_an_adapter_schema_bump_makes_every_prior_entry_a_clean_miss():
     written before a bump can never be read after one.
     """
     node = {"type": "tts.generate", "type_version": 1}
-    before = fingerprint_components(node, {"voice": "af_heart"}, {}, {},
+    before = fingerprint_components(node, {"voice": "Ashley"}, {}, {},
                                     adapter_schema_version=1)
-    after = fingerprint_components(node, {"voice": "af_heart"}, {}, {},
+    after = fingerprint_components(node, {"voice": "Ashley"}, {}, {},
                                    adapter_schema_version=2)
     assert before["adapter_cache_schema_version"] == 1
     assert canonical_fingerprint(before) != canonical_fingerprint(after)
     # An older entry must never be revived by bumping back down, either.
-    again = fingerprint_components(node, {"voice": "af_heart"}, {}, {},
+    again = fingerprint_components(node, {"voice": "Ashley"}, {}, {},
                                    adapter_schema_version=1)
     assert canonical_fingerprint(again) == canonical_fingerprint(before)
 

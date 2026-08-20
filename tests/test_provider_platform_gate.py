@@ -108,7 +108,6 @@ FORBIDDEN_PROVIDER_PACKAGES = (
     "scriptase.modules.script.providers.gemini",
     "scriptase.modules.script.providers.random_template",
     "scriptase.modules.scene_director.providers.n8n",
-    "scriptase.modules.tts.providers.kokoro",
     "scriptase.modules.tts.providers.inworld",
     "scriptase.modules.image.providers.gemini_ws",
     "scriptase.modules.image.providers.wavespeed",

@@ -20,7 +20,7 @@ remaining `tts.json` keys carried as result `metadata` (§32.3).
 `invoke()` is the boundary that converts it to a managed relative ref, so an
 absolute path never leaves the provider layer inside a `ProviderResult`.
 
-Shipped providers: `kokoro` (local ONNX model) and `inworld` (cloud API).
+Shipped providers: `inworld` (cloud API).
 """
 
 from __future__ import annotations

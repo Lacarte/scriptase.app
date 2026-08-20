@@ -268,7 +268,7 @@ describe('ChannelEditor', () => {
     },
     audio_defaults: {
       tts_provider_instance_id: null,
-      voice: 'am_michael',
+      voice: 'Michael',
       speed: 0.9,
       music_profile: '',
       loudness: null,

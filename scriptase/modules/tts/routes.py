@@ -1,19 +1,18 @@
 """TTS Module — text-to-speech routes
 
-Text-to-speech generation, streaming, model management, voice blending, and
-generation history for the standalone TTS page.
+Text-to-speech generation, streaming, and generation history for the
+standalone TTS page.
 
 Step 15.2 removed the three provider-id comparisons this module used to make
 (`voices`, `generate`, and `stream_audio` each branched on
 `provider == "inworld"`). Generation goes through `scriptase.modules.tts.dispatch`, voice
 and model lists come from the selected provider's own hooks, and streaming is
-gated on the `streaming` capability. The multi-voice and chunked jobs below
-still drive the Kokoro engine directly: they are page features built on voice
-blending and internal chunking, and they are 16.1's to generalize.
+gated on the `streaming` capability — a provider that does not declare it is
+refused with a 400 the catalog can explain, so no local synthesis engine lives
+here.
 """
 
 import base64
-import gc
 import json
 import os
 import re
@@ -21,20 +20,17 @@ import subprocess
 import sys
 import time
 import threading
-import uuid
 from datetime import datetime
 from queue import Queue
 
 import numpy as np
 import soundfile as sf
-import urllib.request
 from flask import Blueprint, Response, jsonify, request, send_from_directory
 from loguru import logger
 from pydantic import ValidationError
 
-from config import TTS_DIR, TTS_CACHE_DIR, TRASH_DIR, MODELS_DIR, BIN_DIR, generate_project_id
+from config import TTS_DIR, TTS_CACHE_DIR, TRASH_DIR, BIN_DIR, generate_project_id
 from scriptase.shared.io_utils import move_to_unique_path, safe_json_write
-from scriptase.providers.concurrency import exclusive_execution, exclusive_lock
 from scriptase.providers.errors import (
     PROVIDER_NOT_CONFIGURED,
     PROVIDER_NOT_FOUND,
@@ -45,13 +41,12 @@ from scriptase.shared.security import safe_join, sanitize_project_id
 from scriptase.shared.validation import validate_json
 from scriptase.shared.ffmpeg_utils import find_ffmpeg
 from scriptase.modules.tts import dispatch
-from .schemas import BlendConfig, TtsGenerateRequest, TtsMultivoiceRequest
+from .schemas import BlendConfig, TtsGenerateRequest
 from .normalize import (
     normalize_for_tts, clean_for_tts,
     format_breathing_blocks, validate_brackets,
-    _protect_kokoro, _restore_kokoro,
 )
-from .audio import pad_audio, concatenate_chunks, run_loudnorm
+from .audio import run_loudnorm
 
 # ---------------------------------------------------------------------------
 # Blueprint
@@ -81,84 +76,6 @@ _ERROR_STATUS = {
 
 def _status_for(exc: ProviderError) -> int:
     return _ERROR_STATUS.get(exc.code, 502)
-
-# ---------------------------------------------------------------------------
-# Kokoro engine — owned by the provider package (contracts.md B5 / K1)
-#
-# This module used to declare its own `kokoro_instance`, `kokoro_lock`,
-# `generation_inference_lock`, misaki handle, model table, and voice catalog,
-# while `providers/kokoro/provider.py` declared a second, never-populated copy
-# of all of them. Two model caches were reachable and the two inference locks
-# guarded nothing in common. The provider package is now the single owner and
-# everything below delegates to it, so these routes and the workflow/pipeline
-# paths share one ONNX session, one G2P engine, and one exclusivity lock.
-#
-# `_voices()` and `_models()` are functions rather than constants on purpose:
-# `load_model()` replaces the voice catalog with the model's own list, and a
-# module-level copy taken at import time would freeze the shipped defaults.
-# ---------------------------------------------------------------------------
-
-_ENGINE_ATTRS = frozenset({
-    "MODELS", "VOICES", "VOICE_LANG_MAP",
-    "kokoro_instance", "kokoro_lock",
-})
-
-
-def _engine():
-    from scriptase.modules.tts.providers import kokoro_engine
-
-    return kokoro_engine()
-
-
-def __getattr__(name):
-    """Re-export the engine's state so `from scriptase.modules.tts.routes import VOICES` works.
-
-    Resolved on access, never at import: touching the registry while this module
-    is still being imported would run discovery before the app has booted.
-    """
-    if name in _ENGINE_ATTRS:
-        return getattr(_engine(), name)
-    if name == "generation_inference_lock":
-        return exclusive_lock("tts", "kokoro")
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-def _voices() -> list:
-    return _engine().VOICES
-
-
-def _models() -> dict:
-    return _engine().MODELS
-
-
-def _voice_to_lang(voice_name: str) -> str:
-    return _engine()._voice_to_lang(voice_name)
-
-
-def _blend_voices(kokoro_inst, voice_a: str, voice_b: str,
-                  ratio: float, method: str = "slerp") -> np.ndarray:
-    return _engine()._blend_voices(kokoro_inst, voice_a, voice_b, ratio, method)
-
-
-def _phonemize_with_misaki(text: str, lang: str = "en-us") -> tuple[str | None, bool]:
-    return _engine()._phonemize_with_misaki(text, lang)
-
-
-def _model_files_present() -> bool:
-    return _engine()._model_files_present()
-
-
-def load_model():
-    return _engine().load_model()
-
-
-def _inference_lock():
-    """Serialize Kokoro inference iff the manifest declares it (§20.4).
-
-    The route no longer knows *that* Kokoro is exclusive — it asks, and the
-    capability answers. A provider without the capability pays nothing.
-    """
-    return exclusive_execution("tts", "kokoro")
 
 
 # ---------------------------------------------------------------------------
@@ -242,60 +159,6 @@ def generate_filename(prompt: str) -> str:
 # Model management
 # ---------------------------------------------------------------------------
 
-def _download_file_with_progress(url: str, dest_path: str, queue: Queue, label: str):
-    tmp_path = dest_path + ".tmp"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "ScriptToScene-Studio/1.0"})
-        with urllib.request.urlopen(req, timeout=60) as response:
-            total = int(response.headers.get("Content-Length", 0))
-            downloaded = 0
-            chunk_size = 256 * 1024
-            start_time = time.time()
-
-            with open(tmp_path, "wb") as f:
-                while True:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    elapsed = time.time() - start_time
-                    speed = downloaded / max(elapsed, 0.001)
-                    progress = int((downloaded / total) * 100) if total else 0
-
-                    if speed >= 1_000_000:
-                        speed_str = f"{speed / 1_000_000:.1f}MB/s"
-                    elif speed >= 1_000:
-                        speed_str = f"{speed / 1_000:.1f}KB/s"
-                    else:
-                        speed_str = f"{speed:.0f}B/s"
-
-                    queue.put({
-                        "phase": "downloading",
-                        "file": label,
-                        "progress": progress,
-                        "downloaded_mb": round(downloaded / 1_000_000, 2),
-                        "total_mb": round(total / 1_000_000, 2),
-                        "size": f"{total / 1_000_000:.1f}MB",
-                        "speed": speed_str,
-                    })
-
-        os.replace(tmp_path, dest_path)
-    except Exception:
-        if os.path.isfile(tmp_path):
-            os.remove(tmp_path)
-        raise
-
-
-def _cleanup_old_jobs(max_age_s=300):
-    now = time.time()
-    with generation_jobs_lock:
-        expired = [jid for jid, job in generation_jobs.items()
-                   if now - job.get("created", 0) > max_age_s]
-        for jid in expired:
-            del generation_jobs[jid]
-
-
 # ===================================================================
 # Routes
 # ===================================================================
@@ -312,20 +175,16 @@ def normalize_text():
     if not text.strip():
         return jsonify({"error": "No text provided"}), 400
 
-    # Protect Kokoro links so their brackets don't affect validation/extraction
-    text_safe, kokoro_saved = _protect_kokoro(text)
-    validity = validate_brackets(text_safe)
+    validity = validate_brackets(text)
     if validity == "well_formed":
-        blocks = re.findall(r'\[([^\[\]]+)\]', text_safe)
-        blocks = [_restore_kokoro(b, kokoro_saved) for b in blocks]
+        blocks = re.findall(r'\[([^\[\]]+)\]', text)
         normalized_blocks = [normalize_for_tts(b) for b in blocks if b.strip()]
         if len(normalized_blocks) <= 1:
             formatted = normalized_blocks[0] if normalized_blocks else text.strip()
         else:
             formatted = "\n\n".join(f"[{b}]" for b in normalized_blocks)
     else:
-        stripped = re.sub(r'[\[\]]', '', text_safe)
-        stripped = _restore_kokoro(stripped, kokoro_saved)
+        stripped = re.sub(r'[\[\]]', '', text)
         normalized = normalize_for_tts(stripped)
         formatted = format_breathing_blocks(normalized)
 
@@ -365,90 +224,6 @@ def voices():
     except ProviderError as exc:
         return jsonify({"error": exc.message}), _status_for(exc)
     return jsonify(dispatch.list_voices(instance))
-
-
-# --- Model status ---
-@tts_bp.route("/api/tts/model-status/<model_id>")
-def model_status(model_id):
-    if model_id not in _models():
-        return jsonify({"error": "Unknown model"}), 404
-    cached = _model_files_present()
-    return jsonify({"model_id": model_id, "cached": cached})
-
-
-# --- Download model with SSE progress ---
-@tts_bp.route("/api/tts/download-model/<model_id>")
-def download_model(model_id):
-    if model_id not in _models():
-        return jsonify({"error": "Unknown model"}), 404
-
-    model_cfg = _models()[model_id]
-
-    def _stream_download(url, dest, q, label):
-        result = {}
-
-        def _run():
-            try:
-                _download_file_with_progress(url, dest, q, label)
-            except Exception as e:
-                logger.error("Download failed for {}: {}", label, e)
-                result["error"] = e
-
-        t = threading.Thread(target=_run)
-        t.start()
-        while t.is_alive():
-            t.join(timeout=0.15)
-            while not q.empty():
-                yield f"data: {json.dumps(q.get())}\n\n"
-        while not q.empty():
-            yield f"data: {json.dumps(q.get())}\n\n"
-        if "error" in result:
-            raise result["error"]
-
-    def stream():
-        q = Queue()
-        yield f"data: {json.dumps({'phase': 'checking', 'model': model_id})}\n\n"
-
-        try:
-            onnx_path = os.path.join(MODELS_DIR, model_cfg["onnx_file"])
-            voices_path = os.path.join(MODELS_DIR, model_cfg["voices_file"])
-
-            if not os.path.isfile(onnx_path):
-                for event in _stream_download(model_cfg["onnx_url"], onnx_path, q, model_cfg["onnx_file"]):
-                    yield event
-
-            if not os.path.isfile(voices_path):
-                for event in _stream_download(model_cfg["voices_url"], voices_path, q, model_cfg["voices_file"]):
-                    yield event
-
-            yield f"data: {json.dumps({'phase': 'loading', 'message': 'Loading model...'})}\n\n"
-            load_result = {}
-
-            def _load():
-                try:
-                    load_model()
-                except Exception as e:
-                    load_result["error"] = e
-
-            t = threading.Thread(target=_load)
-            t.start()
-            while t.is_alive():
-                t.join(timeout=1.0)
-                yield f"data: {json.dumps({'phase': 'loading', 'message': 'Loading model...'})}\n\n"
-            if "error" in load_result:
-                raise load_result["error"]
-
-            yield f"data: {json.dumps({'phase': 'ready', 'message': 'Model ready'})}\n\n"
-
-        except Exception as e:
-            logger.exception("Model download/load failed")
-            yield f"data: {json.dumps({'phase': 'error', 'message': str(e)})}\n\n"
-
-    return Response(
-        stream(),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
-    )
 
 
 # --- Generate audio ---
@@ -925,186 +700,6 @@ def convert_to_mp3(filename):
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
 
-
-# --- Multi-voice generation ---
-
-def _background_multivoice_generate(job_id, segments, speed, gap_ms, prompt, basename):
-    """Generate audio with different voices per segment, then concatenate."""
-    with generation_jobs_lock:
-        job = generation_jobs[job_id]
-    q = job["queue"]
-    try:
-        kokoro = load_model()
-        audio_chunks = []
-        total = len(segments)
-        total_inference = 0.0
-        voices_used = set()
-
-        for i, seg in enumerate(segments):
-            if job.get("abort"):
-                q.put({"phase": "aborted"})
-                with generation_jobs_lock:
-                    job["status"] = "aborted"
-                return
-
-            seg_text = seg.get("text", "").strip()
-            seg_voice = seg.get("voice", "af_heart")
-            seg_speed = max(0.5, min(2.0, float(seg.get("speed", speed))))
-            seg_blend = seg.get("blend")
-
-            if not seg_text:
-                continue
-
-            voices_used.add(seg_voice)
-            q.put({"phase": "generating", "chunk": i + 1, "total": total,
-                    "sentence": seg_text[:60], "voice": seg_voice})
-
-            # Resolve voice param (blend or single)
-            voice_param = seg_voice
-            if seg_blend:
-                va = seg_blend.get("voice_a", "")
-                vb = seg_blend.get("voice_b", "")
-                ratio = max(0.0, min(1.0, float(seg_blend.get("ratio", 0.5))))
-                method = seg_blend.get("method", "slerp")
-                if va in _voices() and vb in _voices():
-                    voice_param = _blend_voices(kokoro, va, vb, ratio, method)
-
-            lang = _voice_to_lang(seg_voice)
-            phonemes, is_ph = _phonemize_with_misaki(seg_text, lang)
-            start = time.perf_counter()
-            with _inference_lock():
-                chunk_audio, _sr = kokoro.create(
-                    text=phonemes, voice=voice_param, speed=seg_speed,
-                    lang=lang, is_phonemes=is_ph,
-                )
-            elapsed = time.perf_counter() - start
-            total_inference += elapsed
-            audio_chunks.append(chunk_audio)
-
-        if not audio_chunks:
-            q.put({"phase": "error", "message": "No audio generated"})
-            with generation_jobs_lock:
-                job["status"] = "error"
-            return
-
-        q.put({"phase": "concatenating"})
-        audio = concatenate_chunks(audio_chunks, sample_rate=24000, gap_ms=gap_ms, crossfade_ms=20)
-        del audio_chunks
-        audio = pad_audio(audio, sample_rate=24000)
-
-        job_dir = _tts_job_dir(basename)
-        os.makedirs(job_dir, exist_ok=True)
-        wav_path = os.path.join(job_dir, basename + ".wav")
-        sf.write(wav_path, audio, 24000)
-        del audio
-        gc.collect()
-
-        q.put({"phase": "normalizing"})
-        run_loudnorm(wav_path)
-
-        info = sf.info(wav_path)
-        duration_generated = info.duration
-        rtf = total_inference / duration_generated if duration_generated > 0 else 0
-        logger.success("Multi-voice  {:.1f}s audio in {:.2f}s | RTF {:.2f} | {} segments",
-                       duration_generated, total_inference, rtf, total)
-
-        clean_prompt = re.sub(r'[\[\]]', '', prompt).strip()
-        metadata = {
-            "filename": basename + ".wav",
-            "folder": basename,
-            "prompt": clean_prompt,
-            "model": "kokoro-v1.0",
-            "model_id": "kokoro",
-            "voice": f"multi-voice ({len(voices_used)} voices)",
-            "timestamp": datetime.now().isoformat(timespec="seconds"),
-            "inference_time": round(total_inference, 3),
-            "rtf": round(rtf, 4),
-            "duration_seconds": round(duration_generated, 2),
-            "sample_rate": 24000,
-            "speed": speed,
-            "max_silence_ms": gap_ms,
-            "words": len(clean_prompt.split()),
-            "approx_tokens": int(len(clean_prompt.split()) * 1.3),
-            "chunked": True,
-            "num_chunks": total,
-            "multi_voice": True,
-            "voices_used": sorted(voices_used),
-            "segments": [{"voice": s.get("voice"), "text": s.get("text", "")[:50]} for s in segments],
-        }
-
-        safe_json_write(os.path.join(job_dir, basename + ".json"), metadata, indent=2)
-
-        q.put({"phase": "done", "metadata": metadata})
-        with generation_jobs_lock:
-            job["status"] = "done"
-            job["metadata"] = metadata
-
-    except Exception as e:
-        logger.exception("Multi-voice generation failed")
-        q.put({"phase": "error", "message": str(e)})
-        with generation_jobs_lock:
-            job["status"] = "error"
-
-
-@tts_bp.route("/api/tts/generate-multivoice", methods=["POST"])
-@validate_json(TtsMultivoiceRequest)
-def generate_multivoice(data: TtsMultivoiceRequest):
-    """Generate audio with different voices per segment.
-
-    Accepts: {
-        segments: [{text, voice, speed?, blend?}, ...],
-        gap_ms: int (default 80),
-        prompt: str (original full text for metadata)
-    }
-    Returns: {job_id, status: "chunking", total_chunks} (202)
-    Progress via /api/tts/generate-progress/<job_id>
-    """
-    segments = [s.model_dump() for s in data.segments]
-    gap_ms = data.gap_ms
-    prompt = data.prompt
-    speed = data.speed
-
-    # Validate voices
-    for i, seg in enumerate(segments):
-        v = seg.get("voice", "")
-        if v and v not in _voices():
-            return jsonify({"error": f"Unknown voice in segment {i + 1}: {v}"}), 400
-
-    if _stream_active.is_set():
-        return jsonify({"error": "A stream is already in progress."}), 429
-    with generation_jobs_lock:
-        for job in generation_jobs.values():
-            if job.get("status") == "running":
-                return jsonify({"error": "A generation is already in progress."}), 429
-
-    if not _model_files_present():
-        return jsonify({"error": "Model not downloaded. Download it first."}), 400
-
-    _cleanup_old_jobs()
-    job_id = uuid.uuid4().hex[:12]
-    basename = generate_filename(prompt or "multivoice")
-
-    with generation_jobs_lock:
-        generation_jobs[job_id] = {
-            "queue": Queue(),
-            "status": "running",
-            "metadata": None,
-            "created": time.time(),
-            "abort": False,
-        }
-
-    t = threading.Thread(
-        target=_background_multivoice_generate,
-        args=(job_id, segments, speed, gap_ms, prompt, basename),
-        daemon=True,
-    )
-    t.start()
-
-    return jsonify({
-        "job_id": job_id,
-        "status": "chunking",
-        "total_chunks": len(segments),
-    }), 202
 
 
 # --- Serve TTS audio files ---

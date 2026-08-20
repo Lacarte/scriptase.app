@@ -234,9 +234,9 @@ class SettingsWritePathTests(SecretStoreIsolationTests):
 
     def test_save_settings_extracts_whole_document(self):
         doc = settings_manager._default_settings()
-        doc["domains"]["tts"]["instances"]["kokoro"] = {
-            "type": "kokoro",
-            "label": "kokoro",
+        doc["domains"]["tts"]["instances"]["tts_backup"] = {
+            "type": "inworld",
+            "label": "tts_backup",
             "settings": {"api_key": "should-not-be-inline"},
         }
         settings_manager.save_settings(doc)

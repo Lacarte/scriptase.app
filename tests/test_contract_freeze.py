@@ -78,13 +78,13 @@ class ProvenanceReproducibilityTests(unittest.TestCase):
             metadata={
                 "seed": "7",
                 "request_id": "upstream-99",
-                "model": "kokoro-v1.0",
+                "model": "inworld-tts-1.5-max",
             },
             options={"seed": 99},  # metadata wins when present
         )
         self.assertEqual(harvested["seed"], 7)
         self.assertEqual(harvested["request_id"], "upstream-99")
-        self.assertEqual(harvested["model_revision"], "kokoro-v1.0")
+        self.assertEqual(harvested["model_revision"], "inworld-tts-1.5-max")
 
     def test_extract_never_invents_values(self):
         harvested = extract_reproducibility(metadata={}, options={})

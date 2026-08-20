@@ -310,7 +310,7 @@ rather than polled.
 {
   "result_version": 1,
   "domain": "tts",
-  "provider_id": "kokoro",
+  "provider_id": "inworld",
   "provider_version": "1.0.0",
   "contract_version": 2,
   "status": "succeeded",          // succeeded | partial | failed

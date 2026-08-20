@@ -591,7 +591,7 @@ class RuntimeBindingTests(unittest.TestCase):
         self.assertIn('register_runtime() failed', binding.error)
 
     def test_a_module_without_the_hook_is_not_an_error(self):
-        binding = call_provider_runtime('kokoro', type('M', (), {}), object(), object())
+        binding = call_provider_runtime('inworld', type('M', (), {}), object(), object())
         self.assertFalse(binding.bound)
         self.assertIsNone(binding.error)
 

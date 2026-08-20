@@ -329,14 +329,10 @@ def _tts_voices(ctx: OptionContext):
     Step 3.2: voices resolve against the *instance's* settings (API key, etc.),
     so two bindings of one type can return different catalogs.
 
-    The final fallback is load-bearing: with no provider resolved — an empty
-    catalog, a selection pointing at an uninstalled provider — the node must
-    still offer the voices the default engine accepts rather than an empty list.
-    It reads the local engine's catalog straight off the provider package, which
-    is where V2's `tts/routes.py::VOICES` re-exported it from anyway; going
-    through the blueprint was the indirection, not the source. The accessor is
-    named `local_engine` rather than after a provider because this module is a
-    §26 zero-touch surface and may not contain a provider id.
+    Step 5.3 retired the bundled local voice engine, so there is no shipped
+    catalog to fall back on: when no provider resolves or the resolved provider
+    returns no voices, the node offers an empty list rather than voices from an
+    engine the product no longer supports.
     """
     from scriptase.providers import settings_manager
     from scriptase.providers.hub import hub

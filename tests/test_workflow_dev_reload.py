@@ -109,7 +109,7 @@ def test_provider_sources_are_watched_from_the_domain_catalog():
     reloader = WorkflowDevReloader(enabled=True)
     watched = {path.resolve() for path in reloader.watched_provider_files()}
 
-    tts_manifest = Path(DOMAINS["tts"].providers_base) / "kokoro" / "manifest.py"
+    tts_manifest = Path(DOMAINS["tts"].providers_base) / "inworld" / "manifest.py"
     assert tts_manifest.resolve() in watched
     assert all(
         path.name in {"manifest.py", "provider.py", "settings_schema.py"} for path in watched
@@ -118,7 +118,7 @@ def test_provider_sources_are_watched_from_the_domain_catalog():
 
 def test_a_provider_edit_triggers_a_guarded_catalog_reload():
     reloader = WorkflowDevReloader(enabled=True)
-    manifest = Path(DOMAINS_TTS_BASE) / "kokoro" / "manifest.py"
+    manifest = Path(DOMAINS_TTS_BASE) / "inworld" / "manifest.py"
 
     with patch.object(provider_hub, "reload") as reload_mock:
         reload_mock.return_value = ReloadReport(swapped=["tts"])

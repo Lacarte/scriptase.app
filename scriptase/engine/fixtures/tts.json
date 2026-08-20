@@ -12,7 +12,7 @@
   "sample_rate": 8000,
   "speed": 1.0,
   "timestamp": "2026-01-01T00:00:00Z",
-  "voice": "af_heart",
+  "voice": "Ashley",
   "wav_path": "media/voice.wav",
   "words": 40
 }

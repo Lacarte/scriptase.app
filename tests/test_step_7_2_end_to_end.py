@@ -349,7 +349,7 @@ class Step72EndToEndTests(unittest.TestCase):
         }
         draft["audio_defaults"] = {
             "tts_provider_instance_id": "inst_tts_fixture",
-            "voice": "af_heart",
+            "voice": "Ashley",
             "speed": 0.95,
         }
         draft["provider_defaults"] = {

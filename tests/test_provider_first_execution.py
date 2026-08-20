@@ -122,7 +122,7 @@ class AbstractBaseTests(unittest.TestCase):
         provider = Minimal()
         self.assertEqual(provider.list_models({}), [])
         with self.assertRaises(NotImplementedError):
-            provider.download_model("kokoro", {})
+            provider.download_model("inworld-tts-1.5-max", {})
         with self.assertRaises(NotImplementedError):
             next(iter(provider.stream("hi", {})))
         provider.shutdown()

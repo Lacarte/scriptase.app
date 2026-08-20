@@ -49,17 +49,17 @@
       "bytes": 196,
       "sha256": "4b884dc2fc799b49e673f7a8e1cea05cd328f969a84de63e2fe2167ce637bc4c"
     },
-    "tts/kokoro/expected_result.json": {
-      "bytes": 1795,
-      "sha256": "ef97b31e40d76b28ab770ba2b8e3dff70bfa6a924aaedd1e6b9951f994c68a43"
+    "tts/inworld/expected_result.json": {
+      "bytes": 1784,
+      "sha256": "d9e2a4b4855d7f2fcf351bc7dcbb44e36170606949dc6dbb53de9729fa358eb5"
     },
-    "tts/kokoro/raw_response.json": {
-      "bytes": 1094,
-      "sha256": "69b567fee85a59f2b555b215bb083d95481dac483f69a5e212139fac9ec719b5"
+    "tts/inworld/raw_response.json": {
+      "bytes": 1079,
+      "sha256": "e6db3d3c8819935a16f7587a41060933808e95658d858657ee6f1f0f7dbcb457"
     },
-    "tts/kokoro/request.json": {
-      "bytes": 338,
-      "sha256": "e8eba44c29667a8a468345faa667504b97ef69f0ad51e4737eee7fc7b508b1e2"
+    "tts/inworld/request.json": {
+      "bytes": 329,
+      "sha256": "5aa72d29fa977f1a5dbd2f549748ab7f4cae558fa8ad56e8079571b01723fd54"
     },
     "video/kie_ai/expected_result.json": {
       "bytes": 1537,

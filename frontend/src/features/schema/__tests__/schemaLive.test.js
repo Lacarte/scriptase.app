@@ -236,7 +236,7 @@ describe('live model (step 1.3)', () => {
       artifact_refs: ['tts/pm_X/voice.wav'],
       cost: {
         provider_instance_id: 'inst_main',
-        provider_id: 'kokoro',
+        provider_id: 'inworld',
         selection_reason: 'request',
         // A secret has no business here, and never arrives — but if one ever
         // did, the panel reads named fields only and would not surface it.
@@ -252,7 +252,7 @@ describe('live model (step 1.3)', () => {
     })
     expect(model.provider).toEqual({
       instanceId: 'inst_main',
-      providerId: 'kokoro',
+      providerId: 'inworld',
       reason: 'request',
     })
     expect(model.output).toEqual({ audio: 'voice.wav' })

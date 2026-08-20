@@ -69,7 +69,7 @@ class ChannelStoreTestBase(unittest.TestCase):
             "palette": "dark blue + amber",
             "lighting": "moody high contrast",
         }
-        draft["audio_defaults"] = {"voice": "af_heart", "speed": 0.95}
+        draft["audio_defaults"] = {"voice": "Ashley", "speed": 0.95}
         draft["provider_defaults"] = {"script": "inst_script_1", "tts": "inst_tts_1"}
         draft["export_defaults"] = {"aspect_ratio": "9:16", "fps": 30}
         draft.update(overrides)

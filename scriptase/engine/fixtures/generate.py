@@ -224,7 +224,7 @@ def build() -> None:
         "sample_rate": SAMPLE_RATE,
         "speed": 1.0,
         "timestamp": FIXED_TIMESTAMP,
-        "voice": "af_heart",
+        "voice": "Ashley",
         "wav_path": "media/voice.wav",
         "words": len(words),
     })

@@ -1,7 +1,7 @@
 {
   "result_version": 1,
   "domain": "tts",
-  "provider_id": "kokoro",
+  "provider_id": "inworld",
   "provider_version": "1.0.0",
   "contract_version": 1,
   "status": "succeeded",
@@ -10,8 +10,8 @@
     "duration_seconds": 8.0,
     "sample_rate": 24000,
     "format": "wav",
-    "voice": "af_heart",
-    "characters_billed": null
+    "voice": "Ashley",
+    "characters_billed": 217
   },
   "artifact_refs": [
     "tts/pm_SAMPLE/voice.wav",
@@ -22,32 +22,31 @@
     "filename": "voice.wav",
     "folder": "pm_SAMPLE",
     "prompt": "A lighthouse keeper climbs the spiral stairs at dusk. The lamp turns, sweeping gold across the waves. Far below, a small boat finds its way home. The keeper smiles, writes the date in the log, and watches the stars arrive.",
-    "model": "kokoro-v1.0",
-    "model_id": "kokoro",
-    "provider": "kokoro",
+    "model": "inworld-tts-1.5-max",
+    "model_id": "inworld",
+    "provider": "inworld",
     "project_id": "pm_SAMPLE",
     "visual_style": "cinematic",
     "story_tone": "warm",
     "category": "slice_of_life",
     "timestamp": "2026-01-01T00:00:00",
     "inference_time": 1.234,
-    "rtf": 0.1543,
     "speed": 1.0,
+    "speaking_rate": 1.15,
     "words": 40,
-    "approx_tokens": 52,
     "cache_hit": false
   },
   "warnings": [],
   "provenance": {
     "invocation_id": "",
     "domain": "tts",
-    "provider_id": "kokoro",
+    "provider_id": "inworld",
     "provider_instance_id": "",
     "provider_version": "1.0.0",
     "contract_version": 1,
     "settings_version": 2,
     "resolved_settings_redacted": {
-      "voice": "af_heart",
+      "voice": "Ashley",
       "speed": 1.0
     },
     "options": {},

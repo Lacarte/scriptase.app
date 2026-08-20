@@ -168,7 +168,7 @@ class ChannelCrudApiTests(ChannelApiTestBase):
                             {"narrative_role": "ending", "shot": "symbolic visual"},
                         ],
                     },
-                    "audio_defaults": {"voice": "af_heart", "speed": 0.95},
+                    "audio_defaults": {"voice": "Ashley", "speed": 0.95},
                     "provider_defaults": {"script": "inst_script_1"},
                 }
             },
@@ -215,7 +215,7 @@ class ChannelCrudApiTests(ChannelApiTestBase):
                             {"narrative_role": "hook", "shot": "wide environmental"},
                         ],
                     },
-                    "audio_defaults": {"voice": "am_michael", "speed": 0.9},
+                    "audio_defaults": {"voice": "Michael", "speed": 0.9},
                 },
             },
         )

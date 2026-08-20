@@ -22,8 +22,19 @@ def _fixture(domain: str) -> tuple[str, dict, dict]:
     fixtures = {
         "tts": (
             "synthesize",
-            {"text": "A sample narration line.", "voice": "default", "format": "mp3"},
-            {"status": "ok", "artifact": "simulated/audio.mp3", "duration_sec": 2.4},
+            {
+                "text": "A sample narration line.",
+                "voiceId": "Ashley",
+                "modelId": "inworld-tts-1.5-max",
+                "audioConfig": {"audioEncoding": "LINEAR16", "speakingRate": 1.0},
+            },
+            {
+                "status": "ok",
+                "artifact": "simulated/voice.wav",
+                "audioContent": "UklGRiRQAQBXQVZFZm1…",
+                "duration_sec": 2.4,
+                "usage": {"processedCharactersCount": 23, "modelId": "inworld-tts-1.5-max"},
+            },
         ),
         "image": (
             "generate_image",

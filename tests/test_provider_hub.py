@@ -148,7 +148,7 @@ class CompatibilityFacadeTests(unittest.TestCase):
         from scriptase.modules.tts import providers as tts_providers
 
         self.assertIs(tts_providers.registry, hub.registry('tts'))
-        self.assertIs(tts_providers.get_provider('kokoro'), hub.get('tts', 'kokoro'))
+        self.assertIs(tts_providers.get_provider('inworld'), hub.get('tts', 'inworld'))
         self.assertEqual(
             [p.id for p in tts_providers.list_providers()],
             [p.id for p in hub.list('tts')],
@@ -169,7 +169,7 @@ class CompatibilityFacadeTests(unittest.TestCase):
         registry, discover, get_provider, list_providers, init_registry = binding
         self.assertIs(registry, hub.registry('tts'))
         self.assertIs(discover(), hub.registry('tts'))
-        self.assertIs(get_provider('kokoro'), hub.get('tts', 'kokoro'))
+        self.assertIs(get_provider('inworld'), hub.get('tts', 'inworld'))
         self.assertEqual(len(list_providers()), len(hub.list('tts')))
         self.assertIs(init_registry(), hub.registry('tts'))
 

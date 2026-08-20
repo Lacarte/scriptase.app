@@ -305,7 +305,7 @@ class JobOrchestrationTestBase(unittest.TestCase):
         }
         draft["audio_defaults"] = {
             "tts_provider_instance_id": "inst_tts_1",
-            "voice": "af_heart",
+            "voice": "Ashley",
             "speed": 0.95,
         }
         draft["provider_defaults"] = {
@@ -359,7 +359,7 @@ class InheritedConfigChannelTests(unittest.TestCase):
         channel = {
             "tone": "from-channel",
             "style": "cinematic",
-            "voice": "af_heart",
+            "voice": "Ashley",
         }
         # Explicit non-empty wins.
         merged = merge_node_config_with_channel(
@@ -370,7 +370,7 @@ class InheritedConfigChannelTests(unittest.TestCase):
         # Empty string is not explicit — channel style fills in.
         self.assertEqual(merged["style"], "cinematic")
         # Key only on channel is inherited.
-        self.assertEqual(merged["voice"], "af_heart")
+        self.assertEqual(merged["voice"], "Ashley")
 
         # Same rules as the ported helper (identity check).
         self.assertEqual(merged, inherited_config({"tone": "from-node", "style": ""}, channel))
@@ -380,7 +380,7 @@ class InheritedConfigChannelTests(unittest.TestCase):
             "name": "Philosophy Daily",
             "content": {"tone": "educational"},
             "visual_direction": {"style": "cinematic"},
-            "audio_defaults": {"voice": "af_heart", "speed": 0.95},
+            "audio_defaults": {"voice": "Ashley", "speed": 0.95},
             "export_defaults": {"aspect_ratio": "9:16"},
             "branding": {"enabled": False},
             "provider_defaults": {"tts": "inst_tts_1"},
@@ -391,7 +391,7 @@ class InheritedConfigChannelTests(unittest.TestCase):
         self.assertEqual(settings["tone"], "educational")
         self.assertEqual(settings["style"], "cinematic")
         self.assertEqual(settings["aspect_ratio"], "9:16")
-        self.assertEqual(settings["voice"], "af_heart")
+        self.assertEqual(settings["voice"], "Ashley")
         self.assertNotIn("api_key", settings)
 
     def test_script_text_from_source_modes(self):
@@ -610,7 +610,7 @@ class JobRunParityTests(JobOrchestrationTestBase):
                     "origin": studio.origin,
                     "narration": {
                         "state": "ready",
-                        "voice": "af_heart",
+                        "voice": "Ashley",
                         "duration_s": 2.5,
                         "audio_artifact_id": narration.id,
                     },

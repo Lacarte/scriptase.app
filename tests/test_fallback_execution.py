@@ -386,7 +386,7 @@ class FallbackExecutionTests(unittest.TestCase):
                     "TTS primary failed",
                     retryable=True,
                     domain="tts",
-                    provider_id="kokoro",
+                    provider_id="inworld",
                 )
             return ProviderResult(
                 domain="tts",
@@ -411,7 +411,7 @@ class FallbackExecutionTests(unittest.TestCase):
             run_one=run_one,
             multi_unit=False,
             primary_selection_reason="request",
-            resolve_type=lambda iid: "kokoro" if iid == "tts_main" else "inworld",
+            resolve_type=lambda iid: "inworld",
         )
         self.assertEqual(record.result.status, SUCCEEDED)
         self.assertEqual(

@@ -37,7 +37,7 @@ class ExtensionOpsTests(unittest.TestCase):
     def test_cloud_providers_are_not_extensions(self):
         self.assertIsNone(resolve_extension("wavespeed_direct"))
         self.assertIsNone(resolve_extension("kie_ai"))
-        self.assertIsNone(resolve_extension("kokoro"))
+        self.assertIsNone(resolve_extension("inworld"))
         self.assertIsNone(resolve_extension(""))
 
     def test_every_shipped_extension_exposes_the_three_ops(self):
@@ -160,7 +160,7 @@ class AppConfigKeyRetirementTests(unittest.TestCase):
     def test_patch_cannot_reintroduce_them(self):
         resp = self.client.patch(
             "/api/settings",
-            json={"sts-tts-provider": "kokoro", "sts-sound-enabled": False},
+            json={"sts-tts-provider": "inworld", "sts-sound-enabled": False},
         )
         self.assertEqual(resp.status_code, 200)
         with open(self.cfg_path, encoding="utf-8") as handle:
@@ -176,7 +176,6 @@ class CoreImportBoundaryTests(unittest.TestCase):
         "scriptase.modules.image.providers.gemini_ws",
         "scriptase.modules.video.providers.grok_automa",
         "scriptase.modules.video.providers.kie_ai",
-        "scriptase.modules.tts.providers.kokoro",
         "scriptase.modules.tts.providers.inworld",
         "scriptase.modules.image.providers.wavespeed",
     )

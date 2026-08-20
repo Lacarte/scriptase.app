@@ -32,7 +32,7 @@ function catalog(version, { providers, selected = null, excluded = [], extraDoma
       tts: {
         domain: 'tts',
         label: 'Text to Speech',
-        default_provider: 'kokoro',
+        default_provider: 'inworld',
         selected,
         count: providers.length,
         excluded,
@@ -44,8 +44,8 @@ function catalog(version, { providers, selected = null, excluded = [], extraDoma
 }
 
 const BASE = catalog('v1', {
-  providers: [provider('kokoro'), provider('inworld', { availability: 'needs_configuration' })],
-  selected: 'kokoro',
+  providers: [provider('inworld'), provider('sample_tts', { availability: 'needs_configuration' })],
+  selected: 'inworld',
 })
 
 function serve(payload) {
@@ -98,11 +98,11 @@ describe('provider catalog store', () => {
     const store = useProviderCatalogStore()
     await store.loadCatalog()
 
-    serve(catalog('v2', { providers: [provider('kokoro')], selected: 'kokoro' }))
+    serve(catalog('v2', { providers: [provider('inworld')], selected: 'inworld' }))
     await store.refresh()
 
     expect(store.catalogVersion).toBe('v2')
-    expect(store.providersFor('tts').map(p => p.id)).toEqual(['kokoro'])
+    expect(store.providersFor('tts').map(p => p.id)).toEqual(['inworld'])
   })
 
   it('refetches the catalog after settings are saved', async () => {
@@ -113,8 +113,8 @@ describe('provider catalog store', () => {
 
     // Filling in a required key flips availability; that is not derivable here.
     serve(catalog('v2', {
-      providers: [provider('kokoro'), provider('inworld')],
-      selected: 'kokoro',
+      providers: [provider('inworld'), provider('sample_tts')],
+      selected: 'inworld',
     }))
     await store.saveProviderSettings('tts', 'inworld', { api_key: 'secret' })
 
@@ -149,8 +149,8 @@ describe('provider catalog store', () => {
 
   it('groups providers by domain and keeps domains apart', async () => {
     serve(catalog('v1', {
-      providers: [provider('kokoro')],
-      selected: 'kokoro',
+      providers: [provider('inworld')],
+      selected: 'inworld',
       extraDomains: {
         animator: {
           domain: 'animator',
@@ -167,7 +167,7 @@ describe('provider catalog store', () => {
     await store.loadCatalog()
 
     expect(store.domainIds).toEqual(['animator', 'tts'])
-    expect(store.providersFor('tts').map(p => p.id)).toEqual(['kokoro'])
+    expect(store.providersFor('tts').map(p => p.id)).toEqual(['inworld'])
     expect(store.providersFor('animator').map(p => p.id)).toEqual(['grok_automa'])
     expect(store.domainLabel('animator')).toBe('Animator')
   })
@@ -186,15 +186,15 @@ describe('provider catalog store', () => {
 
   it('surfaces an excluded provider as unavailable rather than hiding it', async () => {
     serve(catalog('v1', {
-      providers: [provider('kokoro')],
-      selected: 'kokoro',
+      providers: [provider('inworld')],
+      selected: 'inworld',
       excluded: [{ id: 'broken', reason_code: 'MANIFEST_LOAD_FAILED', message: 'boom' }],
     }))
     const store = useProviderCatalogStore()
     await store.loadCatalog()
 
-    expect(store.providersFor('tts').map(p => p.id)).toEqual(['kokoro'])
-    expect(store.catalogEntriesFor('tts').map(p => p.id)).toEqual(['kokoro', 'broken'])
+    expect(store.providersFor('tts').map(p => p.id)).toEqual(['inworld'])
+    expect(store.catalogEntriesFor('tts').map(p => p.id)).toEqual(['inworld', 'broken'])
     expect(store.availabilityOf('tts', 'broken')).toBe('unavailable')
     expect(store.excludedFor('tts')[0]).toMatchObject({
       reason_code: 'MANIFEST_LOAD_FAILED',
@@ -204,16 +204,16 @@ describe('provider catalog store', () => {
 
   it('reads capabilities from the catalog, not from the provider id', async () => {
     serve(catalog('v1', {
-      providers: [provider('kokoro', { capabilities: { streaming: true, batch: false } })],
-      selected: 'kokoro',
+      providers: [provider('inworld', { capabilities: { streaming: true, batch: false } })],
+      selected: 'inworld',
     }))
     const store = useProviderCatalogStore()
     await store.loadCatalog()
 
-    expect(store.capabilitiesOf('tts', 'kokoro')).toEqual({ streaming: true, batch: false })
-    expect(store.supports('tts', 'kokoro', 'streaming')).toBe(true)
-    expect(store.supports('tts', 'kokoro', 'batch')).toBe(false)
-    expect(store.supports('tts', 'kokoro', 'never_declared')).toBe(false)
+    expect(store.capabilitiesOf('tts', 'inworld')).toEqual({ streaming: true, batch: false })
+    expect(store.supports('tts', 'inworld', 'streaming')).toBe(true)
+    expect(store.supports('tts', 'inworld', 'batch')).toBe(false)
+    expect(store.supports('tts', 'inworld', 'never_declared')).toBe(false)
   })
 
   it('never offers an undeclared capability (step 6.1)', async () => {
@@ -271,12 +271,12 @@ describe('provider catalog store', () => {
   })
 
   it('falls back to the domain default when nothing is selected', async () => {
-    serve(catalog('v1', { providers: [provider('inworld'), provider('kokoro')], selected: null }))
+    serve(catalog('v1', { providers: [provider('sample_tts'), provider('inworld')], selected: null }))
     const store = useProviderCatalogStore()
     await store.loadCatalog()
 
     expect(store.selectedId('tts')).toBeNull()
-    expect(store.selectedProvider('tts').id).toBe('kokoro')
+    expect(store.selectedProvider('tts').id).toBe('inworld')
   })
 
   it('falls back to an available provider when the selection was uninstalled', async () => {
@@ -312,7 +312,7 @@ describe('provider catalog store', () => {
     await store.loadCatalog()
 
     expect(store.selectedProvider('tts')).toBeNull()
-    expect(store.availabilityOf('tts', 'kokoro')).toBeNull()
+    expect(store.availabilityOf('tts', 'inworld')).toBeNull()
   })
 
   // ── Health is the other axis ───────────────────────────────────────────
@@ -321,20 +321,20 @@ describe('provider catalog store', () => {
     serve(BASE)
     const store = useProviderCatalogStore()
     await store.loadCatalog()
-    expect(store.healthFor('tts', 'kokoro')).toBeNull()
+    expect(store.healthFor('tts', 'inworld')).toBeNull()
 
     api.get.mockRejectedValueOnce(
       Object.assign(new Error('Connection refused'), { code: 'PROVIDER_UNREACHABLE' }),
     )
-    const result = await store.checkHealth('tts', 'kokoro')
+    const result = await store.checkHealth('tts', 'inworld')
 
     expect(result).toEqual({
       status: 'fail',
       message: 'Connection refused [PROVIDER_UNREACHABLE]',
     })
-    expect(store.healthFor('tts', 'kokoro').status).toBe('fail')
+    expect(store.healthFor('tts', 'inworld').status).toBe('fail')
     // A failing probe does not make the provider unusable (§21.5).
-    expect(store.availabilityOf('tts', 'kokoro')).toBe('available')
+    expect(store.availabilityOf('tts', 'inworld')).toBe('available')
   })
 
   it('caches the health a test probe returns', async () => {
@@ -404,7 +404,7 @@ describe('provider catalog store', () => {
     expect(source.url).toBe('/api/workflow/dev-reload/events')
 
     serve({
-      ...catalog('v2', { providers: [provider('kokoro'), provider('fixture')], selected: 'kokoro' }),
+      ...catalog('v2', { providers: [provider('inworld'), provider('fixture')], selected: 'inworld' }),
       dev_reload_enabled: true,
     })
     source.listeners['registry-reload']()
@@ -456,26 +456,26 @@ describe('ProviderSelector reads the catalog', () => {
     const wrapper = await mountSelector()
     // Step 12.3: an entry that is not ready says so in the list itself, rather
     // than reading like a working one until the run fails on it.
-    expect(optionText(wrapper)).toEqual(['KOKORO', 'INWORLD — Needs configuration'])
+    expect(optionText(wrapper)).toEqual(['INWORLD', 'SAMPLE_TTS — Needs configuration'])
 
     serve(catalog('v2', {
       providers: [
-        provider('kokoro', { label: 'Kokoro (local)' }),
+        provider('inworld', { label: 'Inworld (local)' }),
         provider('fixture', { label: 'Fixture Voice' }),
       ],
-      selected: 'kokoro',
+      selected: 'inworld',
     }))
     await useProviderCatalogStore().refresh()
     await flushPromises()
 
     // Relabeled, one removed, one added — the component was never touched.
-    expect(optionText(wrapper)).toEqual(['Kokoro (local)', 'Fixture Voice'])
+    expect(optionText(wrapper)).toEqual(['Inworld (local)', 'Fixture Voice'])
   })
 
   it('renders an excluded provider as an unselectable option', async () => {
     serve(catalog('v1', {
-      providers: [provider('kokoro')],
-      selected: 'kokoro',
+      providers: [provider('inworld')],
+      selected: 'inworld',
       excluded: [{ id: 'broken', reason_code: 'MANIFEST_LOAD_FAILED', message: 'boom' }],
     }))
     const wrapper = await mountSelector()
@@ -498,28 +498,28 @@ describe('ProviderSelector reads the catalog', () => {
   })
 
   it('shows the selected provider resolved through the catalog fallback', async () => {
-    serve(catalog('v1', { providers: [provider('inworld'), provider('kokoro')], selected: null }))
+    serve(catalog('v1', { providers: [provider('sample_tts'), provider('inworld')], selected: null }))
     const wrapper = await mountSelector()
 
-    expect(wrapper.get('select').element.value).toBe('kokoro')
+    expect(wrapper.get('select').element.value).toBe('inworld')
   })
 
   it('emits configure instead of select when the new provider is unconfigured', async () => {
     serve(BASE)
     vi.spyOn(api, 'put').mockResolvedValue({
-      selected: 'inworld',
+      selected: 'sample_tts',
       availability: 'needs_configuration',
       issues: [{ field: 'api_key', severity: 'error', message: 'Required' }],
     })
     const wrapper = await mountSelector()
 
-    await wrapper.get('select').setValue('inworld')
+    await wrapper.get('select').setValue('sample_tts')
     await flushPromises()
 
     expect(wrapper.emitted('configure')).toEqual([[{
       domain: 'tts',
-      providerId: 'inworld',
-      instanceId: 'inworld',
+      providerId: 'sample_tts',
+      instanceId: 'sample_tts',
     }]])
     expect(wrapper.emitted('select')).toBeUndefined()
   })

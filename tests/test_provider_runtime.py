@@ -126,7 +126,7 @@ class RuntimeCase(unittest.TestCase):
     def run_scenario(self, scenario="sync", **overrides):
         invocation = self.invocation(scenario, **overrides)
         return boundary.invoke(
-            lambda inv: self.instance.invoke({"text": "hello", "voice": "af_heart"}, inv),
+            lambda inv: self.instance.invoke({"text": "hello", "voice": "Ashley"}, inv),
             invocation,
             provider_version=self.provider.version,
             contract_version=self.provider.contract_version,
@@ -881,12 +881,12 @@ class LegacyEnvelopeDiffTests(unittest.TestCase):
         return result.to_dict(), expected
 
     def test_tts_legacy_metadata_matches_the_recorded_envelope(self):
-        produced, expected = self._rebuild("tts", "kokoro", lambda raw: (
+        produced, expected = self._rebuild("tts", "inworld", lambda raw: (
             legacy.tts_metadata_to_result(
                 raw,
                 audio_ref="tts/pm_SAMPLE/voice.wav",
                 manifest_ref="tts/pm_SAMPLE/tts.json",
-                provider_id="kokoro",
+                provider_id="inworld",
                 provider_version="1.0.0",
             )
         ))
@@ -894,8 +894,8 @@ class LegacyEnvelopeDiffTests(unittest.TestCase):
 
     def test_every_legacy_tts_key_is_accounted_for(self):
         """Nothing is silently lost: each key is payload, metadata, or approved."""
-        raw = fixtures.load_fixture("tts", "kokoro", "raw_response.json")
-        envelope = fixtures.load_fixture("tts", "kokoro", "expected_result.json")
+        raw = fixtures.load_fixture("tts", "inworld", "raw_response.json")
+        envelope = fixtures.load_fixture("tts", "inworld", "expected_result.json")
         carried = set(envelope["payload"]) | set(envelope["metadata"])
         for key in raw:
             with self.subTest(key=key):
@@ -964,7 +964,7 @@ class LegacyEnvelopeDiffTests(unittest.TestCase):
                 audio_path=os.path.join("C:", "out", "voice.wav"),
                 duration_seconds=8.0,
                 sample_rate=24000,
-                metadata={"voice": "af_heart", "characters_billed": 42},
+                metadata={"voice": "Ashley", "characters_billed": 42},
             ),
             audio_ref="tts/pm_SAMPLE/voice.wav",
         )

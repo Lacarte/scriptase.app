@@ -6,7 +6,7 @@
     "niche": "dark_psychology",
     "visual_style": "stickman_animation",
     "story_tone": "suspenseful",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 0.95,
     "duration": 35,
     "tags": [
@@ -23,7 +23,7 @@
     "niche": "dark_psychology",
     "visual_style": "cinematic",
     "story_tone": "suspenseful",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 0.95,
     "duration": 60,
     "tags": [
@@ -39,7 +39,7 @@
     "niche": "dark_psychology",
     "visual_style": "noir",
     "story_tone": "suspenseful",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.9,
     "duration": 75,
     "tags": [
@@ -54,7 +54,7 @@
     "niche": "true_crime",
     "visual_style": "cinematic",
     "story_tone": "dramatic",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.9,
     "duration": 90,
     "tags": [
@@ -69,7 +69,7 @@
     "niche": "true_crime",
     "visual_style": "noir",
     "story_tone": "dramatic",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.85,
     "duration": 90,
     "tags": [
@@ -84,7 +84,7 @@
     "niche": "horror",
     "visual_style": "dark_horror",
     "story_tone": "suspenseful",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 0.9,
     "duration": 60,
     "tags": [
@@ -100,7 +100,7 @@
     "niche": "horror",
     "visual_style": "stickman_animation",
     "story_tone": "suspenseful",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 0.95,
     "duration": 35,
     "tags": [
@@ -116,7 +116,7 @@
     "niche": "horror",
     "visual_style": "anime",
     "story_tone": "suspenseful",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 1.0,
     "duration": 40,
     "tags": [
@@ -131,7 +131,7 @@
     "niche": "stoicism",
     "visual_style": "cinematic",
     "story_tone": "educational",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.9,
     "duration": 60,
     "tags": [
@@ -147,7 +147,7 @@
     "niche": "stoicism",
     "visual_style": "stickman_animation",
     "story_tone": "educational",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.95,
     "duration": 35,
     "tags": [
@@ -163,7 +163,7 @@
     "niche": "motivation",
     "visual_style": "stickman_animation",
     "story_tone": "inspirational",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 1.0,
     "duration": 30,
     "tags": [
@@ -179,7 +179,7 @@
     "niche": "motivation",
     "visual_style": "motivational",
     "story_tone": "inspirational",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.95,
     "duration": 60,
     "tags": [
@@ -195,7 +195,7 @@
     "niche": "biblical",
     "visual_style": "cinematic",
     "story_tone": "dramatic",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.85,
     "duration": 90,
     "tags": [
@@ -210,7 +210,7 @@
     "niche": "biblical",
     "visual_style": "gothic",
     "story_tone": "dramatic",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.85,
     "duration": 90,
     "tags": [
@@ -225,7 +225,7 @@
     "niche": "conspiracy",
     "visual_style": "noir",
     "story_tone": "suspenseful",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.9,
     "duration": 75,
     "tags": [
@@ -240,7 +240,7 @@
     "niche": "conspiracy",
     "visual_style": "cinematic",
     "story_tone": "suspenseful",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.9,
     "duration": 60,
     "tags": [
@@ -256,7 +256,7 @@
     "niche": "romance",
     "visual_style": "anime",
     "story_tone": "dramatic",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 1.0,
     "duration": 45,
     "tags": [
@@ -271,7 +271,7 @@
     "niche": "children",
     "visual_style": "children_storybook",
     "story_tone": "wholesome",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 0.9,
     "duration": 45,
     "tags": [
@@ -286,7 +286,7 @@
     "niche": "sci_fi",
     "visual_style": "cyberpunk",
     "story_tone": "dramatic",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 1.0,
     "duration": 60,
     "tags": [
@@ -302,7 +302,7 @@
     "niche": "wealth",
     "visual_style": "cinematic",
     "story_tone": "inspirational",
-    "voice": "am_michael",
+    "voice": "Ashley",
     "speed": 0.95,
     "duration": 60,
     "tags": [
@@ -318,7 +318,7 @@
     "niche": "reddit",
     "visual_style": "reddit_story",
     "story_tone": "dramatic",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 1.0,
     "duration": 45,
     "tags": [
@@ -335,7 +335,7 @@
     "niche": "two_choices",
     "visual_style": "two_choices",
     "story_tone": "suspenseful",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 1.0,
     "duration": 35,
     "tags": [
@@ -351,7 +351,7 @@
     "niche": "existential",
     "visual_style": "existential",
     "story_tone": "dramatic",
-    "voice": "af_heart",
+    "voice": "Ashley",
     "speed": 0.9,
     "duration": 60,
     "tags": [

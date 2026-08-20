@@ -720,7 +720,7 @@ class ProviderApiRedactionTests(unittest.TestCase):
         from scriptase.providers.secrets import is_secret_ref, resolve_secret_refs
 
         document = self.client.get('/api/settings/v2').get_json()
-        document['domains']['tts']['selected_instance_id'] = 'kokoro'
+        document['domains']['tts']['selected_instance_id'] = 'inworld'
         resp = self.client.put('/api/settings/v2', json=document)
         self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
         written = self.saved[-1]
@@ -733,7 +733,7 @@ class ProviderApiRedactionTests(unittest.TestCase):
             )
         else:
             self.assertEqual(key, self.SECRET)
-        self.assertEqual(written['domains']['tts']['selected_instance_id'], 'kokoro')
+        self.assertEqual(written['domains']['tts']['selected_instance_id'], 'inworld')
 
     def test_the_environment_value_never_reaches_a_response(self):
         self.settings['domains']['tts']['instances']['inworld']['settings']['api_key'] = ''
