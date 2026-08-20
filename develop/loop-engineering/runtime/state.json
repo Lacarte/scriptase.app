@@ -756,6 +756,12 @@
       "step": "phase-9",
       "event": "halt",
       "detail": "phase reviewer exited with code 1"
+    },
+    {
+      "ts": "2026-08-19T20:17:47",
+      "step": "phase-9",
+      "event": "done",
+      "detail": "c881269"
     }
   ],
   "epoch": "c566d90dfa361ddb1a5c3661fac4efb4240e075b"
