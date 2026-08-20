@@ -45,7 +45,11 @@ def settings_schema() -> dict:
             "speed": {
                 "type": "number",
                 "label": "Speed",
-                "description": "Speech speed multiplier",
+                "description": (
+                    "Speech speed multiplier on the voice's natural rate. "
+                    "The result is clamped to Inworld's supported [0.5, 1.5] "
+                    "speaking-rate range; stay near 1.0 for best quality."
+                ),
                 "default": 1.0,
                 "minimum": 0.5,
                 "maximum": 2.0,

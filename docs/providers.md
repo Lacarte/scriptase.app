@@ -334,7 +334,7 @@ AI scene planning via the configured n8n/OpenRouter webhook. Returns scenes, ima
 
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
-| `inworld` | Inworld | `cloud` | `1.0.0` | v2 | `batch`, `single_scene`, `test_connection`, `voice_list`; off: `model_download`, `speed_control`, `streaming` |
+| `inworld` | Inworld | `cloud` | `1.0.0` | v2 | `batch`, `single_scene`, `speed_control`, `test_connection`, `voice_list`; off: `model_download`, `streaming` |
 
 #### `inworld` — Inworld
 
@@ -343,7 +343,7 @@ Cloud text-to-speech with named voices and selectable models.
 - **Kind:** `cloud`
 - **Version:** `1.0.0` (contract v2)
 - **Requires settings:** `api_key`
-- **Capabilities:** `batch`, `single_scene`, `test_connection`, `voice_list`; off: `model_download`, `speed_control`, `streaming`
+- **Capabilities:** `batch`, `single_scene`, `speed_control`, `test_connection`, `voice_list`; off: `model_download`, `streaming`
 
 ### `image` providers
 

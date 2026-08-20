@@ -18,10 +18,10 @@ def manifest() -> ProviderManifest:
             "single_scene": True,
             "batch": True,
             "voice_list": True,
-            # The remote API applies its own speaking rate; `speed` is not a
-            # request field this provider honors (§32.3), and saying so keeps a
-            # caller from believing it took effect.
-            "speed_control": False,
+            # `speed` scales the voice's baseline `audioConfig.speakingRate`,
+            # clamped to the remote API's [0.5, 1.5] range. An unset speed (1.0)
+            # keeps the historical per-voice rate.
+            "speed_control": True,
         },
         contract_version=2,
         description="Cloud text-to-speech with named voices and selectable models.",

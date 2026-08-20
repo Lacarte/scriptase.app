@@ -43,6 +43,11 @@ _PROVIDER_ID = "inworld"
 
 DEFAULT_VOICE = "Ashley"
 
+# The Inworld `audioConfig.speakingRate` range is [0.5, 1.5]; below 0.8 the
+# remote model's quality degrades, so the docs recommend staying above it.
+_MIN_SPEAKING_RATE = 0.5
+_MAX_SPEAKING_RATE = 1.5
+
 _voices_cache = None
 _voices_cache_lock = threading.Lock()
 _voices_cache_ts = 0
@@ -97,10 +102,20 @@ class InworldTTSProvider(TTSProvider):
             on_progress("Synthesizing via Inworld API...")
 
         # Bella is tuned differently from every other voice; a remote-model
-        # quirk, preserved verbatim.
+        # quirk, preserved verbatim. This baseline is what `speakingRate` is at
+        # `speed == 1.0` — the historical default — so an unset speed keeps the
+        # exact rate this provider has always sent.
         is_bella = "bella" in voice.lower()
         temperature = 1.11 if is_bella else 1.1
-        speaking_rate = 1.0 if is_bella else 1.15
+        base_rate = 1.0 if is_bella else 1.15
+
+        # A durable `speed` setting (channel audio default / provider config)
+        # overrides the per-request argument, matching Kokoro. `speed` is a
+        # multiplier on the voice's baseline rate, clamped to Inworld's range.
+        speed = float(settings.get("speed", speed) or 1.0)
+        speaking_rate = round(
+            max(_MIN_SPEAKING_RATE, min(_MAX_SPEAKING_RATE, base_rate * speed)), 3
+        )
 
         payload = {
             "text": text,
@@ -165,6 +180,8 @@ class InworldTTSProvider(TTSProvider):
             "duration_seconds": duration,
             "sample_rate": info.samplerate,
             "characters_billed": characters,
+            "speed": speed,
+            "speaking_rate": speaking_rate,
         }
 
         sidecar = os.path.join(job_dir, sidecar_name)
