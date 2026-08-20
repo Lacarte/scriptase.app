@@ -277,6 +277,25 @@ class SeededInstanceTests(unittest.TestCase):
             kept["domains"]["scene_director"]["instances"]["n8n"]["label"], "Mine"
         )
 
+    def test_every_default_reads_as_a_capability_generator(self):
+        from scriptase.providers.settings_manager import _default_settings
+
+        expected = {
+            ("script", "gemini"): "Story Generator",
+            ("script", "n8n"): "Script Generator",
+            ("scene_director", "n8n"): "Scene Generator",
+            ("tts", "inworld"): "Voice Generator",
+            ("image", "gemini_ws"): "Image Generator",
+            ("video", "grok_automa"): "Video Generator",
+            ("viral", "deterministic"): "Virality Scorer",
+        }
+        domains = _default_settings()["domains"]
+        for (domain, instance_id), label in expected.items():
+            with self.subTest(domain=domain, instance=instance_id):
+                self.assertEqual(
+                    domains[domain]["instances"][instance_id]["label"], label
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

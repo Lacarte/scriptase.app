@@ -98,8 +98,10 @@ DOMAINS: dict[str, DomainSpec] = {
             result_model="scriptase.modules.script.providers.contract:ScriptResultPayload",
             catalog_provider_ids=frozenset({"gemini", "n8n", "random_template"}),
             contract_provider_ids=frozenset({"scaffold_check"}),
-            # The n8n "Script Generator" passerelle is seeded beside the gemini
-            # default so it shows on the settings page without hand-configuration.
+            # Friendly settings-page labels: the gemini default reads as
+            # "Story Generator", and the n8n passerelle "Script Generator" is
+            # seeded beside it so both show without hand-configuration.
+            default_instance_label="Story Generator",
             seeded_instances=(("n8n", "Script Generator"),),
         ),
         DomainSpec(
@@ -138,6 +140,7 @@ DOMAINS: dict[str, DomainSpec] = {
             request_model="scriptase.modules.tts.providers.contract:TTSRequest",
             result_model="scriptase.modules.tts.providers.contract:TTSResultPayload",
             catalog_provider_ids=frozenset({"inworld"}),
+            default_instance_label="Voice Generator",
         ),
         DomainSpec(
             id="image",
@@ -163,6 +166,7 @@ DOMAINS: dict[str, DomainSpec] = {
             request_model="scriptase.modules.image.providers.contract:StoryboardRequest",
             result_model="scriptase.modules.image.providers.contract:StoryboardResultPayload",
             catalog_provider_ids=frozenset({"gemini_ws"}),
+            default_instance_label="Image Generator",
         ),
         DomainSpec(
             id="video",
@@ -184,6 +188,7 @@ DOMAINS: dict[str, DomainSpec] = {
             request_model="scriptase.modules.video.providers.contract:AnimatorRequest",
             result_model="scriptase.modules.video.providers.contract:AnimatorResultPayload",
             catalog_provider_ids=frozenset({"grok_automa"}),
+            default_instance_label="Video Generator",
         ),
         # Step 7.3 — sixth domain. Semantic / AI review producing structured
         # ReviewIssue records. Deterministic technical validators (7.1) stay
@@ -230,6 +235,7 @@ DOMAINS: dict[str, DomainSpec] = {
             request_model="scriptase.modules.viral.providers.contract:ViralRequest",
             result_model="scriptase.modules.viral.providers.contract:ViralResultPayload",
             catalog_provider_ids=frozenset({"deterministic"}),
+            default_instance_label="Virality Scorer",
         ),
     )
 }

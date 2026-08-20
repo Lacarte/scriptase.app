@@ -39,7 +39,7 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 # v10 = prototype-only provider catalogue (step 5.3).
 # v11 = restore script catalogue (step 7.1). v10 removed it; Auto and Idea
 #        need a script provider, so backfill gemini as the default.
-SETTINGS_VERSION = 13
+SETTINGS_VERSION = 14
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -469,6 +469,38 @@ def migrate_to_v13(data: dict, legacy_user: dict) -> dict:
     record = instances.get("n8n")
     if isinstance(record, dict) and record.get("label") == "n8n":
         record["label"] = "Scene Generator"
+    return data
+
+
+@_register(14)
+def migrate_to_v14(data: dict, legacy_user: dict) -> dict:
+    """Give every seeded default instance its friendly settings-page label.
+
+    The default instances shipped with their label set to the bare provider id
+    (``inworld``, ``gemini_ws``, ``grok_automa``, ``deterministic``, ``gemini``).
+    Each domain's ``DomainSpec.default_instance_label`` now carries a
+    ``<Capability> Generator`` name; rename the instance to it, but only when the
+    stored label is still the bare id — a label a user changed themselves is
+    left untouched. The scene_director rename in v13 is the same shape; this
+    generalizes it to the remaining domains.
+    """
+    domains = data.get("domains")
+    if not isinstance(domains, dict):
+        return data
+    for domain_id, spec in DOMAINS.items():
+        friendly = getattr(spec, "default_instance_label", None)
+        default = spec.default_provider
+        if not friendly or not default:
+            continue
+        block = domains.get(domain_id)
+        if not isinstance(block, dict):
+            continue
+        instances = block.get("instances")
+        if not isinstance(instances, dict):
+            continue
+        record = instances.get(default)
+        if isinstance(record, dict) and record.get("label") == default:
+            record["label"] = friendly
     return data
 
 

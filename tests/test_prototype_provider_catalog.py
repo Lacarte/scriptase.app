@@ -62,9 +62,12 @@ def test_settings_migrate_retired_default_and_named_instances():
     migrated, changed = migrate_settings(document)
 
     assert changed is True
+    # v14 gives the seeded default instance its friendly settings-page label.
     assert migrated["domains"]["tts"] == {
         "selected_instance_id": "inworld",
-        "instances": {"inworld": {"type": "inworld", "label": "inworld", "settings": {}}},
+        "instances": {
+            "inworld": {"type": "inworld", "label": "Voice Generator", "settings": {}}
+        },
     }
     assert migrated["domains"]["image"]["selected_instance_id"] == "images_backup"
     assert migrated["domains"]["image"]["instances"]["images_backup"]["type"] == "gemini_ws"

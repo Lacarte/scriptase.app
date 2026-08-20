@@ -103,7 +103,8 @@ class InstanceSettingsMigrationTests(unittest.TestCase):
         self.assertNotIn("per_provider", tts)
         inworld = tts["instances"]["inworld"]
         self.assertEqual(inworld["type"], "inworld")
-        self.assertEqual(inworld["label"], "inworld")
+        # v14 gives the default instance its friendly settings-page label.
+        self.assertEqual(inworld["label"], "Voice Generator")
         self.assertEqual(inworld["settings"]["voice"], "Ashley")
         # Step 3.4 (v7): credentials become secret refs.
         self.assertTrue(is_secret_ref(inworld["settings"]["api_key"]))
