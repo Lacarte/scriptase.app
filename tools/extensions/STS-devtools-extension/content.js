@@ -124,7 +124,8 @@
         #sts-dt-badge {
           position: fixed;
           bottom: 12px;
-          right: 12px;
+          left: 50%;
+          transform: translateX(-50%);
           z-index: 999999;
           display: flex;
           align-items: center;
@@ -171,9 +172,11 @@
       dragOffset.x = e.clientX - rect.left;
       dragOffset.y = e.clientY - rect.top;
       badge.classList.add('dragging');
-      // Switch to left/top positioning for free movement
+      // Switch to left/top positioning for free movement. Clear the initial
+      // bottom-middle centering transform so the drag tracks the cursor exactly.
       badge.style.right = 'auto';
       badge.style.bottom = 'auto';
+      badge.style.transform = 'none';
       badge.style.left = rect.left + 'px';
       badge.style.top = rect.top + 'px';
       e.preventDefault();
