@@ -4,7 +4,13 @@ import { RouterLink, useRouter } from 'vue-router'
 
 import { getChannel, listChannels } from '@/features/channels/api.js'
 import { useToast } from '@/shared/composables/useToast.js'
-import { channelAccent, channelInitials } from '@/shared/utils/channelIdentity.js'
+import {
+  channelAccent,
+  channelInitials,
+  channelAvatarLabel,
+  channelAvatarStyle,
+  PLATFORM_COLORS,
+} from '@/shared/utils/channelIdentity.js'
 import {
   createScript,
   generateNarration,
@@ -87,6 +93,34 @@ const selectedChannel = computed(() => (
   || channels.value.find(channel => channel.id === draft.channelId)
   || null
 ))
+
+// Rich channel picker (matches Production's JobCreatePanel): avatar, name, and
+// a niche · style subtitle with platform chips, instead of a bare <select>.
+const channelOpen = ref(false)
+const channelPickEl = ref(null)
+const pickMeta = computed(() => {
+  const channel = selectedChannel.value
+  if (!channel) return 'Pick a channel'
+  return [channel.niche, channel.style].filter(Boolean).join(' · ')
+})
+
+function toggleChannelDD(event) {
+  event.stopPropagation()
+  if (!channels.value.length) return
+  channelOpen.value = !channelOpen.value
+}
+
+async function selectChannel(id) {
+  channelOpen.value = false
+  if (id === draft.channelId) return
+  draft.channelId = id
+  await chooseChannel()
+}
+
+function onChannelDocumentClick(event) {
+  if (!channelPickEl.value?.contains(event.target)) channelOpen.value = false
+}
+
 const template = computed(() => selectedChannel.value?.script_template || null)
 const liveWordCount = computed(() => wordCount(form.body))
 const liveDuration = computed(() => Math.round(liveWordCount.value / 2.5))
@@ -580,6 +614,7 @@ watch(audioUrl, stopPlayer)
 
 onMounted(async () => {
   window.addEventListener('keydown', focusSearch)
+  document.addEventListener('click', onChannelDocumentClick)
   try {
     const channelPayload = await listChannels({ limit: 500 })
     channels.value = channelPayload.channels || []
@@ -595,6 +630,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearTimeout(searchTimer)
   window.removeEventListener('keydown', focusSearch)
+  document.removeEventListener('click', onChannelDocumentClick)
 })
 </script>
 
@@ -684,10 +720,65 @@ onBeforeUnmount(() => {
           </div>
           <input v-model="draft.title" class="s1-title-input" aria-label="New script title" placeholder="Untitled script">
           <div class="s1-doc-sub">
-            <span class="kv">Channel
-              <select v-model="draft.channelId" class="filter-select" aria-label="Draft channel" @change="chooseChannel">
+            <span class="kv s1-chan-kv">Channel
+              <!-- Accessible/testable native control mirrors the rich picker. -->
+              <select v-model="draft.channelId" class="sr-only" aria-label="Draft channel" @change="chooseChannel">
                 <option v-for="channel in channels" :key="channel.id" :value="channel.id">{{ channel.name }}</option>
               </select>
+              <div
+                ref="channelPickEl"
+                class="channel-pick s1-channel-pick"
+                :class="{ open: channelOpen }"
+                role="button"
+                tabindex="0"
+                :aria-expanded="String(channelOpen)"
+                aria-haspopup="listbox"
+                @click="toggleChannelDD"
+                @keydown.enter.prevent="toggleChannelDD"
+                @keydown.space.prevent="toggleChannelDD"
+              >
+                <div
+                  class="ch-avatar"
+                  :style="selectedChannel ? channelAvatarStyle(selectedChannel) : {}"
+                  aria-hidden="true"
+                >{{ selectedChannel ? channelAvatarLabel(selectedChannel) : '—' }}</div>
+                <div class="ch-meta">
+                  <div class="nm">{{ selectedChannel?.name || 'Select a channel' }}</div>
+                  <div class="row2">{{ pickMeta }}</div>
+                </div>
+                <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                <div class="dropdown" :class="{ open: channelOpen }" role="listbox">
+                  <button
+                    v-for="ch in channels"
+                    :key="ch.id"
+                    type="button"
+                    class="dd-item"
+                    :class="{ sel: ch.id === draft.channelId }"
+                    role="option"
+                    :aria-selected="String(ch.id === draft.channelId)"
+                    @click.stop="selectChannel(ch.id)"
+                  >
+                    <span class="ch-avatar" :style="channelAvatarStyle(ch)" aria-hidden="true">
+                      {{ channelAvatarLabel(ch) }}
+                    </span>
+                    <span class="dd-txt">
+                      <span class="nm">{{ ch.name || ch.id }}</span>
+                      <span class="src">
+                        <span v-if="ch.platforms?.length" class="plat">
+                          <span
+                            v-for="plat in ch.platforms"
+                            :key="plat"
+                            class="plat-ic"
+                            :style="{ background: PLATFORM_COLORS[plat] || 'var(--raise)' }"
+                          >{{ plat[0] }}</span>
+                        </span>
+                        <span>{{ [ch.niche, ch.style].filter(Boolean).join(' · ') }}</span>
+                      </span>
+                    </span>
+                    <svg class="check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  </button>
+                </div>
+              </div>
             </span>
           </div>
         </div>
@@ -1284,4 +1375,114 @@ input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow:
   .s1-card, .s1-fchip, .s1-toggle, .s1-toggle::after, .s1-wave-track i { transition: none; }
   .s1-card:hover { transform: none; }
 }
+
+/* ── Rich channel picker (mirrors Production's JobCreatePanel) ──────────── */
+.s1-chan-kv { align-items: stretch; }
+.s1-channel-pick { min-width: 260px; }
+
+.channel-pick {
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--panel-grad, var(--panel));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  position: relative;
+  font-family: var(--display);
+  transition: border-color 0.16s, background 0.16s, box-shadow 0.16s;
+}
+.channel-pick:hover {
+  border-color: var(--line-2);
+  background: var(--panel-2);
+}
+.channel-pick .chev { margin-left: auto; color: var(--muted); flex: none; transition: transform 0.18s; }
+.channel-pick.open .chev { transform: rotate(180deg); }
+
+.channel-pick .ch-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 13px;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.channel-pick .ch-meta { min-width: 0; }
+.channel-pick .ch-meta .nm {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: -0.1px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.channel-pick .ch-meta .row2 {
+  margin-top: 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-pick .dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  min-width: 260px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  box-shadow: var(--shadow);
+  overflow: hidden auto;
+  max-height: 340px;
+  padding: 5px;
+  display: none;
+}
+.channel-pick .dropdown.open { display: block; animation: s1pop 0.14s ease; }
+@keyframes s1pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.channel-pick .dd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.channel-pick .dd-item:hover { background: var(--raise); }
+.channel-pick .dd-item.sel { background: var(--accent-wash); }
+.channel-pick .dd-item .ch-avatar { width: 30px; height: 30px; font-size: 12px; border-radius: 7px; }
+.channel-pick .dd-item .check { margin-left: auto; color: var(--accent); opacity: 0; flex: none; }
+.channel-pick .dd-item.sel .check { opacity: 1; }
+.channel-pick .dd-txt { min-width: 0; display: flex; flex-direction: column; }
+.channel-pick .dd-txt .nm { font-size: 13px; font-weight: 600; }
+.channel-pick .dd-txt .src {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.channel-pick .dd-txt .plat { display: inline-flex; gap: 3px; }
 </style>
