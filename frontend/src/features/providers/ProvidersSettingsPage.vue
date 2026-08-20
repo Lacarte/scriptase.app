@@ -33,7 +33,32 @@ defineOptions({ name: 'ProvidersSettingsPage' })
  * the same colour more often than not. `domainIds` is sorted, so a given
  * catalog always produces the same assignment.
  */
-const PROVIDER_COLORS = ['#3fb68b', '#5b8cff', '#b06be6', '#e0a44a', '#e6e9ed']
+// One vivid accent per capability. Seven distinct hues so no two rows in the
+// shipped catalog share a plate colour (the washed grey the prototype ended on
+// read as "disabled" beside the others). Indexed by the domain's sorted
+// position so a given catalog is always coloured the same way.
+const PROVIDER_COLORS = ['#3fb68b', '#5b8cff', '#b06be6', '#e0a44a', '#f0616d', '#4ea1ff', '#e084c4']
+
+/**
+ * A capability icon per domain, so the plate says what the row *does* rather
+ * than repeating a domain initial (Script/Scene/Story all began with "S", both
+ * visual domains with "V"). Presentation-only and derived from the domain id —
+ * the catalog carries no icon field, exactly as it carries no colour — so a new
+ * domain still renders (it falls back to `default`) without a backend edit.
+ * Paths are 24×24, stroked, matching the SVGs used elsewhere in the app.
+ */
+const DOMAIN_ICONS = {
+  script: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M9 13h6 M9 17h6',
+  scene_director: 'M2 7h20 M2 7v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7 M7 3v4 M17 3v4 M2 12h20',
+  tts: 'M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z M19 10v1a7 7 0 0 1-14 0v-1 M12 18v4',
+  image: 'M3 3h18a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M8.5 9a1.5 1.5 0 1 0 0 3 M21 15l-5-5L5 21',
+  video: 'M23 7l-7 5 7 5V7z M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z',
+  viral: 'M12 20v-6 M6 20v-4 M18 20V8 M3 20h18',
+  default: 'M4 4h16v16H4z',
+}
+function iconPathFor(domain) {
+  return DOMAIN_ICONS[domain] || DOMAIN_ICONS.default
+}
 
 /**
  * Transport copy for the manifest's `kind` vocabulary — the same four values
@@ -45,6 +70,28 @@ const KINDS = {
   extension: { label: 'Extension', hint: 'Browser extension over the automation socket' },
   webhook: { label: 'n8n', hint: 'Runs as an n8n workflow via webhook' },
   local: { label: 'Local', hint: 'Runs in-process, needs no credential' },
+}
+
+/**
+ * The real service behind a provider type, shown after the capability name so
+ * "Voice Generator" reads as "Voice Generator · Inworld". Derived from the type
+ * id (presentation only, no catalog field); an unmapped id is title-cased so a
+ * new provider still names its service without an edit here. n8n/webhook rows
+ * already carry the service in their transport badge, so they get no duplicate.
+ */
+const SERVICE_NAMES = {
+  inworld: 'Inworld',
+  gemini_ws: 'Gemini',
+  gemini: 'Gemini',
+  grok_automa: 'Grok',
+  deterministic: 'Built-in',
+  random_template: 'Templates',
+}
+function serviceNameFor(type, kind) {
+  if (kind === 'webhook') return ''
+  const id = String(type || '')
+  if (!id || id === 'n8n') return ''
+  return SERVICE_NAMES[id] || id.replace(/[_-]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
 }
 
 const STATUS_LABELS = {
@@ -63,7 +110,13 @@ function accentOf(domain) {
 
 function plateStyle(domain) {
   const accent = accentOf(domain)
-  return { background: `${accent}22`, color: accent }
+  // A tinted plate with a faint top light and a hairline of the accent, so the
+  // capability icon reads clearly and each row keeps its own colour identity.
+  return {
+    background: `linear-gradient(145deg, ${accent}33, ${accent}14)`,
+    color: accent,
+    boxShadow: `inset 0 0 0 1px ${accent}40`,
+  }
 }
 
 const selectedKey = ref('')
@@ -100,6 +153,7 @@ const providers = computed(() => catalog.domainIds.flatMap((domain) => {
       glyph: capability.slice(0, 1).toUpperCase(),
       name: instance.label || type.label || instance.instance_id,
       typeName: type.label || instance.provider_type,
+      service: serviceNameFor(instance.provider_type, type.kind),
       version: type.version || '',
       kind: type.kind || 'local',
       kindLabel: KINDS[type.kind]?.label || type.kind || 'Local',
@@ -211,20 +265,25 @@ onMounted(() => catalog.loadCatalog())
           :key="provider.key"
           type="button"
           class="pv-litem"
-          :class="{ sel: selected?.key === provider.key, off: provider.availability === 'unavailable' }"
+          :class="[`sig-${statusOf(provider)}`, { sel: selected?.key === provider.key, off: provider.availability === 'unavailable' }]"
           :aria-current="selected?.key === provider.key ? 'true' : undefined"
           @click="selectedKey = provider.key"
         >
-          <span class="pv-ic" :style="plateStyle(provider.domain)">{{ provider.glyph }}</span>
+          <span class="pv-spine" aria-hidden="true"></span>
+          <span class="pv-ic" :style="plateStyle(provider.domain)" aria-hidden="true">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path :d="iconPathFor(provider.domain)" /></svg>
+          </span>
           <span class="pl">
             <span class="cap">{{ provider.capability }}</span>
-            <span class="pn">{{ provider.name }} <span class="kind">{{ provider.kindLabel }}</span></span>
+            <span class="pn">
+              <span class="pn-name">{{ provider.name }}</span>
+              <span v-if="provider.service" class="pn-svc">{{ provider.service }}</span>
+              <span class="kind">{{ provider.kindLabel }}</span>
+            </span>
           </span>
-          <span
-            class="pv-status-dot"
-            :class="`st-${statusOf(provider)}`"
-            :title="statusLabel(statusOf(provider))"
-          ></span>
+          <span class="pv-litem-status" :title="statusLabel(statusOf(provider))">
+            <span class="pv-status-dot" :class="`st-${statusOf(provider)}`"></span>
+          </span>
         </button>
         <p v-if="!providers.length" class="rail-state">No providers discovered.</p>
       </nav>
@@ -237,7 +296,9 @@ onMounted(() => catalog.loadCatalog())
 
     <main v-if="selected" class="pv-detail">
       <header class="pv-hero" :style="{ '--pv-color': accentOf(selected.domain) }">
-        <span class="pv-hero-ic" :style="plateStyle(selected.domain)">{{ selected.glyph }}</span>
+        <span class="pv-hero-ic" :style="plateStyle(selected.domain)" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="iconPathFor(selected.domain)" /></svg>
+        </span>
         <div class="pv-hero-main">
           <div class="pv-hero-cap">{{ selected.capability }}</div>
           <h1 class="pv-hero-name">
@@ -448,57 +509,122 @@ onMounted(() => catalog.loadCatalog())
   gap: 7px;
 }
 
-/* A real button, with none of a button's chrome — the row is the surface. */
+/* A real button, with none of a button's chrome — the row is the surface.
+   Signature: a left status spine turns the list into a patch bay you scan for
+   signal, and the plate carries the capability's own colour so no two rows
+   read alike. */
 .pv-litem {
+  position: relative;
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--panel-grad);
   border-radius: var(--r-s);
-  padding: 12px;
+  padding: 13px 14px 13px 20px;
   cursor: pointer;
-  transition: border-color .14s, background .14s;
+  transition: border-color .16s, background .16s, transform .16s, box-shadow .16s;
   flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
   width: 100%;
   text-align: left;
   color: inherit;
   font: inherit;
   box-shadow: var(--hairline-top);
+  overflow: hidden;
 }
 
-.pv-litem:hover { border-color: var(--line-2); background: var(--panel-2); }
-.pv-litem.sel { border-color: var(--accent-line-2); background: var(--accent-fill-2); }
-.pv-litem.off { opacity: .55; }
+.pv-litem:hover {
+  border-color: var(--line-2);
+  background: var(--panel-grad2);
+  transform: translateY(-1px);
+  box-shadow: var(--hairline-top), 0 8px 18px -12px rgba(0, 0, 0, .7);
+}
+.pv-litem.sel {
+  border-color: var(--accent-line-2);
+  background: var(--accent-fill-2);
+  box-shadow: var(--hairline-top), var(--accent-cast-md);
+}
+.pv-litem.off { opacity: .5; }
+.pv-litem:focus-visible { outline: 2px solid var(--accent-line-2); outline-offset: 1px; }
+
+/* The status spine: the one bold move. Colour = health, read down the left
+   edge; the whole point of the console is which capabilities are live. */
+.pv-spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--faint);
+  border-radius: 0 2px 2px 0;
+  transition: background .16s, box-shadow .16s;
+}
+.sig-connected .pv-spine { background: var(--ok); box-shadow: 0 0 10px -1px var(--ok-line); }
+.sig-error .pv-spine { background: var(--fail); box-shadow: 0 0 10px -1px var(--fail-line); }
+.sig-connecting .pv-spine { background: var(--run); animation: pv-blink 1s infinite; }
+.sig-disconnected .pv-spine { background: var(--faint); }
 
 .pv-ic {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   flex: none;
   display: grid;
   place-items: center;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
   font-family: var(--display);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
+  transition: transform .16s;
 }
+.pv-litem:hover .pv-ic { transform: scale(1.04); }
 
-.pv-litem .pl { flex: 1; min-width: 0; }
-.pv-litem .cap { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
-.pv-litem .pn { font-size: 13.5px; font-weight: 600; letter-spacing: -.1px; margin-top: 2px; display: flex; align-items: center; gap: 7px; min-width: 0; }
+.pv-litem .pl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pv-litem .cap {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pv-litem .pn { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pv-litem .pn-name {
+  font-family: var(--display);
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -.15px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pv-litem.sel .pn-name { color: #fff; }
+/* The real service behind the capability — quiet, set apart from the bold name
+   by a hairline dot so "Voice Generator · Inworld" reads as one unit. */
+.pv-litem .pn-svc {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  flex: none;
+}
+.pv-litem .pn-svc::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--faint);
+}
 
 /* One chip shape, on the rail row's transport and on a capability alike. */
 .pv-litem .pn .kind,
 .pv-caps .kind {
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: .3px;
+  font-size: 8.5px;
+  letter-spacing: .4px;
   text-transform: uppercase;
   color: var(--text-2);
   background: var(--bg-2);
   box-shadow: inset 0 0 0 1px var(--line-soft);
-  padding: 1px 6px;
+  padding: 2px 6px;
   border-radius: 4px;
   font-weight: 500;
   flex: none;
@@ -512,6 +638,11 @@ onMounted(() => catalog.loadCatalog())
 .st-disconnected { background: var(--faint); }
 .st-error { background: var(--fail); box-shadow: 0 0 0 3px var(--fail-dim); }
 .st-connecting { background: var(--run); box-shadow: 0 0 0 3px var(--run-dim); animation: pv-blink 1s infinite; }
+
+/* On the row, the spine is the loud status signal, so the dot stays quiet — a
+   small confirmation, no halo. */
+.pv-litem-status { flex: none; display: grid; place-items: center; }
+.pv-litem-status .pv-status-dot { width: 7px; height: 7px; box-shadow: none; }
 
 @keyframes pv-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 

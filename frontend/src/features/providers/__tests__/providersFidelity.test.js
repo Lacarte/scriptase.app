@@ -116,7 +116,11 @@ describe('providers fidelity (step 6.5)', () => {
     await flushPromises()
 
     const plates = wrapper.findAll('.pv-litem .pv-ic')
-    expect(plates.map((p) => p.text())).toEqual(['I', 'V'])
+    // Each plate carries the domain's capability icon, not a domain initial —
+    // two domains yield two different icon paths.
+    const paths = plates.map((p) => p.find('svg path').attributes('d'))
+    expect(paths[0]).toBeTruthy()
+    expect(paths[0]).not.toBe(paths[1])
     // Two domains must not collapse onto one colour by accident.
     expect(plates[0].attributes('style')).not.toBe(plates[1].attributes('style'))
     // The hero repeats the selected row's plate exactly — same domain, same
