@@ -275,8 +275,12 @@ AGENT_BLOCKERS = (
     "credit balance is too low",
 )
 
-AGENT_CHOICES = ("claude", "grok", "agy", "codex")
+AGENT_CHOICES = ("claude", "grok", "agy", "codex", "opencode")
 GROK_MODEL = "grok-4.5"
+# opencode routes to many providers; the loop pins one so a run is reproducible
+# and so a model change is a visible edit rather than a silent default shift.
+# Override per run with OPENCODE_MODEL. `opencode models` lists the rest.
+OPENCODE_MODEL = os.environ.get("OPENCODE_MODEL", "opencode/nemotron-3-ultra-free")
 
 
 def agent_executable(agent: str) -> str | None:
@@ -674,6 +678,12 @@ def agent_cmd(agent: str, prompt: str) -> str:
     if agent == "agy":
         return (f'agy --mode accept-edits --dangerously-skip-permissions '
                 f'--print-timeout 60m -p "{escaped}"')
+    if agent == "opencode":
+        # `run` is the headless subcommand; the bare `opencode` command opens a
+        # TUI and would hang a loop forever. `--auto` approves any permission
+        # not explicitly denied, which is what lets it edit without a human —
+        # the same bargain as claude's acceptEdits and codex's workspace-write.
+        return f'opencode run --auto -m {OPENCODE_MODEL} "{escaped}"'
     raise ValueError(f"Unsupported agent: {agent}")
 
 

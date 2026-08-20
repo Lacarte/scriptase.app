@@ -30,10 +30,12 @@ echo   [3] Claude builds, fixes, and reviews
 echo   [4] AGY codes; Codex limit fallback; Codex reviews
 echo   [5] Grok 4.5 codes; Codex limit fallback; Codex reviews
 echo   [6] Claude codes,  Grok 4.5 reviews
+echo   [7] opencode (free models) builds, fixes, and reviews
 echo   [Q] Cancel
 echo.
-choice /c 123456Q /n /m "Select 1, 2, 3, 4, 5, 6, or Q: "
-if errorlevel 7 goto :cancelled
+choice /c 1234567Q /n /m "Select 1, 2, 3, 4, 5, 6, 7, or Q: "
+if errorlevel 8 goto :cancelled
+if errorlevel 7 goto :all_opencode
 if errorlevel 6 goto :claude_code_grok_review
 if errorlevel 5 goto :grok_code_codex_review
 if errorlevel 4 goto :agy_code_codex_review
@@ -73,6 +75,15 @@ goto :launch
 :grok_code_codex_review
 set "PROFILE=Grok 4.5 builds and fixes; Codex limit fallback; Codex reviews"
 set "RUNARGS=--by-phase --builder grok --fixer grok --coding-fallback codex --reviewer codex"
+set "USES_CLAUDE=0"
+goto :launch
+
+:all_opencode
+:: Free models, so nothing is rationed -- there is no usage limit to fall back
+:: from, which is why the coding fallback is none. Pin a different model with
+:: OPENCODE_MODEL; `opencode models` lists what is available.
+set "PROFILE=opencode builds, fixes, and reviews"
+set "RUNARGS=--by-phase --builder opencode --fixer opencode --coding-fallback none --reviewer opencode"
 set "USES_CLAUDE=0"
 goto :launch
 
