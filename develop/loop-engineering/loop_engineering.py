@@ -32,6 +32,7 @@ import datetime as dt
 import json
 import os
 import queue
+import random
 import re
 import shutil
 import subprocess
@@ -277,10 +278,61 @@ AGENT_BLOCKERS = (
 
 AGENT_CHOICES = ("claude", "grok", "agy", "codex", "opencode")
 GROK_MODEL = "grok-4.5"
-# opencode routes to many providers; the loop pins one so a run is reproducible
-# and so a model change is a visible edit rather than a silent default shift.
-# Override per run with OPENCODE_MODEL. `opencode models` lists the rest.
-OPENCODE_MODEL = os.environ.get("OPENCODE_MODEL", "opencode/nemotron-3-ultra-free")
+# opencode routes to many providers. The loop picks one free model per RUN --
+# not per call -- so every agent in a run shares it and a result can be
+# attributed to a model afterwards. OPENCODE_MODEL pins it explicitly and wins.
+OPENCODE_MODEL_FALLBACK = "opencode/deepseek-v4-flash-free"
+_OPENCODE_MODEL: str | None = None
+
+
+def opencode_free_models() -> list[str]:
+    """Free models `opencode models` currently offers, newest listing wins.
+
+    Discovered rather than hardcoded: the free roster changes without notice,
+    and a stale constant would either pin a retired model or miss a new one.
+    """
+    # A string, not a list: run_capture only takes a shell when given one, and
+    # on Windows `opencode` is a .cmd that CreateProcess cannot launch directly.
+    try:
+        out = run_capture("opencode models", timeout=90)
+    except Exception:
+        return []
+    return [
+        line.strip() for line in out.splitlines()
+        if line.strip().startswith("opencode/") and line.strip().endswith("-free")
+    ]
+
+
+def opencode_model() -> str:
+    """The model this run uses, chosen once and reused by every agent call.
+
+    Per-run rather than per-call on purpose: a run that switched model between
+    the builder, the fixer and the reviewer could not be attributed to anything
+    afterwards, and a red board would not say which model produced it. Chosen
+    once, announced once, and reported in the run header.
+
+    OPENCODE_MODEL pins it explicitly and always wins.
+    """
+    global _OPENCODE_MODEL
+    if _OPENCODE_MODEL:
+        return _OPENCODE_MODEL
+
+    pinned = os.environ.get("OPENCODE_MODEL", "").strip()
+    if pinned:
+        _OPENCODE_MODEL = pinned
+        say(f"opencode model pinned by OPENCODE_MODEL: {pinned}")
+        return _OPENCODE_MODEL
+
+    models = opencode_free_models()
+    if models:
+        _OPENCODE_MODEL = random.choice(models)
+        say(f"opencode model for this run: {_OPENCODE_MODEL} "
+            f"(random of {len(models)} free)")
+    else:
+        _OPENCODE_MODEL = OPENCODE_MODEL_FALLBACK
+        say(f"opencode model discovery failed — falling back to "
+            f"{_OPENCODE_MODEL}", icon="!")
+    return _OPENCODE_MODEL
 
 
 def agent_executable(agent: str) -> str | None:
@@ -683,7 +735,7 @@ def agent_cmd(agent: str, prompt: str) -> str:
         # TUI and would hang a loop forever. `--auto` approves any permission
         # not explicitly denied, which is what lets it edit without a human —
         # the same bargain as claude's acceptEdits and codex's workspace-write.
-        return f'opencode run --auto -m {OPENCODE_MODEL} "{escaped}"'
+        return f'opencode run --auto -m {opencode_model()} "{escaped}"'
     raise ValueError(f"Unsupported agent: {agent}")
 
 

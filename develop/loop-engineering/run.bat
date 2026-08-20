@@ -30,11 +30,13 @@ echo   [3] Claude builds, fixes, and reviews
 echo   [4] AGY codes; Codex limit fallback; Codex reviews
 echo   [5] Grok 4.5 codes; Codex limit fallback; Codex reviews
 echo   [6] Claude codes,  Grok 4.5 reviews
-echo   [7] opencode (free models) builds, fixes, and reviews
+echo   [7] opencode builds, fixes, and reviews  (random free model)
+echo   [8] Claude codes; opencode fixes and reviews  (random free model)
 echo   [Q] Cancel
 echo.
-choice /c 1234567Q /n /m "Select 1, 2, 3, 4, 5, 6, 7, or Q: "
-if errorlevel 8 goto :cancelled
+choice /c 12345678Q /n /m "Select 1-8, or Q: "
+if errorlevel 9 goto :cancelled
+if errorlevel 8 goto :claude_code_opencode_review
 if errorlevel 7 goto :all_opencode
 if errorlevel 6 goto :claude_code_grok_review
 if errorlevel 5 goto :grok_code_codex_review
@@ -76,6 +78,16 @@ goto :launch
 set "PROFILE=Grok 4.5 builds and fixes; Codex limit fallback; Codex reviews"
 set "RUNARGS=--by-phase --builder grok --fixer grok --coding-fallback codex --reviewer codex"
 set "USES_CLAUDE=0"
+goto :launch
+
+:claude_code_opencode_review
+:: Claude writes, a free model checks. The reviewer being a different family is
+:: the point -- a model reviewing its own output shares its blind spots. The
+:: fixer is opencode too, so a correction never spends Claude quota; the coding
+:: fallback stays none because a free reviewer cannot exhaust anything.
+set "PROFILE=Claude builds; opencode fixes and reviews (random free model)"
+set "RUNARGS=--by-phase --builder claude --fixer opencode --coding-fallback none --reviewer opencode"
+set "USES_CLAUDE=1"
 goto :launch
 
 :all_opencode
