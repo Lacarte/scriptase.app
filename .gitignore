@@ -59,8 +59,12 @@ bin/*
 # Music and SFX beds are the same class of thing: large local media, imported
 # per machine. config.MUSIC_LIBRARY_DIR points the selector at
 # resources/sounds/music/<tone>/, so the tree must exist locally and must never
-# be committed.
-resources/sounds/
+# be committed — except the bundled royalty-free `default` beds, which ship with
+# the app so a fresh clone has working background music out of the box.
+resources/sounds/*
+!resources/sounds/music/
+resources/sounds/music/*
+!resources/sounds/music/default/
 
 # --- Loop engineering --------------------------------------------------------
 # Several thousand copied n8n build assets; never part of the repo.

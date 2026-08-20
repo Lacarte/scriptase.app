@@ -17,6 +17,7 @@ from typing import Any, Callable
 
 from scriptase.channels.models import (
     CHANNEL_SCHEMA_VERSION,
+    DEFAULT_MUSIC_FOLDER,
     DEFAULT_SCRIPT_TEMPLATE_BRIEF,
     DEFAULT_SCRIPT_TEMPLATE_SECTIONS,
     DEFAULT_VISUAL_STYLE_PROMPT,
@@ -175,6 +176,34 @@ def _add_presentation_identity(data: dict[str, Any]) -> dict[str, Any]:
         content = {}
         migrated["content"] = content
     content.setdefault("platforms", [])
+    return migrated
+
+
+@_register(8)
+def _add_random_music_default(data: dict[str, Any]) -> dict[str, Any]:
+    """Add the random-music default and the bundled music folder.
+
+    ``music_random`` is on by default for new Channels, but a legacy Channel
+    that already curated a specific ``music_profile`` kept a deliberate choice —
+    flipping it to random would silently change its output. So the default is
+    ``True`` only when no bed was chosen, and ``False`` otherwise. The music
+    ``folder`` is defaulted to the bundled location only when it is blank, never
+    overwriting a folder the user set.
+    """
+    migrated = deepcopy(data)
+    audio = migrated.get("audio_defaults")
+    if not isinstance(audio, dict):
+        audio = {}
+        migrated["audio_defaults"] = audio
+    if "music_random" not in audio:
+        audio["music_random"] = not str(audio.get("music_profile") or "").strip()
+
+    library = migrated.get("music_library")
+    if not isinstance(library, dict):
+        library = {"tracks": []}
+        migrated["music_library"] = library
+    if not str(library.get("folder") or "").strip():
+        library["folder"] = DEFAULT_MUSIC_FOLDER
     return migrated
 
 

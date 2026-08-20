@@ -54,6 +54,10 @@ let revertingChannelNav = false
 
 const channelId = computed(() => route.params.id)
 
+// The bundled royalty-free beds ship here; a new Channel points at them so
+// music works out of the box. Mirrors DEFAULT_MUSIC_FOLDER in the backend model.
+const DEFAULT_MUSIC_FOLDER = 'resources\\sounds\\music\\default'
+
 /** Full document for version / timestamps; form holds the editable draft. */
 const meta = reactive({
   id: '',
@@ -109,11 +113,12 @@ const form = reactive({
     remove_silence: true,
     speed: 1,
     music_profile: '',
+    music_random: true,
     loudness: null,
     ducking: null,
   },
   music_library: {
-    folder: '',
+    folder: DEFAULT_MUSIC_FOLDER,
     tracks: [],
   },
   captions: {
@@ -498,12 +503,13 @@ function applyDocument(doc) {
     remove_silence: true,
     speed: 1,
     music_profile: '',
+    music_random: true,
     loudness: null,
     ducking: null,
     ...(doc.audio_defaults || {}),
   })
   Object.assign(form.music_library, {
-    folder: '',
+    folder: DEFAULT_MUSIC_FOLDER,
     tracks: [],
     ...(doc.music_library || {}),
   })
@@ -865,7 +871,10 @@ async function onMusicFolder(event) {
 
   const relative = audio[0]?.webkitRelativePath || audio[0]?.name || ''
   const folderName = relative.includes('/') ? relative.split('/')[0] : ''
-  if (folderName && !form.music_library.folder.trim()) {
+  // Reflect the chosen folder name when the field is still empty or holds the
+  // bundled default — a folder the user picked themselves is left untouched.
+  const currentFolder = form.music_library.folder.trim()
+  if (folderName && (!currentFolder || currentFolder === DEFAULT_MUSIC_FOLDER)) {
     form.music_library.folder = folderName
   }
 
@@ -1417,16 +1426,32 @@ onMounted(load)
                 </label>
               </div>
             </div>
+            <div class="ch-narr-item" style="margin-top: 14px">
+              <div class="ch-narr-txt">
+                <div class="t">Pick a random music</div>
+                <div class="d">Choose a different bed from the library for each job, instead of a fixed track</div>
+              </div>
+              <button
+                type="button"
+                class="s1-toggle"
+                :class="{ on: form.audio_defaults.music_random }"
+                role="switch"
+                :aria-checked="form.audio_defaults.music_random"
+                aria-label="Pick a random music"
+                @click="form.audio_defaults.music_random = !form.audio_defaults.music_random; markDirty()"
+              ></button>
+            </div>
             <div class="ch-field" style="margin-top: 14px">
               <label for="ch-default-bed">
                 Default music bed
                 <span class="note">· {{ channelTracks.length }} track{{ channelTracks.length === 1 ? '' : 's' }} in folder</span>
+                <span v-if="form.audio_defaults.music_random" class="note">· random pick is on</span>
               </label>
               <select
                 id="ch-default-bed"
                 class="ch-select"
                 :value="defaultBedValue"
-                :disabled="!channelTracks.length"
+                :disabled="!channelTracks.length || form.audio_defaults.music_random"
                 @change="setDefaultBed($event.target.value)"
               >
                 <option v-for="opt in defaultBedOptions" :key="opt" :value="opt">{{ opt }}</option>

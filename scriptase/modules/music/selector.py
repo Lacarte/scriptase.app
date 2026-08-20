@@ -16,7 +16,7 @@ _SFX_ROOT = os.path.join(APP_ASSETS_DIR, "sounds", "sfx")
 _INITIAL_FILENAME = "initial.json"
 _HISTORY_LIMIT = 10
 
-_AUDIO_EXTS = {".mp3", ".wav", ".ogg", ".m4a", ".flac"}
+_AUDIO_EXTS = {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".opus"}
 
 # story_tone -> ordered list of music sub-folders (primary first, fallbacks after)
 TONE_MUSIC_MAP = {

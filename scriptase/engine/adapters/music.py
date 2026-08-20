@@ -14,6 +14,33 @@ _MANAGED_ROOTS: tuple[tuple[str, str], ...] = (
 )
 
 
+def _resolve_mode(config, merged) -> str:
+    """The selection mode, honoring the Channel's random/specific intent.
+
+    A node whose `mode` was explicitly set to something other than the schema
+    default (`tone`) wins — an author who dialed in a mode on the node means it.
+    Otherwise the Channel decides: `music_random` picks `random`, a curated
+    `music_profile` with random off picks `specific`, and everything else falls
+    back to tone-based selection.
+    """
+    node_mode = str((config or {}).get("mode") or "").strip()
+    if node_mode and node_mode != "tone":
+        return node_mode
+    if _truthy(merged.get("music_random")):
+        return "random"
+    if str(merged.get("music_profile") or "").strip():
+        return "specific"
+    return node_mode or "tone"
+
+
+def _truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
 def _managed_track(path: str) -> str:
     absolute = os.path.abspath(path)
     for root, prefix in _MANAGED_ROOTS:
@@ -33,9 +60,9 @@ def select(inputs, config, context):
     merged = inherited_config(config, inputs.get("settings"), {"tone": "story_tone"})
     pid = project_id(context, inputs)
     history = load_project_audio_history(pid).get("music_history", [])
-    mode = merged.get("mode", "tone")
+    mode = _resolve_mode(config, merged)
     if mode == "specific":
-        ref = str(merged.get("track_ref") or "")
+        ref = str(merged.get("track_ref") or merged.get("music_profile") or "")
         if ref.startswith("/assets/sounds/music/"):
             path = os.path.join(MUSIC_LIBRARY_DIR, ref[len("/assets/sounds/music/"):].replace("/", os.sep))
         elif ref.startswith("musics/"):

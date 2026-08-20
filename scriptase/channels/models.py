@@ -24,7 +24,7 @@ CHANNEL_ID_RE = re.compile(r"^ch_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py). Distinct from
 # the content ``version`` field, which bumps on every successful update.
-CHANNEL_SCHEMA_VERSION = 7
+CHANNEL_SCHEMA_VERSION = 8
 
 WATERMARK_POSITIONS = (
     "top-left",
@@ -48,6 +48,11 @@ DEFAULT_SCRIPT_TEMPLATE_BRIEF = (
     "matters, reframe the idea, and finish with a memorable landing."
 )
 DEFAULT_SCRIPT_TEMPLATE_SECTIONS = ("Hook", "Turn", "Why", "Reframe", "Landing")
+
+# The bundled royalty-free music beds ship under this relative location. A new
+# Channel points here so music works out of the box; the string is a display
+# reference only — track scanning uses the managed music library root.
+DEFAULT_MUSIC_FOLDER = r"resources\sounds\music\default"
 
 # Domains that may appear in provider_defaults / fallback_policies keys.
 PROVIDER_DEFAULT_DOMAINS = (
@@ -132,7 +137,7 @@ class MusicLibrary(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    folder: str = ""
+    folder: str = DEFAULT_MUSIC_FOLDER
     tracks: list[str] = Field(default_factory=list, max_length=200)
 
     @field_validator("folder", mode="before")
@@ -340,6 +345,10 @@ class AudioDefaults(BaseModel):
     remove_silence: bool = True
     speed: float = Field(default=1.0, ge=0.25, le=4.0)
     music_profile: str = ""
+    # When true, every job picks a random bed from the music library instead of
+    # always using `music_profile`. On by default so a new Channel gets varied
+    # music without curating a specific track.
+    music_random: bool = True
     loudness: float | None = None
     ducking: float | None = Field(default=None, ge=0.0, le=1.0)
 
