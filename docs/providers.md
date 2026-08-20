@@ -328,9 +328,9 @@ Picks a curated sample narration from a local catalog. Offline, deterministic wh
 
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
-| `n8n` | Scene Generator | `webhook` | `1.0.0` | v1 | `batch`, `chaptering`, `coherence_scoring`, `sfx_report`, `test_connection`; off: `single_scene` |
+| `n8n` | Scene Director | `webhook` | `1.0.0` | v1 | `batch`, `chaptering`, `coherence_scoring`, `sfx_report`, `test_connection`; off: `single_scene` |
 
-#### `n8n` — Scene Generator
+#### `n8n` — Scene Director
 
 AI scene planning via the configured n8n/OpenRouter webhook. Returns scenes, image prompts, coherence scoring, and sfx validation, and writes scenes/{id}/scenes.json.
 

@@ -116,9 +116,9 @@ DOMAINS: dict[str, DomainSpec] = {
             request_model="scriptase.modules.scene_director.providers.contract:SceneBlueprintRequest",
             result_model="scriptase.modules.scene_director.providers.contract:SceneBlueprintResultPayload",
             catalog_provider_ids=frozenset({"n8n"}),
-            # The n8n passerelle reads as "Scene Generator" on the settings page,
-            # mirroring the script domain's "Script Generator".
-            default_instance_label="Scene Generator",
+            # The n8n passerelle reads as "Scene Director" on the settings page —
+            # the same name as the capability, since it is the one provider for it.
+            default_instance_label="Scene Director",
         ),
         DomainSpec(
             id="tts",
