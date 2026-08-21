@@ -1269,6 +1269,38 @@ describe('ProductionPage', () => {
     })
   })
 
+  it('opens the row 3-dots menu and runs an action', async () => {
+    const job = {
+      id: 'job_MENU01', name: 'Menu job', channel_id: 'ch_A', status: 'completed',
+      completed_at: new Date().toISOString(),
+    }
+    api.listJobs.mockResolvedValue({ jobs: [job], total: 1 })
+    api.getJob.mockResolvedValue({ job })
+    api.duplicateJob.mockResolvedValue({ job: { ...job, id: 'job_MENU02' } })
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/production', name: 'production', component: ProductionPage }],
+    })
+    const wrapper = mount(ProductionPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    // Menu is closed until the kebab is clicked.
+    expect(wrapper.find('.job-menu').exists()).toBe(false)
+    await wrapper.get('.job-kebab-btn').trigger('click')
+    expect(wrapper.find('.job-menu').exists()).toBe(true)
+    const labels = wrapper.findAll('.jm-item').map((i) => i.text())
+    expect(labels).toEqual(
+      expect.arrayContaining(['View Details', 'Open in Editor', 'Export & download', 'Duplicate', 'Remove']),
+    )
+
+    // Clicking Duplicate runs the action and closes the menu.
+    const dup = wrapper.findAll('.jm-item').find((i) => i.text() === 'Duplicate')
+    await dup.trigger('click')
+    await flushPromises()
+    expect(api.duplicateJob).toHaveBeenCalledWith('job_MENU01')
+    expect(wrapper.find('.job-menu').exists()).toBe(false)
+  })
+
   it('renders projected stage labels from the API', async () => {
     // Stage labels now live on the expanded job's rail, so we need a job.
     const job = {

@@ -419,6 +419,29 @@ function jobExpanded(job) {
   return Boolean(job?.id) && job.id === activeJobId.value
 }
 
+// Per-row 3-dots menu (View Details / Editor / Export / Duplicate / Remove).
+const jobMenuOpen = ref('')
+function toggleJobMenu(job) {
+  jobMenuOpen.value = jobMenuOpen.value === job?.id ? '' : (job?.id || '')
+}
+function closeJobMenu() {
+  jobMenuOpen.value = ''
+}
+function jobMenuAction(action, job) {
+  closeJobMenu()
+  if (action === 'details') {
+    if (!jobExpanded(job)) toggleJobExpand(job)
+  } else if (action === 'editor') {
+    openJobInEditor(job)
+  } else if (action === 'export') {
+    openExportLibrary()
+  } else if (action === 'duplicate') {
+    runJobAction('duplicate', job)
+  } else if (action === 'remove') {
+    runJobAction('remove', job)
+  }
+}
+
 function toggleJobExpand(job) {
   if (jobExpanded(job)) {
     const query = { ...route.query }
@@ -549,6 +572,7 @@ watch(
 
 onUnmounted(() => {
   if (elapsedTimer) clearInterval(elapsedTimer)
+  window.removeEventListener('click', closeJobMenu)
 })
 
 function msOf(value) {
@@ -1035,6 +1059,7 @@ watch(
 )
 
 onMounted(async () => {
+  window.addEventListener('click', closeJobMenu)
   await Promise.all([refreshWorkflows(), refreshJobs()])
   try {
     const registry = await getNodeTypes()
@@ -1323,6 +1348,42 @@ onMounted(async () => {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                   <span>Library</span>
                 </button>
+              </div>
+              <div class="job-kebab">
+                <button
+                  type="button"
+                  class="job-kebab-btn"
+                  :class="{ on: jobMenuOpen === item.id }"
+                  :aria-label="`Actions for ${item.id}`"
+                  :aria-expanded="String(jobMenuOpen === item.id)"
+                  aria-haspopup="menu"
+                  @click.stop="toggleJobMenu(item)"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                </button>
+                <div v-if="jobMenuOpen === item.id" class="job-menu" role="menu" @click.stop>
+                  <button type="button" class="jm-item" role="menuitem" @click="jobMenuAction('details', item)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                    View Details
+                  </button>
+                  <button type="button" class="jm-item" role="menuitem" @click="jobMenuAction('editor', item)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+                    Open in Editor
+                  </button>
+                  <button type="button" class="jm-item" role="menuitem" @click="jobMenuAction('export', item)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    Export &amp; download
+                  </button>
+                  <button type="button" class="jm-item" role="menuitem" @click="jobMenuAction('duplicate', item)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Duplicate
+                  </button>
+                  <div class="jm-sep" />
+                  <button type="button" class="jm-item danger" role="menuitem" @click="jobMenuAction('remove', item)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6"/><path d="M10 11v6M14 11v6"/></svg>
+                    Remove
+                  </button>
+                </div>
               </div>
               <button
                 type="button"
@@ -1926,6 +1987,34 @@ onMounted(async () => {
 
 .job-expand-btn:hover { color: var(--text); }
 .job.expanded .job-expand-btn { transform: rotate(180deg); color: var(--text-2); }
+
+/* ---------- Per-row 3-dots menu ---------- */
+.job-kebab { position: relative; flex: none; }
+.job-kebab-btn {
+  width: 28px; height: 28px; display: grid; place-items: center;
+  border: none; border-radius: 6px; background: transparent; color: var(--muted);
+  cursor: pointer; transition: color .14s, background .14s;
+}
+.job-kebab-btn:hover, .job-kebab-btn.on { color: var(--text); background: var(--raise); }
+.job-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 40;
+  min-width: 190px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .45);
+}
+.jm-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 10px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--text-2); font: inherit; font-size: 13px;
+  text-align: left; cursor: pointer; transition: background .12s, color .12s;
+}
+.jm-item:hover { background: var(--raise); color: var(--text); }
+.jm-item svg { flex: none; color: var(--muted); }
+.jm-item:hover svg { color: var(--text-2); }
+.jm-item.danger { color: var(--fail); }
+.jm-item.danger svg { color: var(--fail); }
+.jm-item.danger:hover { background: var(--fail-dim); color: var(--fail-text, var(--fail)); }
+.jm-sep { height: 1px; margin: 5px 6px; background: var(--line-soft); }
 
 /* ---------- Expanded detail ---------- */
 .job-detail { border-top: 1px solid var(--line-soft); background: var(--bg-2); animation: job-detail-pop .18s ease; }
