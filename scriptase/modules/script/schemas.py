@@ -36,6 +36,9 @@ class StoryGenerateRequest(BaseModel):
     # Optional script-provider selector (step 13.3). Absent → domain default
     # (`gemini`). Accepts the permanent `builtin` input alias of that provider.
     provider_id: Optional[str] = None
+    # The Channel template's ordered beats — the single source of the script's
+    # structure. Absent → the default Hook/Build/Climax/CTA shape.
+    template_sections: Optional[list] = None
 
     @model_validator(mode="after")
     def _normalize_fields(self):
@@ -56,6 +59,9 @@ class StoryGenerateRequest(BaseModel):
         self.idea = (self.idea or "").strip() or None
         self.webhook_url = (self.webhook_url or "").strip() or None
         self.provider_id = (self.provider_id or "").strip() or None
+        if self.template_sections:
+            cleaned = [str(s).strip() for s in self.template_sections if str(s).strip()]
+            self.template_sections = cleaned or None
 
         # A Channel's `niche` (e.g. "dark_psychology") is a niche tag, not a
         # story category. When it arrives here as story_category, resolve it to

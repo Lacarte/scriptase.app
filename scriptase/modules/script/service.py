@@ -55,6 +55,9 @@ def generate_story(
         raise StoryServiceError("STORY_WEBHOOK_UNSAFE", "Unsafe story webhook URL")
 
     resolved_provider = (provider_id or "script_n8n").strip() or "script_n8n"
+    # The Channel template is the single source of the script's structure.
+    from scriptase.modules.script.engine import DEFAULT_SECTIONS
+    sections = list(data.template_sections or DEFAULT_SECTIONS)
     concept_family = choose_story_concept_family(
         data.preset_style,
         data.story_category,
@@ -69,6 +72,7 @@ def generate_story(
             data.language,
             story_tone=data.story_tone,
             language_level=data.language_level,
+            sections=sections,
         ),
         "user_prompt": build_story_user_prompt(
             data.preset_style,
@@ -85,7 +89,7 @@ def generate_story(
         "duration": data.duration,
         "language": data.language,
         "word_target": compute_word_target(data.duration),
-        "structure": ["hook", "build", "climax", "cta"],
+        "structure": [str(s).strip().lower() for s in sections],
     }
     started = time.perf_counter()
     caller = webhook_caller or call_webhook
@@ -96,7 +100,7 @@ def generate_story(
     if not isinstance(raw_text, str) or not raw_text.strip():
         raise StoryServiceError("STORY_TEXT_MISSING", "Story webhook returned no story text")
 
-    parsed = parse_story_sections(raw_text)
+    parsed = parse_story_sections(raw_text, sections)
     generated_at = datetime.now().astimezone().isoformat()
     generation_time = round(time.perf_counter() - started, 3)
     estimated_duration = round(parsed["word_count"] / WORDS_PER_SECOND)
@@ -147,8 +151,8 @@ def generate_story(
             preset_style=data.preset_style,
             category=data.story_category,
             language=data.language,
-            hook=parsed["sections"].get("hook", ""),
-            opening=(parsed["sections"].get("build", "") or "").split(".")[0],
+            hook=parsed["roles"].get("hook", ""),
+            opening=(parsed["roles"].get("build", "") or "").split(".")[0],
             timestamp=generated_at,
             concept_family=concept_family,
         )

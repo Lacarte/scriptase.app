@@ -17,7 +17,7 @@ def _stub_llm_judge(monkeypatch):
 
     monkeypatch.setattr(
         scripts_routes, "llm_score_script_text",
-        lambda script_id, text: (None, "stubbed offline in tests"),
+        lambda script_id, text, labels=None: (None, "stubbed offline in tests"),
     )
 
 
@@ -99,7 +99,7 @@ def test_llm_second_opinion_is_included_and_non_fatal(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     script = _create(client)
 
-    def boom(script_id, text):
+    def boom(script_id, text, labels=None):
         return None, "The virality webhook is unreachable"
 
     # Patch where the route uses it (imported by name into the routes module).

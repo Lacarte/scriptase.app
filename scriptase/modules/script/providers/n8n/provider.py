@@ -213,8 +213,8 @@ class N8nScriptProvider(ScriptProvider):
                 preset_style=payload["preset_style"],
                 category=payload["story_category"],
                 language=payload["language"],
-                hook=parsed["sections"].get("hook", ""),
-                opening=(parsed["sections"].get("build", "") or "").split(".")[0],
+                hook=parsed["roles"].get("hook", ""),
+                opening=(parsed["roles"].get("build", "") or "").split(".")[0],
                 timestamp=generated_at,
                 concept_family="",
             )

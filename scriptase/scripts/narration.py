@@ -92,13 +92,15 @@ def generate_narration(
         or ""
     )
 
+    template_labels = list(getattr(channel.script_template, "sections", None) or [])
     try:
         result = dispatch.synthesize(
             {
-                # The stored body keeps its Hook:/Build:/Climax:/CTA: markers
-                # (editor structure + virality scoring), but the voice must not
-                # read them aloud — strip to clean prose for synthesis.
-                "text": strip_section_labels(generating.body),
+                # The stored body keeps its section markers (editor structure +
+                # virality scoring), but the voice must not read them aloud —
+                # strip to clean prose for synthesis, using the channel's own
+                # beats so any custom template narrates cleanly.
+                "text": strip_section_labels(generating.body, template_labels),
                 "voice": requested_voice,
                 "speed": processing["speed"],
                 "remove_silence": processing["remove_silence"],

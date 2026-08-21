@@ -41,6 +41,23 @@ def _error(code: str, message: str, status: int, details=None):
     return jsonify(body), status
 
 
+def _channel_template_labels(channel_id: str | None):
+    """The channel's script-template beats, or None to use the default shape.
+
+    This is the single source of a script's structure; the scorer maps whatever
+    beats it returns to the canonical roles. Missing/unknown channel -> None.
+    """
+    if not channel_id:
+        return None
+    try:
+        from scriptase.channels.store import get_channel
+        channel = get_channel(channel_id)
+        sections = list(getattr(channel.script_template, "sections", None) or [])
+        return sections or None
+    except Exception:  # noqa: BLE001 — scoring falls back to the default shape
+        return None
+
+
 def _json_body():
     declared = request.content_length
     if declared is not None and declared > MAX_SCRIPT_BODY_BYTES:
@@ -108,7 +125,9 @@ def _detail(document):
     return {
         "script": payload,
         "narration_audio": audio.to_document() if audio is not None else None,
-        "virality": cached_script_score(document.id, document.body),
+        "virality": cached_script_score(
+            document.id, document.body, _channel_template_labels(document.channel_id),
+        ),
     }
 
 
@@ -235,7 +254,10 @@ def scripts_score_virality(script_id: str):
     try:
         document = get_script(script_id)
         text = body.get("text", document.body)
-        result, cached = score_script_text(script_id, text)
+        # The channel's template is the single source of the script's beats;
+        # scoring parses the body with them and maps to the canonical roles.
+        labels = _channel_template_labels(document.channel_id)
+        result, cached = score_script_text(script_id, text, labels)
         payload = {
             "virality": result.model_dump(mode="json"),
             "cached": cached,
@@ -244,7 +266,7 @@ def scripts_score_virality(script_id: str):
         # best-effort, never fatal. `llm_virality` is null with `llm_error` set
         # when the webhook is unreachable or unfunded.
         if body.get("with_llm", True):
-            llm, llm_error = llm_score_script_text(script_id, text)
+            llm, llm_error = llm_score_script_text(script_id, text, labels)
             payload["llm_virality"] = llm.model_dump(mode="json") if llm else None
             payload["llm_error"] = llm_error
         return jsonify(payload)

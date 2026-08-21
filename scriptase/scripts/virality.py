@@ -33,19 +33,19 @@ def _cache_path(script_id: str) -> str:
     return safe_join(script_store._scripts_dir, f"{script_id}.virality.json")
 
 
-def _request(script_id: str, text: str) -> ViralRequest:
+def _request(script_id: str, text: str, labels=None) -> ViralRequest:
     if not isinstance(text, str):
         raise ValueError("text must be a string")
-    # A Script Studio body carries its labels (Hook:/Build:/Climax:/CTA:).
-    # Parse them into `sections` so the scorer sees the structure — without
-    # this, hook/CTA/balance all read as missing and the score craters.
+    # A Script Studio body carries its labels — the channel's own beats. Parse
+    # them and map to the canonical scorer roles (hook/build/climax/cta) so any
+    # structure scores; without this, hook/CTA/balance read as missing.
     from scriptase.modules.script.engine import parse_story_sections
 
-    parsed = parse_story_sections(text)
-    sections = {k: v for k, v in (parsed.get("sections") or {}).items() if v}
+    parsed = parse_story_sections(text, labels)
+    roles = {k: v for k, v in (parsed.get("roles") or {}).items() if v}
     request = ViralRequest(
         job_id=script_id,
-        sections=sections,
+        sections=roles,
         story_text=parsed.get("story_text") or text,
     )
     if not request.has_content:
@@ -85,9 +85,9 @@ def _read_matching(script_id: str, input_hash: str) -> ViralScore | None:
         return None
 
 
-def score_script_text(script_id: str, text: str) -> tuple[ViralScore, bool]:
+def score_script_text(script_id: str, text: str, labels=None) -> tuple[ViralScore, bool]:
     """Return the cached score for identical text, otherwise score and cache it."""
-    request = _request(script_id, text)
+    request = _request(script_id, text, labels)
     input_hash = _input_hash(request)
     with _thread_lock(script_id):
         cached = _read_matching(script_id, input_hash)
@@ -117,7 +117,7 @@ def score_script_text(script_id: str, text: str) -> tuple[ViralScore, bool]:
         return result, False
 
 
-def llm_score_script_text(script_id: str, text: str) -> tuple[ViralScore | None, str]:
+def llm_score_script_text(script_id: str, text: str, labels=None) -> tuple[ViralScore | None, str]:
     """A second, semantic virality opinion from the LLM-judge viral provider.
 
     Best-effort and never fatal: the deterministic score is the guarantee, this
@@ -126,7 +126,7 @@ def llm_score_script_text(script_id: str, text: str) -> tuple[ViralScore | None,
     cached — an LLM opinion is non-deterministic, so a stored one would mislead.
     """
     try:
-        request = _request(script_id, text)
+        request = _request(script_id, text, labels)
         from scriptase.modules.viral.providers.llm_judge.provider import create as _make_judge
 
         return _make_judge().score(request), ""
@@ -135,9 +135,9 @@ def llm_score_script_text(script_id: str, text: str) -> tuple[ViralScore | None,
         return None, str(exc)[:300]
 
 
-def cached_script_score(script_id: str, text: str) -> dict[str, Any] | None:
+def cached_script_score(script_id: str, text: str, labels=None) -> dict[str, Any] | None:
     """Read a valid score without running the scorer (used when opening a script)."""
-    request = _request(script_id, text) if text.strip() else None
+    request = _request(script_id, text, labels) if text.strip() else None
     if request is None:
         return None
     cached = _read_matching(script_id, _input_hash(request))

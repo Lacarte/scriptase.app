@@ -209,8 +209,10 @@ def run_experiment(
 
     parsed = parse_story_sections(raw_text)
     duration = prompt["inputs"]["duration"]
+    # Score on the canonical roles so any structure maps correctly.
+    roles = parsed.get("roles") or parsed["sections"]
     score = score_script(
-        sections=parsed["sections"],
+        sections=roles,
         story_text=parsed["story_text"],
         target_duration=duration,
     )
@@ -220,7 +222,7 @@ def run_experiment(
     llm_error = ""
     if with_llm_judge:
         judged, llm_error = _llm_score(
-            parsed["sections"], parsed["story_text"], duration, str(prompt.get("channel_id") or "job_lab"),
+            roles, parsed["story_text"], duration, str(prompt.get("channel_id") or "job_lab"),
         )
         if judged is not None:
             llm_score = _score_block(judged)

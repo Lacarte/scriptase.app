@@ -1,9 +1,14 @@
 """Prompt templates for story generation."""
 
 import random
+import re
 import string
 
 from scriptase.modules.scene_director.templates import STORY_CATEGORIES, TEMPLATES_BY_ID  # noqa: F401 — re-exported
+
+# The default beats when a channel declares no template. Kept here (not imported
+# from engine) to avoid a cycle; engine.DEFAULT_SECTIONS mirrors this.
+DEFAULT_SECTIONS = ("Hook", "Build", "Climax", "CTA")
 
 # Approximate words per second for spoken narration at 1.0x speed
 WORDS_PER_SECOND = 2.5
@@ -530,6 +535,51 @@ _GENERIC_LENSES = [
 ]
 
 
+# The default beats and their per-beat writing guidance. A channel template that
+# uses these exact labels gets this rich direction; custom beats get a concise,
+# position-aware instruction generated from the template.
+_DEFAULT_BEAT_GUIDANCE = {
+    "hook": ("1-2 sentences — immediate attention grab, pattern interrupt, or shocking "
+             "statement that promises secret knowledge or a surprising truth"),
+    "build": ("Core narrative — context, tension, escalation. This is the longest section. "
+              "Use contrast between what people believe vs. what's really happening. "
+              "Escalate from subtle, low-stakes observations to high-stakes revelations. "
+              "Include practical, observable examples so the viewer can recognize them in "
+              "real life. End key passages with open loops like 'but here's what most don't realize.'"),
+    "climax": ("Peak moment — the twist, revelation, or emotional peak. Blend authority "
+               "(science, evolution, psychology) with emotional stakes."),
+    "cta": ("1 sentence — call to action, question, or cliffhanger that reminds the viewer "
+            "what's at stake"),
+}
+
+
+def _beat_guidance(beat: str, index: int, total: int) -> str:
+    """Writing direction for one beat: rich for the canonical four, else generic."""
+    key = re.sub(r"[^a-z0-9]+", "_", str(beat).strip().lower()).strip("_")
+    if key in _DEFAULT_BEAT_GUIDANCE:
+        return _DEFAULT_BEAT_GUIDANCE[key]
+    if index == 0:
+        return "Open with an immediate attention grab — a hook that promises a payoff."
+    if index == total - 1:
+        return "Land the piece — a memorable close, call to action, or lingering question."
+    return f"Advance the narrative through this beat ('{beat}') — keep the momentum building."
+
+
+def _build_structure_block(sections) -> str:
+    """The OUTPUT STRUCTURE section, generated from the channel's beats."""
+    beats = [str(s).strip() for s in (sections or DEFAULT_SECTIONS) if str(s).strip()]
+    if not beats:
+        beats = list(DEFAULT_SECTIONS)
+    total = len(beats)
+    lines = ["OUTPUT STRUCTURE (mandatory — use these exact labels, in this order):"]
+    for i, beat in enumerate(beats):
+        lines.append(f"{beat}: [{_beat_guidance(beat, i, total)}]")
+    lines.append("")
+    labels_csv = " / ".join(f"{b}:" for b in beats)
+    lines.append(f"Each section MUST be labeled exactly as shown: {labels_csv}")
+    return "\n\n".join(lines[:-1]) + "\n" + lines[-1]
+
+
 def build_story_system_prompt(
     preset_style: str,
     story_category: str,
@@ -537,8 +587,13 @@ def build_story_system_prompt(
     language: str,
     story_tone: str = None,
     language_level: str = None,
+    sections=None,
 ) -> str:
-    """Build the system prompt for the LLM story generation call."""
+    """Build the system prompt for the LLM story generation call.
+
+    `sections` is the Channel template's ordered beats — the single source of the
+    script's structure. Defaults to Hook/Build/Climax/CTA when absent.
+    """
     word_target = compute_word_target(duration)
 
     # Resolve style description
@@ -570,17 +625,7 @@ def build_story_system_prompt(
         f"Write in {language}. Target approximately {word_target} words total.\n\n"
         "The script must be written in a natural spoken flow suitable for voiceover — "
         "no titles, no summaries, no chapter markers, and no unnecessary meta-text.\n\n"
-        "OUTPUT STRUCTURE (mandatory — use these exact labels):\n"
-        "Hook: [1-2 sentences — immediate attention grab, pattern interrupt, or shocking statement "
-        "that promises secret knowledge or a surprising truth]\n\n"
-        "Build: [Core narrative — context, tension, escalation. This is the longest section. "
-        "Use contrast between what people believe vs. what's really happening. "
-        "Escalate from subtle, low-stakes observations to high-stakes revelations. "
-        "Include practical, observable examples so the viewer can recognize them in real life. "
-        "End key passages with open loops or transitions like 'but here's what most don't realize.']\n\n"
-        "Climax: [Peak moment — the twist, revelation, or emotional peak. "
-        "Blend authority (science, evolution, psychology) with emotional stakes.]\n\n"
-        "CTA: [1 sentence — call to action, question, or cliffhanger that reminds the viewer what's at stake]\n\n"
+        f"{_build_structure_block(sections)}\n\n"
         "WRITING RULES:\n"
         "- Use simple, everyday language — even when explaining complex ideas. "
         "Write like you're explaining to a smart friend, not a professor. "
@@ -588,7 +633,6 @@ def build_story_system_prompt(
         "- Plain text only. No markdown, no formatting, no emojis, no asterisks.\n"
         "- Write as spoken narration — short punchy sentences, conversational rhythm, "
         "natural pauses through line breaks.\n"
-        "- Each section MUST be labeled exactly as shown: Hook: / Build: / Climax: / CTA:\n"
         f"- Total word count must be within ±10% of {word_target} words.\n"
         f"- Write entirely in {language}.\n"
         "- Do not include any meta-commentary, instructions, or stage directions in the output.\n"
