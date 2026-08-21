@@ -6,8 +6,10 @@ from pydantic import BaseModel, Field, model_validator
 
 from scriptase.channels.presets import (
     CATEGORIES as NICHE_CATEGORIES,
+    category_from_niche,
     is_known_template,
     is_valid_story_tone,
+    normalize_language,
     normalize_preset_id,
     normalize_story_tone,
 )
@@ -16,46 +18,6 @@ from scriptase.modules.script.prompts import STORY_CATEGORIES
 SUPPORTED_LANGUAGES = ("english", "french", "spanish")
 LANGUAGE_LEVELS = ("beginner", "intermediate", "advanced", "native")
 VALID_STORY_CATEGORIES = tuple(dict.fromkeys([*STORY_CATEGORIES, *NICHE_CATEGORIES]))
-
-# Channels store ISO-ish language codes ("en"); the story engine speaks full
-# names. Accept both so a Channel's own value never trips validation.
-_LANGUAGE_ALIASES = {
-    "en": "english", "eng": "english", "en-us": "english", "en-gb": "english",
-    "fr": "french", "fra": "french", "fr-fr": "french",
-    "es": "spanish", "spa": "spanish", "es-es": "spanish",
-}
-
-
-def _normalize_language(value) -> str:
-    text = str(value or "").strip().lower()
-    if not text:
-        return "english"
-    return _LANGUAGE_ALIASES.get(text, text)
-
-
-def _category_from_niche(value) -> str:
-    """Map a niche tag (e.g. "dark_psychology") to its real story category.
-
-    A Channel stores a `niche`; several presets can share it, each declaring a
-    `category`. If the value already IS a valid category, return it. Otherwise
-    find a preset whose `niche` matches and borrow its category. Returns "" when
-    nothing matches.
-    """
-    text = str(value or "").strip().lower()
-    if not text:
-        return ""
-    if text in VALID_STORY_CATEGORIES:
-        return text
-    try:
-        from scriptase.channels.presets import get_presets
-        for preset in get_presets().values():
-            if str(preset.get("niche") or "").strip().lower() == text:
-                category = str(preset.get("category") or "").strip().lower()
-                if category in VALID_STORY_CATEGORIES:
-                    return category
-    except Exception:  # noqa: BLE001 — resolution is best-effort
-        pass
-    return ""
 
 
 class StoryGenerateRequest(BaseModel):
@@ -83,7 +45,7 @@ class StoryGenerateRequest(BaseModel):
         self.story_category = (self.story_category or "").strip().lower()
         # A Channel stores its language as an ISO code ("en"); the story engine
         # speaks full names. Normalize instead of rejecting.
-        self.language = _normalize_language(self.language)
+        self.language = normalize_language(self.language)
         if self.language not in SUPPORTED_LANGUAGES:
             self.language = "english"
         self.story_tone = normalize_story_tone(self.story_tone) or None
@@ -99,7 +61,7 @@ class StoryGenerateRequest(BaseModel):
         # story category. When it arrives here as story_category, resolve it to
         # the real category ("psychology") rather than failing the request.
         if self.story_category not in VALID_STORY_CATEGORIES:
-            resolved = _category_from_niche(self.story_category) or _category_from_niche(self.niche_preset)
+            resolved = category_from_niche(self.story_category) or category_from_niche(self.niche_preset)
             self.story_category = resolved or "motivation"
 
         if not is_known_template(self.preset_style):

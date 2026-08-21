@@ -47,7 +47,11 @@ def _channel_inputs(channel_id: str | None) -> dict:
     """Resolve a Channel into the prompt inputs (niche/style/tone/duration)."""
     if not channel_id:
         return {}
-    from scriptase.channels.presets import resolve_niche
+    from scriptase.channels.presets import (
+        category_from_niche,
+        normalize_language,
+        resolve_niche,
+    )
     from scriptase.channels.store import ChannelNotFound, get_channel
 
     try:
@@ -71,9 +75,12 @@ def _channel_inputs(channel_id: str | None) -> dict:
     return {
         "niche_preset": niche_preset,
         "preset_style": resolved.get("visual_style") or "cinematic",
-        "story_category": resolved.get("category") or channel.content.niche or "",
+        # Resolve the niche to a real category the same way the provider does,
+        # falling back through the shared helper rather than passing a niche tag.
+        "story_category": resolved.get("category") or category_from_niche(channel.content.niche) or "",
         "story_tone": resolved.get("story_tone") or channel.content.tone or "",
-        "language": channel.content.language or "english",
+        # ISO code ("en") -> full name, so the prompt never says "Language: en".
+        "language": normalize_language(channel.content.language) or "english",
         "duration": channel.content.duration_target or 60,
     }
 

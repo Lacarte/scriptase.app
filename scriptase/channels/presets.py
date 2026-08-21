@@ -1294,6 +1294,47 @@ def normalize_visual_style(value) -> str:
     return _normalize_slug(value)
 
 
+# Channels store ISO-ish language codes ("en"); the story engine speaks full
+# names ("english"). One shared table so every entry point agrees.
+_LANGUAGE_ALIASES = {
+    "en": "english", "eng": "english", "en-us": "english", "en-gb": "english",
+    "fr": "french", "fra": "french", "fr-fr": "french",
+    "es": "spanish", "spa": "spanish", "es-es": "spanish",
+}
+
+
+def normalize_language(value) -> str:
+    """ISO-ish code or full name -> the engine's full language name.
+
+    Unknown values pass through lower-cased; the caller decides the fallback.
+    """
+    text = str(value or "").strip().lower()
+    if not text:
+        return "english"
+    return _LANGUAGE_ALIASES.get(text, text)
+
+
+def category_from_niche(value) -> str:
+    """A niche tag (e.g. "dark_psychology") -> its real story category.
+
+    A Channel stores a `niche`; several presets can share it, each declaring a
+    `category`. If the value already IS a valid category, return it normalized.
+    Otherwise find a preset whose `niche` matches and borrow its category.
+    Returns "" when nothing matches.
+    """
+    text = _normalize_slug(value)
+    if not text:
+        return ""
+    if is_valid_category(text):
+        return text
+    for preset in get_presets().values():
+        if _normalize_slug(preset.get("niche")) == text:
+            category = _normalize_slug(preset.get("category"))
+            if is_valid_category(category):
+                return category
+    return ""
+
+
 def is_builtin_preset(preset_id: str) -> bool:
     return normalize_preset_id(preset_id) in _DEFAULTS
 

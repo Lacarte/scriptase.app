@@ -11,7 +11,25 @@ from __future__ import annotations
 
 import unittest
 
+from scriptase.channels.presets import category_from_niche, normalize_language
 from scriptase.modules.script.schemas import StoryGenerateRequest
+
+
+class SharedHelperTests(unittest.TestCase):
+    """The normalizers live in presets.py so the route schema, the Lab, and the
+    node all reconcile Channel values the same way (one source of truth)."""
+
+    def test_normalize_language_maps_iso_codes(self):
+        self.assertEqual(normalize_language("en"), "english")
+        self.assertEqual(normalize_language("fr"), "french")
+        self.assertEqual(normalize_language("es"), "spanish")
+        self.assertEqual(normalize_language("english"), "english")
+        self.assertEqual(normalize_language(""), "english")
+
+    def test_category_from_niche_borrows_the_presets_category(self):
+        self.assertEqual(category_from_niche("dark_psychology"), "psychology")
+        self.assertEqual(category_from_niche("history"), "history")  # already a category
+        self.assertEqual(category_from_niche("not_a_niche_xyz"), "")
 
 
 class LanguageNormalizationTests(unittest.TestCase):
