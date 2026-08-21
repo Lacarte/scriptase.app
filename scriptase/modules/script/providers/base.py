@@ -11,7 +11,8 @@ Two entry points exist on purpose:
     Returns a `ProviderResult` whose `payload` validates as
     `ScriptResultPayload`.
 
-Shipped providers: `random_template` (offline catalog) and `gemini` (AI webhook).
+Shipped providers: `random_template` (offline catalog), `script_n8n` (app-prompt
+n8n webhook, formerly `gemini`), and `n8n` (raw pass-through to an n8n workflow).
 """
 
 from __future__ import annotations

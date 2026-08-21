@@ -1,7 +1,7 @@
 {
   "result_version": 1,
   "domain": "script",
-  "provider_id": "gemini",
+  "provider_id": "script_n8n",
   "provider_version": "1.0.0",
   "contract_version": 1,
   "status": "succeeded",

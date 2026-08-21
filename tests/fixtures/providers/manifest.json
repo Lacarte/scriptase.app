@@ -25,18 +25,6 @@
       "bytes": 657,
       "sha256": "b14bfb82fa561a166274f66faf4171f8bed9a2f73a51b8b10933b25c98690d87"
     },
-    "script/gemini/expected_result.json": {
-      "bytes": 2959,
-      "sha256": "ee5fb3b5657a705d09c8a0c2839ceb2a836c60d0cec89c231cc77efc83c321d9"
-    },
-    "script/gemini/raw_response.json": {
-      "bytes": 851,
-      "sha256": "ff804e3df8b5e0660091ab845c0c15ecc128a47cc987bffffb090f7f63b3c085"
-    },
-    "script/gemini/request.json": {
-      "bytes": 261,
-      "sha256": "3f9f3cf682eba5e946724281157119d16bb795cc5478c9456653ece8d3e2cf18"
-    },
     "script/random_template/expected_result.json": {
       "bytes": 1900,
       "sha256": "0c01e5804c6005f4ddcab7665c3640ce1161d686177c38db4ae116c3c1e8cecd"
@@ -48,6 +36,18 @@
     "script/random_template/request.json": {
       "bytes": 196,
       "sha256": "4b884dc2fc799b49e673f7a8e1cea05cd328f969a84de63e2fe2167ce637bc4c"
+    },
+    "script/script_n8n/expected_result.json": {
+      "bytes": 2963,
+      "sha256": "2db2610701f6dbdc3de4786d2547e3a69f72dacc0b7a78978b5ca9d0386338e6"
+    },
+    "script/script_n8n/raw_response.json": {
+      "bytes": 851,
+      "sha256": "ff804e3df8b5e0660091ab845c0c15ecc128a47cc987bffffb090f7f63b3c085"
+    },
+    "script/script_n8n/request.json": {
+      "bytes": 261,
+      "sha256": "3f9f3cf682eba5e946724281157119d16bb795cc5478c9456653ece8d3e2cf18"
     },
     "tts/inworld/expected_result.json": {
       "bytes": 1784,

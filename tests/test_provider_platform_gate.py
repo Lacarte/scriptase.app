@@ -105,7 +105,7 @@ FIXTURE_IDS = (
 
 # Concrete package paths that generic dispatch must not import.
 FORBIDDEN_PROVIDER_PACKAGES = (
-    "scriptase.modules.script.providers.gemini",
+    "scriptase.modules.script.providers.script_n8n",
     "scriptase.modules.script.providers.random_template",
     "scriptase.modules.scene_director.providers.n8n",
     "scriptase.modules.tts.providers.inworld",
@@ -116,7 +116,7 @@ FORBIDDEN_PROVIDER_PACKAGES = (
 )
 
 EXPECTED_SHIPPED = {
-    "script": {"gemini", "n8n", "random_template"},
+    "script": {"script_n8n", "n8n", "random_template"},
     "scene_director": {"n8n"},
     "tts": {"inworld"},
     "image": {"gemini_ws"},

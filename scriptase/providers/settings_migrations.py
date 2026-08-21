@@ -39,7 +39,7 @@ from scriptase.providers.domains import DOMAIN_ALIASES, DOMAINS
 # v10 = prototype-only provider catalogue (step 5.3).
 # v11 = restore script catalogue (step 7.1). v10 removed it; Auto and Idea
 #        need a script provider, so backfill gemini as the default.
-SETTINGS_VERSION = 15
+SETTINGS_VERSION = 16
 
 MIGRATIONS: dict[int, Callable[[dict, dict], dict]] = {}
 
@@ -522,6 +522,36 @@ def migrate_to_v15(data: dict, legacy_user: dict) -> dict:
     record = instances.get("n8n")
     if isinstance(record, dict) and record.get("label") in ("Scene Generator", "n8n"):
         record["label"] = "Scene Director"
+    return data
+
+
+@_register(16)
+def migrate_to_v16(data: dict, legacy_user: dict) -> dict:
+    """Rename the script `gemini` instance/selection to the canonical `script_n8n`.
+
+    The script provider's id was renamed from `gemini` to `script_n8n` (`gemini`
+    stays a permanent input alias, so a document left un-migrated still resolves).
+    This rewrites the stored id to the canonical one: the instance key, its
+    `type`, and any `selected_instance_id` pointing at it. A user-set label is
+    left alone; only the bare-id label is refreshed to the friendly default.
+    """
+    block = data.get("domains", {}).get("script")
+    if not isinstance(block, dict):
+        return data
+    instances = block.get("instances")
+    if isinstance(instances, dict) and "gemini" in instances and "script_n8n" not in instances:
+        record = instances.pop("gemini")
+        if isinstance(record, dict):
+            record["type"] = "script_n8n"
+            if record.get("label") in ("gemini", "script_n8n", None, ""):
+                record["label"] = "Story Generator"
+        instances["script_n8n"] = record
+    if block.get("selected_instance_id") == "gemini":
+        block["selected_instance_id"] = "script_n8n"
+    # A pre-instance document (v5 and earlier keys) may still carry the flat
+    # selection string; keep it resolving to the canonical id.
+    if block.get("selected_provider") == "gemini":
+        block["selected_provider"] = "script_n8n"
     return data
 
 

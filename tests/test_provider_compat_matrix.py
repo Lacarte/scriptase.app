@@ -48,8 +48,11 @@ from scriptase.engine.validation import validate_workflow, validation_errors
 # of the frozen map, input column only after 16.1 retired the emit column).
 DOCUMENTED_ALIASES = {
     # Step 7.1 restored the script catalogue; the legacy bridge alias resolves.
-    ("script", "builtin"): "gemini",
-    ("script", "gemini"): "gemini",
+    # The app-prompt provider's id was renamed gemini -> script_n8n; both the
+    # `builtin` bridge and the former `gemini` id are permanent input aliases.
+    ("script", "builtin"): "script_n8n",
+    ("script", "gemini"): "script_n8n",
+    ("script", "script_n8n"): "script_n8n",
     ("script", "random_template"): "random_template",
     ("scene_director", "builtin"): "n8n",
     ("scene_director", "n8n"): "n8n",
@@ -170,8 +173,8 @@ class SelectionAliasAndSettingsFormatTests(unittest.TestCase):
         self.assertEqual(resolve_secret_refs({"api_key": key})["api_key"], "sk-keep")
         # Every catalog domain is present after the upgrade.
         self.assertEqual(set(once["domains"]), set(DOMAINS))
-        # Step 7.1 restored gemini as the script default.
-        self.assertEqual(once["domains"]["script"]["selected_instance_id"], "gemini")
+        # Step 7.1 restored the script default; v16 renames its id to script_n8n.
+        self.assertEqual(once["domains"]["script"]["selected_instance_id"], "script_n8n")
         self.assertEqual(
             once["domains"]["scene_director"]["selected_instance_id"], "n8n"
         )

@@ -159,9 +159,9 @@ class ViralDomainCatalogTests(unittest.TestCase):
         self.assertEqual(
             migrated["domains"][DOMAIN]["selected_instance_id"], "deterministic"
         )
-        # Step 7.1 restored the script catalogue; v10 now maps existing
-        # gemini instances through, and v11 backfills when needed.
-        self.assertEqual(migrated["domains"]["script"]["selected_instance_id"], "gemini")
+        # Step 7.1 restored the script catalogue; v11 backfills when needed and
+        # v16 renames the id gemini -> script_n8n.
+        self.assertEqual(migrated["domains"]["script"]["selected_instance_id"], "script_n8n")
 
 
 class DeterministicProviderTests(unittest.TestCase):

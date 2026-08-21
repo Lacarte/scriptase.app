@@ -224,6 +224,36 @@ def _add_scene_pacing_default(data: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+@_register(10)
+def _rename_script_provider_to_script_n8n(data: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite the script provider id `gemini` → `script_n8n` on a Channel.
+
+    The script provider was renamed from `gemini` to `script_n8n` (`gemini`
+    survives as a permanent input alias, so an un-migrated Channel still
+    resolves). This updates the two places a Channel can name it — the script
+    ``provider_defaults`` and any ``fallback_policies['script']`` primary or
+    fallback entry — so the stored reference is the canonical id.
+    """
+    migrated = deepcopy(data)
+
+    defaults = migrated.get("provider_defaults")
+    if isinstance(defaults, dict) and defaults.get("script") == "gemini":
+        defaults["script"] = "script_n8n"
+
+    policies = migrated.get("fallback_policies")
+    if isinstance(policies, dict):
+        policy = policies.get("script")
+        if isinstance(policy, dict):
+            if policy.get("primary") == "gemini":
+                policy["primary"] = "script_n8n"
+            fallbacks = policy.get("fallbacks")
+            if isinstance(fallbacks, list):
+                policy["fallbacks"] = [
+                    "script_n8n" if item == "gemini" else item for item in fallbacks
+                ]
+    return migrated
+
+
 # Future schema changes register the next consecutive target here and land in
 # the same step that changes the model (CLAUDE.md non-negotiable).
 

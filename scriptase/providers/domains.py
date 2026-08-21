@@ -90,15 +90,16 @@ DOMAINS: dict[str, DomainSpec] = {
             providers_base=_base("scriptase", "modules", "script", "providers"),
             # Step 7.1 restores the catalogue that step 5.3 emptied: Auto and
             # Idea source modes need a script provider, so both shipped
-            # providers are exposed. The 12.3 `builtin` bridge ID remains a
-            # permanent *input* alias on the gemini package (contracts.md §40.3).
-            default_provider="gemini",
+            # providers are exposed. The 12.3 `builtin` bridge ID and the former
+            # `gemini` id both remain permanent *input* aliases on the
+            # script_n8n package (contracts.md §40.3).
+            default_provider="script_n8n",
             capability_vocabulary=_caps("structured_sections", "language_select", "offline"),
             request_model="scriptase.modules.script.providers.contract:ScriptRequest",
             result_model="scriptase.modules.script.providers.contract:ScriptResultPayload",
-            catalog_provider_ids=frozenset({"gemini", "n8n", "random_template"}),
+            catalog_provider_ids=frozenset({"script_n8n", "n8n", "random_template"}),
             contract_provider_ids=frozenset({"scaffold_check"}),
-            # Friendly settings-page labels: the gemini default reads as
+            # Friendly settings-page labels: the script_n8n default reads as
             # "Story Generator", and the n8n passerelle "Script Generator" is
             # seeded beside it so both show without hand-configuration.
             default_instance_label="Story Generator",

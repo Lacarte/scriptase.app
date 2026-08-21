@@ -370,17 +370,21 @@ class CatalogTests(ProviderApiTestCase):
         alias: `gemini`, `webhook`, `direct`, `grok`, `midjourney`, `kie-ai`.
         """
         domains = self.client.get('/api/providers').get_json()['domains']
+        # Aliases are domain-scoped: `gemini` is deprecated in both `image`
+        # (-> gemini_ws) and, after the script provider rename, `script`
+        # (-> script_n8n). Key by (domain, alias) so the two never collide.
         aliases = {
-            alias: (domain, provider['id'])
+            (domain, alias): provider['id']
             for domain, payload in domains.items()
             for provider in payload['providers']
             for alias in provider['aliases']
         }
-        self.assertEqual(aliases['gemini'], ('image', 'gemini_ws'))
-        self.assertEqual(aliases['grok'], ('video', 'grok_automa'))
-        self.assertEqual(aliases['midjourney'], ('video', 'grok_automa'))
-        self.assertNotIn('webhook', aliases)
-        self.assertNotIn('kie-ai', aliases)
+        self.assertEqual(aliases[('image', 'gemini')], 'gemini_ws')
+        self.assertEqual(aliases[('script', 'gemini')], 'script_n8n')
+        self.assertEqual(aliases[('video', 'grok')], 'grok_automa')
+        self.assertEqual(aliases[('video', 'midjourney')], 'grok_automa')
+        self.assertNotIn(('image', 'webhook'), aliases)
+        self.assertNotIn(('video', 'kie-ai'), aliases)
 
         # And a deprecated identity resolves through the API to its canonical id.
         body = self.client.get('/api/providers/image/gemini').get_json()

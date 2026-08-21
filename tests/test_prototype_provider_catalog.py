@@ -8,7 +8,7 @@ from scriptase.providers.settings_migrations import apply_migrations as migrate_
 
 
 EXPECTED = {
-    "script": ["gemini", "n8n", "random_template"],
+    "script": ["n8n", "random_template", "script_n8n"],
     "scene_director": ["n8n"],
     "tts": ["inworld"],
     "image": ["gemini_ws"],
@@ -73,10 +73,10 @@ def test_settings_migrate_retired_default_and_named_instances():
     assert migrated["domains"]["image"]["instances"]["images_backup"]["type"] == "gemini_ws"
     assert migrated["domains"]["image"]["instances"]["images_backup"]["settings"] == {}
     assert migrated["domains"]["video"]["selected_instance_id"] == "grok_automa"
-    # Step 7.1 restored gemini as the default; v10 now maps it through, v11
-    # backfills when needed.
-    assert migrated["domains"]["script"]["selected_instance_id"] == "gemini"
-    assert migrated["domains"]["script"]["instances"]["gemini"]["type"] == "gemini"
+    # Step 7.1 restored the app-prompt default; v10 maps it through, v11
+    # backfills, and v16 renames its id gemini -> script_n8n.
+    assert migrated["domains"]["script"]["selected_instance_id"] == "script_n8n"
+    assert migrated["domains"]["script"]["instances"]["script_n8n"]["type"] == "script_n8n"
     assert migrated["domains"]["review"] == {"selected_instance_id": None, "instances": {}}
     assert all(
         block["selected_instance_id"] in block["instances"]

@@ -28,7 +28,7 @@ from scriptase.modules.script.providers.base import ScriptProvider
 from scriptase.modules.script.service import StoryServiceError, generate_story
 
 _DOMAIN = "script"
-_PROVIDER_ID = "gemini"
+_PROVIDER_ID = "script_n8n"
 
 # Stable service codes -> (provider code, safe public message). The original
 # `str(exc)` is never copied (§34.4).

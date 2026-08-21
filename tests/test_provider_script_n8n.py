@@ -175,7 +175,7 @@ class RegistrationTests(unittest.TestCase):
 
 
 class SeededInstanceTests(unittest.TestCase):
-    """The passerelle is seeded beside the gemini default (fresh + migration)."""
+    """The passerelle is seeded beside the app-prompt default (fresh + migration)."""
 
     def test_fresh_install_seeds_the_script_generator_instance(self):
         from scriptase.providers.settings_manager import _default_settings
@@ -183,10 +183,10 @@ class SeededInstanceTests(unittest.TestCase):
         script = _default_settings()["domains"]["script"]
         self.assertIn("n8n", script["instances"])
         self.assertEqual(script["instances"]["n8n"]["label"], "Script Generator")
-        # The default selection is untouched.
-        self.assertEqual(script["selected_instance_id"], "gemini")
+        # The default selection is the app-prompt provider.
+        self.assertEqual(script["selected_instance_id"], "script_n8n")
 
-    def test_migration_adds_the_instance_without_disturbing_gemini(self):
+    def test_migration_adds_the_instance_and_renames_the_default(self):
         from scriptase.providers.settings_migrations import (
             apply_migrations,
             SETTINGS_VERSION,
@@ -209,8 +209,10 @@ class SeededInstanceTests(unittest.TestCase):
         script = migrated["domains"]["script"]
         self.assertIn("n8n", script["instances"])
         self.assertEqual(script["instances"]["n8n"]["label"], "Script Generator")
-        self.assertIn("gemini", script["instances"])
-        self.assertEqual(script["selected_instance_id"], "gemini")
+        # v16 renames the app-prompt default gemini -> script_n8n.
+        self.assertIn("script_n8n", script["instances"])
+        self.assertNotIn("gemini", script["instances"])
+        self.assertEqual(script["selected_instance_id"], "script_n8n")
 
     def test_migration_is_idempotent(self):
         from scriptase.providers.settings_migrations import (
@@ -222,9 +224,9 @@ class SeededInstanceTests(unittest.TestCase):
             "version": SETTINGS_VERSION,
             "domains": {
                 "script": {
-                    "selected_instance_id": "gemini",
+                    "selected_instance_id": "script_n8n",
                     "instances": {
-                        "gemini": {"type": "gemini", "label": "gemini", "settings": {}},
+                        "script_n8n": {"type": "script_n8n", "label": "Story Generator", "settings": {}},
                         "n8n": {"type": "n8n", "label": "Script Generator", "settings": {}},
                     },
                 },
@@ -283,7 +285,7 @@ class SeededInstanceTests(unittest.TestCase):
         from scriptase.providers.settings_manager import _default_settings
 
         expected = {
-            ("script", "gemini"): "Story Generator",
+            ("script", "script_n8n"): "Story Generator",
             ("script", "n8n"): "Script Generator",
             ("scene_director", "n8n"): "Scene Director",
             ("tts", "inworld"): "Voice Generator",

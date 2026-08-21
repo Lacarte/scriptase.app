@@ -392,10 +392,10 @@ class OptionSourceTests(SharedCatalogCase):
             {"value": "fixture_document", "label": "Fixture Document Generator"},
             options,
         )
-        # The shipped catalog now includes gemini and random_template (step 7.1),
-        # plus the fixture added by SharedCatalogCase.
+        # The shipped catalog now includes script_n8n and random_template
+        # (step 7.1), plus the fixture added by SharedCatalogCase.
         values = [o["value"] for o in options]
-        self.assertIn("gemini", values)
+        self.assertIn("script_n8n", values)
         self.assertIn("random_template", values)
         self.assertIn("fixture_document", values)
 
