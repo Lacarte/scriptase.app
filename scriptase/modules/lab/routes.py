@@ -1,4 +1,8 @@
-"""Prompt Lab HTTP routes. Transport only — all logic lives in the services."""
+"""Prompt Lab HTTP routes. Transport only — all logic lives in the services.
+
+Every variant/experiment route is scoped by `lab_id` (query for GET, body for
+mutations), defaulting to the script lab, so many labs share this surface.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +15,7 @@ from scriptase.modules.lab.experiment import (
     run_experiment,
     variant_leaderboard,
 )
+from scriptase.modules.lab.registry import get_lab, list_labs
 from scriptase.modules.lab.service import list_recent_prompts, preview_prompt
 from scriptase.modules.lab.variants import (
     create_variant,
@@ -22,13 +27,32 @@ from scriptase.modules.lab.variants import (
 
 lab_bp = Blueprint("lab", __name__)
 
+_DEFAULT_LAB = "script_prompt"
+
 
 def _body() -> dict | None:
     data = request.get_json(silent=True)
     return data if isinstance(data, dict) else None
 
 
-# ── Prompt inspection (section 1) ───────────────────────────────────────────
+def _lab_id_from_query() -> str:
+    return (request.args.get("lab") or _DEFAULT_LAB).strip() or _DEFAULT_LAB
+
+
+def _lab_id_from_body(body: dict | None) -> str:
+    return str((body or {}).get("lab_id") or _DEFAULT_LAB).strip() or _DEFAULT_LAB
+
+
+# ── Lab catalog (self-describing framework) ─────────────────────────────────
+
+
+@lab_bp.get("/api/lab/labs")
+def labs():
+    """Every registered lab's metadata: name, purpose, how-to, what it measures."""
+    return jsonify({"labs": [lab.meta() for lab in list_labs()]})
+
+
+# ── Prompt inspection (transparency) ────────────────────────────────────────
 
 
 @lab_bp.post("/api/lab/prompt-preview")
@@ -42,7 +66,7 @@ def prompt_preview():
 
 @lab_bp.get("/api/lab/prompts")
 def recent_prompts():
-    """List recent generated scripts that carry a saved prompt, newest first."""
+    """Recent generated scripts that carry a saved prompt, newest first."""
     try:
         limit = int(request.args.get("limit", 30))
     except (TypeError, ValueError):
@@ -55,13 +79,20 @@ def recent_prompts():
 
 @lab_bp.get("/api/lab/variants")
 def variants():
-    return jsonify({"variants": list_variants()})
+    lab_id = _lab_id_from_query()
+    if get_lab(lab_id) is None:
+        return jsonify({"error": "Unknown lab"}), 404
+    return jsonify({"variants": list_variants(lab_id)})
 
 
 @lab_bp.post("/api/lab/variants")
 def variant_create():
+    body = _body()
+    lab_id = _lab_id_from_body(body)
+    if get_lab(lab_id) is None:
+        return jsonify({"error": "Unknown lab"}), 404
     try:
-        record = create_variant(_body())
+        record = create_variant(body, lab_id)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"variant": record}), 201
@@ -69,8 +100,10 @@ def variant_create():
 
 @lab_bp.put("/api/lab/variants/<variant_id>")
 def variant_update(variant_id: str):
+    body = _body()
+    lab_id = _lab_id_from_body(body)
     try:
-        record = update_variant(variant_id, _body())
+        record = update_variant(variant_id, body, lab_id)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"variant": record})
@@ -78,9 +111,10 @@ def variant_update(variant_id: str):
 
 @lab_bp.delete("/api/lab/variants/<variant_id>")
 def variant_delete(variant_id: str):
-    if get_variant(variant_id) is None:
+    lab_id = _lab_id_from_query()
+    if get_variant(variant_id, lab_id) is None:
         return jsonify({"error": "Unknown variant"}), 404
-    if not delete_variant(variant_id):
+    if not delete_variant(variant_id, lab_id):
         return jsonify({"error": "This variant cannot be deleted"}), 400
     return jsonify({"deleted": variant_id})
 
@@ -96,6 +130,7 @@ def prompt_build():
         channel_id=body.get("channel_id") or None,
         variant_id=body.get("variant_id") or "builtin",
         overrides=body.get("overrides") or {},
+        lab_id=_lab_id_from_body(body),
     ))
 
 
@@ -109,6 +144,7 @@ def experiment_run():
             variant_id=body.get("variant_id") or "builtin",
             provider_id=body.get("provider_id") or "script_n8n",
             overrides=body.get("overrides") or {},
+            lab_id=_lab_id_from_body(body),
         )
     except ExperimentError as exc:
         status = 404 if exc.code == "CHANNEL_NOT_FOUND" else 502
@@ -118,8 +154,12 @@ def experiment_run():
 
 @lab_bp.get("/api/lab/runs")
 def runs():
+    lab_id = _lab_id_from_query()
     try:
         limit = int(request.args.get("limit", 50))
     except (TypeError, ValueError):
         limit = 50
-    return jsonify({"runs": list_runs(limit=limit), "leaderboard": variant_leaderboard()})
+    return jsonify({
+        "runs": list_runs(limit=limit, lab_id=lab_id),
+        "leaderboard": variant_leaderboard(lab_id),
+    })

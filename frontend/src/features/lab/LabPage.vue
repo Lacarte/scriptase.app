@@ -1,129 +1,139 @@
 <script setup>
 /**
- * Prompt Lab — a workbench for the script prompt engine.
+ * Prompt Lab — a framework for prompt/config tuning labs.
  *
- * The prompt *engine* stays in tested code; the Lab makes it visible and
- * measurable. Variants are named bundles of prompt-tuning knobs (data). An
- * experiment runs a (channel × variant × provider) through the real provider
- * and scores the result with the offline Virality Scorer, so a prompt change
- * is measurable immediately — not blind.
+ * Each lab is self-describing (name, purpose, how-to, what it measures) and
+ * declares its variant knobs; this page renders any lab from that metadata. The
+ * prompt *engine* stays in tested code — a variant only parameterizes its
+ * inputs — and every run is scored so a change is measurable, not blind.
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { apiGet, apiPost, apiPut, apiDelete } from '@/shared/api.js'
 
 defineOptions({ name: 'LabPage' })
 
-const TABS = [
+const SUBTABS = [
   { id: 'test', label: 'Test' },
   { id: 'variants', label: 'Variants' },
-  { id: 'inspector', label: 'Inspector' },
-  { id: 'preview', label: 'Preview' },
   { id: 'performance', label: 'Performance' },
+  { id: 'inspector', label: 'Inspector' },
 ]
-const tab = ref('test')
+const subtab = ref('test')
 const error = ref('')
 
-// ── Shared catalog: channels + script providers ─────────────────────────────
+// ── Lab framework: which lab is active + its self-description ────────────────
+const labs = ref([])
+const labId = ref('script_prompt')
+const lab = computed(() => labs.value.find((l) => l.id === labId.value) || null)
+
+// ── Catalog: channels + providers (per the active lab's provider domain) ────
 const channels = ref([])
 const providers = ref([])
 const variants = ref([])
 
+async function loadLabs() {
+  try {
+    const data = await apiGet('/api/lab/labs')
+    labs.value = data.labs || []
+    if (labs.value.length && !labs.value.find((l) => l.id === labId.value)) {
+      labId.value = labs.value[0].id
+    }
+  } catch (exc) { error.value = exc.message || 'Could not load labs' }
+}
+
 async function loadCatalog() {
   try {
+    const domain = lab.value?.provider_domain || 'script'
     const [ch, pv, vs] = await Promise.all([
       apiGet('/api/channels', { limit: 500 }).catch(() => ({ channels: [] })),
       apiGet('/api/providers').catch(() => ({ domains: {} })),
-      apiGet('/api/lab/variants').catch(() => ({ variants: [] })),
+      apiGet('/api/lab/variants', { lab: labId.value }).catch(() => ({ variants: [] })),
     ])
     channels.value = ch.channels || []
-    const script = (pv.domains && pv.domains.script && pv.domains.script.providers) || []
-    providers.value = script.map((p) => ({ id: p.id, label: p.label }))
+    const dom = (pv.domains && pv.domains[domain] && pv.domains[domain].providers) || []
+    providers.value = dom.map((p) => ({ id: p.id, label: p.label }))
+    if (providers.value.length && !providers.value.find((p) => p.id === run.provider_id)) {
+      run.provider_id = providers.value[0].id
+    }
     variants.value = vs.variants || []
-  } catch (exc) {
-    error.value = exc.message || 'Could not load the Lab catalog'
-  }
+  } catch (exc) { error.value = exc.message || 'Could not load the lab catalog' }
 }
 
-// ── Test: run an experiment and score it ────────────────────────────────────
-const run = reactive({ channel_id: '', provider_id: 'script_n8n', variant_id: 'builtin', idea: '' })
+watch(labId, async () => { await loadCatalog(); await loadRuns() })
+
+// ── Test: run + score ───────────────────────────────────────────────────────
+const run = reactive({ channel_id: '', provider_id: '', variant_id: 'builtin', idea: '' })
 const running = ref(false)
-const results = ref([]) // most recent first, kept for side-by-side compare
+const results = ref([])
+const compareA = ref(0)
+const compareB = ref(1)
 
 async function runExperiment() {
   running.value = true
   error.value = ''
   try {
-    const body = {
+    const data = await apiPost('/api/lab/run', {
+      lab_id: labId.value,
       channel_id: run.channel_id || null,
       provider_id: run.provider_id,
       variant_id: run.variant_id,
       overrides: run.idea ? { idea: run.idea } : {},
-    }
-    const data = await apiPost('/api/lab/run', body)
+    })
     results.value.unshift(data.run)
     results.value = results.value.slice(0, 6)
     await loadRuns()
   } catch (exc) {
-    error.value = exc.message || 'The run failed — check the script webhook is reachable.'
-  } finally {
-    running.value = false
-  }
+    error.value = exc.message || 'The run failed — check the provider webhook is reachable.'
+  } finally { running.value = false }
 }
-
-const compareA = ref(0)
-const compareB = ref(1)
 const bandClass = (band) => `band-${band}`
 
-// ── Variants: create / edit / delete ────────────────────────────────────────
-const editing = ref(null) // the variant being edited, or a fresh draft
-function newVariant() {
-  editing.value = {
-    id: null, name: '', description: '',
-    angle_pool: [], extra_directives: [], tone_override: '',
-    language_level: '', temperature: null, word_target_ratio: 1,
-  }
+// ── Variants: dynamic form from the lab's variant_fields ────────────────────
+const editing = ref(null)
+function blankVariant() {
+  const v = { id: null, name: '', description: '' }
+  for (const f of lab.value?.variant_fields || []) v[f.key] = f.default ?? (f.type === 'list' ? [] : '')
+  return v
 }
-const angleText = computed({
-  get: () => (editing.value?.angle_pool || []).join('\n'),
-  set: (v) => { if (editing.value) editing.value.angle_pool = v.split('\n').map((s) => s.trim()).filter(Boolean) },
-})
-const directiveText = computed({
-  get: () => (editing.value?.extra_directives || []).join('\n'),
-  set: (v) => { if (editing.value) editing.value.extra_directives = v.split('\n').map((s) => s.trim()).filter(Boolean) },
-})
+function cloneVariant(src) {
+  const v = { id: null, name: `${src.name} (copy)`, description: src.description || '' }
+  for (const f of lab.value?.variant_fields || []) v[f.key] = Array.isArray(src[f.key]) ? [...src[f.key]] : src[f.key]
+  return v
+}
+function editVariant(v) { editing.value = v.builtin ? cloneVariant(v) : { ...v } }
+
+function listText(key) {
+  return computed({
+    get: () => (editing.value?.[key] || []).join('\n'),
+    set: (val) => { if (editing.value) editing.value[key] = val.split('\n').map((s) => s.trim()).filter(Boolean) },
+  })
+}
 
 async function saveVariant() {
   error.value = ''
   const v = editing.value
   try {
-    if (v.id) await apiPut(`/api/lab/variants/${v.id}`, v)
-    else await apiPost('/api/lab/variants', v)
+    const body = { ...v, lab_id: labId.value }
+    if (v.id) await apiPut(`/api/lab/variants/${v.id}`, body)
+    else await apiPost('/api/lab/variants', body)
     editing.value = null
     await loadCatalog()
-  } catch (exc) {
-    error.value = exc.message || 'Could not save the variant'
-  }
+  } catch (exc) { error.value = exc.message || 'Could not save the variant' }
 }
 async function removeVariant(id) {
   error.value = ''
-  try {
-    await apiDelete(`/api/lab/variants/${id}`)
-    await loadCatalog()
-  } catch (exc) {
-    error.value = exc.message || 'Could not delete the variant'
-  }
+  try { await apiDelete(`/api/lab/variants/${id}`, { lab: labId.value }); await loadCatalog() }
+  catch (exc) { error.value = exc.message || 'Could not delete the variant' }
 }
 
-// ── Performance leaderboard + runs ──────────────────────────────────────────
+// ── Performance ─────────────────────────────────────────────────────────────
 const leaderboard = ref([])
 async function loadRuns() {
-  try {
-    const data = await apiGet('/api/lab/runs', { limit: 100 })
-    leaderboard.value = data.leaderboard || []
-  } catch { /* non-fatal */ }
+  try { leaderboard.value = (await apiGet('/api/lab/runs', { lab: labId.value, limit: 100 })).leaderboard || [] }
+  catch { /* non-fatal */ }
 }
 
-// ── Inspector + Preview (section 1, unchanged) ──────────────────────────────
+// ── Inspector (recent generated scripts + their prompt) ─────────────────────
 const recent = ref([])
 const selectedId = ref('')
 const selected = computed(() => recent.value.find((r) => r.project_id === selectedId.value) || null)
@@ -134,17 +144,10 @@ async function loadRecent() {
     if (recent.value.length && !selectedId.value) selectedId.value = recent.value[0].project_id
   } catch { /* non-fatal */ }
 }
-const pform = reactive({ preset_style: 'stickman_animation', story_category: 'psychology', niche_preset: 'dark_psychology', language: 'english', duration: 60, idea: '' })
-const preview = ref(null)
-const previewing = ref(false)
-async function runPreview() {
-  previewing.value = true
-  try { preview.value = await apiPost('/api/lab/prompt-preview', { ...pform }) }
-  catch (exc) { error.value = exc.message } finally { previewing.value = false }
-}
 function copy(text) { if (navigator?.clipboard) navigator.clipboard.writeText(text || '') }
 
 onMounted(async () => {
+  await loadLabs()
   await loadCatalog()
   await Promise.all([loadRuns(), loadRecent()])
 })
@@ -153,26 +156,39 @@ onMounted(async () => {
 <template>
   <div class="lab">
     <header class="lab-head">
-      <h1>Prompt Lab</h1>
-      <p class="sub">Test prompt variants against real providers and measure the impact on the score.</p>
+      <div class="lab-title-row">
+        <h1>{{ lab?.name || 'Lab' }}</h1>
+        <select v-if="labs.length > 1" v-model="labId" class="lab-switch">
+          <option v-for="l in labs" :key="l.id" :value="l.id">{{ l.name }}</option>
+        </select>
+      </div>
+      <p class="sub">{{ lab?.description }}</p>
+
+      <details class="lab-about" v-if="lab">
+        <summary>What is this? · How to use it · What it measures</summary>
+        <div class="about-grid">
+          <div><span class="about-h">What it's for</span><p>{{ lab.purpose }}</p></div>
+          <div><span class="about-h">How to use it</span><p>{{ lab.how_to }}</p></div>
+          <div><span class="about-h">What it measures</span><p>{{ lab.measures }}</p></div>
+        </div>
+      </details>
+
       <nav class="lab-tabs" role="tablist" aria-label="Lab sections">
-        <button
-          v-for="t in TABS" :key="t.id" type="button" class="lab-tab"
-          :class="{ on: tab === t.id }" role="tab" :aria-selected="String(tab === t.id)"
-          @click="tab = t.id"
-        >{{ t.label }}</button>
+        <button v-for="t in SUBTABS" :key="t.id" type="button" class="lab-tab"
+          :class="{ on: subtab === t.id }" role="tab" :aria-selected="String(subtab === t.id)"
+          @click="subtab = t.id">{{ t.label }}</button>
       </nav>
     </header>
 
     <p v-if="error" class="lab-error">{{ error }}</p>
 
     <!-- ── TEST ─────────────────────────────────────────────────────────── -->
-    <section v-if="tab === 'test'" class="lab-body split">
+    <section v-if="subtab === 'test'" class="lab-body split">
       <aside class="lab-form">
         <div class="list-head"><span>Run a variant</span></div>
         <label class="f">Channel
           <select v-model="run.channel_id">
-            <option value="">— manual / no channel —</option>
+            <option value="">— no channel (manual) —</option>
             <option v-for="c in channels" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
         </label>
@@ -189,18 +205,14 @@ onMounted(async () => {
         <label class="f">Idea (optional)
           <textarea v-model="run.idea" rows="2" placeholder="what the story is about"></textarea>
         </label>
-        <button type="button" class="primary" :disabled="running" @click="runExperiment">
+        <button type="button" class="btn primary" :disabled="running" @click="runExperiment">
           {{ running ? 'Generating & scoring…' : 'Run test' }}
         </button>
-        <p class="hint">
-          Generates a real script through the provider and scores it with the offline
-          Virality Scorer — so you see the impact immediately. Run again to build up
-          results and compare.
-        </p>
+        <p class="hint">Generates a real result and scores it — so you see the impact immediately. Run again to compare.</p>
       </aside>
 
       <div class="lab-detail">
-        <p v-if="!results.length" class="empty">Run a test to see the script and its score.</p>
+        <p v-if="!results.length" class="empty">Run a test to see the result and its score.</p>
         <template v-else>
           <div v-if="results.length > 1" class="compare-bar">
             <span>Compare</span>
@@ -208,7 +220,6 @@ onMounted(async () => {
             <span>vs</span>
             <select v-model.number="compareB"><option v-for="(r, i) in results" :key="i" :value="i">{{ i + 1 }}. {{ r.variant.name }} · {{ r.score.score }}</option></select>
           </div>
-
           <div class="runs" :class="{ dual: results.length > 1 }">
             <article v-for="idx in (results.length > 1 ? [compareA, compareB] : [0])" :key="idx" class="run-card">
               <div class="run-top">
@@ -232,79 +243,61 @@ onMounted(async () => {
       </div>
     </section>
 
-    <!-- ── VARIANTS ─────────────────────────────────────────────────────── -->
-    <section v-else-if="tab === 'variants'" class="lab-body split">
+    <!-- ── VARIANTS (dynamic form) ──────────────────────────────────────── -->
+    <section v-else-if="subtab === 'variants'" class="lab-body split">
       <aside class="lab-list">
-        <div class="list-head"><span>Variants</span><button type="button" class="mini" @click="newVariant">+ New</button></div>
-        <button
-          v-for="v in variants" :key="v.id" type="button" class="list-item"
-          :class="{ on: editing && editing.id === v.id }"
-          @click="editing = v.builtin ? null : { ...v }"
-        >
-          <span class="li-title">{{ v.name }}<span v-if="v.builtin" class="soon-chip">control</span></span>
+        <div class="list-head"><span>Variants</span><button type="button" class="btn xs" @click="editing = blankVariant()">+ New</button></div>
+        <button v-for="v in variants" :key="v.id" type="button" class="list-item"
+          :class="{ on: editing && editing.id === v.id }" @click="editVariant(v)">
+          <span class="li-title">{{ v.name }}<span v-if="v.builtin" class="soon-chip">control · clone</span></span>
           <span class="li-meta">{{ v.description || 'no description' }}</span>
         </button>
       </aside>
 
       <div class="lab-detail">
-        <p v-if="!editing" class="empty">Select a variant to edit, or create a new one. The built-in control can't be edited.</p>
+        <p v-if="!editing" class="empty">Select a variant to edit, or clone the built-in control (its real defaults are pre-filled) to start a new one.</p>
         <template v-else>
           <div class="list-head"><span>{{ editing.id ? 'Edit variant' : 'New variant' }}</span></div>
           <label class="f">Name<input v-model="editing.name" placeholder="e.g. Question hooks, tighter" /></label>
           <label class="f">Description<input v-model="editing.description" placeholder="what this variant tries" /></label>
-          <label class="f">Angle pool <span class="fn">— one per line; empty uses the built-in pool</span>
-            <textarea v-model="angleText" rows="4" placeholder="Begin with a provocative question…"></textarea>
+
+          <label v-for="fld in (lab?.variant_fields || [])" :key="fld.key" class="f">
+            {{ fld.label }} <span v-if="fld.help" class="fn">— {{ fld.help }}</span>
+            <textarea v-if="fld.type === 'list'" v-model="listText(fld.key).value" rows="4"></textarea>
+            <select v-else-if="fld.type === 'select'" v-model="editing[fld.key]">
+              <option v-for="o in fld.options" :key="o" :value="o">{{ o || 'default' }}</option>
+            </select>
+            <input v-else-if="fld.type === 'number'" v-model.number="editing[fld.key]" type="number"
+              :min="fld.min" :max="fld.max" :step="fld.step" />
+            <input v-else v-model="editing[fld.key]" type="text" />
           </label>
-          <label class="f">Extra directives <span class="fn">— one per line, appended to the prompt</span>
-            <textarea v-model="directiveText" rows="3" placeholder="Make it more emotional"></textarea>
-          </label>
-          <div class="f2">
-            <label class="f">Tone override<input v-model="editing.tone_override" placeholder="optional" /></label>
-            <label class="f">Language level
-              <select v-model="editing.language_level">
-                <option value="">default</option>
-                <option>beginner</option><option>intermediate</option><option>advanced</option><option>native</option>
-              </select>
-            </label>
-          </div>
-          <div class="f2">
-            <label class="f">Temperature<input v-model.number="editing.temperature" type="number" step="0.1" min="0" max="2" placeholder="default" /></label>
-            <label class="f">Word target ×<input v-model.number="editing.word_target_ratio" type="number" step="0.05" min="0.5" max="2" /></label>
-          </div>
+
           <div class="btn-row">
-            <button type="button" class="primary" @click="saveVariant">{{ editing.id ? 'Save' : 'Create' }}</button>
-            <button v-if="editing.id" type="button" class="danger" @click="removeVariant(editing.id)">Delete</button>
-            <button type="button" class="ghost" @click="editing = null">Cancel</button>
+            <button type="button" class="btn primary sm" @click="saveVariant">{{ editing.id ? 'Save' : 'Create' }}</button>
+            <button v-if="editing.id" type="button" class="btn danger sm" @click="removeVariant(editing.id)">Delete</button>
+            <button type="button" class="btn ghost sm" @click="editing = null">Cancel</button>
           </div>
         </template>
       </div>
     </section>
 
-    <!-- ── PERFORMANCE (leaderboard from offline scores; real metrics later) ─ -->
-    <section v-else-if="tab === 'performance'" class="lab-body">
+    <!-- ── PERFORMANCE ──────────────────────────────────────────────────── -->
+    <section v-else-if="subtab === 'performance'" class="lab-body">
       <div class="lab-detail">
-        <div class="list-head"><span>Variant leaderboard — average Virality score</span><button type="button" class="mini" @click="loadRuns">↻</button></div>
+        <div class="list-head"><span>Variant leaderboard — average score</span><button type="button" class="btn xs" @click="loadRuns">↻ Refresh</button></div>
         <p v-if="!leaderboard.length" class="empty">Run some tests to build a leaderboard.</p>
         <table v-else class="board">
           <thead><tr><th>Variant</th><th>Runs</th><th>Avg score</th></tr></thead>
-          <tbody>
-            <tr v-for="row in leaderboard" :key="row.variant_id">
-              <td>{{ row.name }}</td><td>{{ row.runs }}</td>
-              <td><b>{{ row.avg_score }}</b></td>
-            </tr>
-          </tbody>
+          <tbody><tr v-for="row in leaderboard" :key="row.variant_id"><td>{{ row.name }}</td><td>{{ row.runs }}</td><td><b>{{ row.avg_score }}</b></td></tr></tbody>
         </table>
-        <p class="hint">
-          Ranked by the offline Virality Scorer today. Real view/retention data
-          plugs in here later to rank by actual performance.
-        </p>
+        <p class="hint">Ranked by the offline scorer today. Real view/retention data plugs in here later.</p>
       </div>
     </section>
 
     <!-- ── INSPECTOR ────────────────────────────────────────────────────── -->
-    <section v-else-if="tab === 'inspector'" class="lab-body split">
+    <section v-else class="lab-body split">
       <aside class="lab-list">
-        <div class="list-head"><span>Recent scripts</span><button type="button" class="mini" @click="loadRecent">↻</button></div>
+        <div class="list-head"><span>Recent scripts</span><button type="button" class="btn xs" @click="loadRecent">↻</button></div>
         <p v-if="!recent.length" class="empty">No scripts with saved prompts yet.</p>
         <button v-for="r in recent" :key="r.project_id" type="button" class="list-item" :class="{ on: selectedId === r.project_id }" @click="selectedId = r.project_id">
           <span class="li-title">{{ r.concept_family || r.story_category || r.project_id }}</span>
@@ -320,40 +313,10 @@ onMounted(async () => {
               <span class="part-label">{{ p.label }}</span><p class="part-text">{{ p.text }}</p>
             </div>
           </div>
-          <div class="raw-row"><h3 class="block-h">System prompt</h3><button type="button" class="mini" @click="copy(selected.prompt.system_prompt)">Copy</button></div>
+          <div class="raw-row"><h3 class="block-h">System prompt</h3><button type="button" class="btn xs" @click="copy(selected.prompt.system_prompt)">Copy</button></div>
           <pre class="raw">{{ selected.prompt.system_prompt }}</pre>
           <div class="raw-row"><h3 class="block-h">Script</h3></div>
           <pre class="raw script">{{ selected.story_text }}</pre>
-        </template>
-      </div>
-    </section>
-
-    <!-- ── PREVIEW ──────────────────────────────────────────────────────── -->
-    <section v-else class="lab-body split">
-      <aside class="lab-form">
-        <div class="list-head"><span>Inputs</span></div>
-        <label class="f">Niche preset<input v-model="pform.niche_preset" /></label>
-        <label class="f">Story category<input v-model="pform.story_category" /></label>
-        <label class="f">Visual style<input v-model="pform.preset_style" /></label>
-        <div class="f2">
-          <label class="f">Language<input v-model="pform.language" /></label>
-          <label class="f">Duration<input v-model.number="pform.duration" type="number" /></label>
-        </div>
-        <label class="f">Idea<textarea v-model="pform.idea" rows="2"></textarea></label>
-        <button type="button" class="primary" :disabled="previewing" @click="runPreview">{{ previewing ? 'Building…' : 'Build prompt' }}</button>
-        <p class="hint">Each build rotates the angle, concept, and seed — the diversity engine.</p>
-      </aside>
-      <div class="lab-detail">
-        <p v-if="!preview" class="empty">Build a prompt to preview it.</p>
-        <template v-else>
-          <h3 class="block-h">User prompt — decomposed</h3>
-          <div class="parts">
-            <div v-for="(p, i) in preview.decomposed" :key="i" class="part">
-              <span class="part-label">{{ p.label }}</span><p class="part-text">{{ p.text }}</p>
-            </div>
-          </div>
-          <div class="raw-row"><h3 class="block-h">System prompt</h3><button type="button" class="mini" @click="copy(preview.system_prompt)">Copy</button></div>
-          <pre class="raw">{{ preview.system_prompt }}</pre>
         </template>
       </div>
     </section>
@@ -362,66 +325,51 @@ onMounted(async () => {
 
 <style scoped>
 .lab { padding: 22px 26px; max-width: 1200px; margin: 0 auto; }
+.lab-title-row { display: flex; align-items: center; gap: 12px; }
 .lab-head h1 { margin: 0; font-family: var(--display); font-size: 22px; font-weight: 600; }
+.lab-switch { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); color: var(--text); padding: 6px 8px; font-size: 12px; }
 .lab-head .sub { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+.lab-about { margin-top: 12px; border: 1px solid var(--line-soft); border-radius: var(--r-s); background: var(--bg-2); }
+.lab-about summary { cursor: pointer; padding: 9px 12px; font-size: 12px; color: var(--text-2); font-family: var(--mono); }
+.about-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; padding: 4px 14px 14px; }
+.about-h { font-family: var(--mono); font-size: 9px; letter-spacing: .5px; text-transform: uppercase; color: var(--accent); }
+.about-grid p { margin: 5px 0 0; font-size: 12px; color: var(--muted); line-height: 1.55; }
+
 .lab-tabs { display: flex; gap: 6px; margin-top: 16px; border-bottom: 1px solid var(--line-soft); }
-.lab-tab { border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; padding: 9px 12px;
-  cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.lab-tab { border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; padding: 9px 12px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .lab-tab:hover { color: var(--text-2); }
 .lab-tab.on { color: var(--text); border-bottom-color: var(--accent); }
-.lab-error { color: var(--fail-text); background: var(--fail-dim); border: 1px solid var(--fail-line);
-  border-radius: var(--r-s); padding: 8px 12px; margin: 14px 0 0; font-size: 13px; }
+.lab-error { color: var(--fail-text); background: var(--fail-dim); border: 1px solid var(--fail-line); border-radius: var(--r-s); padding: 8px 12px; margin: 14px 0 0; font-size: 13px; }
 
 .lab-body { margin-top: 18px; }
 .split { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
-.lab-list, .lab-form { border: 1px solid var(--line); background: var(--panel-grad); border-radius: var(--r-s);
-  padding: 8px; box-shadow: var(--hairline-top); position: sticky; top: 14px; }
-.list-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px 10px;
-  color: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: .5px; text-transform: uppercase; }
-.list-item { display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; border: 0;
-  background: transparent; color: var(--text); font: inherit; cursor: pointer; padding: 9px 10px; border-radius: var(--r-s); }
+.lab-list, .lab-form { border: 1px solid var(--line); background: var(--panel-grad); border-radius: var(--r-s); padding: 8px; box-shadow: var(--hairline-top); position: sticky; top: 14px; }
+.list-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px 10px; color: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: .5px; text-transform: uppercase; }
+.list-item { display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; padding: 9px 10px; border-radius: var(--r-s); }
 .list-item:hover { background: var(--raise); }
 .list-item.on { background: var(--accent-wash); }
 .li-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .li-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.lab-detail { border: 1px solid var(--line); background: var(--panel-grad); border-radius: var(--r-s);
-  padding: 16px 18px; box-shadow: var(--hairline-top); min-height: 300px; }
+.lab-detail { border: 1px solid var(--line); background: var(--panel-grad); border-radius: var(--r-s); padding: 16px 18px; box-shadow: var(--hairline-top); min-height: 300px; }
 .empty { color: var(--muted); font-size: 13px; padding: 24px 4px; text-align: center; }
 
-.f { display: flex; flex-direction: column; gap: 5px; padding: 6px 8px; font-size: 11px; color: var(--muted);
-  font-family: var(--mono); text-transform: uppercase; letter-spacing: .3px; }
+.f { display: flex; flex-direction: column; gap: 5px; padding: 6px 8px; font-size: 11px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: .3px; }
 .f .fn { text-transform: none; letter-spacing: 0; color: var(--faint); font-size: 10px; }
-.f input, .f textarea, .f select { font-family: var(--display); font-size: 13px; text-transform: none; letter-spacing: 0;
-  color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); padding: 7px 9px; }
+.f input, .f textarea, .f select { font-family: var(--display); font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); padding: 7px 9px; }
 .f input:focus, .f textarea:focus, .f select:focus { outline: none; border-color: var(--accent-line-2); }
-.f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.primary { padding: 9px 14px; border: 0; border-radius: var(--r-s); background: var(--accent-grad); color: #fff;
-  font: inherit; font-weight: 600; cursor: pointer; }
-.primary { width: calc(100% - 16px); margin: 8px; }
-.primary:disabled { opacity: .6; cursor: default; }
+.lab-form .btn.primary { width: calc(100% - 16px); margin: 8px; }
 .hint { color: var(--muted); font-size: 11px; padding: 0 10px 8px; line-height: 1.5; }
-.mini { border: 1px solid var(--line); background: var(--panel); color: var(--text-2); font: inherit; font-size: 11px;
-  padding: 3px 8px; border-radius: var(--r-s); cursor: pointer; }
-.mini:hover { border-color: var(--line-2); }
 .btn-row { display: flex; gap: 8px; padding: 8px; }
-.btn-row .primary { width: auto; margin: 0; }
-.danger { border: 1px solid var(--fail-line); background: var(--fail-dim); color: var(--fail-text); font: inherit;
-  padding: 9px 14px; border-radius: var(--r-s); cursor: pointer; }
-.ghost { border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; padding: 9px 14px;
-  border-radius: var(--r-s); cursor: pointer; }
-.soon-chip { font-family: var(--mono); font-size: 8px; letter-spacing: .4px; text-transform: uppercase; color: var(--faint);
-  background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-soft); padding: 1px 5px; border-radius: 999px; }
+.soon-chip { font-family: var(--mono); font-size: 8px; letter-spacing: .4px; text-transform: uppercase; color: var(--faint); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-soft); padding: 1px 5px; border-radius: 999px; }
 
-.compare-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: var(--muted);
-  font-family: var(--mono); font-size: 11px; }
-.compare-bar select { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s);
-  color: var(--text); padding: 4px 6px; font-size: 11px; }
+.compare-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.compare-bar select { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); color: var(--text); padding: 4px 6px; font-size: 11px; }
 .runs.dual { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .run-card { border: 1px solid var(--line-soft); border-radius: var(--r-s); padding: 12px; background: var(--bg-2); }
 .run-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.score-badge { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
-  font-family: var(--display); font-weight: 700; font-size: 18px; flex: none; }
+.score-badge { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 18px; flex: none; }
 .band-strong { background: rgba(53,192,138,.18); color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok-line); }
 .band-solid { background: rgba(88,166,255,.18); color: var(--run); box-shadow: inset 0 0 0 1px var(--run-line); }
 .band-weak { background: rgba(240,173,75,.18); color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn-line); }
@@ -441,14 +389,11 @@ onMounted(async () => {
 .part-label { font-family: var(--mono); font-size: 9px; letter-spacing: .5px; text-transform: uppercase; color: var(--accent); }
 .part-text { margin: 4px 0 0; font-size: 12.5px; color: var(--text-2); line-height: 1.5; white-space: pre-wrap; }
 .raw-row { display: flex; justify-content: space-between; align-items: center; }
-.raw { margin: 8px 0 0; padding: 12px; background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: var(--r-s);
-  font-family: var(--mono); font-size: 11.5px; color: var(--text-2); white-space: pre-wrap; overflow: auto;
-  line-height: 1.55; max-height: 340px; }
+.raw { margin: 8px 0 0; padding: 12px; background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: var(--r-s); font-family: var(--mono); font-size: 11.5px; color: var(--text-2); white-space: pre-wrap; overflow: auto; line-height: 1.55; max-height: 340px; }
 .raw.script { color: var(--text); }
 
 .board { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
-.board th { text-align: left; color: var(--muted); font-family: var(--mono); font-size: 10px; text-transform: uppercase;
-  letter-spacing: .4px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
+.board th { text-align: left; color: var(--muted); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
 .board td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); }
 .board td b { color: var(--accent); }
 

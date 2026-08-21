@@ -189,5 +189,35 @@ class ExperimentTests(unittest.TestCase):
             run_experiment(webhook_caller=lambda *a, **k: {"story_text": "   "})
 
 
+class RegistryTests(unittest.TestCase):
+    def test_script_lab_is_registered_with_metadata(self):
+        from scriptase.modules.lab.registry import get_lab, list_labs
+        ids = [l.id for l in list_labs()]
+        self.assertIn("script_prompt", ids)
+        m = get_lab("script_prompt").meta()
+        for key in ("name", "description", "purpose", "how_to", "measures", "variant_fields", "default_variant"):
+            self.assertTrue(m.get(key), f"lab meta missing {key}")
+
+    def test_builtin_variant_is_prefilled_from_the_lab_default(self):
+        from scriptase.modules.lab.variants import builtin_variant
+        b = builtin_variant("script_prompt")
+        self.assertTrue(b["builtin"])
+        # The real engine defaults are surfaced, not blank.
+        self.assertGreater(len(b["angle_pool"]), 0)
+        self.assertEqual(b["word_target_ratio"], 1.0)
+
+    def test_variants_are_scoped_by_lab(self):
+        from scriptase.modules.lab import variants as V
+        tmp = tempfile.mkdtemp()
+        with mock.patch.object(V, "VARIANTS_DIR", tmp):
+            V.create_variant({"name": "A"}, lab_id="script_prompt")
+            V.create_variant({"name": "B"}, lab_id="other_lab")
+            script_names = [v["name"] for v in V.list_variants("script_prompt") if not v["builtin"]]
+            other_names = [v["name"] for v in V.list_variants("other_lab") if not v["builtin"]]
+        self.assertIn("A", script_names)
+        self.assertNotIn("B", script_names)
+        self.assertIn("B", other_names)
+
+
 if __name__ == "__main__":
     unittest.main()

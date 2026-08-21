@@ -30,6 +30,11 @@ from scriptase.modules.script.prompts import (
 from scriptase.modules.viral.service import score_script
 
 RUNS_DIR = os.path.join(OUTPUT_DIR, "lab", "runs")
+DEFAULT_LAB = "script_prompt"
+
+
+def _runs_dir(lab_id: str | None) -> str:
+    return os.path.join(RUNS_DIR, lab_id or DEFAULT_LAB)
 
 
 class ExperimentError(RuntimeError):
@@ -71,13 +76,13 @@ def _channel_inputs(channel_id: str | None) -> dict:
     }
 
 
-def build_prompt(*, channel_id=None, variant_id="builtin", overrides=None) -> dict:
+def build_prompt(*, channel_id=None, variant_id="builtin", overrides=None, lab_id="script_prompt") -> dict:
     """Compose the system + user prompt for a (channel, variant) pair.
 
     `overrides` is a plain inputs dict (niche/style/tone/duration/idea) that
     wins over the channel's resolved values — the Lab lets a run edit them.
     """
-    variant = get_variant(variant_id) or get_variant("builtin")
+    variant = get_variant(variant_id, lab_id) or get_variant("builtin", lab_id)
     base = _channel_inputs(channel_id)
     base.update({k: v for k, v in dict(overrides or {}).items() if v not in (None, "")})
 
@@ -138,6 +143,7 @@ def run_experiment(
     provider_id="script_n8n",
     overrides=None,
     webhook_caller=None,
+    lab_id="script_prompt",
 ) -> dict:
     """Generate one script for a (channel, variant, provider) and score it.
 
@@ -145,7 +151,7 @@ def run_experiment(
     and the Virality Score (0-100 + per-dimension breakdown). The offline
     scorer means a run is measurable immediately, before any view data exists.
     """
-    prompt = build_prompt(channel_id=channel_id, variant_id=variant_id, overrides=overrides)
+    prompt = build_prompt(channel_id=channel_id, variant_id=variant_id, overrides=overrides, lab_id=lab_id)
 
     started = time.perf_counter()
     raw_text = _generate(provider_id, prompt, webhook_caller=webhook_caller)
@@ -160,6 +166,7 @@ def run_experiment(
 
     record = {
         "id": f"run_{format(int(time.time() * 1000) & 0xFFFFFFFFFF, 'x')}",
+        "lab_id": lab_id,
         "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "channel_id": channel_id or "",
         "provider_id": provider_id,
@@ -184,7 +191,7 @@ def run_experiment(
             ],
         },
     }
-    safe_json_write(os.path.join(RUNS_DIR, f"{record['id']}.json"), record, indent=2)
+    safe_json_write(os.path.join(_runs_dir(lab_id), f"{record['id']}.json"), record, indent=2)
     return record
 
 
@@ -227,16 +234,17 @@ def _generate(provider_id: str, prompt: Mapping[str, Any], *, webhook_caller=Non
     raise ExperimentError("EMPTY_RESULT", "The provider returned no script text")
 
 
-def list_runs(limit: int = 50) -> list[dict]:
-    """Recent experiment runs, newest first (summary fields only)."""
-    if not os.path.isdir(RUNS_DIR):
+def list_runs(limit: int = 50, lab_id: str | None = None) -> list[dict]:
+    """Recent experiment runs for a lab, newest first."""
+    directory = _runs_dir(lab_id)
+    if not os.path.isdir(directory):
         return []
     rows: list[dict] = []
-    for name in os.listdir(RUNS_DIR):
+    for name in os.listdir(directory):
         if not name.endswith(".json"):
             continue
         try:
-            with open(os.path.join(RUNS_DIR, name), encoding="utf-8") as fh:
+            with open(os.path.join(directory, name), encoding="utf-8") as fh:
                 rows.append(json.load(fh))
         except (OSError, json.JSONDecodeError):
             continue
@@ -244,10 +252,10 @@ def list_runs(limit: int = 50) -> list[dict]:
     return rows[: max(1, int(limit or 50))]
 
 
-def variant_leaderboard() -> list[dict]:
-    """Average score per variant across stored runs — the measurement payoff."""
+def variant_leaderboard(lab_id: str | None = None) -> list[dict]:
+    """Average score per variant across a lab's stored runs — the payoff."""
     agg: dict[str, dict] = {}
-    for run in list_runs(limit=500):
+    for run in list_runs(limit=500, lab_id=lab_id):
         variant = run.get("variant") or {}
         vid = variant.get("id") or "builtin"
         score = (run.get("score") or {}).get("score")

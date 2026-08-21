@@ -29,25 +29,32 @@ from scriptase.shared.io_utils import safe_json_write
 
 LAB_DIR = os.path.join(OUTPUT_DIR, "lab")
 VARIANTS_DIR = os.path.join(LAB_DIR, "variants")
+DEFAULT_LAB = "script_prompt"
 
 _ID_RE = re.compile(r"^var_[a-z0-9]{8}$")
+
+
+def _variants_dir(lab_id: str | None) -> str:
+    """Per-lab variants directory, so labs never collide."""
+    return os.path.join(VARIANTS_DIR, lab_id or DEFAULT_LAB)
 _LANGUAGE_LEVELS = ("", "beginner", "intermediate", "advanced", "native")
 
-# The built-in variant is always present and represents "the engine's defaults"
-# — the control arm of any experiment. It is not stored on disk.
-BUILTIN_VARIANT = {
-    "id": "builtin",
-    "name": "Default (built-in)",
-    "description": "The engine's own prompt logic with no overrides — the control.",
-    "builtin": True,
-    "angle_pool": [],
-    "extra_directives": [],
-    "tone_override": "",
-    "language_level": "",
-    "temperature": None,
-    "word_target_ratio": 1.0,
-    "version": 1,
-}
+# The built-in control is always present and represents "the engine's defaults"
+# — the baseline of any experiment. Its knob values are the lab's real defaults,
+# shown pre-filled so a user can see and clone them. Not stored on disk.
+def builtin_variant(lab_id: str | None = None) -> dict:
+    from scriptase.modules.lab.registry import get_lab
+
+    lab = get_lab(lab_id or DEFAULT_LAB)
+    defaults = dict(lab.default_variant) if lab else {}
+    return {
+        "id": "builtin",
+        "name": "Default (built-in)",
+        "description": "The engine's own logic with no overrides — the control.",
+        "builtin": True,
+        "version": 1,
+        **defaults,
+    }
 
 
 def _new_id() -> str:
@@ -96,28 +103,29 @@ def _coerce(data: Mapping[str, Any] | None) -> dict:
     }
 
 
-def list_variants() -> list[dict]:
-    """Every stored variant, newest first, with the built-in control first."""
+def list_variants(lab_id: str | None = None) -> list[dict]:
+    """Every stored variant for a lab, newest first, control first."""
+    directory = _variants_dir(lab_id)
     stored: list[dict] = []
-    if os.path.isdir(VARIANTS_DIR):
-        for name in os.listdir(VARIANTS_DIR):
+    if os.path.isdir(directory):
+        for name in os.listdir(directory):
             if not name.endswith(".json"):
                 continue
             try:
-                with open(os.path.join(VARIANTS_DIR, name), encoding="utf-8") as fh:
+                with open(os.path.join(directory, name), encoding="utf-8") as fh:
                     stored.append(json.load(fh))
             except (OSError, json.JSONDecodeError):
                 continue
     stored.sort(key=lambda v: v.get("updated_at") or "", reverse=True)
-    return [dict(BUILTIN_VARIANT), *stored]
+    return [builtin_variant(lab_id), *stored]
 
 
-def get_variant(variant_id: str) -> dict | None:
+def get_variant(variant_id: str, lab_id: str | None = None) -> dict | None:
     if variant_id == "builtin":
-        return dict(BUILTIN_VARIANT)
+        return builtin_variant(lab_id)
     if not _ID_RE.fullmatch(variant_id or ""):
         return None
-    path = os.path.join(VARIANTS_DIR, f"{variant_id}.json")
+    path = os.path.join(_variants_dir(lab_id), f"{variant_id}.json")
     if not os.path.isfile(path):
         return None
     try:
@@ -127,40 +135,42 @@ def get_variant(variant_id: str) -> dict | None:
         return None
 
 
-def create_variant(data: Mapping[str, Any] | None) -> dict:
+def create_variant(data: Mapping[str, Any] | None, lab_id: str | None = None) -> dict:
     record = _coerce(data)
     now = _now_iso()
     record.update({
         "id": _new_id(),
+        "lab_id": lab_id or DEFAULT_LAB,
         "builtin": False,
         "version": 1,
         "created_at": now,
         "updated_at": now,
     })
-    safe_json_write(os.path.join(VARIANTS_DIR, f"{record['id']}.json"), record, indent=2)
+    safe_json_write(os.path.join(_variants_dir(lab_id), f"{record['id']}.json"), record, indent=2)
     return record
 
 
-def update_variant(variant_id: str, data: Mapping[str, Any] | None) -> dict:
-    existing = get_variant(variant_id)
+def update_variant(variant_id: str, data: Mapping[str, Any] | None, lab_id: str | None = None) -> dict:
+    existing = get_variant(variant_id, lab_id)
     if existing is None or existing.get("builtin"):
         raise ValueError("Unknown or read-only variant")
     record = _coerce({**existing, **dict(data or {})})
     record.update({
         "id": variant_id,
+        "lab_id": lab_id or DEFAULT_LAB,
         "builtin": False,
         "version": int(existing.get("version") or 1) + 1,
         "created_at": existing.get("created_at") or _now_iso(),
         "updated_at": _now_iso(),
     })
-    safe_json_write(os.path.join(VARIANTS_DIR, f"{variant_id}.json"), record, indent=2)
+    safe_json_write(os.path.join(_variants_dir(lab_id), f"{variant_id}.json"), record, indent=2)
     return record
 
 
-def delete_variant(variant_id: str) -> bool:
+def delete_variant(variant_id: str, lab_id: str | None = None) -> bool:
     if variant_id == "builtin" or not _ID_RE.fullmatch(variant_id or ""):
         return False
-    path = os.path.join(VARIANTS_DIR, f"{variant_id}.json")
+    path = os.path.join(_variants_dir(lab_id), f"{variant_id}.json")
     if os.path.isfile(path):
         os.remove(path)
         return True
@@ -174,9 +184,10 @@ def _now_iso() -> str:
 
 
 __all__ = [
-    "BUILTIN_VARIANT",
+    "DEFAULT_LAB",
     "LAB_DIR",
     "VARIANTS_DIR",
+    "builtin_variant",
     "create_variant",
     "delete_variant",
     "get_variant",
