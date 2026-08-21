@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
 import { getChannel, listChannels } from '@/features/channels/api.js'
@@ -313,6 +313,31 @@ function togglePlay() {
   }
 }
 
+async function autoPlayNarration() {
+  // The <audio> src updates reactively after `selected` changes; wait for the
+  // element to pick up the new take, then start it from the top. A blocked
+  // autoplay policy just leaves it paused — no error, the user can press play.
+  await nextTick()
+  const element = audio.value
+  if (!element) return
+  const start = () => {
+    try {
+      element.currentTime = 0
+      const started = element.play()
+      if (started?.catch) started.catch(() => { playing.value = false })
+    } catch {
+      playing.value = false
+    }
+  }
+  // The new source may not be buffered yet — play once it can, at the latest.
+  if (element.readyState >= 2) {
+    start()
+  } else {
+    element.addEventListener('canplay', start, { once: true })
+    element.load()
+  }
+}
+
 function trackTime() {
   elapsed.value = Number(audio.value?.currentTime) || 0
 }
@@ -483,6 +508,8 @@ async function makeNarration() {
     narrationForm.speed = payload.script.narration.speed ?? null
     await loadLibrary()
     toast.success('Narration ready')
+    // Play the fresh take automatically once the audio element has the new src.
+    autoPlayNarration()
   } catch (exc) {
     error.value = exc.message || 'Could not generate narration'
     // The backend restores the last playable take after a failed provider
