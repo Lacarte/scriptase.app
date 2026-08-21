@@ -219,6 +219,53 @@ weak script is caught cheaply. *(A design decision: warn vs. stop.)*
 
 ---
 
+## Prompt Lab & experiments
+
+**Prompt Lab** — a workbench (its own nav tab) for the script prompt engine:
+see the prompt a script was built from, test prompt changes, and measure their
+impact on the score — instead of the prompt logic being an invisible black box
+in code. **[Scriptase]**
+
+**Prompt engine** — the version-controlled, tested code that *assembles* a
+prompt (the sampling, anti-repetition, structure enforcement in `prompts.py`).
+It stays in code; the Lab doesn't move it out. **[Scriptase]**
+
+**Variant** — a named, versioned bundle of prompt-tuning *knobs*, stored as
+**data** so you tune it in the UI without a deploy. A variant parameterizes the
+engine's inputs — it never carries the engine's machinery. Scriptase variant
+knobs: `angle_pool` (restrict which opening hooks may be picked),
+`extra_directives` (extra instruction lines appended), `tone_override`,
+`language_level`, `temperature`, `word_target_ratio`. **[Scriptase]**
+
+**Control (built-in variant)** — the variant that applies *no* overrides — the
+engine's own defaults. It's the baseline you A/B every other variant against,
+and it can't be edited or deleted. **[Scriptase]**
+
+**Experiment / run** — generating one script from a `(channel × variant ×
+provider)` combination and scoring it. Stored so runs can be compared and
+ranked. **[Scriptase]**
+
+**Variants + experiments (the pattern)** — the design that makes prompt work
+testable without ripping the engine into editable UI blobs: keep the *engine*
+in code, expose the *tunable knobs* as versioned **variants** (data), then
+**run experiments** and **measure** each variant with the Virality Scorer. You
+change a knob → run → see the score → compare to the control → keep the winner.
+The point is *measurement*: unlike moving all prompt logic into the UI (which
+lets you edit freely but has no built-in way to tell whether an edit helped),
+this pattern is built around scoring and comparison, so a prompt change is never
+blind. Also gives you version history and rollback that free-form UI editing
+loses. **[Scriptase]** — see [[character-bible]]-style continuity work applies
+the same "keep the engine, expose the knobs" split.
+
+**Leaderboard** — variants ranked by their average score across runs — the
+readout of which prompt configuration actually performs best. Offline Virality
+score today; real view/retention data plugs in later. **[Scriptase]**
+
+**A/B test** — running two variants on the same inputs and comparing their
+scores side by side. The Lab's Test tab does this with two runs at once.
+
+---
+
 ## Channels, jobs & artifacts
 
 **Channel** — a reusable content brand: identity, style, voice, pacing, and
