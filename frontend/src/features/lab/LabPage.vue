@@ -33,7 +33,7 @@ const variants = ref([])
 
 async function loadLabs() {
   try {
-    const data = await apiGet('/api/lab/labs')
+    const data = await apiGet('/lab/labs')
     labs.value = data.labs || []
     if (labs.value.length && !labs.value.find((l) => l.id === labId.value)) {
       labId.value = labs.value[0].id
@@ -45,9 +45,9 @@ async function loadCatalog() {
   try {
     const domain = lab.value?.provider_domain || 'script'
     const [ch, pv, vs] = await Promise.all([
-      apiGet('/api/channels', { limit: 500 }).catch(() => ({ channels: [] })),
-      apiGet('/api/providers').catch(() => ({ domains: {} })),
-      apiGet('/api/lab/variants', { lab: labId.value }).catch(() => ({ variants: [] })),
+      apiGet('/channels', { limit: 500 }).catch(() => ({ channels: [] })),
+      apiGet('/providers').catch(() => ({ domains: {} })),
+      apiGet('/lab/variants', { lab: labId.value }).catch(() => ({ variants: [] })),
     ])
     channels.value = ch.channels || []
     const dom = (pv.domains && pv.domains[domain] && pv.domains[domain].providers) || []
@@ -72,7 +72,7 @@ async function runExperiment() {
   running.value = true
   error.value = ''
   try {
-    const data = await apiPost('/api/lab/run', {
+    const data = await apiPost('/lab/run', {
       lab_id: labId.value,
       channel_id: run.channel_id || null,
       provider_id: run.provider_id,
@@ -116,22 +116,22 @@ async function saveVariant() {
   const v = editing.value
   try {
     const body = { ...v, lab_id: labId.value }
-    if (v.id) await apiPut(`/api/lab/variants/${v.id}`, body)
-    else await apiPost('/api/lab/variants', body)
+    if (v.id) await apiPut(`/lab/variants/${v.id}`, body)
+    else await apiPost('/lab/variants', body)
     editing.value = null
     await loadCatalog()
   } catch (exc) { error.value = exc.message || 'Could not save the variant' }
 }
 async function removeVariant(id) {
   error.value = ''
-  try { await apiDelete(`/api/lab/variants/${id}`, { lab: labId.value }); await loadCatalog() }
+  try { await apiDelete(`/lab/variants/${id}`, { lab: labId.value }); await loadCatalog() }
   catch (exc) { error.value = exc.message || 'Could not delete the variant' }
 }
 
 // ── Performance ─────────────────────────────────────────────────────────────
 const leaderboard = ref([])
 async function loadRuns() {
-  try { leaderboard.value = (await apiGet('/api/lab/runs', { lab: labId.value, limit: 100 })).leaderboard || [] }
+  try { leaderboard.value = (await apiGet('/lab/runs', { lab: labId.value, limit: 100 })).leaderboard || [] }
   catch { /* non-fatal */ }
 }
 
@@ -141,7 +141,7 @@ const selectedId = ref('')
 const selected = computed(() => recent.value.find((r) => r.project_id === selectedId.value) || null)
 async function loadRecent() {
   try {
-    const data = await apiGet('/api/lab/prompts', { limit: 40 })
+    const data = await apiGet('/lab/prompts', { limit: 40 })
     recent.value = data.prompts || []
     if (recent.value.length && !selectedId.value) selectedId.value = recent.value[0].project_id
   } catch { /* non-fatal */ }
