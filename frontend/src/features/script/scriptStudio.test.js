@@ -3,7 +3,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import ScriptPage from './ScriptPage.vue'
-import { applyTemplateOutline } from './generation.js'
 import * as scriptApi from './api.js'
 import * as channelApi from '@/features/channels/api.js'
 
@@ -135,7 +134,11 @@ describe('Script Studio step 3.2', () => {
     )
   })
 
-  it('uses the selected Channel template for Auto generation', async () => {
+  it('shows the Channel template and saves the provider script verbatim', async () => {
+    // The template guides the *prompt* (shown in the create sheet) but is NOT
+    // stapled onto the result: the backend already returns clean, labeled
+    // sections, so Auto saves story_text as-is. Re-labeling it against the
+    // template caused the "Turn / Build:" heading collisions.
     scriptApi.createScript.mockImplementation(async ({ title, body, channel_id, origin, narration }) => ({
       script: { ...DOCUMENT, title, body, channel_id, origin, narration },
     }))
@@ -144,6 +147,7 @@ describe('Script Studio step 3.2', () => {
     await wrapper.get('.s1-rail-title .primary').trigger('click')
     await flushPromises()
 
+    // The template still appears in the create sheet as prompt guidance.
     expect(wrapper.text()).toContain("Using Philosophy Daily's template")
     for (const section of CHANNEL.script_template.sections) {
       expect(wrapper.text()).toContain(section)
@@ -155,10 +159,10 @@ describe('Script Studio step 3.2', () => {
     expect(scriptApi.generateScript).toHaveBeenCalledTimes(1)
     const saved = scriptApi.createScript.mock.calls[0][0]
     expect(saved.origin).toBe('auto')
-    expect(saved.body).toContain('Hook\n')
-    expect(saved.body).toContain('Turn\n')
-    expect(saved.body).toContain('Why\n')
-    expect(saved.body).toContain('Landing\n')
+    // Saved verbatim — no template headings stapled on top of the provider text.
+    expect(saved.body).toBe(
+      'The room goes quiet. Everyone reaches for a word. Silence removes the performance. The pause says enough.',
+    )
   })
 
   it('generates Topic to Idea through the script provider', async () => {
@@ -472,20 +476,5 @@ describe('Script Studio step 6.3 library filter chips', () => {
     await wrapper.get('[data-testid="narration-filter-ready"]').trigger('click')
     expect(wrapper.findAll('.s1-card')).toHaveLength(0)
     expect(wrapper.get('[data-testid="script-library"]').text()).toBe('No scripts match.')
-  })
-})
-
-describe('applyTemplateOutline', () => {
-  it('distributes provider prose across every ordered section', () => {
-    const result = applyTemplateOutline(
-      'First thought. Second thought. Third thought. Fourth thought.',
-      ['Hook', 'Turn', 'Why', 'Landing'],
-    )
-    expect(result.split('\n\n').map(section => section.split('\n')[0]))
-      .toEqual(['Hook', 'Turn', 'Why', 'Landing'])
-  })
-
-  it('returns untemplated text unchanged when no outline exists', () => {
-    expect(applyTemplateOutline('Hand written.', [])).toBe('Hand written.')
   })
 })

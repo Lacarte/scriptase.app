@@ -6,7 +6,6 @@ step 6.3).
 
 ```
 api.js             /api/scripts + /api/story/generate + /api/tts/voices client
-generation.js      applyTemplateOutline — provider prose onto the Channel outline
 ScriptPage.vue     the whole view: rail, create sheet, document, narration panel
 ViralityPanel.vue  the s1-vir-* gauge, bars and reason chips
 ```

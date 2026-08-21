@@ -22,7 +22,6 @@ import {
   scoreScript,
   updateScript,
 } from './api.js'
-import { applyTemplateOutline } from './generation.js'
 import ViralityPanel from './ViralityPanel.vue'
 
 defineOptions({ name: 'ScriptPage' })
@@ -561,7 +560,12 @@ async function createNew() {
     let generatedTitle = ''
     if (draft.mode !== 'paste') {
       const result = await generateScript(generationOptions(channel))
-      body = applyTemplateOutline(result.story_text, channel.script_template?.sections)
+      // The backend already parses the provider output into clean, labeled
+      // sections (Hook / Build / Climax / CTA). Save that as-is — re-slicing it
+      // against the Channel template stapled a SECOND set of labels on top,
+      // producing the "Turn / Build:" collisions. The template guides the
+      // prompt, not a post-hoc relabel.
+      body = result.story_text || ''
       generatedTitle = draft.mode === 'idea'
         ? draft.idea.trim().slice(0, 120)
         : `${channel.name} · ${formatDate(new Date())}`
