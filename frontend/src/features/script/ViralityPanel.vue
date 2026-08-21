@@ -67,7 +67,7 @@ function dasharray(value, radius) {
 }
 
 const gauge = computed(() => dasharray(props.score?.score, 23))
-const llmGauge = computed(() => dasharray(props.llmScore?.score, 18))
+const llmGauge = computed(() => dasharray(props.llmScore?.score, 23))
 const llmSummary = computed(() => String(props.llmScore?.metrics?.summary || '').trim())
 </script>
 
@@ -91,19 +91,25 @@ const llmSummary = computed(() => String(props.llmScore?.metrics?.summary || '')
             <span class="s1-vir-gtag">Structural</span>
           </div>
 
-          <!-- The LLM judge's second opinion, when present. -->
-          <div v-if="llmScore" class="s1-vir-gauge sm" :data-band="llmScore.band">
+          <!-- The LLM judge's second opinion, when present. Same size as the
+               structural gauge — the two are peers, not primary/secondary. -->
+          <div v-if="llmScore" class="s1-vir-gauge" :data-band="llmScore.band">
             <div class="s1-vir-ring">
-              <svg viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">
-                <circle cx="22" cy="22" r="18" fill="none" stroke="var(--raise)" stroke-width="3.5" />
-                <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" :stroke-dasharray="llmGauge" />
+              <svg viewBox="0 0 54 54" width="54" height="54" aria-hidden="true">
+                <circle cx="27" cy="27" r="23" fill="none" stroke="var(--raise)" stroke-width="4" />
+                <circle cx="27" cy="27" r="23" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" :stroke-dasharray="llmGauge" />
               </svg>
               <div class="score">{{ llmScore.score }}</div>
             </div>
             <span class="s1-vir-gtag">LLM judge</span>
           </div>
-          <div v-else-if="llmError" class="s1-vir-gauge sm na" title="LLM judge unavailable">
-            <div class="s1-vir-ring"><div class="score">—</div></div>
+          <div v-else-if="llmError" class="s1-vir-gauge na" title="LLM judge unavailable">
+            <div class="s1-vir-ring">
+              <svg viewBox="0 0 54 54" width="54" height="54" aria-hidden="true">
+                <circle cx="27" cy="27" r="23" fill="none" stroke="var(--raise)" stroke-width="4" />
+              </svg>
+              <div class="score">—</div>
+            </div>
             <span class="s1-vir-gtag">LLM judge</span>
           </div>
         </div>
@@ -149,7 +155,6 @@ const llmSummary = computed(() => String(props.llmScore?.metrics?.summary || '')
 .s1-vir-gauge { flex: none; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 5px; }
 /* The ring + number share a fixed square; the number is centered INSIDE it. */
 .s1-vir-ring { position: relative; width: 54px; height: 54px; }
-.s1-vir-gauge.sm .s1-vir-ring { width: 44px; height: 44px; }
 .s1-vir-gauge[data-band="poor"] { color: var(--fail); }
 .s1-vir-gauge[data-band="weak"] { color: var(--warn); }
 .s1-vir-gauge[data-band="solid"] { color: var(--run); }
@@ -157,7 +162,6 @@ const llmSummary = computed(() => String(props.llmScore?.metrics?.summary || '')
 .s1-vir-gauge.na { color: var(--faint); }
 .s1-vir-gauge svg { display: block; transform: rotate(-90deg); }
 .s1-vir-gauge .score { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 17px; line-height: 1; letter-spacing: -.5px; color: var(--text); }
-.s1-vir-gauge.sm .score { font-size: 13px; }
 .s1-vir-gauge.na .score { color: var(--faint); }
 .s1-vir-gtag { font-family: var(--mono); font-size: 8px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .s1-vir-head .vt { flex: 1; min-width: 0; }
