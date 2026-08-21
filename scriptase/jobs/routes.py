@@ -763,6 +763,36 @@ def jobs_reject(job_id: str):
     })
 
 
+@jobs_bp.route("/api/jobs/delete-all", methods=["POST"])
+def jobs_delete_all():
+    """Delete every job (optionally scoped to a channel).
+
+    Requires a non-empty ``confirm`` token — the UI makes the user type a shown
+    random code, so a stray call cannot wipe the batch. Returns the count.
+    """
+    body, error = _json_body()
+    if error:
+        return error
+    if not str((body or {}).get("confirm") or "").strip():
+        return _error("CONFIRM_REQUIRED", "A confirmation code is required to delete all jobs", 400)
+
+    channel_id = str((body or {}).get("channel_id") or "").strip() or None
+    deleted = 0
+    while True:
+        batch = list_jobs(channel_id=channel_id, limit=500)
+        if not batch:
+            break
+        for job in batch:
+            try:
+                delete_job(job.id)
+                deleted += 1
+            except Exception:  # noqa: BLE001 — already-gone job is fine
+                pass
+        if len(batch) < 500:
+            break
+    return jsonify({"jobs_deleted": deleted})
+
+
 @jobs_bp.route("/api/jobs/<job_id>", methods=["DELETE"])
 def jobs_delete(job_id: str):
     if not JOB_ID_RE.fullmatch(job_id or ""):

@@ -13,6 +13,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
+  deleteAllJobs,
   deleteJob,
   duplicateJob,
   getExecution,
@@ -277,6 +278,41 @@ function clearCompleted() {
     undo: () => { jobs.value = snapshot },
     onError: (err) => { jobActionError.value = err?.message || String(err) },
   })
+}
+
+// Delete-all: wipes every job record, gated behind a typed random code.
+const deleteAll = ref({ open: false, code: '', input: '', busy: false })
+
+function randomCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous 0/O/1/I
+  let out = ''
+  for (let i = 0; i < 6; i += 1) out += alphabet[Math.floor(Math.random() * alphabet.length)]
+  return out
+}
+
+function openDeleteAll() {
+  if (!jobs.value.length || jobActionRunning.value) return
+  deleteAll.value = { open: true, code: randomCode(), input: '', busy: false }
+}
+
+function closeDeleteAll() {
+  deleteAll.value.open = false
+}
+
+async function confirmDeleteAll() {
+  const state = deleteAll.value
+  if (state.input !== state.code || state.busy) return
+  state.busy = true
+  try {
+    await deleteAllJobs(state.code)
+    deleteAll.value.open = false
+    await refreshJobs()
+    jobActionError.value = ''
+  } catch (err) {
+    jobActionError.value = err?.message || 'Could not delete all jobs'
+  } finally {
+    deleteAll.value.busy = false
+  }
 }
 
 function cancelAll() {
@@ -1167,6 +1203,12 @@ onMounted(async () => {
               :disabled="!(jobCounts.queued || jobCounts.running) || Boolean(jobActionRunning)"
               @click="cancelAll"
             >Cancel All</button>
+            <button
+              type="button"
+              class="btn sm danger"
+              :disabled="!jobs.length || Boolean(jobActionRunning)"
+              @click="openDeleteAll"
+            >Delete All</button>
           </div>
         </div>
       </div>
@@ -1468,6 +1510,37 @@ onMounted(async () => {
 
     <p v-if="loading && hasStages" class="muted sheet-note">Loading stages…</p>
     </main>
+
+    <!-- Delete-all-jobs confirmation: the user must type the shown random code. -->
+    <div v-if="deleteAll.open" class="pd-modal-scrim" @click.self="closeDeleteAll">
+      <div class="pd-modal" role="dialog" aria-modal="true" aria-labelledby="pd-delall-title">
+        <h3 id="pd-delall-title">Delete all jobs?</h3>
+        <p class="pd-modal-body">
+          This permanently deletes <b>all {{ jobs.length }} job{{ jobs.length === 1 ? '' : 's' }}</b>
+          in the batch. Running jobs are removed too. This cannot be undone.
+        </p>
+        <p class="pd-modal-code">To confirm, type <code>{{ deleteAll.code }}</code></p>
+        <input
+          v-model="deleteAll.input"
+          class="pd-modal-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          :placeholder="deleteAll.code"
+          aria-label="Confirmation code"
+          @keydown.enter="confirmDeleteAll"
+        >
+        <div class="pd-modal-actions">
+          <button class="btn ghost sm" type="button" @click="closeDeleteAll">Cancel</button>
+          <button
+            class="btn danger sm"
+            type="button"
+            :disabled="deleteAll.input !== deleteAll.code || deleteAll.busy"
+            @click="confirmDeleteAll"
+          >{{ deleteAll.busy ? 'Deleting…' : 'Delete all' }}</button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -2262,4 +2335,15 @@ button:disabled {
   line-height: 1.6;
 }
 
+/* Delete-all-jobs confirmation modal */
+.pd-modal-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 20px; }
+.pd-modal { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-m, 12px); box-shadow: 0 24px 60px rgba(0,0,0,.5); padding: 20px 22px; }
+.pd-modal h3 { margin: 0 0 8px; font-family: var(--display); font-size: 16px; font-weight: 600; }
+.pd-modal-body { margin: 0 0 14px; font-size: 13px; color: var(--text-2); line-height: 1.55; }
+.pd-modal-body b { color: var(--fail-text, var(--fail)); }
+.pd-modal-code { margin: 0 0 8px; font-size: 12.5px; color: var(--muted); }
+.pd-modal-code code { font-family: var(--mono); font-size: 15px; letter-spacing: 3px; color: var(--text); background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: 6px; padding: 3px 10px; margin-left: 4px; }
+.pd-modal-input { width: 100%; margin: 4px 0 16px; font-family: var(--mono); font-size: 15px; letter-spacing: 3px; text-transform: uppercase; text-align: center; color: var(--text); background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r-s); padding: 9px 10px; }
+.pd-modal-input:focus { outline: none; border-color: var(--fail-line); }
+.pd-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>

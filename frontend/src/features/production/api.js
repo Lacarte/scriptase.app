@@ -189,6 +189,10 @@ export function deleteJob(jobId) {
   return apiDelete(`/jobs/${encodeURIComponent(jobId)}`)
 }
 
+export function deleteAllJobs(confirm, channelId) {
+  return apiPost('/jobs/delete-all', { confirm, channel_id: channelId || undefined })
+}
+
 /** Registry payload used by the Test Node panel for port definitions. */
 export function getNodeTypes() {
   return apiGet('/workflow/node-types')
