@@ -223,7 +223,7 @@ const POSITIONS = [
 ]
 
 const ASPECT_RATIOS = ['9:16', '16:9', '1:1', '4:5']
-const SPEEDS = [0.9, 1, 1.1, 1.15, 1.25, 1.5]
+const SPEEDS = [0.9, 1, 1.05, 1.1, 1.15, 1.25, 1.5]
 const LANGUAGES = ['English', 'French', 'Spanish', 'Haitian Creole']
 const IMAGE_STYLES = ['Cinematic Muted', 'Noir Contrast', 'Bright Warm', 'Archival Sepia', 'Neon Synth', 'Editorial Clean']
 const TONES = ['Reflective', 'Ominous', 'Uplifting', 'Narrative', 'Provocative', 'Calm']

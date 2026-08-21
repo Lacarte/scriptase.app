@@ -81,7 +81,7 @@ const narrationFilters = [
   { id: 'only', label: 'Script Only' },
 ]
 
-const SPEED_CHOICES = [0.75, 0.9, 1, 1.1, 1.25, 1.5]
+const SPEED_CHOICES = [0.75, 0.9, 1, 1.05, 1.1, 1.25, 1.5]
 /** Narration overrides are narrower than Channel audio_defaults.speed (0.25–4). */
 const SPEED_OVERRIDE_MIN = 0.5
 const SPEED_OVERRIDE_MAX = 2.0
