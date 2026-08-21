@@ -24,7 +24,7 @@
     and pinning a version in the repo means shipping a browser that silently
     rots. bin\ is gitignored, so the download lands outside version control.
 
-    The four extensions under tools\extensions are loaded unpacked and pinned by
+    The extensions under tools\extensions are loaded unpacked and pinned by
     the ids their manifest keys produce. They are not loaded from there directly:
     each launch stages a copy under data\chromium-extensions with the real
     backend port written into its sts-endpoint.js, because V2 hardcoded

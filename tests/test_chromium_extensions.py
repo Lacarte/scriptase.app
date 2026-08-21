@@ -1,6 +1,6 @@
-"""Step 15.2 — the four ported extensions.
+"""Step 15.2 — the ported extensions.
 
-The done-when ("all four load pinned, and both provider hubs report a connected
+The done-when ("they load pinned, and both provider hubs report a connected
 socket") needs a browser and a human, so it is not what these tests are. What
 they cover is the failure the step calls its port blocker: the extensions hardcode
 ws://localhost:5050 while Scriptase serves on 5000, and a WebSocket that never
@@ -33,7 +33,6 @@ CHROMIUM_PS1 = ROOT / "tools" / "chromium.ps1"
 PINNED_IDS = {
     "STS-grok-sync": "jdookpoacnpjccbglagkajbodnhfabco",
     "STS-gemini-sync": "madklpolldnjjdglmjjjoekceldfjgkl",
-    "STS-devtools-extension": "ildalkidbljlnonbcbfeagfmhgdghaeg",
     "ai-web-auto-extension": "lcdcclkfepemmgooijjalcaadbdeicop",
 }
 
@@ -82,7 +81,7 @@ def source_files(name: str) -> list[Path]:
     ]
 
 
-# --- all four are actually here --------------------------------------------
+# --- they are actually here ------------------------------------------------
 
 
 @pytest.mark.parametrize("name", sorted(PINNED_IDS))
@@ -173,7 +172,6 @@ def test_the_injected_defaults_match_the_committed_ones(ps1: str):
     [
         ("STS-grok-sync", "importScripts(chrome.runtime.getURL(\"src/sts-endpoint.js\"))"),
         ("STS-gemini-sync", "importScripts(chrome.runtime.getURL('sts-endpoint.js'))"),
-        ("STS-devtools-extension", "importScripts(chrome.runtime.getURL('sts-endpoint.js'))"),
         ("ai-web-auto-extension", "from './modules/sts-endpoint.js'"),
     ],
 )
