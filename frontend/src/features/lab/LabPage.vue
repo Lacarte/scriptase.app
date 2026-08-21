@@ -102,11 +102,13 @@ function cloneVariant(src) {
 }
 function editVariant(v) { editing.value = v.builtin ? cloneVariant(v) : { ...v } }
 
-function listText(key) {
-  return computed({
-    get: () => (editing.value?.[key] || []).join('\n'),
-    set: (val) => { if (editing.value) editing.value[key] = val.split('\n').map((s) => s.trim()).filter(Boolean) },
-  })
+// List fields (angle_pool, extra_directives) edit as one-per-line text. Plain
+// getter + input handler so there's no computed created in the template.
+function listAsText(key) {
+  return (editing.value?.[key] || []).join('\n')
+}
+function setListFromText(key, val) {
+  if (editing.value) editing.value[key] = val.split('\n').map((s) => s.trim()).filter(Boolean)
 }
 
 async function saveVariant() {
@@ -263,7 +265,7 @@ onMounted(async () => {
 
           <label v-for="fld in (lab?.variant_fields || [])" :key="fld.key" class="f">
             {{ fld.label }} <span v-if="fld.help" class="fn">— {{ fld.help }}</span>
-            <textarea v-if="fld.type === 'list'" v-model="listText(fld.key).value" rows="4"></textarea>
+            <textarea v-if="fld.type === 'list'" :value="listAsText(fld.key)" rows="4" @input="setListFromText(fld.key, $event.target.value)"></textarea>
             <select v-else-if="fld.type === 'select'" v-model="editing[fld.key]">
               <option v-for="o in fld.options" :key="o" :value="o">{{ o || 'default' }}</option>
             </select>
