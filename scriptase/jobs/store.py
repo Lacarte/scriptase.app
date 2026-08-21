@@ -416,6 +416,21 @@ def list_jobs(
         return _list_jobs_scan(channel_id=channel_id, status=status, limit=limit)
 
 
+def jobs_for_script(script_id: str) -> list[Job]:
+    """Every Job whose source points at this Script, newest-first.
+
+    Used to warn before deleting a script and to cascade the delete — a job
+    that references a gone script would fail to run.
+    """
+    sid = str(script_id or "").strip()
+    if not sid:
+        return []
+    return [
+        job for job in list_jobs(limit=1000)
+        if str(getattr(job.source, "script_id", "") or "").strip() == sid
+    ]
+
+
 def _list_jobs_scan(
     *,
     channel_id: str | None = None,

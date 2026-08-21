@@ -187,11 +187,35 @@ def scripts_update(script_id: str):
         return _store_error(exc)
 
 
+@scripts_bp.get("/api/scripts/<script_id>/jobs")
+def scripts_linked_jobs(script_id: str):
+    """Jobs whose source points at this script — so the UI can warn before a
+    delete cascades them."""
+    if not SCRIPT_ID_RE.fullmatch(script_id or ""):
+        return _error("BAD_REQUEST", "script_id must match scr_[A-Z0-9]{6}", 400)
+    from scriptase.jobs.store import jobs_for_script
+
+    jobs = jobs_for_script(script_id)
+    return jsonify({
+        "jobs": [{"id": j.id, "status": j.status, "channel_id": j.channel_id} for j in jobs],
+        "total": len(jobs),
+    })
+
+
 @scripts_bp.delete("/api/scripts/<script_id>")
 def scripts_delete(script_id: str):
     if not SCRIPT_ID_RE.fullmatch(script_id or ""):
         return _error("BAD_REQUEST", "script_id must match scr_[A-Z0-9]{6}", 400)
+    from scriptase.jobs.store import delete_job, jobs_for_script
+
     try:
+        # Cascade: a Job that references a gone script can't run, so remove the
+        # linked jobs first (soft-deleted to trash), then the script itself.
+        for job in jobs_for_script(script_id):
+            try:
+                delete_job(job.id)
+            except Exception:  # noqa: BLE001 — a job already gone is fine
+                pass
         expected = request.args.get("expected_version")
         delete_script(
             script_id,

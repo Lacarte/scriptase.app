@@ -13,10 +13,12 @@ import {
 } from '@/shared/utils/channelIdentity.js'
 import {
   createScript,
+  deleteScript,
   generateNarration,
   generateScript,
   getScript,
   listNarrationVoices,
+  listScriptJobs,
   listScripts,
   narrationAudioUrl,
   scoreScript,
@@ -249,6 +251,35 @@ async function loadLibrary() {
 function search() {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(loadLibrary, 220)
+}
+
+async function removeScript(script) {
+  // Warn if this script is used by any jobs — deleting it removes them too.
+  let linkedCount = 0
+  try {
+    linkedCount = (await listScriptJobs(script.id))?.total || 0
+  } catch { /* if the check fails, fall back to the plain confirm below */ }
+
+  const message = linkedCount > 0
+    ? `“${script.title}” is used by ${linkedCount} job${linkedCount > 1 ? 's' : ''}. `
+      + `Deleting the script will delete ${linkedCount > 1 ? 'those jobs' : 'that job'} too. Continue?`
+    : `Delete “${script.title}”? This cannot be undone.`
+  if (!window.confirm(message)) return
+
+  try {
+    // The backend cascades: it deletes the linked jobs first, then the script.
+    await deleteScript(script.id, script.version)
+    scripts.value = scripts.value.filter((s) => s.id !== script.id)
+    if (selected.value?.id === script.id) {
+      selected.value = null
+      creating.value = false
+    }
+    toast.success(linkedCount > 0
+      ? `Script and ${linkedCount} linked job${linkedCount > 1 ? 's' : ''} deleted`
+      : 'Script deleted')
+  } catch (exc) {
+    error.value = exc.message || 'Could not delete this script'
+  }
 }
 
 function setFilter(id) {
@@ -698,6 +729,17 @@ onBeforeUnmount(() => {
           <span class="row1">
             <span class="ch-avatar" :style="{ background: channelAccent(script.channel_id) }">{{ channelInitials(channelFor(script.channel_id)?.name) }}</span>
             <span class="ctitle">{{ script.title }}</span>
+            <span
+              class="s1-card-del"
+              role="button"
+              tabindex="0"
+              :aria-label="`Delete ${script.title}`"
+              title="Delete script"
+              @click.stop="removeScript(script)"
+              @keydown.enter.stop.prevent="removeScript(script)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" /><path d="M10 11v6M14 11v6" /></svg>
+            </span>
           </span>
           <span class="row2">
             <span class="origin-tag">{{ originLabels[script.origin] }}</span>
@@ -1168,7 +1210,17 @@ onBeforeUnmount(() => {
    shared `.ch-avatar`, tinted from the channel id, so the same channel reads
    the same here, in a job row and in the Channels rail. */
 .s1-card .ch-avatar { width: 20px; height: 20px; border-radius: 5px; font-size: 9px; }
-.s1-card .ctitle { font-size: 13px; font-weight: 600; letter-spacing: -.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s1-card .ctitle { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; letter-spacing: -.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Delete: hidden until the card is hovered/focused, then muted -> red. */
+.s1-card .s1-card-del {
+  flex: none; display: grid; place-items: center; width: 24px; height: 24px;
+  margin: -4px -4px -4px 0; border-radius: var(--r-s); color: var(--muted);
+  opacity: 0; cursor: pointer; transition: opacity .14s, color .14s, background .14s;
+}
+.s1-card:hover .s1-card-del, .s1-card:focus-within .s1-card-del { opacity: .7; }
+.s1-card .s1-card-del:hover, .s1-card .s1-card-del:focus-visible {
+  opacity: 1; color: var(--fail); background: var(--fail-dim); outline: none;
+}
 .s1-card .row2 { display: flex; align-items: center; gap: 7px; margin-top: 7px; }
 .s1-card .meta { font-family: var(--mono); font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
 .s1-card .origin-tag {

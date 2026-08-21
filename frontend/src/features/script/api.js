@@ -28,6 +28,10 @@ export function deleteScript(id, expectedVersion) {
   return apiDelete(`/scripts/${id}`, { expected_version: expectedVersion })
 }
 
+export function listScriptJobs(id) {
+  return apiGet(`/scripts/${id}/jobs`)
+}
+
 /**
  * Provider-backed generation stays on the existing script-provider seam.
  * Paste deliberately never calls this function.
