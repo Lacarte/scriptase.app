@@ -516,11 +516,19 @@ function Wait-ForHealth {
 }
 
 function Wait-ForPort {
-    param([int]$Port, [int]$TimeoutSeconds = 90, [Diagnostics.Process]$Process)
+    param(
+        [int]$Port,
+        [int]$TimeoutSeconds = 90,
+        [Diagnostics.Process]$Process,
+        # When set, an early process exit returns $false (so the caller can retry)
+        # instead of being fatal. A ready port always returns $true.
+        [switch]$AllowEarlyExit
+    )
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
         if ($Process -and $Process.HasExited) {
+            if ($AllowEarlyExit) { return $false }
             Fail "Vite exited with code $($Process.ExitCode) before serving." 'The error is above.'
         }
         $listening = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
@@ -667,8 +675,23 @@ try {
         # `Get-Command npm` resolves to npm.ps1 on Windows, which CreateProcess
         # rejects outright ("not a valid application for this OS platform").
         # cmd.exe is the portable shim and lands in the job either way.
-        $vite = Start-JobChild -Job $job -FilePath $env:ComSpec -Arguments '/c npm run dev' -WorkingDirectory $FrontendDir
-        Wait-ForPort -Port $vitePort -Process $vite | Out-Null
+        #
+        # Vite 8's Rolldown/oxc native addon can crash during dependency
+        # optimization on Windows + Node 24 (exit -1073740791 / 0xC0000409,
+        # STATUS_STACK_BUFFER_OVERRUN) before the port opens. It is transient: a
+        # clean re-optimize recovers. So on an early exit, wipe node_modules/.vite
+        # and retry once instead of failing the whole launch.
+        $viteCache = Join-Path $FrontendDir 'node_modules\.vite'
+        $vite = $null
+        foreach ($attempt in 1, 2) {
+            $vite = Start-JobChild -Job $job -FilePath $env:ComSpec -Arguments '/c npm run dev' -WorkingDirectory $FrontendDir
+            if (Wait-ForPort -Port $vitePort -Process $vite -AllowEarlyExit:($attempt -eq 1)) { break }
+            # First attempt exited early — clear the optimizer cache and retry.
+            Write-Warn "Vite exited with code $($vite.ExitCode) before serving; clearing its cache and retrying..."
+            if (Test-Path $viteCache) {
+                Remove-Item -Recurse -Force $viteCache -ErrorAction SilentlyContinue
+            }
+        }
         Write-Ok "Vite serving on :$vitePort"
         $appUrl = "http://localhost:${vitePort}/"
     }
