@@ -565,19 +565,36 @@ def _beat_guidance(beat: str, index: int, total: int) -> str:
     return f"Advance the narrative through this beat ('{beat}') — keep the momentum building."
 
 
+def _beats(sections) -> list[str]:
+    beats = [str(s).strip() for s in (sections or DEFAULT_SECTIONS) if str(s).strip()]
+    return beats or list(DEFAULT_SECTIONS)
+
+
 def _build_structure_block(sections) -> str:
     """The OUTPUT STRUCTURE section, generated from the channel's beats."""
-    beats = [str(s).strip() for s in (sections or DEFAULT_SECTIONS) if str(s).strip()]
-    if not beats:
-        beats = list(DEFAULT_SECTIONS)
+    beats = _beats(sections)
     total = len(beats)
-    lines = ["OUTPUT STRUCTURE (mandatory — use these exact labels, in this order):"]
+    labels_csv = " / ".join(f"{b}:" for b in beats)
+    lines = [
+        f"OUTPUT STRUCTURE — write EXACTLY {total} sections, each on its own line, "
+        f"each beginning with its label followed by a colon. Use these labels, in "
+        f"this order, and no others: {labels_csv}",
+    ]
     for i, beat in enumerate(beats):
         lines.append(f"{beat}: [{_beat_guidance(beat, i, total)}]")
-    lines.append("")
-    labels_csv = " / ".join(f"{b}:" for b in beats)
-    lines.append(f"Each section MUST be labeled exactly as shown: {labels_csv}")
-    return "\n\n".join(lines[:-1]) + "\n" + lines[-1]
+    return "\n\n".join(lines)
+
+
+def _structure_reminder(sections) -> str:
+    """A final, emphatic restatement — the last instruction the model reads."""
+    beats = _beats(sections)
+    example = "  ".join(f"{b}: …" for b in beats)
+    return (
+        "CRITICAL — before you answer, confirm your script has every one of these "
+        f"labels, spelled exactly, each starting its own line: {', '.join(beats)}. "
+        f"The shape must be:\n{example}\n"
+        "A script missing any label is invalid. Do not merge, rename, or omit a label."
+    )
 
 
 def build_story_system_prompt(
@@ -623,8 +640,9 @@ def build_story_system_prompt(
         f"{level_line}"
         f"Match the emotional tone and vocabulary to this visual style.\n\n"
         f"Write in {language}. Target approximately {word_target} words total.\n\n"
-        "The script must be written in a natural spoken flow suitable for voiceover — "
-        "no titles, no summaries, no chapter markers, and no unnecessary meta-text.\n\n"
+        "The script must read as natural spoken flow suitable for voiceover — no "
+        "titles, no summaries, no stage directions. The ONLY structural markers "
+        "allowed (and required) are the exact section labels defined below.\n\n"
         f"{_build_structure_block(sections)}\n\n"
         "WRITING RULES:\n"
         "- Use simple, everyday language — even when explaining complex ideas. "
@@ -635,8 +653,10 @@ def build_story_system_prompt(
         "natural pauses through line breaks.\n"
         f"- Total word count must be within ±10% of {word_target} words.\n"
         f"- Write entirely in {language}.\n"
-        "- Do not include any meta-commentary, instructions, or stage directions in the output.\n"
-        "- Reinforce key phrases and recurring motifs to build authority and memorability.\n"
+        "- No meta-commentary, instructions, or stage directions — but the section "
+        "labels above are mandatory, not meta-text.\n"
+        "- Reinforce key phrases and recurring motifs to build authority and memorability.\n\n"
+        + _structure_reminder(sections)
     )
 
 
