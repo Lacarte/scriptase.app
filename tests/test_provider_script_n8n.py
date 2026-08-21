@@ -213,7 +213,7 @@ class RegistrationTests(unittest.TestCase):
         self.assertIsNotNone(instance)
         self.assertEqual(instance.domain, "script")
         self.assertEqual(instance.kind, "webhook")
-        self.assertEqual(instance.label, "Script Generator")
+        self.assertEqual(instance.label, "Script Generator (not in use)")
 
 
 class SeededInstanceTests(unittest.TestCase):
@@ -224,7 +224,7 @@ class SeededInstanceTests(unittest.TestCase):
 
         script = _default_settings()["domains"]["script"]
         self.assertIn("n8n", script["instances"])
-        self.assertEqual(script["instances"]["n8n"]["label"], "Script Generator")
+        self.assertEqual(script["instances"]["n8n"]["label"], "Script Generator (not in use)")
         # The default selection is the app-prompt provider.
         self.assertEqual(script["selected_instance_id"], "script_n8n")
 
@@ -328,7 +328,7 @@ class SeededInstanceTests(unittest.TestCase):
 
         expected = {
             ("script", "script_n8n"): "Story Generator",
-            ("script", "n8n"): "Script Generator",
+            ("script", "n8n"): "Script Generator (not in use)",
             ("scene_director", "n8n"): "Scene Director",
             ("tts", "inworld"): "Voice Generator",
             ("image", "gemini_ws"): "Image Generator",

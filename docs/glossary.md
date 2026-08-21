@@ -38,7 +38,9 @@ as the badge on each provider card. **[Scriptase]**
 
 **Passerelle / gateway** — a provider that just *forwards* the request to an
 external workflow (n8n) and returns its result, instead of doing the work
-itself. The "Script Generator" (n8n) provider is a passerelle. **[Scriptase]**
+itself. The "Script Generator (not in use)" (n8n) provider is a passerelle —
+kept registered but not the active path; the app uses "Story Generator"
+(`script_n8n`), which builds the prompt itself. **[Scriptase]**
 
 ---
 
@@ -311,7 +313,7 @@ artifact, kept for auditing and cost. Never holds credentials. **[Scriptase]**
 | Domain | Provider (label) | id | Transport | What it does |
 |---|---|---|---|---|
 | Script | Story Generator | `script_n8n` | n8n | app builds the prompt, webhook relays to LLM |
-| Script | Script Generator | `n8n` | n8n | passerelle: sends raw fields, n8n builds the prompt |
+| Script | Script Generator (not in use) | `n8n` | n8n | passerelle: sends raw fields, n8n builds the prompt (not the active path) |
 | Scene Director | Scene Director | `n8n` | n8n | plans scenes / image prompts via n8n |
 | Text to Speech | Voice Generator | `inworld` | cloud | narration audio (Inworld) |
 | Image | Image Generator | `gemini_ws` | extension | scene images (Gemini) |

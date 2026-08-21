@@ -100,10 +100,10 @@ DOMAINS: dict[str, DomainSpec] = {
             catalog_provider_ids=frozenset({"script_n8n", "n8n", "random_template"}),
             contract_provider_ids=frozenset({"scaffold_check"}),
             # Friendly settings-page labels: the script_n8n default reads as
-            # "Story Generator", and the n8n passerelle "Script Generator" is
-            # seeded beside it so both show without hand-configuration.
+            # "Story Generator" (the app-prompt path in active use), and the n8n
+            # passerelle "Script Generator (not in use)" is seeded beside it.
             default_instance_label="Story Generator",
-            seeded_instances=(("n8n", "Script Generator"),),
+            seeded_instances=(("n8n", "Script Generator (not in use)"),),
         ),
         DomainSpec(
             id="scene_director",

@@ -27,8 +27,9 @@ STAGE 1 — SCRIPT                                                   [domain: sc
        • "Story Generator"  — the APP builds the prompt in prompts.py and the
          n8n webhook just relays it to the LLM (id `script_n8n`; `gemini` kept
          as a permanent input alias for old docs/migrations)
-       • "Script Generator" — the passerelle sends RAW fields and the n8n
-         workflow builds the prompt itself (id `n8n`)
+       • "Script Generator (not in use)" — the passerelle sends RAW fields and
+         the n8n workflow builds the prompt itself (id `n8n`). Registered but
+         NOT the active path; "Story Generator" is what the app uses.
   🟡 which one is the default is the prompt-ownership decision (❓Q1)
 
         ↓

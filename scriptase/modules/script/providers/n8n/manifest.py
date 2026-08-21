@@ -15,7 +15,7 @@ from scriptase.providers.registry import ProviderManifest
 def manifest() -> ProviderManifest:
     return ProviderManifest(
         id="n8n",
-        label="Script Generator",
+        label="Script Generator (not in use)",
         domain="script",
         kind="webhook",
         version="1.0.0",

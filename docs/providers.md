@@ -295,11 +295,11 @@ Providers are discovered by scanning each domain's `providers/` folder. There is
 
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
-| `n8n` | Script Generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
+| `n8n` | Script Generator (not in use) | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
 | `random_template` | Random template | `local` | `1.0.0` | v1 | `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections` |
 | `script_n8n` | Story Generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
 
-#### `n8n` — Script Generator
+#### `n8n` — Script Generator (not in use)
 
 Script generation via a configurable n8n webhook. Sends the Channel's niche, style, tone, duration, and template outline, and writes stories/{id}/story.json from the returned script.
 
