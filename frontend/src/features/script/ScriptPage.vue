@@ -13,6 +13,7 @@ import {
 } from '@/shared/utils/channelIdentity.js'
 import {
   createScript,
+  deleteAllScripts,
   deleteScript,
   generateNarration,
   generateScript,
@@ -251,6 +252,48 @@ async function loadLibrary() {
 function search() {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(loadLibrary, 220)
+}
+
+// Delete-all: gated behind a typed random code so a stray click can't wipe it.
+const deleteAll = reactive({ open: false, code: '', input: '', busy: false })
+
+function randomCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous 0/O/1/I
+  let out = ''
+  for (let i = 0; i < 6; i += 1) out += alphabet[Math.floor(Math.random() * alphabet.length)]
+  return out
+}
+
+function openDeleteAll() {
+  deleteAll.code = randomCode()
+  deleteAll.input = ''
+  deleteAll.busy = false
+  deleteAll.open = true
+}
+
+function closeDeleteAll() {
+  deleteAll.open = false
+}
+
+async function confirmDeleteAll() {
+  if (deleteAll.input !== deleteAll.code || deleteAll.busy) return
+  deleteAll.busy = true
+  try {
+    const result = await deleteAllScripts(deleteAll.code)
+    deleteAll.open = false
+    selected.value = null
+    creating.value = false
+    await loadLibrary()
+    const jobs = result?.jobs_deleted || 0
+    toast.success(
+      `Deleted ${result?.scripts_deleted || 0} script${(result?.scripts_deleted || 0) === 1 ? '' : 's'}`
+      + (jobs ? ` and ${jobs} linked job${jobs === 1 ? '' : 's'}` : ''),
+    )
+  } catch (exc) {
+    error.value = exc.message || 'Could not delete all scripts'
+  } finally {
+    deleteAll.busy = false
+  }
 }
 
 async function removeScript(script) {
@@ -711,10 +754,22 @@ onBeforeUnmount(() => {
       <div class="s1-rail-head">
         <div class="s1-rail-title">
           <h2>Script Library</h2>
-          <button class="btn primary sm" type="button" @click="startCreate">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-            New
-          </button>
+          <div class="s1-rail-actions">
+            <button
+              v-if="scripts.length"
+              class="s1-delall-btn"
+              type="button"
+              title="Delete all scripts"
+              @click="openDeleteAll"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" /><path d="M10 11v6M14 11v6" /></svg>
+              Delete all
+            </button>
+            <button class="btn primary sm" type="button" @click="startCreate">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              New
+            </button>
+          </div>
         </div>
 
         <label class="s1-search">
@@ -1179,6 +1234,39 @@ onBeforeUnmount(() => {
         <button class="btn primary sm" type="button" @click="startCreate">Create script</button>
       </div>
     </main>
+
+    <!-- Delete-all confirmation: the user must type the shown random code. -->
+    <div v-if="deleteAll.open" class="s1-modal-scrim" @click.self="closeDeleteAll">
+      <div class="s1-modal" role="dialog" aria-modal="true" aria-labelledby="delall-title">
+        <h3 id="delall-title">Delete all scripts?</h3>
+        <p class="s1-modal-body">
+          This permanently deletes <b>all {{ scripts.length }} script{{ scripts.length === 1 ? '' : 's' }}</b>
+          and any jobs linked to them. This cannot be undone.
+        </p>
+        <p class="s1-modal-code">To confirm, type <code>{{ deleteAll.code }}</code></p>
+        <input
+          v-model="deleteAll.input"
+          class="s1-modal-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          :placeholder="deleteAll.code"
+          aria-label="Confirmation code"
+          @keydown.enter="confirmDeleteAll"
+        >
+        <div class="s1-modal-actions">
+          <button class="btn ghost sm" type="button" @click="closeDeleteAll">Cancel</button>
+          <button
+            class="btn danger sm"
+            type="button"
+            :disabled="deleteAll.input !== deleteAll.code || deleteAll.busy"
+            @click="confirmDeleteAll"
+          >
+            {{ deleteAll.busy ? 'Deleting…' : 'Delete all' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -1206,6 +1294,26 @@ onBeforeUnmount(() => {
 .s1-rail-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--line-soft); }
 .s1-rail-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .s1-rail-title h2 { margin: 0; font-family: var(--display); font-size: 15px; font-weight: 600; }
+.s1-rail-actions { display: flex; align-items: center; gap: 8px; }
+.s1-delall-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px;
+  font-family: var(--display); font-size: 12px; color: var(--muted);
+  background: none; border: 1px solid var(--line); border-radius: var(--r-s);
+  cursor: pointer; transition: color .14s, border-color .14s, background .14s;
+}
+.s1-delall-btn:hover { color: var(--fail); border-color: var(--fail-line); background: var(--fail-dim); }
+
+/* Delete-all confirmation modal */
+.s1-modal-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 20px; }
+.s1-modal { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-m, 12px); box-shadow: 0 24px 60px rgba(0,0,0,.5); padding: 20px 22px; }
+.s1-modal h3 { margin: 0 0 8px; font-family: var(--display); font-size: 16px; font-weight: 600; }
+.s1-modal-body { margin: 0 0 14px; font-size: 13px; color: var(--text-2); line-height: 1.55; }
+.s1-modal-body b { color: var(--fail-text, var(--fail)); }
+.s1-modal-code { margin: 0 0 8px; font-size: 12.5px; color: var(--muted); }
+.s1-modal-code code { font-family: var(--mono); font-size: 15px; letter-spacing: 3px; color: var(--text); background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: 6px; padding: 3px 10px; margin-left: 4px; }
+.s1-modal-input { width: 100%; margin: 4px 0 16px; font-family: var(--mono); font-size: 15px; letter-spacing: 3px; text-transform: uppercase; text-align: center; color: var(--text); background: var(--panel-2, var(--bg-2)); border: 1px solid var(--line); border-radius: var(--r-s); padding: 9px 10px; }
+.s1-modal-input:focus { outline: none; border-color: var(--fail-line); }
+.s1-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 .s1-search { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); padding: 8px 11px; }
 .s1-search:focus-within { border-color: var(--accent-line-2); box-shadow: 0 0 0 3px var(--accent-ring); }

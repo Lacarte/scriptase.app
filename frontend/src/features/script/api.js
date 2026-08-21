@@ -32,6 +32,10 @@ export function listScriptJobs(id) {
   return apiGet(`/scripts/${id}/jobs`)
 }
 
+export function deleteAllScripts(confirm) {
+  return apiPost('/scripts/delete-all', { confirm })
+}
+
 /**
  * Provider-backed generation stays on the existing script-provider seam.
  * Paste deliberately never calls this function.

@@ -187,6 +187,45 @@ def scripts_update(script_id: str):
         return _store_error(exc)
 
 
+@scripts_bp.post("/api/scripts/delete-all")
+def scripts_delete_all():
+    """Delete every script and cascade their linked jobs.
+
+    Requires a non-empty ``confirm`` token in the body — the UI makes the user
+    type a shown random code, so a stray call cannot wipe the library. Returns
+    how many scripts and jobs were removed.
+    """
+    body, error = _json_body()
+    if error:
+        return error
+    if not str((body or {}).get("confirm") or "").strip():
+        return _error("CONFIRM_REQUIRED", "A confirmation code is required to delete all scripts", 400)
+
+    from scriptase.jobs.store import delete_job, jobs_for_script
+
+    scripts_deleted = jobs_deleted = 0
+    # Page through in case there are more than one list-limit worth.
+    while True:
+        batch = list_scripts(limit=500)
+        if not batch:
+            break
+        for script in batch:
+            for job in jobs_for_script(script.id):
+                try:
+                    delete_job(job.id)
+                    jobs_deleted += 1
+                except Exception:  # noqa: BLE001 — already-gone job is fine
+                    pass
+            try:
+                delete_script(script.id)
+                scripts_deleted += 1
+            except (ScriptNotFound, ScriptConflict, ScriptValidationError, ValueError):
+                pass
+        if len(batch) < 500:
+            break
+    return jsonify({"scripts_deleted": scripts_deleted, "jobs_deleted": jobs_deleted})
+
+
 @scripts_bp.get("/api/scripts/<script_id>/jobs")
 def scripts_linked_jobs(script_id: str):
     """Jobs whose source points at this script — so the UI can warn before a
