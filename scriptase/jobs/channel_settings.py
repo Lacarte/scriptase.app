@@ -108,6 +108,7 @@ def channel_settings_from_snapshot(snapshot: Mapping[str, Any] | None) -> dict[s
             if isinstance(audio.get("music_random"), bool)
             else True
         ),
+        "scene_pacing": _text(audio.get("scene_pacing")) or "balanced",
         # Captions are a local service — mode/preset fields only
         "caption_preset": _text(captions.get("preset")),
         "caption_position": _text(captions.get("position")),

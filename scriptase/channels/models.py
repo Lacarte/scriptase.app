@@ -24,7 +24,7 @@ CHANNEL_ID_RE = re.compile(r"^ch_[A-Z0-9]{6}$")
 
 # Schema version of the on-disk document format (migrations.py). Distinct from
 # the content ``version`` field, which bumps on every successful update.
-CHANNEL_SCHEMA_VERSION = 8
+CHANNEL_SCHEMA_VERSION = 9
 
 WATERMARK_POSITIONS = (
     "top-left",
@@ -349,6 +349,11 @@ class AudioDefaults(BaseModel):
     # always using `music_profile`. On by default so a new Channel gets varied
     # music without curating a specific track.
     music_random: bool = True
+    # How long each scene stays on screen. A brand/format choice per Channel:
+    # `fast` (tight cuts), `balanced` (~5s, one clip per scene), or `cinematic`
+    # (slow shots). Maps to the segmenter's target duration band; `balanced`
+    # matches a 5s video-clip model. See segmenter.algorithm.PACING_PRESETS.
+    scene_pacing: str = "balanced"
     loudness: float | None = None
     ducking: float | None = Field(default=None, ge=0.0, le=1.0)
 
@@ -361,6 +366,14 @@ class AudioDefaults(BaseModel):
     @classmethod
     def _strip_fields(cls, value: Any) -> str:
         return _strip_str(value)
+
+    @field_validator("scene_pacing", mode="before")
+    @classmethod
+    def _pacing(cls, value: Any) -> str:
+        pacing = str(value or "").strip().lower() or "balanced"
+        if pacing not in ("fast", "balanced", "cinematic"):
+            raise ValueError("scene_pacing must be fast, balanced, or cinematic")
+        return pacing
 
 
 class CaptionsDefaults(BaseModel):

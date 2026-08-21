@@ -28,6 +28,27 @@ DEFAULT_CONFIG = {
     "gap_filler": 0.3,
 }
 
+# Scene-pacing presets: how long each scene stays on screen, as a duration band
+# the segmenter aims for while still cutting on a natural speech pause. A band
+# is chosen per Channel (its brand/format) and maps to these algorithm knobs.
+# `hard_max` caps the longest a scene may run before a cut is forced, kept a
+# little above `target_max` so a natural boundary can still be preferred.
+#
+#   fast      — tight, punchy cuts (TikTok tension, high energy)
+#   balanced  — one scene per ~5s clip (matches a 5s video-clip model)
+#   cinematic — slow, contemplative shots (documentary, philosophy)
+PACING_PRESETS = {
+    "fast": {"target_min": 2.5, "target_max": 4.0, "hard_max": 5.0},
+    "balanced": {"target_min": 3.5, "target_max": 5.0, "hard_max": 6.0},
+    "cinematic": {"target_min": 5.0, "target_max": 7.0, "hard_max": 8.5},
+}
+DEFAULT_PACING = "balanced"
+
+
+def pacing_config(preset):
+    """The segmenter knobs for a pacing preset, or `{}` for an unknown one."""
+    return dict(PACING_PRESETS.get(str(preset or "").strip().lower(), {}))
+
 # ---------------------------------------------------------------------------
 # Vocabulary sets for break scoring
 # ---------------------------------------------------------------------------

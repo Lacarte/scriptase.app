@@ -207,6 +207,23 @@ def _add_random_music_default(data: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+@_register(9)
+def _add_scene_pacing_default(data: dict[str, Any]) -> dict[str, Any]:
+    """Add the scene-pacing default to legacy Channels.
+
+    ``scene_pacing`` controls how long each scene stays on screen (the segmenter
+    target band). ``balanced`` — one scene per ~5s clip — is the default a
+    Channel with no pacing set receives, matching a 5s video-clip model.
+    """
+    migrated = deepcopy(data)
+    audio = migrated.get("audio_defaults")
+    if not isinstance(audio, dict):
+        audio = {}
+        migrated["audio_defaults"] = audio
+    audio.setdefault("scene_pacing", "balanced")
+    return migrated
+
+
 # Future schema changes register the next consecutive target here and land in
 # the same step that changes the model (CLAUDE.md non-negotiable).
 

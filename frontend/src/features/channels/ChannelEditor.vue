@@ -114,6 +114,7 @@ const form = reactive({
     speed: 1,
     music_profile: '',
     music_random: true,
+    scene_pacing: 'balanced',
     loudness: null,
     ducking: null,
   },
@@ -332,6 +333,16 @@ const speedOptions = computed(() => {
   return SPEEDS.includes(current) ? SPEEDS : [current, ...SPEEDS].sort((a, b) => a - b)
 })
 
+/** How long each scene stays on screen — the segmenter's target duration band. */
+const pacingOptions = [
+  { id: 'fast', label: 'Fast', hint: 'Tight, punchy cuts (~2.5–4s per scene) — high energy.' },
+  { id: 'balanced', label: 'Balanced', hint: 'One scene per ~5s clip (~3.5–5s) — matches most video models.' },
+  { id: 'cinematic', label: 'Cinematic', hint: 'Slow, contemplative shots (~5–7s per scene).' },
+]
+const pacingHint = computed(() =>
+  (pacingOptions.find((p) => p.id === form.audio_defaults.scene_pacing) || pacingOptions[1]).hint,
+)
+
 /** Where the watermark sits inside the aspect-ratio preview frame. */
 const watermarkFrameStyle = computed(() => ({
   '--fr': form.export_defaults.aspect_ratio.replace(':', '/') || '9/16',
@@ -504,6 +515,7 @@ function applyDocument(doc) {
     speed: 1,
     music_profile: '',
     music_random: true,
+    scene_pacing: 'balanced',
     loudness: null,
     ducking: null,
     ...(doc.audio_defaults || {}),
@@ -1520,6 +1532,15 @@ onMounted(load)
                 </div>
                 <select v-model.number="form.audio_defaults.speed" class="ch-select narr-select" aria-label="Narration speed" @change="markDirty">
                   <option v-for="speed in speedOptions" :key="speed" :value="speed">{{ speed }}×</option>
+                </select>
+              </div>
+              <div class="ch-narr-item">
+                <div class="ch-narr-txt">
+                  <div class="t">Scene pacing</div>
+                  <div class="d">{{ pacingHint }}</div>
+                </div>
+                <select v-model="form.audio_defaults.scene_pacing" class="ch-select narr-select" aria-label="Scene pacing" @change="markDirty">
+                  <option v-for="p in pacingOptions" :key="p.id" :value="p.id">{{ p.label }}</option>
                 </select>
               </div>
             </div>
