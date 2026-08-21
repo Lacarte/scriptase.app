@@ -295,11 +295,11 @@ Providers are discovered by scanning each domain's `providers/` folder. There is
 
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
-| `gemini` | Gemini story generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
+| `gemini` | Story Generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
 | `n8n` | Script Generator | `webhook` | `1.0.0` | v1 | `language_select`, `structured_sections`, `test_connection`; off: `batch`, `offline`, `single_scene` |
 | `random_template` | Random template | `local` | `1.0.0` | v1 | `language_select`, `offline`, `single_scene`, `test_connection`; off: `batch`, `structured_sections` |
 
-#### `gemini` — Gemini story generator
+#### `gemini` — Story Generator
 
 AI story generation via the configured n8n/Gemini webhook. Returns hook/build/climax/CTA sections and writes stories/{id}/story.json.
 
