@@ -73,3 +73,24 @@ def test_scoring_is_advisory_and_does_not_change_script_version(tmp_path, monkey
     reopened = client.get(f"/api/scripts/{script['id']}").get_json()["script"]
     assert reopened["version"] == script["version"]
     assert reopened["body"] == script["body"]
+
+
+def test_labeled_body_scores_its_hook_and_cta_present(tmp_path, monkeypatch):
+    # Regression: a Script Studio body carries Hook:/Build:/Climax:/CTA: labels.
+    # Scoring must parse them into sections first — otherwise hook/cta read as
+    # missing and a perfectly good script craters to a "POOR" band.
+    client = _client(tmp_path, monkeypatch)
+    script = _create(client)
+    body = (
+        "Hook: Beware the invisible trap lurking in shame.\n\n"
+        "Build: Meet Sarah, eager to impress at her new job. Each mistake stings.\n\n"
+        "But here's what most don't realize. Shame hijacks your life quietly.\n\n"
+        "Climax: Science shows shame is a prison of our own making.\n\n"
+        "CTA: So what if breaking free is one honest conversation away?"
+    )
+    resp = client.post(f"/api/scripts/{script['id']}/virality", json={"text": body})
+    assert resp.status_code == 200
+    dims = {d["id"]: d for d in resp.get_json()["virality"]["dimensions"]}
+    # The hook is clearly present and labeled — it must score above zero.
+    assert dims["hook"]["score"] > 0, "labeled hook was not detected"
+    assert dims["cta"]["score"] > 0, "labeled CTA was not detected"

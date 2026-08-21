@@ -36,7 +36,18 @@ def _cache_path(script_id: str) -> str:
 def _request(script_id: str, text: str) -> ViralRequest:
     if not isinstance(text, str):
         raise ValueError("text must be a string")
-    request = ViralRequest(job_id=script_id, story_text=text)
+    # A Script Studio body carries its labels (Hook:/Build:/Climax:/CTA:).
+    # Parse them into `sections` so the scorer sees the structure — without
+    # this, hook/CTA/balance all read as missing and the score craters.
+    from scriptase.modules.script.engine import parse_story_sections
+
+    parsed = parse_story_sections(text)
+    sections = {k: v for k, v in (parsed.get("sections") or {}).items() if v}
+    request = ViralRequest(
+        job_id=script_id,
+        sections=sections,
+        story_text=parsed.get("story_text") or text,
+    )
     if not request.has_content:
         raise ValueError("Write a script before checking virality")
     return request
