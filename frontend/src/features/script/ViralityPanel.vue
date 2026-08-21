@@ -3,6 +3,10 @@ import { computed } from 'vue'
 
 const props = defineProps({
   score: { type: Object, default: null },
+  // The LLM judge's second opinion (same shape as `score`), or null; `llmError`
+  // explains a missing one.
+  llmScore: { type: Object, default: null },
+  llmError: { type: String, default: '' },
   analyzing: { type: Boolean, default: false },
   stale: { type: Boolean, default: false },
 })
@@ -56,11 +60,15 @@ const dimensions = computed(() => (Array.isArray(props.score?.dimensions) ? prop
     reasons: reasons(item.reasons),
   })))
 
-const gauge = computed(() => {
-  const circumference = 2 * Math.PI * 22
-  const value = Math.min(100, Math.max(0, Number(props.score?.score) || 0))
-  return `${circumference * (value / 100)} ${circumference}`
-})
+function dasharray(value, radius) {
+  const circumference = 2 * Math.PI * radius
+  const v = Math.min(100, Math.max(0, Number(value) || 0))
+  return `${circumference * (v / 100)} ${circumference}`
+}
+
+const gauge = computed(() => dasharray(props.score?.score, 22))
+const llmGauge = computed(() => dasharray(props.llmScore?.score, 16))
+const llmSummary = computed(() => String(props.llmScore?.metrics?.summary || '').trim())
 </script>
 
 <template>
@@ -71,16 +79,36 @@ const gauge = computed(() => {
 
     <template v-else-if="score">
       <div class="s1-vir-head">
-        <div class="s1-vir-gauge" :data-band="score.band">
-          <svg width="52" height="52" aria-hidden="true">
-            <circle cx="26" cy="26" r="22" fill="none" stroke="var(--raise)" stroke-width="5" />
-            <circle cx="26" cy="26" r="22" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" :stroke-dasharray="gauge" />
-          </svg>
-          <div class="score">{{ score.score }}</div>
+        <div class="s1-vir-gauges">
+          <div class="s1-vir-gauge" :data-band="score.band">
+            <svg width="52" height="52" aria-hidden="true">
+              <circle cx="26" cy="26" r="22" fill="none" stroke="var(--raise)" stroke-width="5" />
+              <circle cx="26" cy="26" r="22" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" :stroke-dasharray="gauge" />
+            </svg>
+            <div class="score">{{ score.score }}</div>
+            <span class="s1-vir-gtag">Structural</span>
+          </div>
+
+          <!-- The LLM judge's second opinion, when present. -->
+          <div v-if="llmScore" class="s1-vir-gauge sm" :data-band="llmScore.band">
+            <svg width="40" height="40" aria-hidden="true">
+              <circle cx="20" cy="20" r="16" fill="none" stroke="var(--raise)" stroke-width="4" />
+              <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" :stroke-dasharray="llmGauge" />
+            </svg>
+            <div class="score sm">{{ llmScore.score }}</div>
+            <span class="s1-vir-gtag">LLM judge</span>
+          </div>
+          <div v-else-if="llmError" class="s1-vir-gauge sm na" title="LLM judge unavailable">
+            <div class="score sm">—</div>
+            <span class="s1-vir-gtag">LLM judge</span>
+          </div>
         </div>
+
         <div class="vt">
           <div class="tt">Virality score <span class="grade" :class="`grade-${score.band}`">{{ score.band }}</span></div>
           <div class="sub">{{ stale ? 'Text changed since this score was run.' : 'Advisory only — this channel sets no virality threshold.' }}</div>
+          <div v-if="llmSummary" class="s1-vir-llm-note">“{{ llmSummary }}”</div>
+          <div v-else-if="llmError" class="s1-vir-llm-miss">LLM second opinion unavailable — {{ llmError }}</div>
         </div>
         <button class="btn xs s1-vir-recheck" type="button" @click="$emit('analyze')">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4" /><path d="M21 3v6h-6" /></svg>
@@ -112,15 +140,22 @@ const gauge = computed(() => {
 
 <style scoped>
 .s1-vir { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--r); background: linear-gradient(180deg, var(--panel), var(--bg-2)); overflow: hidden; }
-.s1-vir-head { display: flex; align-items: center; gap: 14px; padding: 15px 18px; border-bottom: 1px solid var(--line-soft); }
-.s1-vir-gauge { position: relative; width: 52px; height: 52px; flex: none; color: var(--muted); }
+.s1-vir-head { display: flex; align-items: flex-start; gap: 14px; padding: 15px 18px; border-bottom: 1px solid var(--line-soft); }
+.s1-vir-gauges { display: flex; align-items: flex-start; gap: 12px; flex: none; }
+.s1-vir-gauge { position: relative; width: 52px; height: 52px; flex: none; color: var(--muted); display: flex; flex-direction: column; align-items: center; }
+.s1-vir-gauge.sm { width: 40px; height: 40px; }
 .s1-vir-gauge[data-band="poor"] { color: var(--fail); }
 .s1-vir-gauge[data-band="weak"] { color: var(--warn); }
 .s1-vir-gauge[data-band="solid"] { color: var(--run); }
 .s1-vir-gauge[data-band="strong"] { color: var(--ok); }
+.s1-vir-gauge.na { color: var(--faint); }
 .s1-vir-gauge svg { transform: rotate(-90deg); }
-.s1-vir-gauge .score { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 600; font-size: 18px; letter-spacing: -.5px; }
+.s1-vir-gauge .score { position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; place-items: center; font-family: var(--display); font-weight: 600; font-size: 18px; letter-spacing: -.5px; }
+.s1-vir-gauge.sm .score { height: 40px; font-size: 14px; }
+.s1-vir-gtag { margin-top: 3px; font-family: var(--mono); font-size: 8px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .s1-vir-head .vt { flex: 1; min-width: 0; }
+.s1-vir-llm-note { margin-top: 6px; font-size: 11.5px; font-style: italic; color: var(--text-2); line-height: 1.5; }
+.s1-vir-llm-miss { margin-top: 6px; font-size: 11px; color: var(--warn); }
 .s1-vir-head .vt .tt { font-family: var(--display); font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 9px; }
 .s1-vir-head .vt .grade { font-family: var(--mono); font-size: 10px; letter-spacing: .5px; text-transform: uppercase; padding: 2px 8px; border-radius: 20px; }
 .s1-vir-head .vt .sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; }

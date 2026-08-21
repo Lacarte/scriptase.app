@@ -117,6 +117,24 @@ def score_script_text(script_id: str, text: str) -> tuple[ViralScore, bool]:
         return result, False
 
 
+def llm_score_script_text(script_id: str, text: str) -> tuple[ViralScore | None, str]:
+    """A second, semantic virality opinion from the LLM-judge viral provider.
+
+    Best-effort and never fatal: the deterministic score is the guarantee, this
+    is a bonus that needs a reachable, funded webhook. Returns (score, "") on
+    success or (None, reason) so the caller can show why it is missing. Not
+    cached — an LLM opinion is non-deterministic, so a stored one would mislead.
+    """
+    try:
+        request = _request(script_id, text)
+        from scriptase.modules.viral.providers.llm_judge.provider import create as _make_judge
+
+        return _make_judge().score(request), ""
+    except Exception as exc:  # noqa: BLE001 — never fail the request over the bonus
+        # `str(exc)` here is our own ProviderError safe message, not raw webhook text.
+        return None, str(exc)[:300]
+
+
 def cached_script_score(script_id: str, text: str) -> dict[str, Any] | None:
     """Read a valid score without running the scorer (used when opening a script)."""
     request = _request(script_id, text) if text.strip() else None
@@ -126,4 +144,4 @@ def cached_script_score(script_id: str, text: str) -> dict[str, Any] | None:
     return cached.model_dump(mode="json") if cached is not None else None
 
 
-__all__ = ["cached_script_score", "score_script_text"]
+__all__ = ["cached_script_score", "llm_score_script_text", "score_script_text"]

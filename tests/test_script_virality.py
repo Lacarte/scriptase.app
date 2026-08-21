@@ -2,8 +2,23 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app import create_app
 from scriptase.scripts import store as script_store
+
+
+@pytest.fixture(autouse=True)
+def _stub_llm_judge(monkeypatch):
+    """Keep the virality tests offline by default: the LLM second opinion is a
+    best-effort network call, so stub it to 'unavailable' unless a test opts in
+    by patching it itself. Prevents every test from waiting on a real webhook."""
+    from scriptase.scripts import routes as scripts_routes
+
+    monkeypatch.setattr(
+        scripts_routes, "llm_score_script_text",
+        lambda script_id, text: (None, "stubbed offline in tests"),
+    )
 
 
 def _client(tmp_path, monkeypatch):
@@ -73,6 +88,40 @@ def test_scoring_is_advisory_and_does_not_change_script_version(tmp_path, monkey
     reopened = client.get(f"/api/scripts/{script['id']}").get_json()["script"]
     assert reopened["version"] == script["version"]
     assert reopened["body"] == script["body"]
+
+
+def test_llm_second_opinion_is_included_and_non_fatal(tmp_path, monkeypatch):
+    # The endpoint returns a structural score plus a best-effort LLM opinion.
+    # When the judge is unreachable, llm_virality is null and the request still
+    # succeeds on the structural score.
+    from scriptase.scripts import routes as scripts_routes
+
+    client = _client(tmp_path, monkeypatch)
+    script = _create(client)
+
+    def boom(script_id, text):
+        return None, "The virality webhook is unreachable"
+
+    # Patch where the route uses it (imported by name into the routes module).
+    monkeypatch.setattr(scripts_routes, "llm_score_script_text", boom)
+    resp = client.post(f"/api/scripts/{script['id']}/virality", json={"text": script["body"]})
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["virality"]["scorer"] == "deterministic"   # structural still there
+    assert body["llm_virality"] is None
+    assert "unreachable" in body["llm_error"]
+
+
+def test_llm_can_be_skipped(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    script = _create(client)
+    resp = client.post(
+        f"/api/scripts/{script['id']}/virality",
+        json={"text": script["body"], "with_llm": False},
+    )
+    assert resp.status_code == 200
+    # No LLM keys when opted out.
+    assert "llm_virality" not in resp.get_json()
 
 
 def test_labeled_body_scores_its_hook_and_cta_present(tmp_path, monkeypatch):

@@ -43,6 +43,8 @@ const generating = ref(false)
 const generatingNarration = ref(false)
 const scoringVirality = ref(false)
 const virality = ref(null)
+const llmVirality = ref(null)
+const llmViralityError = ref('')
 const viralityText = ref('')
 const voices = ref([])
 const error = ref('')
@@ -297,6 +299,9 @@ async function openScript(summary) {
     selected.value = payload.script
     narrationAudio.value = payload.narration_audio || null
     virality.value = payload.virality || null
+    // The LLM opinion is not cached with the script; it re-runs on demand.
+    llmVirality.value = null
+    llmViralityError.value = ''
     viralityText.value = payload.virality ? payload.script.body : ''
     const channel = await loadChannelDetail(payload.script.channel_id)
     form.title = payload.script.title
@@ -474,8 +479,11 @@ async function checkVirality() {
     const text = form.body
     const payload = await scoreScript(selected.value.id, text)
     virality.value = payload.virality
+    llmVirality.value = payload.llm_virality || null
+    llmViralityError.value = payload.llm_error || ''
     viralityText.value = text
-    toast.success(`Virality ${payload.virality.score} · ${payload.virality.band}`)
+    const llmSuffix = payload.llm_virality ? ` · LLM ${payload.llm_virality.score}` : ''
+    toast.success(`Virality ${payload.virality.score} · ${payload.virality.band}${llmSuffix}`)
   } catch (exc) {
     error.value = exc.message || 'Could not score this script'
   } finally {
@@ -586,6 +594,8 @@ async function createNew() {
     selected.value = payload.script
     narrationAudio.value = payload.narration_audio || null
     virality.value = null
+    llmVirality.value = null
+    llmViralityError.value = ''
     viralityText.value = ''
     form.title = payload.script.title
     form.body = payload.script.body
@@ -910,6 +920,8 @@ onBeforeUnmount(() => {
             <textarea id="script-body" v-model="form.body" class="s1-script-area" :class="{ dirty }" aria-label="Script body" spellcheck="true" @input="markDirty" />
             <ViralityPanel
               :score="virality"
+              :llm-score="llmVirality"
+              :llm-error="llmViralityError"
               :analyzing="scoringVirality"
               :stale="viralityStale"
               @analyze="checkVirality"

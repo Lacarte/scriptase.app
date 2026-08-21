@@ -23,7 +23,11 @@ from scriptase.scripts.store import (
     script_summary,
     update_script,
 )
-from scriptase.scripts.virality import cached_script_score, score_script_text
+from scriptase.scripts.virality import (
+    cached_script_score,
+    llm_score_script_text,
+    score_script_text,
+)
 
 
 MAX_SCRIPT_BODY_BYTES = 2 * 1024 * 1024
@@ -232,10 +236,18 @@ def scripts_score_virality(script_id: str):
         document = get_script(script_id)
         text = body.get("text", document.body)
         result, cached = score_script_text(script_id, text)
-        return jsonify({
+        payload = {
             "virality": result.model_dump(mode="json"),
             "cached": cached,
-        })
+        }
+        # A second, semantic opinion from the LLM judge — opt-out (default on),
+        # best-effort, never fatal. `llm_virality` is null with `llm_error` set
+        # when the webhook is unreachable or unfunded.
+        if body.get("with_llm", True):
+            llm, llm_error = llm_score_script_text(script_id, text)
+            payload["llm_virality"] = llm.model_dump(mode="json") if llm else None
+            payload["llm_error"] = llm_error
+        return jsonify(payload)
     except (ScriptNotFound, ScriptValidationError, ValueError) as exc:
         return _store_error(exc)
 
