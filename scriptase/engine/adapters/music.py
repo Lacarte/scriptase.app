@@ -74,7 +74,13 @@ def select(inputs, config, context):
         picked = select_random_music(history=history)
     else:
         picked = select_music(merged.get("story_tone", ""), history=history)
-    if not picked:
+        # Tone-based selection finds nothing when no track carries that tone
+        # (e.g. a fresh library where everything sits in default/). Rather than
+        # fail the whole job at Assembly, fall back to a random track — there is
+        # music available, just not tone-tagged.
+        if not picked or not picked.get("path"):
+            picked = select_random_music(history=history)
+    if not picked or not picked.get("path"):
         raise AdapterError("MUSIC_NOT_FOUND", "No matching music track is available")
     payload = {
         "project_id": pid, "path": _managed_track(picked["path"]),
