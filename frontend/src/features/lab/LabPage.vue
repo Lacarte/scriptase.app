@@ -20,6 +20,7 @@ const SUBTABS = [
 ]
 const subtab = ref('test')
 const error = ref('')
+const collapsed = ref(false)  // the whole lab is one collapsible block
 
 // ── Lab framework: which lab is active + its self-description ────────────────
 const labs = ref([])
@@ -157,13 +158,25 @@ onMounted(async () => {
 
 <template>
   <div class="lab">
+    <!-- The whole lab is ONE collapsible block: header toggles the body. -->
+    <section class="lab-block" :class="{ collapsed }">
     <header class="lab-head">
-      <div class="lab-title-row">
-        <h1>{{ lab?.name || 'Lab' }}</h1>
-        <select v-if="labs.length > 1" v-model="labId" class="lab-switch">
-          <option v-for="l in labs" :key="l.id" :value="l.id">{{ l.name }}</option>
-        </select>
-      </div>
+      <button type="button" class="lab-collapse" :aria-expanded="String(!collapsed)"
+        :title="collapsed ? 'Expand this lab' : 'Collapse this lab'" @click="collapsed = !collapsed">
+        <svg class="chev" :class="{ closed: collapsed }" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="lab-title-row">
+          <h1>{{ lab?.name || 'Lab' }}</h1>
+          <span class="block-chip">1 lab</span>
+        </div>
+      </button>
+      <select v-if="labs.length > 1" v-model="labId" class="lab-switch" @click.stop>
+        <option v-for="l in labs" :key="l.id" :value="l.id">{{ l.name }}</option>
+      </select>
+    </header>
+
+    <div v-show="!collapsed" class="lab-inner">
       <p class="sub">{{ lab?.description }}</p>
 
       <details class="lab-about" v-if="lab">
@@ -180,7 +193,6 @@ onMounted(async () => {
           :class="{ on: subtab === t.id }" role="tab" :aria-selected="String(subtab === t.id)"
           @click="subtab = t.id">{{ t.label }}</button>
       </nav>
-    </header>
 
     <p v-if="error" class="lab-error">{{ error }}</p>
 
@@ -322,15 +334,31 @@ onMounted(async () => {
         </template>
       </div>
     </section>
+    </div><!-- /.lab-inner -->
+    </section><!-- /.lab-block -->
   </div>
 </template>
 
 <style scoped>
 .lab { padding: 22px 26px; max-width: 1200px; margin: 0 auto; }
-.lab-title-row { display: flex; align-items: center; gap: 12px; }
-.lab-head h1 { margin: 0; font-family: var(--display); font-size: 22px; font-weight: 600; }
-.lab-switch { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); color: var(--text); padding: 6px 8px; font-size: 12px; }
-.lab-head .sub { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+/* The lab is one bordered card; header collapses the body so it reads as a unit. */
+.lab-block { border: 1px solid var(--line); border-radius: var(--r-m, 12px); background: var(--panel-grad); box-shadow: var(--hairline-top); overflow: hidden; }
+.lab-block.collapsed { background: var(--panel); }
+
+.lab-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; }
+.lab-block:not(.collapsed) .lab-head { border-bottom: 1px solid var(--line-soft); }
+.lab-collapse { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0; text-align: left; }
+.chev { color: var(--muted); transition: transform .15s ease; flex: none; }
+.chev.closed { transform: rotate(-90deg); }
+.lab-collapse:hover .chev { color: var(--accent); }
+.lab-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lab-head h1 { margin: 0; font-family: var(--display); font-size: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.block-chip { font-family: var(--mono); font-size: 9px; letter-spacing: .5px; text-transform: uppercase; color: var(--accent); background: var(--accent-wash); box-shadow: inset 0 0 0 1px var(--accent-line-2, var(--line-soft)); padding: 2px 7px; border-radius: 999px; flex: none; }
+.lab-switch { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); color: var(--text); padding: 6px 8px; font-size: 12px; flex: none; }
+
+.lab-inner { padding: 4px 16px 16px; }
+.lab-inner .sub { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
 
 .lab-about { margin-top: 12px; border: 1px solid var(--line-soft); border-radius: var(--r-s); background: var(--bg-2); }
 .lab-about summary { cursor: pointer; padding: 9px 12px; font-size: 12px; color: var(--text-2); font-family: var(--mono); }
