@@ -188,7 +188,27 @@ const inspector = computed(() => inspectorModel(
 ))
 
 const failures = computed(() => nodeFailures(nodes.value, liveRecords.value))
-const currentFailure = computed(() => failures.value[0] || null)
+// Which failure the detail panel is showing. Follows the list selection;
+// defaults to the first when the set changes.
+const activeFailureNodeId = ref('')
+const currentFailure = computed(() => {
+  const list = failures.value
+  if (!list.length) return null
+  return list.find((f) => f.nodeId === activeFailureNodeId.value) || list[0]
+})
+// When the failure set changes, keep a valid selection (default to the first).
+watch(failures, (list) => {
+  if (!list.some((f) => f.nodeId === activeFailureNodeId.value)) {
+    activeFailureNodeId.value = list[0]?.nodeId || ''
+  }
+})
+
+function selectFailure(failure) {
+  if (!failure?.nodeId) return
+  activeFailureNodeId.value = failure.nodeId
+  // Indicate it on the canvas: select the node and pan/zoom to it.
+  locateNode(failure.nodeId)
+}
 const errorCount = computed(() => {
   const ids = new Set(failedJobs.value.map((job) => job?.id).filter(Boolean))
   // The stream can paint a failure a fraction before the Job listing persists
@@ -642,10 +662,30 @@ watch(
               </svg>
             </span>
             <div class="se-t">
-              Workflow error
+              {{ failures.length > 1 ? `${failures.length} workflow errors` : 'Workflow error' }}
               <span class="se-node">{{ currentFailure.name }}</span>
             </div>
           </div>
+
+          <!-- When more than one node failed, list them; click to indicate on
+               the canvas and show that error's detail below. -->
+          <ul v-if="failures.length > 1" class="se-list" aria-label="Failed nodes">
+            <li
+              v-for="failure in failures"
+              :key="failure.nodeId"
+            >
+              <button
+                type="button"
+                class="se-list-item"
+                :class="{ on: failure.nodeId === currentFailure.nodeId }"
+                @click="selectFailure(failure)"
+              >
+                <span class="se-dot" aria-hidden="true"></span>
+                <span class="se-li-name">{{ failure.name }}</span>
+                <span class="se-li-code">{{ failure.code || 'FAILED' }}</span>
+              </button>
+            </li>
+          </ul>
           <div class="se-body">
             <div class="se-row"><span class="k">Node</span><span class="v">{{ currentFailure.name }}</span></div>
             <div class="se-row"><span class="k">Stage</span><span class="v">{{ currentFailure.stageLabel || '—' }}</span></div>
@@ -957,6 +997,26 @@ watch(
   background: rgba(240, 97, 109, 0.2);
   color: var(--fail);
 }
+
+/* Clickable list of every failed node (shown when there is more than one). */
+.se-list {
+  margin: 0; padding: 6px; list-style: none;
+  max-height: 168px; overflow-y: auto;
+  border-bottom: 1px solid var(--line-soft);
+}
+.se-list li { margin: 0; }
+.se-list-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 9px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--text-2); font: inherit; font-size: 12px;
+  text-align: left; cursor: pointer; transition: background .12s, color .12s;
+}
+.se-list-item:hover { background: var(--raise); color: var(--text); }
+.se-list-item.on { background: var(--fail-dim); color: var(--fail-text, var(--text)); }
+.se-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--fail); }
+.se-li-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.se-li-code { flex: none; font-family: var(--mono); font-size: 9px; letter-spacing: .3px; color: var(--muted); }
+.se-list-item.on .se-li-code { color: var(--fail); }
 
 .se-t {
   font-family: var(--display);

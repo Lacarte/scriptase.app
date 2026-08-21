@@ -519,6 +519,28 @@ describe('the running job on the graph (step 1.3)', () => {
     expect(wrapper.find('.si-sec.err').element.children[2].className).toBe('si-err-code')
   })
 
+  it('lists every failed node and selecting one shows its error + locates it', async () => {
+    const { wrapper } = await mountLivePage()
+    const source = FakeEventSource.latest()
+    // Two nodes fail.
+    source.send({ sequence: 1, execution_id: 'ex_LIVE01', node_id: 'n_start', status: 'failed', error: { code: 'INPUT_BAD', message: 'bad input' } })
+    source.send({ sequence: 2, execution_id: 'ex_LIVE01', node_id: 'n_speak', status: 'failed', error: { code: 'PROVIDER_FAILED', message: 'upstream refused' } })
+    await flushPromises()
+
+    // The error panel now lists both failures.
+    const items = wrapper.findAll('.se-list-item')
+    expect(items.length).toBe(2)
+    // Header reflects the count.
+    expect(wrapper.find('.sch-err').text()).toContain('2 workflow errors')
+
+    // Clicking the second selects it (marked `on`) and its detail shows.
+    const second = items.find((i) => i.text().includes('Speak'))
+    await second.trigger('click')
+    await flushPromises()
+    expect(second.classes()).toContain('on')
+    expect(wrapper.find('.sch-err').text()).toContain('upstream refused')
+  })
+
   it('freezes the view without touching the job', async () => {
     const { wrapper } = await mountLivePage()
     await wrapper.find('.sch-pause').trigger('click')
