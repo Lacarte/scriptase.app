@@ -132,3 +132,39 @@ def test_audio_endpoint_serves_only_artifacts_owned_by_script(studio_stores, mon
         f"/api/scripts/{other.id}/narration/audio?artifact_id={artifact.id}"
     )
     assert denied.status_code == 404
+
+
+def test_narration_strips_section_labels_but_the_body_keeps_them(studio_stores, monkeypatch):
+    # The voice must not read "Hook colon"; the stored script keeps its labels
+    # (editor structure + virality scoring), the synthesized text does not.
+    output, _ = studio_stores
+    labeled = script_store.create_script({
+        "title": "Labeled",
+        "body": (
+            "Hook: What if comfort is a prison?\n\n"
+            "Build: Meet Alex, who kept saying tomorrow.\n\n"
+            "Climax: A humbling failure changed everything.\n\n"
+            "CTA: So what will you start today?"
+        ),
+        "channel_id": next(iter(channel_store.list_channels())).id,
+        "origin": "auto", "narration": {},
+    })
+
+    calls = []
+
+    def fake_synthesize(config, **kwargs):
+        calls.append(deepcopy(config))
+        path = os.path.join(kwargs["output_dir"], kwargs["basename"] + ".wav")
+        _wav(path)
+        return {"wav_path": path, "voice": config["voice"], "duration_seconds": 2.5,
+                "job_meta": {"invocation_id": "inv_test"}}
+
+    monkeypatch.setattr(narration_service.dispatch, "synthesize", fake_synthesize)
+    ready, _ = generate_narration(labeled.id, expected_version=labeled.version)
+
+    spoken = calls[0]["text"]
+    for label in ("Hook:", "Build:", "Climax:", "CTA:"):
+        assert label not in spoken, f"{label} leaked into the narration text"
+    assert "What if comfort is a prison?" in spoken
+    # The stored body is untouched — it still carries its structure.
+    assert "Hook:" in ready.body

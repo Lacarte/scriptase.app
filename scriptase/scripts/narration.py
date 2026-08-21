@@ -13,6 +13,7 @@ from typing import Any
 from config import OUTPUT_DIR, TTS_DIR
 from scriptase.artifacts.store import active_artifact, register_artifact
 from scriptase.channels.store import get_channel
+from scriptase.modules.script.engine import strip_section_labels
 from scriptase.modules.tts import dispatch
 from scriptase.scripts.store import ScriptConflict, get_script, update_script
 
@@ -94,7 +95,10 @@ def generate_narration(
     try:
         result = dispatch.synthesize(
             {
-                "text": generating.body,
+                # The stored body keeps its Hook:/Build:/Climax:/CTA: markers
+                # (editor structure + virality scoring), but the voice must not
+                # read them aloud — strip to clean prose for synthesis.
+                "text": strip_section_labels(generating.body),
                 "voice": requested_voice,
                 "speed": processing["speed"],
                 "remove_silence": processing["remove_silence"],

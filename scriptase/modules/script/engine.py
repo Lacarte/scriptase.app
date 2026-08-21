@@ -53,3 +53,32 @@ def parse_story_sections(raw_text: str) -> dict:
         "story_text": story_text,
         "word_count": word_count,
     }
+
+
+# Section markers a script body may carry. The canonical four the engine emits,
+# plus common Channel-template labels so an older script that still has them is
+# also cleaned before narration.
+_SECTION_LABELS = (
+    "Hook", "Build", "Climax", "CTA",
+    "Turn", "Why", "Reframe", "Landing", "Setup", "Payoff", "Twist", "Resolution",
+)
+_LABEL_RE = re.compile(
+    r"(?:^|\n)[ \t]*(?:" + "|".join(_SECTION_LABELS) + r")[ \t]*:[ \t]*",
+    flags=re.IGNORECASE,
+)
+
+
+def strip_section_labels(text: str) -> str:
+    """Remove leading section markers (Hook:/Build:/…) so narration speaks prose.
+
+    The stored script keeps its labels — the editor shows structure and the
+    virality scorer needs them — but the voice should not read "Hook colon".
+    Each marker becomes a paragraph break; runs of blank lines are collapsed.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    # Replace each label occurrence with a paragraph break (empty at the very
+    # start), then normalize whitespace.
+    cleaned = _LABEL_RE.sub("\n\n", text)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
