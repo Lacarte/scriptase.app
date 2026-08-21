@@ -376,7 +376,7 @@ def synthesize(
 
     return _metadata(
         wav_path=wav_path,
-        instance=instance,
+        instance=package,
         request=request,
         settings=settings,
         options=options,
