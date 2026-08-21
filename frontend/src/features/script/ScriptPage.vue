@@ -568,12 +568,11 @@ async function createNew() {
     let generatedTitle = ''
     if (draft.mode !== 'paste') {
       const result = await generateScript(generationOptions(channel))
-      // The backend already parses the provider output into clean, labeled
-      // sections (Hook / Build / Climax / CTA). Save that as-is — re-slicing it
-      // against the Channel template stapled a SECOND set of labels on top,
-      // producing the "Turn / Build:" collisions. The template guides the
-      // prompt, not a post-hoc relabel.
-      body = result.story_text || ''
+      // Save the CLEAN, label-free prose — the script reads and narrates as
+      // flowing text. The structure still drives generation (via the template)
+      // and virality re-derives sections by paragraph position, so the score is
+      // unaffected. `story_text` (labeled) remains available on the response.
+      body = result.clean_text || result.story_text || ''
       generatedTitle = draft.mode === 'idea'
         ? draft.idea.trim().slice(0, 120)
         : `${channel.name} · ${formatDate(new Date())}`

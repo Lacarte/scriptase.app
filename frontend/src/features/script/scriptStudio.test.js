@@ -103,7 +103,8 @@ beforeEach(() => {
     { id: 'Ashley', label: 'Ashley' },
   ])
   scriptApi.generateScript.mockResolvedValue({
-    story_text: 'The room goes quiet. Everyone reaches for a word. Silence removes the performance. The pause says enough.',
+    story_text: 'Hook: The room goes quiet. Build: Everyone reaches for a word. CTA: The pause says enough.',
+    clean_text: 'The room goes quiet. Everyone reaches for a word. Silence removes the performance. The pause says enough.',
   })
 })
 

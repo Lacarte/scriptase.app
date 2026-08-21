@@ -342,6 +342,12 @@ def generate_story(data: StoryGenerateRequest):
     meta = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
     sections = result.get("sections") if isinstance(result.get("sections"), dict) else {}
     story_text = result.get("story_text") or ""
+    # A clean, label-free version for the editor/library and narration. The
+    # labeled `story_text` stays (some consumers key off the sections), but the
+    # script is saved and read as prose — virality re-derives structure by
+    # paragraph position, so the score is unaffected.
+    from scriptase.modules.script.engine import strip_section_labels
+    clean_text = strip_section_labels(story_text, data.template_sections)
     word_count = meta.get("word_count") or len(str(story_text).split())
     estimated_duration = meta.get("estimated_duration")
     if estimated_duration is None:
@@ -352,6 +358,7 @@ def generate_story(data: StoryGenerateRequest):
         "success": True,
         "project_id": result.get("project_id") or project_id,
         "story_text": story_text,
+        "clean_text": clean_text,
         "sections": sections,
         "duration": data.duration,
         "estimated_duration": estimated_duration,

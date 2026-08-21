@@ -53,7 +53,26 @@ def parse_story_sections(raw_text: str, labels=None) -> dict:
 
     has_labels = any(sections.values())
     if not has_labels:
-        # No labels found — keep the text as-is, park it under the middle role.
+        # Clean prose (no labels) — assign paragraphs to beats by position so the
+        # structure is still scoreable. This is what lets a script be STORED as
+        # clean prose while virality still finds hook/cta.
+        paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+        if len(paras) >= 2:
+            sections = {k: "" for k in keys}
+            n = len(beats)
+            # Distribute paragraphs across the beats, proportional to position.
+            for i, para in enumerate(paras):
+                target = min(n - 1, i * n // max(len(paras), 1))
+                key = keys[target]
+                sections[key] = (sections[key] + "\n\n" + para).strip() if sections[key] else para
+            return {
+                "sections": sections,
+                "roles": map_beats_to_roles(sections, beats),
+                "story_text": text,
+                "word_count": len(text.split()),
+                "labels": beats,
+            }
+        # A single block — park it under the middle role.
         roles = {r: "" for r in CANONICAL_ROLES}
         roles["build"] = text
         return {
