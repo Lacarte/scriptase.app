@@ -19,8 +19,21 @@ const SUBTABS = [
   { id: 'inspector', label: 'Inspector' },
 ]
 const subtab = ref('test')
-const error = ref('')
-const collapsed = ref(false)  // the whole lab is one collapsible block
+const error = ref('')          // generic string errors (catalog loads, variants)
+const runError = ref(null)     // structured error from a failed Run test
+const collapsed = ref(false)   // the whole lab is one collapsible block
+
+// A plain-language hint per failure code, so a failed run explains itself.
+const RUN_HINTS = {
+  CHANNEL_NOT_FOUND: 'The selected channel no longer exists. Pick another, or run with no channel.',
+  WEBHOOK_UNSAFE: 'The story webhook URL is blocked by the safety check. Verify N8N_STORY_WEBHOOK_URL in your .env.',
+  GENERATION_FAILED: 'The provider webhook could not be reached or rejected the request. Is n8n running and the URL correct?',
+  EMPTY_RESULT: 'The provider replied but returned no script text. Check the n8n workflow output field.',
+  UNKNOWN_LAB: 'This lab is not registered on the backend. Reload the page.',
+}
+function runErrorHint(code) {
+  return RUN_HINTS[code] || 'Check that the provider webhook is reachable and try again.'
+}
 
 // ── Lab framework: which lab is active + its self-description ────────────────
 const labs = ref([])
@@ -71,7 +84,7 @@ const compareB = ref(1)
 
 async function runExperiment() {
   running.value = true
-  error.value = ''
+  runError.value = null
   try {
     const data = await apiPost('/lab/run', {
       lab_id: labId.value,
@@ -80,13 +93,23 @@ async function runExperiment() {
       variant_id: run.variant_id,
       overrides: run.idea ? { idea: run.idea } : {},
     })
+    if (!data || !data.run) throw new Error('The server returned an empty response.')
     results.value.unshift(data.run)
     results.value = results.value.slice(0, 6)
     await loadRuns()
   } catch (exc) {
-    error.value = exc.message || 'The run failed — check the provider webhook is reachable.'
+    // exc is an ApiError (has .code/.status) or a plain Error. Surface both the
+    // real reason from the server and a tailored hint — never a bare "502".
+    const code = exc?.code || 'RUN_FAILED'
+    runError.value = {
+      code,
+      message: exc?.message || 'The run failed.',
+      hint: runErrorHint(code),
+      status: exc?.status || null,
+    }
   } finally { running.value = false }
 }
+function dismissRunError() { runError.value = null }
 const bandClass = (band) => `band-${band}`
 
 // ── Variants: dynamic form from the lab's variant_fields ────────────────────
@@ -159,7 +182,7 @@ onMounted(async () => {
 <template>
   <div class="lab">
     <!-- The whole lab is ONE collapsible block: header toggles the body. -->
-    <section class="lab-block" :class="{ collapsed }">
+    <section class="lab-block" :class="{ 'is-collapsed': collapsed }">
     <header class="lab-head">
       <button type="button" class="lab-collapse" :aria-expanded="String(!collapsed)"
         :title="collapsed ? 'Expand this lab' : 'Collapse this lab'" @click="collapsed = !collapsed">
@@ -226,8 +249,19 @@ onMounted(async () => {
       </aside>
 
       <div class="lab-detail">
-        <p v-if="!results.length" class="empty">Run a test to see the result and its score.</p>
-        <template v-else>
+        <!-- Any failure from Run test is shown here, with the real reason + a hint. -->
+        <div v-if="runError" class="run-error" role="alert">
+          <div class="re-head">
+            <span class="re-badge">Run failed</span>
+            <code class="re-code">{{ runError.code }}<template v-if="runError.status"> · {{ runError.status }}</template></code>
+            <button type="button" class="re-x" title="Dismiss" @click="dismissRunError">✕</button>
+          </div>
+          <p class="re-msg">{{ runError.message }}</p>
+          <p class="re-hint">{{ runError.hint }}</p>
+          <button type="button" class="btn sm" :disabled="running" @click="runExperiment">Retry</button>
+        </div>
+        <p v-if="!results.length && !runError" class="empty">Run a test to see the result and its score.</p>
+        <template v-if="results.length">
           <div v-if="results.length > 1" class="compare-bar">
             <span>Compare</span>
             <select v-model.number="compareA"><option v-for="(r, i) in results" :key="i" :value="i">{{ i + 1 }}. {{ r.variant.name }} · {{ r.score.score }}</option></select>
@@ -344,10 +378,10 @@ onMounted(async () => {
 
 /* The lab is one bordered card; header collapses the body so it reads as a unit. */
 .lab-block { border: 1px solid var(--line); border-radius: var(--r-m, 12px); background: var(--panel-grad); box-shadow: var(--hairline-top); overflow: hidden; }
-.lab-block.collapsed { background: var(--panel); }
+.lab-block.is-collapsed { background: var(--panel); }
 
 .lab-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; }
-.lab-block:not(.collapsed) .lab-head { border-bottom: 1px solid var(--line-soft); }
+.lab-block:not(.is-collapsed) .lab-head { border-bottom: 1px solid var(--line-soft); }
 .lab-collapse { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0; text-align: left; }
 .chev { color: var(--muted); transition: transform .15s ease; flex: none; }
 .chev.closed { transform: rotate(-90deg); }
@@ -393,6 +427,15 @@ onMounted(async () => {
 .hint { color: var(--muted); font-size: 11px; padding: 0 10px 8px; line-height: 1.5; }
 .btn-row { display: flex; gap: 8px; padding: 8px; }
 .soon-chip { font-family: var(--mono); font-size: 8px; letter-spacing: .4px; text-transform: uppercase; color: var(--faint); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-soft); padding: 1px 5px; border-radius: 999px; }
+
+.run-error { border: 1px solid var(--fail-line); background: var(--fail-dim); border-radius: var(--r-s); padding: 12px 14px; margin-bottom: 16px; }
+.re-head { display: flex; align-items: center; gap: 8px; }
+.re-badge { font-family: var(--mono); font-size: 9px; letter-spacing: .5px; text-transform: uppercase; color: var(--fail-text); background: var(--fail-line); padding: 2px 7px; border-radius: 999px; }
+.re-code { font-family: var(--mono); font-size: 10px; color: var(--fail-text); opacity: .85; }
+.re-x { margin-left: auto; border: 0; background: none; color: var(--fail-text); cursor: pointer; font-size: 12px; opacity: .7; padding: 2px 4px; }
+.re-x:hover { opacity: 1; }
+.re-msg { margin: 8px 0 4px; font-size: 13px; color: var(--fail-text); font-weight: 600; }
+.re-hint { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
 .compare-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
 .compare-bar select { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-s); color: var(--text); padding: 4px 6px; font-size: 11px; }

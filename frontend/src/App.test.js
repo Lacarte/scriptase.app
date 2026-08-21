@@ -14,7 +14,7 @@ import {
 } from './shared/composables/useShortcuts.js'
 
 /** The prototype's order: create, run, monitor, output, configure. */
-const DESTINATIONS = ['Script(S1)', 'Production', 'Schema', 'Library', 'Channels', 'Providers']
+const DESTINATIONS = ['Script(S1)', 'Production', 'Schema', 'Library', 'Channels', 'Lab', 'Providers']
 
 async function mountShell(path = '/') {
   const router = createRouter({
@@ -75,7 +75,7 @@ describe('scaffold', () => {
     expect(router.currentRoute.value.path).toBe('/')
   })
 
-  it('renders the six destinations in the prototype order (step 1.1)', async () => {
+  it('renders the destinations in the prototype order (step 1.1)', async () => {
     const { wrapper } = await mountShell('/channels')
 
     const tablist = wrapper.find('[role="tablist"]')
@@ -89,6 +89,7 @@ describe('scaffold', () => {
       '/schema',
       '/library',
       '/channels',
+      '/lab',
       '/providers',
     ])
   })
@@ -104,7 +105,7 @@ describe('scaffold', () => {
       expect(icon.attributes('aria-hidden')).toBe('true')
     }
 
-    // Six distinct glyphs, not one repeated six times.
+    // A distinct glyph per destination, not one repeated.
     const shapes = tabs.map((tab) => tab.find('svg.nav-icon').html())
     expect(new Set(shapes).size).toBe(DESTINATIONS.length)
   })

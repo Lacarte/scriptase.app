@@ -52,7 +52,9 @@ def _channel_inputs(channel_id: str | None) -> dict:
 
     try:
         channel = get_channel(channel_id)
-    except ChannelNotFound:
+    except (ChannelNotFound, ValueError):
+        # ValueError covers a malformed id (fails the store's format guard) —
+        # both mean "no such channel" to the caller, not a 500.
         raise ExperimentError("CHANNEL_NOT_FOUND", "That channel does not exist")
 
     # A Channel stores its niche on content; resolve_niche fills the dimensions.

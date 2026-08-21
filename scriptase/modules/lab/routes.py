@@ -30,6 +30,11 @@ lab_bp = Blueprint("lab", __name__)
 _DEFAULT_LAB = "script_prompt"
 
 
+def _err(code: str, message: str, status: int):
+    """The app-standard nested error shape the frontend api client parses."""
+    return jsonify({"error": {"code": code, "message": message}}), status
+
+
 def _body() -> dict | None:
     data = request.get_json(silent=True)
     return data if isinstance(data, dict) else None
@@ -60,7 +65,7 @@ def prompt_preview():
     """Compose the system + user prompt for a set of inputs (no generation)."""
     data = request.get_json(silent=True)
     if data is not None and not isinstance(data, dict):
-        return jsonify({"error": "Request body must be a JSON object"}), 400
+        return _err("BAD_REQUEST", "Request body must be a JSON object", 400)
     return jsonify(preview_prompt(data or {}))
 
 
@@ -81,7 +86,7 @@ def recent_prompts():
 def variants():
     lab_id = _lab_id_from_query()
     if get_lab(lab_id) is None:
-        return jsonify({"error": "Unknown lab"}), 404
+        return _err("UNKNOWN_LAB", "That lab does not exist", 404)
     return jsonify({"variants": list_variants(lab_id)})
 
 
@@ -90,11 +95,11 @@ def variant_create():
     body = _body()
     lab_id = _lab_id_from_body(body)
     if get_lab(lab_id) is None:
-        return jsonify({"error": "Unknown lab"}), 404
+        return _err("UNKNOWN_LAB", "That lab does not exist", 404)
     try:
         record = create_variant(body, lab_id)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _err("INVALID_VARIANT", str(exc), 400)
     return jsonify({"variant": record}), 201
 
 
@@ -105,7 +110,7 @@ def variant_update(variant_id: str):
     try:
         record = update_variant(variant_id, body, lab_id)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _err("INVALID_VARIANT", str(exc), 400)
     return jsonify({"variant": record})
 
 
@@ -113,9 +118,9 @@ def variant_update(variant_id: str):
 def variant_delete(variant_id: str):
     lab_id = _lab_id_from_query()
     if get_variant(variant_id, lab_id) is None:
-        return jsonify({"error": "Unknown variant"}), 404
+        return _err("UNKNOWN_VARIANT", "That variant does not exist", 404)
     if not delete_variant(variant_id, lab_id):
-        return jsonify({"error": "This variant cannot be deleted"}), 400
+        return _err("VARIANT_PROTECTED", "This variant cannot be deleted", 400)
     return jsonify({"deleted": variant_id})
 
 
@@ -148,7 +153,9 @@ def experiment_run():
         )
     except ExperimentError as exc:
         status = 404 if exc.code == "CHANNEL_NOT_FOUND" else 502
-        return jsonify({"error": exc.args[0], "code": exc.code}), status
+        return _err(exc.code, str(exc.args[0]), status)
+    except Exception:  # noqa: BLE001 — never leak a bodyless 500 to the Lab UI
+        return _err("RUN_FAILED", "The run failed unexpectedly. See the server log.", 500)
     return jsonify({"run": record})
 
 

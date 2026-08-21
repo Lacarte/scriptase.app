@@ -104,6 +104,34 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("prompts", resp.get_json())
 
+    def test_run_failure_returns_nested_error_with_code(self):
+        # A failed run must return {"error": {"code", "message"}} — the shape the
+        # frontend api client parses — never a bodyless 500 or a flat string.
+        import scriptase.modules.lab.experiment as E
+
+        def boom(*a, **k):
+            raise RuntimeError("connection refused")
+
+        client = self._client()
+        with mock.patch.object(E, "call_webhook", boom, create=True):
+            resp = client.post("/api/lab/run", json={
+                "variant_id": "builtin",
+                "overrides": {"story_category": "psychology",
+                              "niche_preset": "dark_psychology", "duration": 30},
+            })
+        self.assertEqual(resp.status_code, 502)
+        err = resp.get_json()["error"]
+        self.assertEqual(err["code"], "GENERATION_FAILED")
+        self.assertTrue(err["message"])
+
+    def test_run_with_malformed_channel_is_404_not_500(self):
+        # A bad channel-id format used to raise ValueError -> uncaught 500; it
+        # must now be a clean CHANNEL_NOT_FOUND.
+        client = self._client()
+        resp = client.post("/api/lab/run", json={"channel_id": "not-a-real-id"})
+        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.get_json()["error"]["code"], "CHANNEL_NOT_FOUND")
+
 
 class VariantTests(unittest.TestCase):
     def setUp(self):
