@@ -15,12 +15,17 @@ from scriptase.modules.script.providers.n8n.provider import (
     _build_payload,
 )
 from scriptase.providers.errors import (
+    PROVIDER_AUTH_FAILED,
+    PROVIDER_QUOTA_EXHAUSTED,
+    PROVIDER_RATE_LIMITED,
     PROVIDER_REQUEST_INVALID,
     PROVIDER_RESPONSE_MALFORMED,
     PROVIDER_TIMEOUT,
     PROVIDER_TRANSPORT_FAILED,
+    PROVIDER_UNAVAILABLE,
     ProviderError,
 )
+from scriptase.shared.webhooks import WebhookResponseError
 
 _CONFIG = {
     "niche_preset": "dark_psychology",
@@ -160,6 +165,43 @@ class GenerateTests(unittest.TestCase):
             )
         self.assertNotIn("SECRET", ctx.exception.message)
         self.assertNotIn("12345", ctx.exception.message)
+
+    def _webhook_error(self, project_id, *, status, message):
+        def caller(*a, **k):
+            raise WebhookResponseError(message, status=status)
+
+        with self.assertRaises(ProviderError) as ctx:
+            N8nScriptProvider().generate(
+                _CONFIG, project_id=project_id, webhook_caller=caller
+            )
+        return ctx.exception
+
+    def test_webhook_payment_maps_to_quota_exhausted(self):
+        # The OpenRouter "Payment required" case we actually hit: the webhook
+        # reports it, and the provider surfaces *why* (billing), not a generic
+        # transport failure — and never echoes the raw text.
+        err = self._webhook_error(
+            "pm_TEST08", status=500,
+            message="Payment required - perhaps check your payment details? SECRET",
+        )
+        self.assertEqual(err.code, PROVIDER_QUOTA_EXHAUSTED)
+        self.assertNotIn("SECRET", err.message)
+
+    def test_webhook_400_maps_to_request_invalid(self):
+        err = self._webhook_error("pm_TEST09", status=400, message="system_prompt is required")
+        self.assertEqual(err.code, PROVIDER_REQUEST_INVALID)
+
+    def test_webhook_401_maps_to_auth_failed(self):
+        err = self._webhook_error("pm_TEST10", status=401, message="unauthorized")
+        self.assertEqual(err.code, PROVIDER_AUTH_FAILED)
+
+    def test_webhook_429_maps_to_rate_limited(self):
+        err = self._webhook_error("pm_TEST11", status=429, message="rate limit exceeded")
+        self.assertEqual(err.code, PROVIDER_RATE_LIMITED)
+
+    def test_webhook_5xx_maps_to_unavailable(self):
+        err = self._webhook_error("pm_TEST12", status=503, message="upstream boom")
+        self.assertEqual(err.code, PROVIDER_UNAVAILABLE)
 
 
 class RegistrationTests(unittest.TestCase):

@@ -25,13 +25,14 @@ import requests as http_requests
 from config import N8N_STORY_WEBHOOK_URL, STORIES_DIR
 from scriptase.shared.io_utils import safe_json_write
 from scriptase.shared.security import is_safe_webhook_url
-from scriptase.shared.webhooks import call_webhook
+from scriptase.shared.webhooks import WebhookResponseError, call_webhook
 from scriptase.providers.errors import (
     PROVIDER_REQUEST_INVALID,
     PROVIDER_RESPONSE_MALFORMED,
     PROVIDER_TIMEOUT,
     PROVIDER_TRANSPORT_FAILED,
     ProviderError,
+    classify_webhook_error,
 )
 from scriptase.modules.script.providers.base import ScriptProvider
 from scriptase.modules.script.engine import parse_story_sections
@@ -145,6 +146,17 @@ class N8nScriptProvider(ScriptProvider):
             raise ProviderError(
                 PROVIDER_TRANSPORT_FAILED,
                 "Could not reach the script webhook",
+                domain=_DOMAIN,
+                provider_id=_PROVIDER_ID,
+                cause_type=type(exc).__name__,
+            ) from exc
+        except WebhookResponseError as exc:
+            # The webhook itself reported a failure — classify it (billing, auth,
+            # rate, bad request) via the shared mapper so the user learns *why*,
+            # without forwarding the raw third-party text verbatim (§34.4).
+            code, message = classify_webhook_error(getattr(exc, "status", None), str(exc))
+            raise ProviderError(
+                code, message,
                 domain=_DOMAIN,
                 provider_id=_PROVIDER_ID,
                 cause_type=type(exc).__name__,

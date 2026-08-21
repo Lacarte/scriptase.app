@@ -122,6 +122,34 @@ def generic_message(domain: str) -> str:
     return _GENERIC_MESSAGE.get(domain, _GENERIC_FALLBACK)
 
 
+def classify_webhook_error(status: int | None, reason: str) -> tuple[str, str]:
+    """Map a webhook-reported failure to a (provider code, safe message).
+
+    `status` is the HTTP status (or None) and `reason` is the webhook's own
+    error text — used only to *categorize*, never forwarded verbatim (§34.4).
+    The returned message is a fixed, safe phrase per category, so any provider
+    that talks to a webhook classifies billing/auth/rate/validation the same
+    way. Shared by the script webhook providers (and available to others).
+    """
+    text = (reason or "").lower()
+
+    def has(*needles: str) -> bool:
+        return any(n in text for n in needles)
+
+    if status == 402 or has("payment", "credit", "insufficient", "balance", "billing"):
+        return (PROVIDER_QUOTA_EXHAUSTED,
+                "The upstream model provider requires payment or is out of credit")
+    if status in (401, 403) or has("unauthorized", "forbidden", "api key", "auth"):
+        return (PROVIDER_AUTH_FAILED,
+                "The webhook rejected the request as unauthorized")
+    if status == 429 or has("rate limit", "too many requests"):
+        return (PROVIDER_RATE_LIMITED, "The webhook is rate limited")
+    if status == 400:
+        return (PROVIDER_REQUEST_INVALID,
+                "The webhook rejected the request as invalid")
+    return (PROVIDER_UNAVAILABLE, "The webhook reported a failure")
+
+
 def _safe_details(details: Any) -> dict | None:
     """JSON-only, redacted, size-capped `details` (§34.1).
 
@@ -334,6 +362,7 @@ __all__ = [
     "ProviderCancelled",
     "ProviderError",
     "ProviderErrorPayload",
+    "classify_webhook_error",
     "generic_message",
     "is_retryable",
     "workflow_code",

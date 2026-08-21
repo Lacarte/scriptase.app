@@ -15,6 +15,17 @@ class RetryableWebhookResponseError(RuntimeError):
     """Raised when the webhook responded, but the body is transiently unusable."""
 
 
+class WebhookResponseError(RuntimeError):
+    """A non-retryable webhook failure that carries the HTTP status and the
+    error text the webhook itself reported (its `error`/`message`/`hint` body),
+    so callers can classify and surface the real reason. `status` is the HTTP
+    status code, or None when it did not originate from an HTTP response."""
+
+    def __init__(self, message: str, *, status: int | None = None):
+        super().__init__(message)
+        self.status = status
+
+
 def call_webhook(webhook_url, payload, *, timeout=180, label="Webhook"):
     """POST payload to webhook with retry + exponential backoff.
 
@@ -50,16 +61,18 @@ def call_webhook(webhook_url, payload, *, timeout=180, label="Webhook"):
                 error_msg = f"{label} returned {resp.status_code}"
                 try:
                     err_data = resp.json()
-                    msg = err_data.get("message", "")
+                    # `error` is our workflow's contract; `message`/`hint` are n8n's
+                    # platform-error shape. Prefer whichever the body carries.
+                    reason = err_data.get("error") or err_data.get("message") or ""
                     hint = err_data.get("hint", "")
-                    if msg:
-                        error_msg = msg
+                    if reason:
+                        error_msg = reason
                     if hint:
                         error_msg += f". {hint}"
                 except Exception:
                     if body_text:
                         error_msg += f": {body_text[:200]}"
-                raise RuntimeError(error_msg)
+                raise WebhookResponseError(error_msg, status=resp.status_code)
 
             # Parse response body
             try:

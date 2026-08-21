@@ -23,7 +23,9 @@ from scriptase.providers.errors import (
     PROVIDER_TIMEOUT,
     PROVIDER_TRANSPORT_FAILED,
     ProviderError,
+    classify_webhook_error,
 )
+from scriptase.shared.webhooks import WebhookResponseError
 from scriptase.modules.script.providers.base import ScriptProvider
 from scriptase.modules.script.service import StoryServiceError, generate_story
 
@@ -81,6 +83,12 @@ class GeminiScriptProvider(ScriptProvider):
                 provider_id=_PROVIDER_ID,
                 cause_type=type(exc).__name__,
             ) from exc
+        except WebhookResponseError as exc:
+            # The webhook itself reported a failure (our workflow's error body, or
+            # n8n's). Classify it into the right provider code so the user learns
+            # *why* — billing, auth, rate limit, bad request — without forwarding
+            # the raw third-party text verbatim (§34.4).
+            raise self._map_webhook_error(exc) from exc
         except RuntimeError as exc:
             # `call_webhook` exhausts retries or fails closed on non-200 bodies.
             # Never forward the raw body — it may embed third-party text (L2).
@@ -91,6 +99,23 @@ class GeminiScriptProvider(ScriptProvider):
                 provider_id=_PROVIDER_ID,
                 cause_type=type(exc).__name__,
             ) from exc
+
+    @staticmethod
+    def _map_webhook_error(exc: WebhookResponseError) -> ProviderError:
+        """Classify a webhook-reported failure into the right provider code.
+
+        Categorization (billing/auth/rate/validation) and the safe message come
+        from the shared `classify_webhook_error`; the raw third-party body is
+        never forwarded verbatim (§34.4).
+        """
+        code, message = classify_webhook_error(getattr(exc, "status", None), str(exc))
+        return ProviderError(
+            code,
+            message,
+            domain=_DOMAIN,
+            provider_id=_PROVIDER_ID,
+            cause_type=type(exc).__name__,
+        )
 
     @staticmethod
     def _map_service_error(exc: StoryServiceError) -> ProviderError:
