@@ -420,9 +420,18 @@ function jobExpanded(job) {
 }
 
 // Per-row 3-dots menu (View Details / Editor / Export / Duplicate / Remove).
+// The menu is position:fixed and anchored to the button's screen coordinates so
+// it escapes the scrolling job list (an absolute dropdown would be clipped).
 const jobMenuOpen = ref('')
-function toggleJobMenu(job) {
-  jobMenuOpen.value = jobMenuOpen.value === job?.id ? '' : (job?.id || '')
+const jobMenuPos = ref({ top: 0, right: 0 })
+function toggleJobMenu(job, event) {
+  if (jobMenuOpen.value === job?.id) { jobMenuOpen.value = ''; return }
+  const btn = event?.currentTarget
+  if (btn) {
+    const rect = btn.getBoundingClientRect()
+    jobMenuPos.value = { top: rect.bottom + 6, right: window.innerWidth - rect.right }
+  }
+  jobMenuOpen.value = job?.id || ''
 }
 function closeJobMenu() {
   jobMenuOpen.value = ''
@@ -573,6 +582,7 @@ watch(
 onUnmounted(() => {
   if (elapsedTimer) clearInterval(elapsedTimer)
   window.removeEventListener('click', closeJobMenu)
+  window.removeEventListener('scroll', closeJobMenu, true)
 })
 
 function msOf(value) {
@@ -1060,6 +1070,8 @@ watch(
 
 onMounted(async () => {
   window.addEventListener('click', closeJobMenu)
+  // A fixed-position menu would detach on scroll — close it instead.
+  window.addEventListener('scroll', closeJobMenu, true)
   await Promise.all([refreshWorkflows(), refreshJobs()])
   try {
     const registry = await getNodeTypes()
@@ -1281,7 +1293,7 @@ onMounted(async () => {
         <template #item="{ item, archived }">
           <article
             class="job"
-            :class="[`st-${item.status}`, { expanded: jobExpanded(item), 'sel-checked': jobChecked(item) }]"
+            :class="[`st-${item.status}`, { expanded: jobExpanded(item), 'sel-checked': jobChecked(item), 'menu-open': jobMenuOpen === item.id }]"
           >
             <!-- Clicking anywhere on the row toggles it, but the chevron is
                  the control. A role="button" here would nest the quick
@@ -1357,11 +1369,17 @@ onMounted(async () => {
                   :aria-label="`Actions for ${item.id}`"
                   :aria-expanded="String(jobMenuOpen === item.id)"
                   aria-haspopup="menu"
-                  @click.stop="toggleJobMenu(item)"
+                  @click.stop="toggleJobMenu(item, $event)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
                 </button>
-                <div v-if="jobMenuOpen === item.id" class="job-menu" role="menu" @click.stop>
+                <div
+                  v-if="jobMenuOpen === item.id"
+                  class="job-menu"
+                  role="menu"
+                  :style="{ top: `${jobMenuPos.top}px`, right: `${jobMenuPos.right}px` }"
+                  @click.stop
+                >
                   <button type="button" class="jm-item" role="menuitem" @click="jobMenuAction('details', item)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
                     View Details
@@ -1849,6 +1867,8 @@ onMounted(async () => {
   color: var(--text);
   transition: border-color .18s, box-shadow .18s, transform .18s var(--ease-spring);
 }
+/* An open row menu must escape the row's clip and sit above its neighbours. */
+.job.menu-open { overflow: visible; z-index: 30; }
 
 /* The status spine: three pixels of colour on the left edge, lit only when
    the status is worth looking at. */
@@ -1992,12 +2012,13 @@ onMounted(async () => {
 .job-kebab { position: relative; flex: none; }
 .job-kebab-btn {
   width: 28px; height: 28px; display: grid; place-items: center;
-  border: none; border-radius: 6px; background: transparent; color: var(--muted);
+  border: none; border-radius: 6px; background: transparent; color: var(--text-2);
   cursor: pointer; transition: color .14s, background .14s;
 }
+.job-kebab-btn svg { fill: currentColor; }
 .job-kebab-btn:hover, .job-kebab-btn.on { color: var(--text); background: var(--raise); }
 .job-menu {
-  position: absolute; top: calc(100% + 6px); right: 0; z-index: 40;
+  position: fixed; z-index: 200;
   min-width: 190px; padding: 6px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, .45);
