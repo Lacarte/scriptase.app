@@ -385,6 +385,36 @@ function trackTime() {
   elapsed.value = Number(audio.value?.currentTime) || 0
 }
 
+// Click (or drag) anywhere on the waveform to seek there and keep playing.
+function seekTo(event) {
+  const element = audio.value
+  const duration = takeDuration.value
+  if (!element || !duration) return
+  const track = event.currentTarget
+  const rect = track.getBoundingClientRect()
+  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+  const target = ratio * duration
+  try {
+    element.currentTime = target
+    elapsed.value = target
+    // A click on the track is an intent to listen from here.
+    const started = element.play()
+    if (started?.catch) started.catch(() => { playing.value = false })
+  } catch {
+    playing.value = false
+  }
+}
+
+// Arrow-key seeking on the focused waveform (accessibility).
+function nudgeSeek(deltaSeconds) {
+  const element = audio.value
+  const duration = takeDuration.value
+  if (!element || !duration) return
+  const target = Math.min(duration, Math.max(0, (Number(element.currentTime) || 0) + deltaSeconds))
+  element.currentTime = target
+  elapsed.value = target
+}
+
 async function openScript(summary) {
   if (dirty.value && selected.value?.id !== summary.id) {
     toast.warning('Save or discard the current edits before opening another script')
@@ -1115,7 +1145,19 @@ onBeforeUnmount(() => {
                       <svg v-if="playing" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
                       <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>
                     </button>
-                    <div class="s1-wave-track" aria-hidden="true">
+                    <div
+                      class="s1-wave-track seekable"
+                      role="slider"
+                      tabindex="0"
+                      aria-label="Seek narration"
+                      :aria-valuemin="0"
+                      :aria-valuemax="Math.round(takeDuration)"
+                      :aria-valuenow="Math.round(elapsed)"
+                      title="Click to seek"
+                      @click="seekTo"
+                      @keydown.left.prevent="nudgeSeek(-5)"
+                      @keydown.right.prevent="nudgeSeek(5)"
+                    >
                       <i
                         v-for="(height, index) in WAVE_BARS"
                         :key="index"
@@ -1510,6 +1552,10 @@ input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow:
 .s1-wave-track { flex: 1; min-width: 0; height: 26px; display: flex; align-items: center; gap: 2px; overflow: hidden; }
 .s1-wave-track i { flex: 1; background: var(--faint); border-radius: 1px; min-width: 2px; transition: background .1s; }
 .s1-wave-track i.on { background: var(--ok); }
+/* Seekable: click anywhere to jump playback there. */
+.s1-wave-track.seekable { cursor: pointer; border-radius: 4px; padding: 0 2px; }
+.s1-wave-track.seekable:hover i:not(.on) { background: var(--muted); }
+.s1-wave-track.seekable:focus-visible { outline: 2px solid var(--ok-line, var(--ok)); outline-offset: 2px; }
 .s1-player .time { flex: none; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .s1-player audio { display: none; }
 
