@@ -32,6 +32,7 @@ const navItems = [
   { to: '/schema', icon: 'schema', label: 'Schema' },
   { to: '/library', icon: 'library', label: 'Library' },
   { to: '/channels', icon: 'channels', label: 'Channels' },
+  { to: '/lab', icon: 'lab', label: 'Lab' },
   { to: '/providers', icon: 'providers', label: 'Providers' },
 ]
 

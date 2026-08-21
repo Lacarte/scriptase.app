@@ -239,6 +239,7 @@ def register_blueprints(app: Flask) -> None:
         compose_sfx_bp,
     )
     from scriptase.modules.image import storyboard_bp
+    from scriptase.modules.lab import lab_bp
     from scriptase.modules.music import music_bp
     from scriptase.modules.scene_director import scenes_bp
     from scriptase.modules.script import story_bp
@@ -260,6 +261,7 @@ def register_blueprints(app: Flask) -> None:
 
     for blueprint in (
         story_bp,
+        lab_bp,
         tts_bp,
         timing_bp,
         thumbnails_bp,
@@ -339,6 +341,7 @@ def _register_spa_fallback(app: Flask) -> None:
     @app.get("/library")
     @app.get("/channels")
     @app.get("/channels/<path:_rest>")
+    @app.get("/lab")
     @app.get("/providers")
     @app.get("/workflow")
     @app.get("/workflow/<path:_rest>")

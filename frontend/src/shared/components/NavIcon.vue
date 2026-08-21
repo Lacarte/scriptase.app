@@ -11,7 +11,7 @@ defineProps({
     type: String,
     required: true,
     validator: (value) =>
-      ['script', 'production', 'schema', 'library', 'channels', 'providers'].includes(value),
+      ['script', 'production', 'schema', 'library', 'channels', 'providers', 'lab'].includes(value),
   },
 })
 </script>
@@ -55,6 +55,10 @@ defineProps({
       <rect x="4" y="4" width="16" height="16" rx="2" />
       <path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" />
       <rect x="9" y="9" width="6" height="6" rx="1" />
+    </template>
+    <template v-else-if="name === 'lab'">
+      <path d="M9 3h6M10 3v6l-5.5 9.5A2 2 0 0 0 6.2 22h11.6a2 2 0 0 0 1.7-3.5L14 9V3" />
+      <path d="M7 15h10" />
     </template>
   </svg>
 </template>

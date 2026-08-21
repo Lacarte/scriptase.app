@@ -46,6 +46,12 @@ export const routes = [
     component: () => import('./features/export-library/views/ExportLibraryPage.vue'),
     meta: { title: 'Library', fullHeight: true },
   },
+  {
+    path: '/lab',
+    name: 'lab',
+    component: () => import('./features/lab/LabPage.vue'),
+    meta: { title: 'Lab' },
+  },
   // Both routes are the prototype's one `chview` screen — a rail beside a
   // detail pane that scrolls on its own, so the shell is bounded (step 6.4).
   {

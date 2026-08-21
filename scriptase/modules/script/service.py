@@ -117,6 +117,26 @@ def generate_story(
             "timestamp": generated_at,
             "concept_family": concept_family,
         },
+        # The exact prompt that produced this script, saved so the Lab can show,
+        # analyze, and compare it. This is the same payload sent to the webhook
+        # minus nothing — full transparency (contracts: no secret is ever here).
+        "prompt": {
+            "system_prompt": payload["system_prompt"],
+            "user_prompt": payload["user_prompt"],
+            "word_target": payload["word_target"],
+            "structure": payload["structure"],
+            "inputs": {
+                "preset_style": data.preset_style,
+                "story_category": data.story_category,
+                "story_tone": data.story_tone,
+                "language": data.language,
+                "language_level": data.language_level,
+                "duration": data.duration,
+                "niche_preset": data.niche_preset,
+                "idea": data.idea,
+                "concept_family": concept_family,
+            },
+        },
         "pipeline_ref": {"tts_project_id": None, "scenes_project_id": None},
     }
     path = os.path.join(STORIES_DIR, project_id, "story.json")
