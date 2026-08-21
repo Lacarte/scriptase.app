@@ -27,6 +27,7 @@ const collapsed = ref(false)   // the whole lab is one collapsible block
 const RUN_HINTS = {
   CHANNEL_NOT_FOUND: 'The selected channel no longer exists. Pick another, or run with no channel.',
   WEBHOOK_UNSAFE: 'The story webhook URL is blocked by the safety check. Verify N8N_STORY_WEBHOOK_URL in your .env.',
+  WEBHOOK_ERROR: 'The n8n workflow ran but reported a failure — often the upstream model provider (e.g. OpenRouter out of credit). The message above is what the webhook returned.',
   GENERATION_FAILED: 'The provider webhook could not be reached or rejected the request. Is n8n running and the URL correct?',
   EMPTY_RESULT: 'The provider replied but returned no script text. Check the n8n workflow output field.',
   UNKNOWN_LAB: 'This lab is not registered on the backend. Reload the page.',
@@ -111,6 +112,13 @@ async function runExperiment() {
 }
 function dismissRunError() { runError.value = null }
 const bandClass = (band) => `band-${band}`
+// The LLM judge's 0-1 score for one dimension of a run, or null if absent.
+function llmDim(run, dimId) {
+  const dims = run?.llm_score?.dimensions
+  if (!dims) return null
+  const d = dims.find((x) => x.id === dimId)
+  return d ? d.score : null
+}
 
 // ── Variants: dynamic form from the lab's variant_fields ────────────────────
 const editing = ref(null)
@@ -271,19 +279,49 @@ onMounted(async () => {
           <div class="runs" :class="{ dual: results.length > 1 }">
             <article v-for="idx in (results.length > 1 ? [compareA, compareB] : [0])" :key="idx" class="run-card">
               <div class="run-top">
-                <span class="score-badge" :class="bandClass(results[idx].score.band)">{{ results[idx].score.score }}</span>
+                <div class="score-pair">
+                  <div class="score-col">
+                    <span class="score-badge" :class="bandClass(results[idx].score.band)">{{ results[idx].score.score }}</span>
+                    <span class="score-tag">Structural</span>
+                  </div>
+                  <div class="score-col" v-if="results[idx].llm_score">
+                    <span class="score-badge" :class="bandClass(results[idx].llm_score.band)">{{ results[idx].llm_score.score }}</span>
+                    <span class="score-tag">LLM judge</span>
+                  </div>
+                  <div class="score-col" v-else-if="results[idx].llm_error">
+                    <span class="score-badge score-na" title="LLM judge unavailable">—</span>
+                    <span class="score-tag">LLM judge</span>
+                  </div>
+                </div>
                 <div class="run-meta">
                   <div class="rm-variant">{{ results[idx].variant.name }}</div>
                   <div class="rm-sub">{{ results[idx].score.band }} · {{ results[idx].word_count }}w · {{ results[idx].provider_id }}</div>
                 </div>
               </div>
+
+              <!-- LLM's one-line verdict, or why it's missing. -->
+              <p v-if="results[idx].llm_score && results[idx].llm_score.summary" class="llm-summary">
+                <span class="llm-quote">“{{ results[idx].llm_score.summary }}”</span>
+              </p>
+              <p v-else-if="results[idx].llm_error" class="llm-missing">
+                LLM second opinion unavailable — {{ results[idx].llm_error }}
+              </p>
+
+              <!-- Per-dimension: structural bar, plus the LLM's dot when present. -->
               <div class="dims">
                 <div v-for="d in results[idx].score.dimensions" :key="d.id" class="dim">
                   <span class="dim-name">{{ d.id.replaceAll('_', ' ') }}</span>
-                  <span class="dim-bar"><i :style="{ width: Math.min(100, d.points * 3) + '%' }"></i></span>
+                  <span class="dim-bar">
+                    <i :style="{ width: Math.min(100, d.points * 3) + '%' }"></i>
+                    <b v-if="llmDim(results[idx], d.id) !== null" class="dim-llm"
+                       :style="{ left: Math.min(100, llmDim(results[idx], d.id) * 100) + '%' }"
+                       :title="'LLM: ' + Math.round(llmDim(results[idx], d.id) * 100) + '%'"></b>
+                  </span>
                   <span class="dim-pts">{{ d.points }}</span>
                 </div>
               </div>
+              <p v-if="results[idx].llm_score" class="dim-legend"><i class="lg-bar"></i> structural <b class="lg-dot"></b> LLM</p>
+
               <pre class="raw script">{{ results[idx].story_text }}</pre>
             </article>
           </div>
@@ -442,7 +480,17 @@ onMounted(async () => {
 .runs.dual { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .run-card { border: 1px solid var(--line-soft); border-radius: var(--r-s); padding: 12px; background: var(--bg-2); }
 .run-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.score-pair { display: flex; gap: 10px; flex: none; }
+.score-col { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.score-tag { font-family: var(--mono); font-size: 8px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
 .score-badge { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 18px; flex: none; }
+.score-na { background: var(--bg-2); color: var(--faint); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.llm-summary { margin: 0 0 10px; }
+.llm-quote { font-size: 12px; color: var(--text-2); font-style: italic; line-height: 1.5; }
+.llm-missing { margin: 0 0 10px; font-size: 11px; color: var(--warn); }
+.dim-legend { margin: 0 0 12px; font-family: var(--mono); font-size: 9px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.lg-bar { display: inline-block; width: 14px; height: 4px; border-radius: 2px; background: var(--accent-grad); }
+.lg-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--text); margin-left: 6px; }
 .band-strong { background: rgba(53,192,138,.18); color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok-line); }
 .band-solid { background: rgba(88,166,255,.18); color: var(--run); box-shadow: inset 0 0 0 1px var(--run-line); }
 .band-weak { background: rgba(240,173,75,.18); color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn-line); }
@@ -452,8 +500,10 @@ onMounted(async () => {
 .dims { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 .dim { display: grid; grid-template-columns: 90px 1fr 34px; align-items: center; gap: 8px; font-size: 11px; }
 .dim-name { font-family: var(--mono); color: var(--muted); text-transform: capitalize; }
-.dim-bar { height: 6px; background: var(--line-soft); border-radius: 999px; overflow: hidden; }
-.dim-bar i { display: block; height: 100%; background: var(--accent-grad); }
+.dim-bar { position: relative; height: 6px; background: var(--line-soft); border-radius: 999px; }
+.dim-bar i { display: block; height: 100%; background: var(--accent-grad); border-radius: 999px; }
+/* The LLM judge's score for this dimension, as a dot over the structural bar. */
+.dim-llm { position: absolute; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 2px var(--bg-2); transform: translate(-50%, -50%); }
 .dim-pts { text-align: right; font-family: var(--mono); color: var(--text-2); }
 
 .block-h { font-size: 12px; font-weight: 600; color: var(--text-2); margin: 14px 0 8px; text-transform: uppercase; letter-spacing: .4px; }

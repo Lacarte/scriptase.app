@@ -83,6 +83,16 @@ Scorer — the fastest wins, not new labs.
 
 ---
 
+## Shipped since this scan
+
+- **LLM virality judge** (`viral` domain, provider `llm_judge`) — a *semantic*
+  second opinion beside the deterministic scorer. An n8n/OpenRouter webhook
+  (`scriptase-virality-llm.json`) has an LLM rate the same six frozen dimensions;
+  the provider folds the reply into the frozen `ViralScore`, so the two scores
+  are directly comparable. Surfaced in the Lab as **Structural | LLM** side by
+  side. This does **not** close D1 below — it's a second opinion, not a
+  data-calibrated scorer — but it gives a non-heuristic cross-check for free.
+
 ## Tier D — blocked on lacking an automated measure (human A/B or real analytics)
 
 ### D1. Virality Scorer config (meta-lab)

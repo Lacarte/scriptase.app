@@ -138,6 +138,44 @@ def build_prompt(*, channel_id=None, variant_id="builtin", overrides=None, lab_i
     }
 
 
+def _score_block(score) -> dict:
+    """Serialize a ViralScore into the run record's compact shape."""
+    return {
+        "scorer": score.scorer,
+        "score": score.score,
+        "band": score.band,
+        "dimensions": [
+            {"id": d.id, "score": round(d.score, 3), "points": d.points}
+            for d in score.dimensions
+        ],
+        "summary": (score.metrics or {}).get("summary", ""),
+    }
+
+
+def _llm_score(sections: dict, story_text: str, target_duration: int, job_id: str):
+    """A second, semantic virality opinion from the LLM-judge viral provider.
+
+    Best-effort and never fatal: a run's structural score is the guarantee; the
+    LLM opinion is a bonus that requires a reachable, funded webhook. On any
+    failure it returns (None, reason) so the run still succeeds and the Lab can
+    show why the second opinion is missing.
+    """
+    try:
+        from scriptase.modules.viral.providers.contract import ViralRequest
+        from scriptase.modules.viral.providers.llm_judge.provider import create as _make_judge
+
+        request = ViralRequest(
+            job_id=job_id or "job_lab",
+            sections=sections or {},
+            story_text=story_text or "",
+            target_duration=target_duration,
+        )
+        return _make_judge().score(request), ""
+    except Exception as exc:  # noqa: BLE001 — never fail the run over the bonus opinion
+        # `str(exc)` here is our own ProviderError safe message, not raw webhook text.
+        return None, str(exc)[:300]
+
+
 def run_experiment(
     *,
     channel_id=None,
@@ -146,12 +184,15 @@ def run_experiment(
     overrides=None,
     webhook_caller=None,
     lab_id="script_prompt",
+    with_llm_judge=True,
 ) -> dict:
     """Generate one script for a (channel, variant, provider) and score it.
 
     Returns a stored run record: the prompt, the generated script + sections,
-    and the Virality Score (0-100 + per-dimension breakdown). The offline
-    scorer means a run is measurable immediately, before any view data exists.
+    the deterministic Virality Score (0-100 + per-dimension breakdown), and —
+    when `with_llm_judge` and the webhook is reachable — a second, semantic
+    virality opinion from the LLM judge under `llm_score`. The offline scorer
+    means a run is measurable immediately, before any view data exists.
     """
     prompt = build_prompt(channel_id=channel_id, variant_id=variant_id, overrides=overrides, lab_id=lab_id)
 
@@ -160,11 +201,22 @@ def run_experiment(
     elapsed = round(time.perf_counter() - started, 3)
 
     parsed = parse_story_sections(raw_text)
+    duration = prompt["inputs"]["duration"]
     score = score_script(
         sections=parsed["sections"],
         story_text=parsed["story_text"],
-        target_duration=prompt["inputs"]["duration"],
+        target_duration=duration,
     )
+
+    # A second, semantic opinion from the LLM judge — best-effort, never fatal.
+    llm_score = None
+    llm_error = ""
+    if with_llm_judge:
+        judged, llm_error = _llm_score(
+            parsed["sections"], parsed["story_text"], duration, str(prompt.get("channel_id") or "job_lab"),
+        )
+        if judged is not None:
+            llm_score = _score_block(judged)
 
     record = {
         "id": f"run_{format(int(time.time() * 1000) & 0xFFFFFFFFFF, 'x')}",
@@ -184,17 +236,28 @@ def run_experiment(
         "word_count": parsed["word_count"],
         "estimated_duration": round(parsed["word_count"] / WORDS_PER_SECOND),
         "generation_time": elapsed,
-        "score": {
-            "score": score.score,
-            "band": score.band,
-            "dimensions": [
-                {"id": d.id, "score": round(d.score, 3), "points": d.points}
-                for d in score.dimensions
-            ],
-        },
+        "score": _score_block(score),
+        "llm_score": llm_score,
+        "llm_error": llm_error,
     }
     safe_json_write(os.path.join(_runs_dir(lab_id), f"{record['id']}.json"), record, indent=2)
     return record
+
+
+def _webhook_reason(exc) -> str:
+    """A short, safe operator-facing reason for a WebhookResponseError.
+
+    Uses the shared `classify_webhook_error` so the Lab describes a failure the
+    same way the pipeline provider does. For an unrecognized upstream failure
+    the Lab (a first-party diagnostic surface) shows the webhook's own text.
+    """
+    from scriptase.providers.errors import PROVIDER_UNAVAILABLE, classify_webhook_error
+
+    code, message = classify_webhook_error(getattr(exc, "status", None), str(exc))
+    if code == PROVIDER_UNAVAILABLE:
+        # Uncategorized: the webhook's own reported text is the best signal here.
+        return (str(exc) or message)[:300]
+    return f"{message}."
 
 
 def _generate(provider_id: str, prompt: Mapping[str, Any], *, webhook_caller=None) -> str:
@@ -203,7 +266,7 @@ def _generate(provider_id: str, prompt: Mapping[str, Any], *, webhook_caller=Non
 
     from config import N8N_STORY_WEBHOOK_URL
     from scriptase.shared.security import is_safe_webhook_url
-    from scriptase.shared.webhooks import call_webhook
+    from scriptase.shared.webhooks import WebhookResponseError, call_webhook
 
     webhook_url = N8N_STORY_WEBHOOK_URL
     allow_private = _os.environ.get("STS_ALLOW_PRIVATE_WEBHOOKS", "true").lower() == "true"
@@ -226,6 +289,11 @@ def _generate(provider_id: str, prompt: Mapping[str, Any], *, webhook_caller=Non
     caller = webhook_caller or call_webhook
     try:
         result = caller(webhook_url, payload, timeout=120, label="Lab experiment")
+    except WebhookResponseError as exc:
+        # The webhook reported a real failure (its own error body). The Lab is a
+        # first-party diagnostic surface, so it surfaces the webhook's reason —
+        # already a safe, categorized phrase for known cases — to the operator.
+        raise ExperimentError("WEBHOOK_ERROR", _webhook_reason(exc)) from exc
     except Exception as exc:  # noqa: BLE001 — never forward a third-party body (L2)
         raise ExperimentError("GENERATION_FAILED", "Script generation failed") from exc
 

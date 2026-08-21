@@ -235,7 +235,7 @@ DOMAINS: dict[str, DomainSpec] = {
             ),
             request_model="scriptase.modules.viral.providers.contract:ViralRequest",
             result_model="scriptase.modules.viral.providers.contract:ViralResultPayload",
-            catalog_provider_ids=frozenset({"deterministic"}),
+            catalog_provider_ids=frozenset({"deterministic", "llm_judge"}),
             default_instance_label="Virality Scorer",
         ),
     )

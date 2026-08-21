@@ -122,7 +122,7 @@ EXPECTED_SHIPPED = {
     "image": {"gemini_ws"},
     "video": {"grok_automa"},
     "review": set(),
-    "viral": {"deterministic"},
+    "viral": {"deterministic", "llm_judge"},
 }
 
 

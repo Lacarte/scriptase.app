@@ -14,7 +14,7 @@ EXPECTED = {
     "image": ["gemini_ws"],
     "video": ["grok_automa"],
     "review": [],
-    "viral": ["deterministic"],
+    "viral": ["deterministic", "llm_judge"],
 }
 
 
@@ -24,7 +24,7 @@ def test_catalog_exposes_the_prototype_and_restored_script_providers():
 
     found = {domain: providers.registry(domain).list_ids() for domain in providers.domains()}
     assert found == EXPECTED
-    assert sum(map(len, found.values())) == 8
+    assert sum(map(len, found.values())) == 9
 
     # The committed scaffolder demonstration stays executable without becoming
     # a user-facing catalogue entry.

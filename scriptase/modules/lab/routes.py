@@ -150,6 +150,9 @@ def experiment_run():
             provider_id=body.get("provider_id") or "script_n8n",
             overrides=body.get("overrides") or {},
             lab_id=_lab_id_from_body(body),
+            # The LLM second opinion is opt-out per run (default on); it costs a
+            # model call, so a caller can skip it.
+            with_llm_judge=bool(body.get("with_llm_judge", True)),
         )
     except ExperimentError as exc:
         status = 404 if exc.code == "CHANNEL_NOT_FOUND" else 502

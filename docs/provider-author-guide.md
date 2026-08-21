@@ -433,7 +433,7 @@ Snapshot of providers discovered when this guide was generated.
 | `image` | `gemini_ws` |
 | `video` | `grok_automa` |
 | `review` | — |
-| `viral` | `deterministic` |
+| `viral` | `deterministic`, `llm_judge` |
 
 ## Troubleshooting
 

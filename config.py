@@ -115,6 +115,9 @@ N8N_STORYBOARD_WEBHOOK_URL = os.environ.get(
 N8N_CLASSIFY_WEBHOOK_URL = os.environ.get(
     "N8N_CLASSIFY_WEBHOOK_URL", "http://localhost:5678/webhook/classify-style"
 )
+N8N_VIRALITY_WEBHOOK_URL = os.environ.get(
+    "N8N_VIRALITY_WEBHOOK_URL", "http://localhost:5678/webhook/virality-llm"
+)
 
 KIE_AI_API_KEY = os.environ.get("KIE_AI_API_KEY", "")
 KIE_AI_BASE_URL = os.environ.get("KIE_AI_BASE_URL", "https://api.kie.ai/api/v1")

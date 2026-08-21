@@ -5,7 +5,7 @@
 
 # Provider Reference
 
-Live catalog: **7 domains**, **8 registered providers**.
+Live catalog: **7 domains**, **9 registered providers**.
 
 This document is generated from the domain catalog (`scriptase.providers.domains`) and the process-wide hub (`scriptase.providers.hub`). It is the same discovery surface served by `GET /api/providers`. Music and Captions are deliberately **not** provider domains — they remain local services without a provider dimension.
 
@@ -395,6 +395,7 @@ _No providers currently registered._
 | Id | Label | Kind | Version | Contract | Capabilities |
 |---|---|---|---|---|---|
 | `deterministic` | Deterministic scorer | `local` | `1.0.0` | v2 | `batch`, `dimension_breakdown`, `offline`, `script_scoring`, `single_scene`, `test_connection` |
+| `llm_judge` | LLM Judge | `webhook` | `1.0.0` | v2 | `batch`, `dimension_breakdown`, `script_scoring`, `single_scene`, `test_connection`; off: `offline` |
 
 #### `deterministic` — Deterministic scorer
 
@@ -403,6 +404,14 @@ Offline, deterministic virality scorer. Measures hook presence and position, ope
 - **Kind:** `local`
 - **Version:** `1.0.0` (contract v2)
 - **Capabilities:** `batch`, `dimension_breakdown`, `offline`, `script_scoring`, `single_scene`, `test_connection`
+
+#### `llm_judge` — LLM Judge
+
+LLM virality judge. Sends the script to an n8n/OpenRouter webhook and asks a model to score the same six dimensions the deterministic scorer measures, returning a 0-100 total and a per-dimension breakdown. A semantic second opinion — non-deterministic and paid — meant to sit beside the offline scorer, not replace it.
+
+- **Kind:** `webhook`
+- **Version:** `1.0.0` (contract v2)
+- **Capabilities:** `batch`, `dimension_breakdown`, `script_scoring`, `single_scene`, `test_connection`; off: `offline`
 
 ## Stable provider error codes
 

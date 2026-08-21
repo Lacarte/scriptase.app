@@ -214,6 +214,16 @@ video. **[Scriptase]**
 with a per-dimension breakdown. **[Scriptase]** the "Virality Scorer" (offline,
 deterministic) can score the *script* before you spend on images/video.
 
+**Structural vs. semantic score** — the `viral` domain has two providers that
+both return the same frozen 0–100 + six-dimension shape, so they're directly
+comparable. `deterministic` is a **structural** score: fast, free, repeatable
+heuristics over the text (a *linter for scripts* — a consistency ruler, not a
+view predictor). `llm_judge` is a **semantic** second opinion: an LLM behind an
+n8n webhook rates the same six dimensions, catching things a regex can't, at the
+cost of a model call. Neither predicts real views — that needs published-video
+analytics — but seen side by side (Structural | LLM in the Lab) their agreement
+or disagreement is a stronger signal than either alone.
+
 **Pre-score gate** — running the virality score *before* expensive stages so a
 weak script is caught cheaply. *(A design decision: warn vs. stop.)*
 
@@ -306,4 +316,5 @@ artifact, kept for auditing and cost. Never holds credentials. **[Scriptase]**
 | Text to Speech | Voice Generator | `inworld` | cloud | narration audio (Inworld) |
 | Image | Image Generator | `gemini_ws` | extension | scene images (Gemini) |
 | Video | Video Generator | `grok_automa` | extension | image→video clips (Grok) |
-| Virality | Virality Scorer | `deterministic` | local | offline script score |
+| Virality | Virality Scorer | `deterministic` | local | offline structural script score |
+| Virality | LLM Judge | `llm_judge` | n8n | semantic second-opinion score via an LLM |

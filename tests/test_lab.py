@@ -216,6 +216,78 @@ class ExperimentTests(unittest.TestCase):
         with self.assertRaises(ExperimentError):
             run_experiment(webhook_caller=lambda *a, **k: {"story_text": "   "})
 
+    def test_run_includes_llm_second_opinion_when_available(self):
+        # With the LLM judge reachable, the run carries both scores.
+        import scriptase.modules.lab.experiment as E
+        import scriptase.modules.viral.providers.llm_judge.provider as J
+        from scriptase.modules.viral.service import score_script
+        tmp = tempfile.mkdtemp()
+        story = ("Hook: Your mind lies.\nBuild: A whisper grows.\n"
+                 "Climax: The truth is you were capable.\nCTA: Choose tomorrow.")
+        fake_llm = score_script(story_text=story, target_duration=60)
+
+        with mock.patch.object(E, "RUNS_DIR", tmp), \
+             mock.patch.object(J.LlmJudgeViralProvider, "score",
+                               lambda self, req, settings=None: fake_llm):
+            run = E.run_experiment(
+                overrides={"story_category": "psychology", "niche_preset": "dark_psychology", "duration": 60},
+                webhook_caller=lambda *a, **k: {"story_text": story},
+            )
+        self.assertIn("score", run)
+        self.assertIsNotNone(run["llm_score"])
+        self.assertEqual(run["llm_error"], "")
+
+    def test_llm_judge_failure_is_non_fatal(self):
+        # If the LLM judge fails, the run still succeeds on the structural score.
+        import scriptase.modules.lab.experiment as E
+        import scriptase.modules.viral.providers.llm_judge.provider as J
+        from scriptase.providers.errors import ProviderError, PROVIDER_QUOTA_EXHAUSTED
+        tmp = tempfile.mkdtemp()
+
+        def boom(self, req, settings=None):
+            raise ProviderError(PROVIDER_QUOTA_EXHAUSTED, "out of credit",
+                                domain="viral", provider_id="llm_judge")
+
+        with mock.patch.object(E, "RUNS_DIR", tmp), \
+             mock.patch.object(J.LlmJudgeViralProvider, "score", boom):
+            run = E.run_experiment(
+                overrides={"story_category": "psychology", "niche_preset": "dark_psychology", "duration": 30},
+                webhook_caller=lambda *a, **k: {"story_text": "Hook: a.\nBuild: b.\nClimax: c.\nCTA: d."},
+            )
+        self.assertIn("id", run)
+        self.assertIsNone(run["llm_score"])
+        self.assertIn("credit", run["llm_error"])
+
+    def test_run_can_skip_the_llm_judge(self):
+        import scriptase.modules.lab.experiment as E
+        tmp = tempfile.mkdtemp()
+        with mock.patch.object(E, "RUNS_DIR", tmp):
+            run = E.run_experiment(
+                overrides={"story_category": "psychology", "niche_preset": "dark_psychology", "duration": 30},
+                webhook_caller=lambda *a, **k: {"story_text": "Hook: a.\nBuild: b.\nClimax: c.\nCTA: d."},
+                with_llm_judge=False,
+            )
+        self.assertIsNone(run["llm_score"])
+
+    def test_webhook_error_surfaces_the_real_reason(self):
+        # When the webhook reports a failure (its own error body), the Lab shows
+        # the categorized reason — not a generic "Script generation failed".
+        from scriptase.modules.lab.experiment import run_experiment, ExperimentError
+        from scriptase.shared.webhooks import WebhookResponseError
+
+        def caller(*a, **k):
+            raise WebhookResponseError("Payment required - perhaps check your payment details?",
+                                       status=500)
+
+        with self.assertRaises(ExperimentError) as ctx:
+            run_experiment(
+                overrides={"story_category": "psychology", "niche_preset": "dark_psychology",
+                           "duration": 30},
+                webhook_caller=caller,
+            )
+        self.assertEqual(ctx.exception.code, "WEBHOOK_ERROR")
+        self.assertIn("credit", str(ctx.exception).lower())
+
 
 class RegistryTests(unittest.TestCase):
     def test_script_lab_is_registered_with_metadata(self):
