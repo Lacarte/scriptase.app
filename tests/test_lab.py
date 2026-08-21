@@ -105,5 +105,89 @@ class RouteTests(unittest.TestCase):
         self.assertIn("prompts", resp.get_json())
 
 
+class VariantTests(unittest.TestCase):
+    def setUp(self):
+        import scriptase.modules.lab.variants as V
+        self._tmp = tempfile.mkdtemp()
+        self._patch = mock.patch.object(V, "VARIANTS_DIR", self._tmp)
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+
+    def test_builtin_is_always_first_and_readonly(self):
+        from scriptase.modules.lab.variants import list_variants, delete_variant
+        vs = list_variants()
+        self.assertEqual(vs[0]["id"], "builtin")
+        self.assertTrue(vs[0]["builtin"])
+        self.assertFalse(delete_variant("builtin"))
+
+    def test_create_update_delete_roundtrip(self):
+        from scriptase.modules.lab.variants import (
+            create_variant, update_variant, delete_variant, get_variant,
+        )
+        v = create_variant({"name": "Q hooks", "angle_pool": ["Ask a question"],
+                             "word_target_ratio": 0.8})
+        self.assertEqual(v["version"], 1)
+        self.assertEqual(v["word_target_ratio"], 0.8)
+        v2 = update_variant(v["id"], {"name": "Q hooks v2"})
+        self.assertEqual(v2["version"], 2)
+        self.assertEqual(get_variant(v["id"])["name"], "Q hooks v2")
+        self.assertTrue(delete_variant(v["id"]))
+        self.assertIsNone(get_variant(v["id"]))
+
+    def test_rejects_bad_temperature(self):
+        from scriptase.modules.lab.variants import create_variant
+        with self.assertRaises(ValueError):
+            create_variant({"name": "bad", "temperature": 5})
+
+
+class ExperimentTests(unittest.TestCase):
+    def test_variant_overrides_reach_the_prompt(self):
+        from scriptase.modules.lab import variants as V
+        from scriptase.modules.lab.experiment import build_prompt
+        tmp = tempfile.mkdtemp()
+        with mock.patch.object(V, "VARIANTS_DIR", tmp):
+            var = V.create_variant({
+                "name": "forced",
+                "angle_pool": ["Begin with a provocative question that challenges assumptions"],
+                "extra_directives": ["Make it more emotional"],
+                "word_target_ratio": 0.8,
+            })
+            p = build_prompt(variant_id=var["id"], overrides={
+                "story_category": "psychology", "niche_preset": "dark_psychology", "duration": 60,
+            })
+        self.assertIn("provocative question", p["user_prompt"])
+        self.assertIn("Make it more emotional", p["user_prompt"])
+        self.assertEqual(p["word_target"], 120)  # 150 * 0.8
+
+    def test_run_generates_and_scores(self):
+        import scriptase.modules.lab.experiment as E
+        tmp = tempfile.mkdtemp()
+
+        def fake(url, payload, timeout=120, label=""):
+            return {"story_text":
+                    "Hook: Your mind lies to you.\n"
+                    "Build: It starts small, a whisper of doubt that grows louder.\n"
+                    "Climax: But the truth is you were capable all along.\n"
+                    "CTA: So what will you choose tomorrow?"}
+
+        with mock.patch.object(E, "RUNS_DIR", tmp):
+            run = E.run_experiment(
+                variant_id="builtin",
+                overrides={"story_category": "psychology", "niche_preset": "dark_psychology", "duration": 60},
+                webhook_caller=fake,
+            )
+        self.assertIn("score", run)
+        self.assertGreaterEqual(run["score"]["score"], 0)
+        self.assertTrue(run["score"]["dimensions"])
+        self.assertTrue(run["story_text"])
+
+    def test_empty_result_raises(self):
+        from scriptase.modules.lab.experiment import run_experiment, ExperimentError
+        with self.assertRaises(ExperimentError):
+            run_experiment(webhook_caller=lambda *a, **k: {"story_text": "   "})
+
+
 if __name__ == "__main__":
     unittest.main()

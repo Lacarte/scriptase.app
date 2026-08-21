@@ -783,13 +783,31 @@ def build_story_user_prompt(
     idea: str = None,
     niche_preset: str = None,
     concept_family: str = None,
+    *,
+    angle_pool: list[str] | None = None,
+    extra_directives: list[str] | None = None,
+    word_target_ratio: float = 1.0,
 ) -> str:
-    """Build the user prompt for the story generation call."""
+    """Build the user prompt for the story generation call.
+
+    The keyword-only overrides are the Lab variant knobs (they default to the
+    built-in behaviour): ``angle_pool`` restricts which opening angles may be
+    picked, ``extra_directives`` appends experimental instruction lines, and
+    ``word_target_ratio`` scales the duration-derived word target.
+    """
     from scriptase.modules.script.history import format_history_for_prompt
 
     word_target = compute_word_target(duration)
+    try:
+        ratio = float(word_target_ratio or 1.0)
+    except (TypeError, ValueError):
+        ratio = 1.0
+    if ratio != 1.0:
+        word_target = max(20, round(word_target * ratio))
+
     seed = _unique_seed()
-    angle = random.choice(_ANGLE_STARTERS)
+    pool = [str(a).strip() for a in (angle_pool or ()) if str(a).strip()] or _ANGLE_STARTERS
+    angle = random.choice(pool)
     base = (
         f"Write a viral {story_category} story for a {duration}-second voiceover video. "
         f"Target: {word_target} words. Language: {language}. Style: {preset_style}. "
@@ -821,4 +839,8 @@ def build_story_user_prompt(
 
     if idea:
         base += f"\n\nBuild the story around this idea:\n{idea}"
+
+    directives = [str(x).strip() for x in (extra_directives or ()) if str(x).strip()]
+    if directives:
+        base += "\n\nADDITIONAL DIRECTIONS:\n" + "\n".join(f"- {line}" for line in directives)
     return base
