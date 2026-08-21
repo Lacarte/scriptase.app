@@ -2,39 +2,39 @@
   "canonical_audio_seconds": 8.0,
   "files": {
     "alignment.json": {
-      "bytes": 3401,
+      "bytes": 3612,
       "port_types": [
         "alignment"
       ],
-      "sha256": "64b18652f009dcce4b9cb12e88a9911fa603e7f0121713018a0d17fb011a9a32"
+      "sha256": "b70515eda3f39d4afdcbaad49733c5e52666b31c62cc1b511b0df6436e8672e9"
     },
     "audio_file.json": {
-      "bytes": 186,
+      "bytes": 196,
       "port_types": [
         "audio_file"
       ],
-      "sha256": "b81e3810b3f8415a36dabaa53daab02d909013d2f28bf971a2776a3c8bb1a872"
+      "sha256": "b9f440c33a5cb4eb08cead454fbb3371b03edd9d211c07d1301a5ead9f07a899"
     },
     "captions.json": {
-      "bytes": 5404,
+      "bytes": 5709,
       "port_types": [
         "captions"
       ],
-      "sha256": "f6d2e931c2aea178078db074544571f53d973249517023afe801131248a59fee"
+      "sha256": "d65f3377d5518247692a4813fc327d6bf4613d8908f7beaa38b62cdf353df6ab"
     },
     "image_prompts.json": {
-      "bytes": 610,
+      "bytes": 627,
       "port_types": [
         "image_prompts"
       ],
-      "sha256": "1208e28251b34a1ec7f65838c9f7631f75f565c1b720dbabf2793e4fdf51108e"
+      "sha256": "4a085da66962be4b748f6275b1130024adb2593aefe83a4f1e52dff039876971"
     },
     "initial.json": {
-      "bytes": 8105,
+      "bytes": 8519,
       "port_types": [
         "editor_project"
       ],
-      "sha256": "fe69fd383293e4fcf0bc178e3518c185fe68a98209493521c51a3f5e0f417e64"
+      "sha256": "806d4ddcd71ebeeb091475cc102b21952b62dcf213ce65628235a12ba29a5f7d"
     },
     "media/logo.png": {
       "bytes": 460,
@@ -114,68 +114,68 @@
       "sha256": "776c8a6c0c1dddcd7b33190e32502cee1c4256eb407097e294d003e1bc9e1263"
     },
     "metadata.json": {
-      "bytes": 622,
+      "bytes": 659,
       "port_types": [
         "animation_assets"
       ],
-      "sha256": "7196b9435f5f7086659e42fd0f18455fdd064bc152d4e6eae96bfe473eb9f503"
+      "sha256": "e1c2cc3b1a615bb0e15f650d26a28ac60ea40f010ac6acea6d6a72bd0a9e43fc"
     },
     "music_track.json": {
-      "bytes": 260,
+      "bytes": 274,
       "port_types": [
         "music_track"
       ],
-      "sha256": "04ac7f95ecc125686cb8ec81643aae8c247167928c9dc67bb659235a16627e34"
+      "sha256": "6dbf86a6cb8f4c292dd5c000886ec17c7e9248ca98937617ee85e1ca76607cf5"
     },
     "project_settings.json": {
-      "bytes": 385,
+      "bytes": 404,
       "port_types": [
         "project_settings"
       ],
-      "sha256": "22ef075a568294d5d129644e1468c03656c1fa13431a578903fe380632a99046"
+      "sha256": "4356755a2f2beedc8387d588436ce923727bdd992b4f0d77b0dad497e98fd01d"
     },
     "scenes.json": {
-      "bytes": 2028,
+      "bytes": 2085,
       "port_types": [
         "scenes"
       ],
-      "sha256": "f4b94019efb5af373030b4d0c5d8b270a13f6c4d76526cd92355c9928089f1e9"
+      "sha256": "c3d20eba66cf36e1a4cbca093faa93e80025ee885e4dbf83f14edf5ed69604d8"
     },
     "script.json": {
-      "bytes": 288,
+      "bytes": 293,
       "port_types": [
         "text",
         "script"
       ],
-      "sha256": "236e93c0171370eee3459bbe582aae8dd2f9def76b88ee78d81d04190f44267a"
+      "sha256": "35468eddc257d5471c45f9b58742cf284d7efb7dff3311b54ec830370f18a8d2"
     },
     "segmented.json": {
-      "bytes": 1426,
+      "bytes": 1476,
       "port_types": [
         "segments"
       ],
-      "sha256": "c4c431938aa3c43cfdf6e769be724b65519dca71e7cf6f5523829561811fb9a5"
+      "sha256": "8b2927a2879a93f38bcadcc12e5769192fa83713ac7b0e7f2b1417aa804e8053"
     },
     "storyboard.json": {
-      "bytes": 533,
+      "bytes": 561,
       "port_types": [
         "storyboard_images"
       ],
-      "sha256": "dc35a2650ee717da233729d51c88815043cd4ec661d2809beddfb865fbc91db3"
+      "sha256": "0883099005b7c88ae02c2d8df6633e1e6339d90edec74574b2328f5994a47655"
     },
     "tts.json": {
-      "bytes": 599,
+      "bytes": 615,
       "port_types": [
         "tts_metadata"
       ],
-      "sha256": "862b866c60d612b0dde1499be2ad5d8d96427083054edaee571e65d5a6fdbf70"
+      "sha256": "0de38e748f922cb2446e76197916ae8971d9b0857da8b38a93cc3c4612913492"
     },
     "video_file.json": {
-      "bytes": 106,
+      "bytes": 113,
       "port_types": [
         "video_file"
       ],
-      "sha256": "dd9b2d79f4baf634686650a5a5c06d79eb7cd066068c94b1190b03da60bf029e"
+      "sha256": "0f5871d3a519e7d68e191ceda484cd07d8418550426a77954d6ca9b0885dd0fe"
     }
   },
   "fixture_schema_version": 1,

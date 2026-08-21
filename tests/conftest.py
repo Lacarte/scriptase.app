@@ -59,3 +59,18 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "live" in item.keywords:
             item.add_marker(skip_live)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Silence loguru at teardown.
+
+    loguru's default sink targets sys.stderr, which pytest closes at session
+    end while loguru's own atexit flush still fires — producing a harmless but
+    noisy "ValueError: I/O operation on closed file" after the summary. Removing
+    the handlers here, before the streams close, keeps the run output clean.
+    """
+    try:
+        from loguru import logger
+        logger.remove()
+    except Exception:  # noqa: BLE001 — teardown must never fail the run
+        pass
