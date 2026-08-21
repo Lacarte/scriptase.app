@@ -532,6 +532,16 @@ async function loadVoices(channel) {
   narrationForm.voice = chosen
 }
 
+/** Pick a random voice from the available list, avoiding the current one. */
+function pickRandomVoice() {
+  const pool = voices.value.filter((v) => v.id && v.id !== narrationForm.voice)
+  const source = pool.length ? pool : voices.value.filter((v) => v.id)
+  if (!source.length) return
+  const pick = source[Math.floor(Math.random() * source.length)]
+  narrationForm.voice = pick.id
+  toast.info(`Voice: ${pick.label || pick.id}`)
+}
+
 /** Both processing controls write an explicit override; Reset restores null. */
 function toggleRemoveSilence() {
   narrationForm.removeSilence = !activeRemoveSilence.value
@@ -1117,11 +1127,21 @@ onBeforeUnmount(() => {
 
                 <div class="s1-kv">
                   <span class="k">Voice</span>
-                  <span class="v">
+                  <span class="v s1-voice-row">
                     <select v-model="narrationForm.voice" aria-label="Narration voice">
                       <option v-if="!voices.length" :value="narrationForm.voice">{{ narrationForm.voice || 'Channel default' }}</option>
                       <option v-for="voice in voices" :key="voice.id" :value="voice.id">{{ voice.label || voice.id }}</option>
                     </select>
+                    <button
+                      type="button"
+                      class="s1-voice-rand"
+                      :disabled="voices.length < 2"
+                      aria-label="Pick a random voice"
+                      title="Random voice"
+                      @click="pickRandomVoice"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor" stroke="none" /><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor" stroke="none" /><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor" stroke="none" /><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" /></svg>
+                    </button>
                   </span>
                 </div>
                 <div class="s1-kv">
@@ -1535,6 +1555,15 @@ input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow:
 .s1-kv:last-of-type { border-bottom: none; }
 .s1-kv .k { color: var(--muted); }
 .s1-kv .v { min-width: 0; color: var(--text); font-weight: 500; }
+.s1-voice-row { display: flex; align-items: center; gap: 6px; }
+.s1-voice-row select { flex: 1; min-width: 0; }
+.s1-voice-rand {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--muted); cursor: pointer; transition: color .14s, border-color .14s, background .14s;
+}
+.s1-voice-rand:hover:not(:disabled) { color: var(--accent); border-color: var(--accent-line-2); background: var(--accent-wash); }
+.s1-voice-rand:disabled { opacity: .4; cursor: not-allowed; }
 .s1-kv select {
   max-width: 100%; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px;
   color: var(--text); font-family: var(--body); font-size: 12px; padding: 5px 8px; cursor: pointer;
