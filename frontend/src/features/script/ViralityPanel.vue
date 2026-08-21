@@ -92,8 +92,8 @@ const llmSummary = computed(() => String(props.llmScore?.metrics?.summary || '')
           </div>
 
           <!-- The LLM judge's second opinion, when present. Same size as the
-               structural gauge — the two are peers, not primary/secondary. -->
-          <div v-if="llmScore" class="s1-vir-gauge" :data-band="llmScore.band">
+               structural gauge, always green (its own accent). -->
+          <div v-if="llmScore" class="s1-vir-gauge llm">
             <div class="s1-vir-ring">
               <svg viewBox="0 0 54 54" width="54" height="54" aria-hidden="true">
                 <circle cx="27" cy="27" r="23" fill="none" stroke="var(--raise)" stroke-width="4" />
@@ -159,6 +159,7 @@ const llmSummary = computed(() => String(props.llmScore?.metrics?.summary || '')
 .s1-vir-gauge[data-band="weak"] { color: var(--warn); }
 .s1-vir-gauge[data-band="solid"] { color: var(--run); }
 .s1-vir-gauge[data-band="strong"] { color: var(--ok); }
+.s1-vir-gauge.llm { color: var(--ok); }  /* the LLM judge is always green */
 .s1-vir-gauge.na { color: var(--faint); }
 .s1-vir-gauge svg { display: block; transform: rotate(-90deg); }
 .s1-vir-gauge .score { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 17px; line-height: 1; letter-spacing: -.5px; color: var(--text); }

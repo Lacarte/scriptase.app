@@ -112,6 +112,12 @@ async function runExperiment() {
 }
 function dismissRunError() { runError.value = null }
 const bandClass = (band) => `band-${band}`
+// Circular-ring gauge: percentage of the circumference (r=23) to fill.
+function gaugeDash(value) {
+  const circ = 2 * Math.PI * 23
+  const v = Math.min(100, Math.max(0, Number(value) || 0))
+  return `${circ * (v / 100)} ${circ}`
+}
 // The LLM judge's 0-1 score for one dimension of a run, or null if absent.
 function llmDim(run, dimId) {
   const dims = run?.llm_score?.dimensions
@@ -281,15 +287,32 @@ onMounted(async () => {
               <div class="run-top">
                 <div class="score-pair">
                   <div class="score-col">
-                    <span class="score-badge" :class="bandClass(results[idx].score.band)">{{ results[idx].score.score }}</span>
+                    <div class="score-ring" :class="bandClass(results[idx].score.band)">
+                      <svg viewBox="0 0 54 54" width="54" height="54" aria-hidden="true">
+                        <circle cx="27" cy="27" r="23" fill="none" stroke="var(--raise, rgba(255,255,255,.08))" stroke-width="4" />
+                        <circle cx="27" cy="27" r="23" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" :stroke-dasharray="gaugeDash(results[idx].score.score)" />
+                      </svg>
+                      <span class="rv">{{ results[idx].score.score }}</span>
+                    </div>
                     <span class="score-tag">Structural</span>
                   </div>
                   <div class="score-col" v-if="results[idx].llm_score">
-                    <span class="score-badge" :class="bandClass(results[idx].llm_score.band)">{{ results[idx].llm_score.score }}</span>
+                    <div class="score-ring llm">
+                      <svg viewBox="0 0 54 54" width="54" height="54" aria-hidden="true">
+                        <circle cx="27" cy="27" r="23" fill="none" stroke="var(--raise, rgba(255,255,255,.08))" stroke-width="4" />
+                        <circle cx="27" cy="27" r="23" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" :stroke-dasharray="gaugeDash(results[idx].llm_score.score)" />
+                      </svg>
+                      <span class="rv">{{ results[idx].llm_score.score }}</span>
+                    </div>
                     <span class="score-tag">LLM judge</span>
                   </div>
                   <div class="score-col" v-else-if="results[idx].llm_error">
-                    <span class="score-badge score-na" title="LLM judge unavailable">—</span>
+                    <div class="score-ring na">
+                      <svg viewBox="0 0 54 54" width="54" height="54" aria-hidden="true">
+                        <circle cx="27" cy="27" r="23" fill="none" stroke="var(--raise, rgba(255,255,255,.08))" stroke-width="4" />
+                      </svg>
+                      <span class="rv">—</span>
+                    </div>
                     <span class="score-tag">LLM judge</span>
                   </div>
                 </div>
@@ -483,8 +506,18 @@ onMounted(async () => {
 .score-pair { display: flex; gap: 10px; flex: none; }
 .score-col { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .score-tag { font-family: var(--mono); font-size: 8px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
-.score-badge { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 18px; flex: none; }
-.score-na { background: var(--bg-2); color: var(--faint); box-shadow: inset 0 0 0 1px var(--line-soft); }
+/* Circular-ring gauge (replaces the old rounded-square badge). The band class
+   supplies the accent via `color` -> the ring's currentColor stroke; the ring
+   itself has no background. The number is centered inside it. */
+.score-ring { position: relative; width: 54px; height: 54px; flex: none; color: var(--muted); }
+.score-ring svg { display: block; transform: rotate(-90deg); }
+.score-ring .rv { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: -.5px; color: var(--text); }
+/* Band classes only tint the ring stroke here — no square background. */
+.score-ring.band-strong, .score-ring.band-solid, .score-ring.band-weak, .score-ring.band-poor { background: none; box-shadow: none; }
+/* The LLM ring is always green, per request. */
+.score-ring.llm { color: var(--ok); }
+.score-ring.na { color: var(--faint); }
+.score-ring.na .rv { color: var(--faint); }
 .llm-summary { margin: 0 0 10px; }
 .llm-quote { font-size: 12px; color: var(--text-2); font-style: italic; line-height: 1.5; }
 .llm-missing { margin: 0 0 10px; font-size: 11px; color: var(--warn); }
