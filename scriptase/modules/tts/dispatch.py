@@ -185,6 +185,8 @@ def list_voices(instance, settings=None) -> list[dict]:
             "label": getattr(voice, "name", "") or voice.id,
             "language": getattr(voice, "language", "") or "",
             "gender": getattr(voice, "gender", "") or "",
+            "lang_code": getattr(voice, "lang_code", "") or "",
+            "flag": getattr(voice, "flag", "") or "",
         }
         for voice in live or ()
         if getattr(voice, "id", "")

@@ -74,7 +74,7 @@ class ValidationTests(unittest.TestCase):
         document = draft()
         document["nodes"].extend([
             {
-                "id": "n_tts", "type": "tts.generate", "type_version": 3, "name": "TTS",
+                "id": "n_tts", "type": "tts.generate", "type_version": 4, "name": "TTS",
                 "position": {"x": 200, "y": 0}, "configuration": {}, "disabled": False,
                 "on_error": {"policy": "continue_error"},
             },

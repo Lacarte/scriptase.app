@@ -327,9 +327,9 @@ class WorkflowImportTests(unittest.TestCase):
     def test_migrate_workflow_rewrites_v1_provider_fields(self):
         state = migrate_workflow_document(_v2_workflow())
         self.assertFalse(state.read_only)
-        self.assertEqual(len(state.trail), 6)
+        self.assertEqual(len(state.trail), 7)
         by_id = {n["id"]: n for n in state.document["nodes"]}
-        self.assertEqual(by_id["n_tts"]["type_version"], 3)
+        self.assertEqual(by_id["n_tts"]["type_version"], 4)
         self.assertEqual(by_id["n_tts"]["configuration"]["provider_id"], "inworld")
         self.assertNotIn("engine", by_id["n_tts"]["configuration"])
         self.assertEqual(by_id["n_storyboard"]["configuration"]["provider_id"], "gemini_ws")
@@ -350,7 +350,7 @@ class WorkflowImportTests(unittest.TestCase):
                     _v2_workflow(), on_conflict="new_id"
                 )
             self.assertEqual(original_id, "wf_V2IMP1")
-            self.assertEqual(len(trail), 6)
+            self.assertEqual(len(trail), 7)
             self.assertTrue(saved["workflow_id"].startswith("wf_"))
             self.assertEqual(
                 validation_errors(validate_workflow(saved, require_identity=True)),
@@ -556,7 +556,7 @@ class MigrationApiTests(unittest.TestCase):
         body = resp.get_json()
         self.assertTrue(body["valid"])
         self.assertEqual(body["validation_errors"], [])
-        self.assertEqual(len(body["migration_trail"]), 6)
+        self.assertEqual(len(body["migration_trail"]), 7)
 
     def test_workflows_import_endpoint_accepts_v2_document(self):
         with tempfile.TemporaryDirectory() as tmp:

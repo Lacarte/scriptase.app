@@ -350,10 +350,12 @@ _NODE_TYPES = {
     },
     "tts.generate": {
         # v2: `engine` became `provider_id` (contracts.md §41.3 M1).
-        "type_version": 3,
+        # v4: narration voices curated to the starred set; "Ashley" retired.
+        "type_version": 4,
         "migrations": {
             1: "scriptase.engine.config_migrations:tts_generate_1_to_2",
             2: "scriptase.engine.config_migrations:tts_generate_2_to_3",
+            3: "scriptase.engine.config_migrations:tts_generate_3_to_4",
         },
         "display_name": "Text to Speech",
         "description": "Generate narration audio from the script.",
@@ -364,7 +366,7 @@ _NODE_TYPES = {
         "config_schema": [
             _provider_field("tts"),
             {"name": "voice", "label": "Voice", "type": "options",
-             "options_source": "tts_voices", "default": "Ashley"},
+             "options_source": "tts_voices", "default": "Sarah"},
             {"name": "speed", "label": "Speed", "type": "number",
              "default": 1.0, "min": 0.5, "max": 2.0, "step": 0.1},
             _provider_options_field("tts"),

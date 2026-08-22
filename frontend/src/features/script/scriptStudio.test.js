@@ -80,6 +80,13 @@ function makeRouter() {
   })
 }
 
+// The voice picker is a custom listbox: open it, then click the named option.
+async function selectVoice(wrapper, name) {
+  await wrapper.get('.voice-select .vs-trigger').trigger('click')
+  const opt = wrapper.findAll('.voice-select .vs-opt').find((o) => o.text().includes(name))
+  await opt.trigger('click')
+}
+
 async function mountPage({ withScript = true } = {}) {
   scriptApi.listScripts.mockResolvedValue({
     scripts: withScript ? [SUMMARY] : [],
@@ -210,7 +217,7 @@ describe('Script Studio step 3.3 narration', () => {
   it('defaults to Channel voice and marks processing values inherited', async () => {
     const wrapper = await mountPage()
 
-    expect(wrapper.get('[aria-label="Narration voice"]').element.value).toBe('Alex')
+    expect(wrapper.get('.voice-select .vs-name').text()).toBe('Alex')
     // Inheritance shows as the effective value plus an `s1-inh` badge, and the
     // reset affordance stays hidden while nothing is overridden.
     expect(wrapper.get('[aria-label="Remove silence override"]').attributes('aria-checked')).toBe('true')
@@ -248,7 +255,7 @@ describe('Script Studio step 3.3 narration', () => {
     })
     const wrapper = await mountPage()
 
-    await wrapper.get('[aria-label="Narration voice"]').setValue('Ashley')
+    await selectVoice(wrapper, 'Ashley')
     await wrapper.get('[aria-label="Remove silence override"]').trigger('click')
     await wrapper.get('[aria-label="Narration speed override"]').setValue('1.25')
     await wrapper.get('[data-testid="narration-generate"]').trigger('click')
@@ -298,7 +305,7 @@ describe('Script Studio step 3.3 narration', () => {
     }))
     const wrapper = await mountPage()
 
-    await wrapper.get('[aria-label="Narration voice"]').setValue('Ashley')
+    await selectVoice(wrapper, 'Ashley')
     await wrapper.get('[aria-label="Remove silence override"]').trigger('click')
     await wrapper.get('[aria-label="Narration speed override"]').setValue('1.25')
     expect(wrapper.findAll('.s1-inh')).toHaveLength(0)
@@ -311,7 +318,7 @@ describe('Script Studio step 3.3 narration', () => {
     await wrapper.get('.s1-create-go').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[aria-label="Narration voice"]').element.value).toBe('Alex')
+    expect(wrapper.get('.voice-select .vs-name').text()).toBe('Alex')
     expect(wrapper.get('[aria-label="Remove silence override"]').attributes('aria-checked')).toBe('true')
     expect(wrapper.get('[aria-label="Narration speed override"]').element.value).toBe('1.1')
     expect(wrapper.findAll('.s1-inh')).toHaveLength(2)

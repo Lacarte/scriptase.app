@@ -43,6 +43,10 @@ class Voice:
     language: str
     gender: Optional[str] = None
     preview_url: Optional[str] = None
+    # Presentation extras for the picker: a short language code (EN/ES/FR) and a
+    # two-letter flag code (us/gb/mx/es), "" when none applies.
+    lang_code: Optional[str] = None
+    flag: Optional[str] = None
 
 
 @dataclass

@@ -95,7 +95,8 @@ class RegistryContractTests(unittest.TestCase):
             self.assertIn("control", [p["id"] for p in node["outputs"]], key)
 
     def test_version_lookup(self):
-        self.assertTrue(is_supported("tts.generate", 3))
+        self.assertTrue(is_supported("tts.generate", 4))
+        self.assertFalse(is_supported("tts.generate", 3))
         self.assertFalse(is_supported("tts.generate", 1))
         self.assertFalse(is_supported("nope.missing", 1))
         self.assertIsNone(get_node_type("nope.missing"))

@@ -17,7 +17,6 @@ from __future__ import annotations
 import base64
 import io
 import os
-import threading
 import time
 from datetime import datetime
 from typing import Callable, Optional
@@ -41,17 +40,13 @@ from scriptase.modules.tts.providers.base import TTSProvider, TTSResult, Voice
 _DOMAIN = "tts"
 _PROVIDER_ID = "inworld"
 
-DEFAULT_VOICE = "Ashley"
+DEFAULT_VOICE = "Sarah"
 
 # The Inworld `audioConfig.speakingRate` range is [0.5, 1.5]; below 0.8 the
 # remote model's quality degrades, so the docs recommend staying above it.
 _MIN_SPEAKING_RATE = 0.5
 _MAX_SPEAKING_RATE = 1.5
 
-_voices_cache = None
-_voices_cache_lock = threading.Lock()
-_voices_cache_ts = 0
-_VOICES_TTL = 600
 
 
 def _auth_header(api_key: str) -> dict:
@@ -197,46 +192,30 @@ class InworldTTSProvider(TTSProvider):
         )
 
     def list_voices(self, settings: dict) -> list[Voice]:
-        global _voices_cache, _voices_cache_ts
+        """Only the curated starred voices are offered for narration.
 
-        api_key = (settings or {}).get("api_key") or INWORLD_API_KEY
-        if not api_key:
-            return []
+        The catalog is the fixed set in `starred_voices` (referenced by Voice
+        ID), not the provider's full API listing — so the picker never shows a
+        voice we didn't choose, and it works with no network call.
+        """
+        from scriptase.modules.tts.providers.inworld.starred_voices import STARRED_VOICES
 
-        with _voices_cache_lock:
-            if _voices_cache is not None and (time.time() - _voices_cache_ts) < _VOICES_TTL:
-                return _as_voices(_voices_cache)
-
-        try:
-            data = _client(api_key, timeout=10).get_json("/voices")
-            voices = data.get("voices") or []
-        except ProviderError as exc:
-            # Listing voices is advisory: a stale catalog beats an empty page.
-            # Only the catalog code is logged — never the body or the URL.
-            logger.error("Inworld list_voices failed: {}", exc.code)
-            return _as_voices(_voices_cache or [])
-
-        with _voices_cache_lock:
-            _voices_cache = voices
-            _voices_cache_ts = time.time()
-
-        return _as_voices(voices)
+        return [
+            Voice(
+                id=v["id"],
+                name=v["name"],
+                language=v["language"],
+                gender=v["gender"],
+                lang_code=v["lang_code"],
+                flag=v["flag"],
+            )
+            for v in STARRED_VOICES
+        ]
 
     def list_models(self, settings: dict) -> list[dict]:
         model = (settings or {}).get("model") or INWORLD_TTS_MODEL
         return [{"id": model, "name": model, "downloaded": True}] if model else []
 
-
-def _as_voices(raw) -> list[Voice]:
-    return [
-        Voice(
-            id=item.get("voiceId", ""),
-            name=item.get("displayName", ""),
-            language="",
-        )
-        for item in raw or ()
-        if isinstance(item, dict)
-    ]
 
 
 def _resolve_output(settings: dict) -> tuple[str, str, str]:

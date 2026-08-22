@@ -26,6 +26,7 @@ import {
   updateScript,
 } from './api.js'
 import ViralityPanel from './ViralityPanel.vue'
+import VoiceSelect from './VoiceSelect.vue'
 
 defineOptions({ name: 'ScriptPage' })
 
@@ -527,11 +528,13 @@ async function loadVoices(channel) {
   } catch {
     voices.value = []
   }
-  const chosen = narrationForm.voice || channel?.audio_defaults?.voice || ''
-  if (chosen && !voices.value.some(item => item.id === chosen)) {
-    voices.value.unshift({ id: chosen, label: chosen })
-  }
-  narrationForm.voice = chosen
+  // The catalog is now the curated starred set. A saved voice that is no
+  // longer offered (e.g. a Kokoro-era "af_heart") is dropped rather than
+  // injected as a bare id — otherwise the picker shows an option we retired.
+  // Fall back to the first curated voice so the field is always valid.
+  const saved = narrationForm.voice || channel?.audio_defaults?.voice || ''
+  const isOffered = saved && voices.value.some(item => item.id === saved)
+  narrationForm.voice = isOffered ? saved : (voices.value[0]?.id || '')
 }
 
 /** A random voice id from the available list, avoiding `avoid` when possible. */
@@ -1136,17 +1139,11 @@ onBeforeUnmount(() => {
                 <div class="s1-kv">
                   <span class="k">Voice</span>
                   <span class="v s1-voice-row">
-                    <select
+                    <VoiceSelect
                       v-model="narrationForm.voice"
-                      aria-label="Narration voice"
-                      :disabled="randomVoice"
-                    >
-                      <option v-if="randomVoice" value="">Random each time</option>
-                      <template v-else>
-                        <option v-if="!voices.length" :value="narrationForm.voice">{{ narrationForm.voice || 'Channel default' }}</option>
-                        <option v-for="voice in voices" :key="voice.id" :value="voice.id">{{ voice.label || voice.id }}</option>
-                      </template>
-                    </select>
+                      :voices="voices"
+                      :disabled="randomVoice || generatingNarration"
+                    />
                     <span
                       class="s1-toggle sm"
                       :class="{ on: randomVoice, disabled: voices.length < 2 }"
@@ -1574,8 +1571,7 @@ input.txt:focus { outline: none; border-color: var(--accent-line-2); box-shadow:
 .s1-kv .k { color: var(--muted); }
 .s1-kv .v { min-width: 0; color: var(--text); font-weight: 500; }
 .s1-voice-row { display: flex; align-items: center; gap: 7px; }
-.s1-voice-row select { flex: 1; min-width: 0; }
-.s1-voice-row select:disabled { opacity: .6; cursor: not-allowed; }
+.s1-voice-row .voice-select { flex: 1; min-width: 0; }
 .s1-voice-row .s1-toggle.disabled { opacity: .4; cursor: not-allowed; }
 .s1-voice-rand-label { flex: none; font-family: var(--mono); font-size: 9px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
 .s1-voice-rand-label.on { color: var(--accent); }

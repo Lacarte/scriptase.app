@@ -164,7 +164,7 @@ Select an existing project (WIP preferred over initial) without rewriting it.
 
 Generate narration audio from the script.
 
-- **Type version:** 3
+- **Type version:** 4
 - **Capabilities:** supports retry, error output, skip-optional; no cancel
 
 **Inputs**
@@ -189,7 +189,7 @@ Generate narration audio from the script.
 | Field | Label | Widget | Default | Required | Constraints |
 |---|---|---|---|---|---|
 | `provider_id` | Provider | `provider` | `"inworld"` | yes | options from `tts_providers` |
-| `voice` | Voice | `options` | `"Ashley"` | no | options from `tts_voices` |
+| `voice` | Voice | `options` | `"Sarah"` | no | options from `tts_voices` |
 | `speed` | Speed | `number` | `1.0` | no | range 0.5–2.0 |
 | `provider_options` | Provider options | `provider_options` | `{}` | no | — |
 

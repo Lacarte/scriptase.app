@@ -278,9 +278,11 @@ class NodeConfigMigrationMatrixTests(unittest.TestCase):
         }
         result = migrate_workflow(document)
         by_id = {node["id"]: node for node in result.document["nodes"]}
-        self.assertEqual(by_id["n_tts"]["type_version"], 3)
+        self.assertEqual(by_id["n_tts"]["type_version"], 4)
         self.assertEqual(by_id["n_tts"]["configuration"]["provider_id"], "inworld")
-        self.assertEqual(by_id["n_tts"]["configuration"]["voice"], "Ashley")
+        # 2->3 normalized the Kokoro voice onto "Ashley"; 4's curated cutover then
+        # remapped that retired name onto the curated default.
+        self.assertEqual(by_id["n_tts"]["configuration"]["voice"], "Sarah")
         self.assertNotIn("engine", by_id["n_tts"]["configuration"])
         self.assertEqual(by_id["n_sb"]["type_version"], 3)
         self.assertEqual(
@@ -357,13 +359,18 @@ class BuiltInTemplateMatrixTests(unittest.TestCase):
                         validation_errors(problems), [], item["template_id"]
                     )
                     # Provider nodes use current type_version + provider_id.
+                    # tts.generate is at v4 (curated-voice cutover); the two
+                    # visual nodes remain at v3.
+                    current_version = {
+                        "tts.generate": 4,
+                        "storyboard.generate": 3,
+                        "animator.generate": 3,
+                    }
                     for node in workflow["nodes"]:
-                        if node["type"] in {
-                            "tts.generate",
-                            "storyboard.generate",
-                            "animator.generate",
-                        }:
-                            self.assertEqual(node["type_version"], 3)
+                        if node["type"] in current_version:
+                            self.assertEqual(
+                                node["type_version"], current_version[node["type"]]
+                            )
                             self.assertIn("provider_id", node["configuration"])
                             self.assertNotIn("engine", node["configuration"])
                             self.assertNotIn("provider", node["configuration"])

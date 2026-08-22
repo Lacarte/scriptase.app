@@ -122,6 +122,31 @@ def tts_generate_2_to_3(config: dict) -> dict:
     return config
 
 
+#: Curated-voice cutover: the narration catalog is now the fixed starred set,
+#: which no longer contains "Ashley". Saved workflows carrying the old default
+#: (or any voice dropped from the catalog) would fail validation, so they are
+#: normalized onto the new default. A voice still present in the catalog is left
+#: alone — only the names that no longer resolve are rewritten.
+TTS_CURATED_DEFAULT_VOICE = "Sarah"
+
+
+def tts_generate_3_to_4(config: dict) -> dict:
+    """Step: curate narration voices — retire dropped names onto the new default.
+
+    The catalog shrank to the starred set. Any saved `voice` that is not in it
+    (notably the former default "Ashley") is remapped to the curated default so
+    the node keeps validating; a voice still in the catalog is untouched.
+    """
+    from scriptase.modules.tts.providers.inworld.starred_voices import (
+        STARRED_VOICE_IDS,
+    )
+
+    voice = config.get("voice")
+    if isinstance(voice, str) and voice and voice not in STARRED_VOICE_IDS:
+        config["voice"] = TTS_CURATED_DEFAULT_VOICE
+    return config
+
+
 def storyboard_generate_2_to_3(config: dict) -> dict:
     """Step 5.3: move WaveSpeed selections onto Gemini."""
     return _prototype_provider(config, "image")
