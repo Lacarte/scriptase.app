@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
-from collections import deque
+from collections import OrderedDict, deque
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator
@@ -113,20 +113,39 @@ class ExecutionEventBuffer:
 
 
 class EventBroker:
-    def __init__(self, *, max_events: int = 1000):
+    """Per-execution event buffers, LRU-capped so a long-lived process cannot
+    accumulate one (up to `max_events`-deep) buffer per job run forever."""
+
+    def __init__(self, *, max_events: int = 1000, max_buffers: int = 64):
         self.max_events = max_events
-        self._buffers: dict[str, ExecutionEventBuffer] = {}
+        self.max_buffers = max_buffers
+        self._buffers: "OrderedDict[str, ExecutionEventBuffer]" = OrderedDict()
         self._lock = threading.Lock()
 
     def create(self, execution_id: str) -> ExecutionEventBuffer:
         with self._lock:
-            return self._buffers.setdefault(
-                execution_id, ExecutionEventBuffer(execution_id, max_events=self.max_events)
-            )
+            buffer = self._buffers.get(execution_id)
+            if buffer is None:
+                buffer = ExecutionEventBuffer(execution_id, max_events=self.max_events)
+                self._buffers[execution_id] = buffer
+            self._buffers.move_to_end(execution_id)
+            # Evict the oldest buffers beyond the cap — finished executions whose
+            # SSE replay window has passed. The recent ones (any live stream) stay.
+            while len(self._buffers) > self.max_buffers:
+                self._buffers.popitem(last=False)
+            return buffer
 
     def get(self, execution_id: str) -> ExecutionEventBuffer | None:
         with self._lock:
-            return self._buffers.get(execution_id)
+            buffer = self._buffers.get(execution_id)
+            if buffer is not None:
+                self._buffers.move_to_end(execution_id)
+            return buffer
+
+    def discard(self, execution_id: str) -> None:
+        """Drop a finished execution's buffer once nothing needs its replay."""
+        with self._lock:
+            self._buffers.pop(execution_id, None)
 
 
 def sse_frame(event: dict[str, Any]) -> str:
