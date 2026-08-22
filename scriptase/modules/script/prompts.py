@@ -749,6 +749,12 @@ def _resolve_niche_topic_context(
     style_id = str(preset_style or "").strip().lower()
     category_id = str(story_category or "").strip().lower()
 
+    # A niche with its own topic bank already *is* the subject (dark_psychology,
+    # stoicism, ...), so for those the description is just visuals/tone. A niche
+    # with no bank (curiosity_facts, science_tech, ...) falls back to the broad
+    # category bank, which does not know the channel's real theme — there the
+    # description carries the subject and must anchor the story.
+    niche_has_bank = bool(_NICHE_TOPIC_BANKS.get(niche))
     return {
         "preset": preset,
         "niche": niche,
@@ -756,6 +762,7 @@ def _resolve_niche_topic_context(
         "description": description,
         "style_id": style_id,
         "category_id": category_id,
+        "niche_has_bank": niche_has_bank,
         "topic_bank": _NICHE_TOPIC_BANKS.get(niche) or _CATEGORY_TOPIC_BANKS.get(category_id) or [],
         "style_bank": _STYLE_TOPIC_BANKS.get(style_id) or [],
         "lens_bank": _NARRATIVE_LENSES.get(niche) or _NARRATIVE_LENSES.get(category_id) or _GENERIC_LENSES,
@@ -791,6 +798,7 @@ def _build_topic_coverage_block(
     context = _resolve_niche_topic_context(preset_style, story_category, niche_preset=niche_preset)
     label = context.get("label") or ""
     description = context.get("description") or ""
+    niche_has_bank = bool(context.get("niche_has_bank"))
     topic_bank = context.get("topic_bank") or []
     style_bank = context.get("style_bank") or []
     lens_bank = context.get("lens_bank") or _GENERIC_LENSES
@@ -798,15 +806,38 @@ def _build_topic_coverage_block(
     recent_concepts = _recent_story_concepts(preset_style, story_category, language)
 
     lines = []
-    if label and description:
+    # When the niche has no dedicated topic bank, the channel description is the
+    # strongest statement of what this channel is *about* — "the universe through
+    # a programmer's eyes", not generic curiosity — so it becomes a hard anchor,
+    # not a mood note: every other topic hint below is a way to explore that
+    # subject, never a licence to leave it. Without this, a themed channel (Code
+    # Cosmos) drifts onto whatever its category bank happens to hold (round
+    # tables, everyday habits). For a niche that already owns a topic bank the
+    # niche *is* the subject, so its description stays a soft compatibility note.
+    has_subject = bool(label and description) and not niche_has_bank
+    if has_subject:
+        lines.append(
+            f"SUBJECT ANCHOR (non-negotiable): This channel is \"{label}\" — {description} "
+            "Every story MUST live inside that subject. Do not drift to unrelated everyday "
+            "topics; find the story *within* this world."
+        )
+    elif label and description:
         lines.append(f"NICHE FIT: Keep the story emotionally compatible with this preset: {label} — {description}")
     elif label:
         lines.append(f"NICHE FIT: Keep the story emotionally compatible with this preset: {label}")
 
     if concept_family:
-        lines.append(
-            f"CONCEPT FAMILY FOR THIS RUN: Center the whole story on this fresh concept: {concept_family}."
-        )
+        if has_subject:
+            # Subordinate the generic concept to the anchor so it becomes an
+            # angle *on* the subject rather than a replacement for it.
+            lines.append(
+                f"ANGLE FOR THIS RUN: Approach the subject above through the lens of "
+                f"\"{concept_family}\", but keep the story firmly about this channel's subject."
+            )
+        else:
+            lines.append(
+                f"CONCEPT FAMILY FOR THIS RUN: Center the whole story on this fresh concept: {concept_family}."
+            )
 
     if recent_concepts:
         lines.append(
@@ -817,10 +848,17 @@ def _build_topic_coverage_block(
 
     topic_choices = _sample_unique(topic_bank, 7)
     if topic_choices:
-        lines.append(
-            "TOPIC COVERAGE: Explore the wider territory of this niche instead of its most common cliché. "
-            f"Strong directions for this run include: {'; '.join(topic_choices)}."
-        )
+        if has_subject:
+            lines.append(
+                "TOPIC COVERAGE: Vary the treatment across runs — but only within the "
+                "subject above. Reinterpret these directions through this channel's world "
+                f"rather than adopting them literally: {'; '.join(topic_choices)}."
+            )
+        else:
+            lines.append(
+                "TOPIC COVERAGE: Explore the wider territory of this niche instead of its most common cliché. "
+                f"Strong directions for this run include: {'; '.join(topic_choices)}."
+            )
 
     scene_choices = _sample_unique(style_bank, 5)
     if scene_choices:

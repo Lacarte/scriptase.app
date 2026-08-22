@@ -1,6 +1,6 @@
 """Curated Inworld narration voices — the only voices offered for TTS.
 
-Generated from data/inworld/inworld_starred_voices.csv. Voices are referenced
+Generated from starred_voices.csv (beside this file). Voices are referenced
 everywhere by their Voice ID (the id field), never the display name. Flag is a
 two-letter code (us/gb/mx/es) or "" when none applies (e.g. French).
 """
