@@ -53,11 +53,17 @@ def generate_narration(
     remove_silence: bool | None = None,
     speed: float | None = None,
     expected_version: int | None = None,
+    regenerate: bool = False,
 ):
     """Generate one take and return ``(updated_script, artifact)``.
 
     ``None`` processing values mean inherit. They remain nullable in the
     document even though concrete values are passed to TTS.
+
+    ``regenerate`` bypasses the preview cache: a "Regenerate" click is an
+    explicit request for a fresh take, so the same (text, voice, speed) must
+    re-synthesize instead of returning the cached wav. First-time generation
+    leaves the cache on.
     """
     current = get_script(script_id)
     if expected_version is not None and current.version != expected_version:
@@ -111,7 +117,7 @@ def generate_narration(
             output_dir=output_dir,
             basename=basename,
             sidecar_name=f"{basename}.json",
-            use_cache=True,
+            use_cache=not regenerate,
         )
         relative = os.path.relpath(result["wav_path"], _output_dir).replace("\\", "/")
         artifact = register_artifact(

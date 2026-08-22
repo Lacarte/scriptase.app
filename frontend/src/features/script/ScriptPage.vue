@@ -577,6 +577,10 @@ async function makeNarration() {
     toast.warning('Save the script edits before generating narration')
     return
   }
+  // A "Regenerate" click (narration already ready) is an explicit request for
+  // a fresh take, so bypass the preview cache — otherwise the same voice/text
+  // returns the identical cached audio and nothing appears to change.
+  const isRegenerate = narrationState.value === 'ready'
   generatingNarration.value = true
   error.value = ''
   stopPlayer()
@@ -594,6 +598,7 @@ async function makeNarration() {
       remove_silence: narrationForm.removeSilence,
       speed: narrationForm.speed,
       expected_version: selected.value.version,
+      regenerate: isRegenerate,
     })
     selected.value = payload.script
     narrationAudio.value = payload.narration_audio || null

@@ -77,6 +77,29 @@ def test_generation_resolves_inheritance_and_registers_audio(studio_stores, monk
     assert artifact.path == f"tts/{script.id}/narration_v1.wav"
 
 
+def test_regenerate_flag_bypasses_the_tts_cache(studio_stores, monkeypatch):
+    # A "Regenerate" click is an explicit request for a fresh take: the same
+    # (text, voice, speed) must re-synthesize instead of returning the cached
+    # wav, otherwise the audio never changes. First-time generation keeps the
+    # cache on so an unchanged re-request is not re-billed.
+    output, script = studio_stores
+    kwargs_seen = []
+
+    def fake_synthesize(config, **kwargs):
+        kwargs_seen.append(kwargs)
+        path = os.path.join(kwargs["output_dir"], kwargs["basename"] + ".wav")
+        _wav(path)
+        return {"wav_path": path, "voice": config["voice"], "duration_seconds": 1.0}
+
+    monkeypatch.setattr(narration_service.dispatch, "synthesize", fake_synthesize)
+
+    first, _ = generate_narration(script.id, expected_version=script.version)
+    assert kwargs_seen[-1]["use_cache"] is True
+
+    generate_narration(script.id, regenerate=True, expected_version=first.version)
+    assert kwargs_seen[-1]["use_cache"] is False
+
+
 def test_regeneration_supersedes_without_erasing_previous_take(studio_stores, monkeypatch):
     output, script = studio_stores
 

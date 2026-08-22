@@ -263,6 +263,8 @@ describe('Script Studio step 3.3 narration', () => {
 
     expect(scriptApi.generateNarration).toHaveBeenCalledWith('scr_AAAAAA', {
       voice: 'Ashley', remove_silence: false, speed: 1.25, expected_version: 1,
+      // First-time generation (state was 'none'), so the cache stays on.
+      regenerate: false,
     })
     expect(wrapper.get('audio').attributes('src')).toContain('art_AAAAAA')
     expect(wrapper.findAll('.s1-inh')).toHaveLength(0)
@@ -276,6 +278,40 @@ describe('Script Studio step 3.3 narration', () => {
     expect(wrapper.get('.s1-player .time').text()).toBe('0:00 / 0:12')
     expect(wrapper.get('.s1-kv .mono').text()).toBe('0:12')
     expect(wrapper.text()).toContain('48kHz · mp3')
+  })
+
+  it('regenerating a ready take bypasses the cache with regenerate:true', async () => {
+    // Open a script that already has a take, so the button reads "Regenerate".
+    const already = {
+      ...DOCUMENT,
+      version: 4,
+      narration: {
+        state: 'ready', voice: 'Alex', remove_silence: null, speed: null,
+        duration_s: 9, audio_artifact_id: 'art_OLD',
+      },
+    }
+    scriptApi.getScript.mockResolvedValue({
+      script: already,
+      narration_audio: { mime: 'audio/mpeg' },
+    })
+    scriptApi.generateNarration.mockResolvedValue({
+      script: {
+        ...already,
+        version: 5,
+        narration: { ...already.narration, audio_artifact_id: 'art_NEW' },
+      },
+      narration_audio: { mime: 'audio/mpeg' },
+    })
+    const wrapper = await mountPage()
+
+    expect(wrapper.text()).toContain('Regenerate narration')
+    await wrapper.get('[data-testid="narration-generate"]').trigger('click')
+    await flushPromises()
+
+    expect(scriptApi.generateNarration).toHaveBeenCalledWith(
+      'scr_AAAAAA',
+      expect.objectContaining({ regenerate: true }),
+    )
   })
 
   it('names the Channel provider instance without hardcoding a provider', async () => {

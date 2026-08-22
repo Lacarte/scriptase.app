@@ -286,12 +286,16 @@ def scripts_generate_narration(script_id: str):
             speed = float(speed)
             if not math.isfinite(speed) or not 0.5 <= speed <= 2.0:
                 raise ValueError("speed must be between 0.5 and 2.0")
+        regenerate = body.get("regenerate", False)
+        if not isinstance(regenerate, bool):
+            raise ValueError("regenerate must be true or false")
         document, artifact = generate_narration(
             script_id,
             voice=voice,
             remove_silence=remove_silence,
             speed=speed,
             expected_version=_expected_version(body),
+            regenerate=regenerate,
         )
         return jsonify({
             **_detail(document),
